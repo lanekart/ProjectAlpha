@@ -3,6 +3,7 @@ from datetime import date as dt_date
 
 from alpha.version import __version__
 from alpha.data.downloader.bhavcopy import BhavcopyDownloader
+from alpha.market.resolver import TradingDateResolver
 
 app = typer.Typer()
 
@@ -28,8 +29,11 @@ def download(date: str = "today"):
     else:
         target_date = dt_date.fromisoformat(date)
 
+    resolver = TradingDateResolver()
+    resolved_date = resolver.resolve(target_date)
+
     downloader = BhavcopyDownloader()
-    file_path = downloader.download(target_date)
+    file_path = downloader.download(resolved_date)
 
     print(f"Downloaded: {file_path}")
 
