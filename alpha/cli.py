@@ -1,21 +1,38 @@
-"""Command-line interface for Project Alpha."""
-
-import platform
+import typer
+from datetime import date as dt_date
 
 from alpha.version import __version__
+from alpha.data.downloader.bhavcopy import BhavcopyDownloader
+
+app = typer.Typer()
 
 
-def main() -> None:
-    """Application entry point."""
-    print("=" * 60)
-    print(f"Project Alpha v{__version__}")
-    print("Professional NSE Trading Intelligence Platform")
-    print("=" * 60)
-    print(f"Python      : {platform.python_version()}")
-    print("Environment : Development")
-    print("Status      : Ready")
-    print("=" * 60)
+@app.command()
+def version():
+    """Show the application version."""
+    print(__version__)
+
+
+@app.command()
+def download(date: str = "today"):
+    """
+    Download an NSE bhavcopy.
+
+    Examples:
+        python -m alpha download
+        python -m alpha download --date 2024-06-10
+    """
+
+    if date == "today":
+        target_date = dt_date.today()
+    else:
+        target_date = dt_date.fromisoformat(date)
+
+    downloader = BhavcopyDownloader()
+    file_path = downloader.download(target_date)
+
+    print(f"Downloaded: {file_path}")
 
 
 if __name__ == "__main__":
-    main()
+    app()

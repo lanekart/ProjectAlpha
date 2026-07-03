@@ -1,6 +1,4 @@
-"""Run Project Alpha."""
-
-from alpha.cli import main
+from alpha.cli import app
 
 if __name__ == "__main__":
-    main()
+    app()
