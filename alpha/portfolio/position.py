@@ -1,41 +1,43 @@
+"""Represents an open portfolio position."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import datetime
 from decimal import Decimal
+from uuid import UUID
 
-from alpha.portfolio.enums import ExitReason, PositionStatus
 
-
-@dataclass
+@dataclass(slots=True)
 class Position:
     """
-    Canonical portfolio position model.
+    Represents an open position.
 
-    Supports:
-    - Long and short positions
-    - Entry/exit bookkeeping
-    - Realized/unrealized PnL
-    - Position lifecycle state
+    A Position is mutable because additional fills may increase,
+    decrease or completely close the exposure.
     """
+
+    position_id: UUID
 
     symbol: str
 
-    quantity: int = 0
+    quantity: int
 
-    entry_price: Decimal = Decimal("0")
-    avg_price: Decimal = Decimal("0")
+    average_price: Decimal
+
+    entry_time: datetime
 
     realized_pnl: Decimal = Decimal("0")
     unrealized_pnl: Decimal = Decimal("0")
 
-    entry_time: datetime | None = None
-    exit_date: date | None = None
+    commission: Decimal = Decimal("0")
+    slippage: Decimal = Decimal("0")
 
-    exit_price: Decimal | None = None
-    exit_reason: ExitReason | None = None
+    strategy_id: str | None = None
 
-    status: PositionStatus = PositionStatus.OPEN
+    @property
+    def market_value(self) -> Decimal:
+        return self.average_price * Decimal(abs(self.quantity))
 
     @property
     def is_long(self) -> bool:
