@@ -1,11 +1,17 @@
-from loguru import logger
 import sys
 
+from loguru import logger
 
-def setup_logging() -> None:
+
+def configure_logging() -> None:
+    """Configure application logging."""
+
     logger.remove()
+
     logger.add(
         sys.stdout,
-        format="<green>{time}</green> | <level>{level}</level> | <level>{message}</level>",
+        format=(
+            "<green>{time}</green> | <level>{level}</level> | <level>{message}</level>"
+        ),
         level="INFO",
     )

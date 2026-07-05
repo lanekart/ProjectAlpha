@@ -2,7 +2,6 @@ from datetime import date
 
 from alpha.market.calendar import MarketCalendar
 
-
 calendar = MarketCalendar()
 
 

@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      # -----------------------
+      # SPEED OPTIMIZATION (CACHE)
+      # -----------------------
+      - name: Cache Poetry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pypoetry
+            ~/.cache/pip
+            .venv
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Configure Poetry
+        run: poetry config virtualenvs.create true
+
+      # -----------------------
+      # DEPENDENCIES
+      # -----------------------
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      # -----------------------
+      # LINTING
+      # -----------------------
+      - name: Ruff check
+        run: poetry run ruff check .
+
+      - name: Ruff format check
+        run: poetry run ruff format --check .
+
+      # -----------------------
+      # TYPE CHECKING
+      # -----------------------
+      - name: Mypy
+        run: poetry run mypy alpha
+
+      # -----------------------
+      # TESTS
+      # -----------------------
+      - name: Pytest
+        run: poetry run pytest -q
