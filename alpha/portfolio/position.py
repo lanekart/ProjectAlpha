@@ -1,41 +1,50 @@
-from dataclasses import dataclass
-from datetime import date
+from __future__ import annotations
 
-from alpha.portfolio.enums import (
-    Direction,
-    ExitReason,
-    PositionStatus,
-)
+from dataclasses import dataclass
+from datetime import date, datetime
+from decimal import Decimal
+
+from alpha.portfolio.enums import ExitReason, PositionStatus
 
 
 @dataclass
 class Position:
+    """
+    Canonical portfolio position model.
+
+    Supports:
+    - Long and short positions
+    - Entry/exit bookkeeping
+    - Realized/unrealized PnL
+    - Position lifecycle state
+    """
+
     symbol: str
 
-    direction: Direction
+    quantity: int = 0
 
-    quantity: float
+    entry_price: Decimal = Decimal("0")
+    avg_price: Decimal = Decimal("0")
 
-    entry_date: date
+    realized_pnl: Decimal = Decimal("0")
+    unrealized_pnl: Decimal = Decimal("0")
 
-    entry_price: float
+    entry_time: datetime | None = None
+    exit_date: date | None = None
 
-    stop_loss: float
-
-    target: float
+    exit_price: Decimal | None = None
+    exit_reason: ExitReason | None = None
 
     status: PositionStatus = PositionStatus.OPEN
 
-    exit_date: date | None = None
+    @property
+    def is_long(self) -> bool:
+        return self.quantity > 0
 
-    exit_price: float | None = None
+    @property
+    def is_short(self) -> bool:
+        return self.quantity < 0
 
-    exit_reason: ExitReason = ExitReason.UNKNOWN
-
-    highest_price: float = 0.0
-
-    lowest_price: float = 0.0
-
-    realized_pnl: float = 0.0
-
-    holding_days: int = 0
+    @property
+    def is_flat(self) -> bool:
+        return self.quantity == 0
