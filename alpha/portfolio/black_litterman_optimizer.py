@@ -7,6 +7,10 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from types import MappingProxyType
 
+from alpha.optimization.evaluator import ObjectiveEvaluator
+from alpha.optimization.objectives.expected_return import ExpectedReturnObjective
+from alpha.optimization.objectives.turnover import TurnoverObjective
+from alpha.optimization.objectives.variance import VarianceObjective
 from alpha.portfolio.optimization_result import OptimizationResult
 from alpha.portfolio.optimizer import OptimizationInput, Optimizer
 
@@ -35,6 +39,12 @@ class BlackLittermanOptimizer(Optimizer):
     tau: Decimal = Decimal("0.05")
     name: str = "black_litterman"
     metadata: Mapping[str, str] = field(default_factory=dict)
+    evaluator: ObjectiveEvaluator = field(default_factory=ObjectiveEvaluator)
+    expected_return_objective: ExpectedReturnObjective = field(
+        default_factory=ExpectedReturnObjective
+    )
+    turnover_objective: TurnoverObjective = field(default_factory=TurnoverObjective)
+    variance_objective: VarianceObjective = field(default_factory=VarianceObjective)
 
     def __post_init__(self) -> None:
         if self.risk_aversion <= Decimal("0"):
@@ -78,9 +88,20 @@ class BlackLittermanOptimizer(Optimizer):
             symbol: unit_weights[symbol] * investable_weight
             for symbol in optimization_input.universe
         }
-
-        expected_turnover = self._calculate_turnover(
-            current_weights=optimization_input.current_weights,
+        objective_input = optimization_input.with_expected_returns(posterior_returns)
+        expected_return_result = self.evaluator.evaluate(
+            objective=self.expected_return_objective,
+            optimization_input=objective_input,
+            target_weights=target_weights,
+        )
+        turnover_result = self.evaluator.evaluate(
+            objective=self.turnover_objective,
+            optimization_input=optimization_input,
+            target_weights=target_weights,
+        )
+        variance_result = self.evaluator.evaluate(
+            objective=self.variance_objective,
+            optimization_input=optimization_input,
             target_weights=target_weights,
         )
 
@@ -94,12 +115,17 @@ class BlackLittermanOptimizer(Optimizer):
         return OptimizationResult(
             target_weights=target_weights,
             success=len(violations) == 0,
-            expected_turnover=expected_turnover,
+            expected_turnover=turnover_result.score,
             cash_weight=optimization_input.cash_reserve,
             constraint_violations=violations,
             metadata={
                 "optimizer": self.name,
                 "views": str(len(self.views)),
+                "objectives": {
+                    expected_return_result.name: expected_return_result.score,
+                    turnover_result.name: turnover_result.score,
+                    variance_result.name: variance_result.score,
+                },
                 **self.metadata,
             },
         )
@@ -186,13 +212,13 @@ class BlackLittermanOptimizer(Optimizer):
         current_weights: Mapping[str, Decimal],
         target_weights: Mapping[str, Decimal],
     ) -> Decimal:
-        normalized_current: dict[str, Decimal] = dict(current_weights)
-        symbols = set(normalized_current) | set(target_weights)
+        """Calculate turnover for backward-compatible internal tests."""
 
-        return sum(
-            abs(
-                target_weights.get(symbol, Decimal("0"))
-                - normalized_current.get(symbol, Decimal("0"))
-            )
-            for symbol in symbols
-        ) / Decimal("2")
+        universe = tuple(sorted(set(current_weights) | set(target_weights)))
+        return self.turnover_objective.evaluate(
+            optimization_input=OptimizationInput(
+                universe=universe,
+                current_weights=current_weights,
+            ),
+            target_weights=target_weights,
+        ).score
