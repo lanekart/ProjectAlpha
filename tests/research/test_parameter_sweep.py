@@ -110,7 +110,10 @@ def test_parameter_sweep_engine_supports_lower_is_better() -> None:
 
 def test_parameter_sweep_engine_raises_for_missing_objective_metric() -> None:
     grid = ParameterGrid(
-        parameters=(ParameterDefinition(name="lookback", values=(10,)),)
+        parameters=(
+            ParameterDefinition(name="lookback", values=(10,)),
+            ParameterDefinition(name="threshold", values=(Decimal("0.1"),)),
+        )
     )
     engine = ParameterSweepEngine(objective_metric="missing")
 
