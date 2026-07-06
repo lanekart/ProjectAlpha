@@ -102,11 +102,39 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
         "alpha.portfolio.optimizer_benchmark",
         "OptimizerBenchmarkSummary",
     ),
+    "OptimizerComparisonEntry": (
+        "alpha.portfolio.optimizer_comparison",
+        "OptimizerComparisonEntry",
+    ),
+    "OptimizerComparisonReport": (
+        "alpha.portfolio.optimizer_comparison",
+        "OptimizerComparisonReport",
+    ),
+    "OptimizerComparisonService": (
+        "alpha.portfolio.optimizer_comparison",
+        "OptimizerComparisonService",
+    ),
     "OptimizerConfig": ("alpha.portfolio.optimizer_config", "OptimizerConfig"),
     "OptimizerFactory": ("alpha.portfolio.optimizer_factory", "OptimizerFactory"),
     "OptimizerRegistry": (
         "alpha.portfolio.optimizer_registry",
         "OptimizerRegistry",
+    ),
+    "OptimizerSelection": (
+        "alpha.portfolio.optimizer_selection",
+        "OptimizerSelection",
+    ),
+    "OptimizerSelectionCriteria": (
+        "alpha.portfolio.optimizer_selection",
+        "OptimizerSelectionCriteria",
+    ),
+    "OptimizerSelectionResult": (
+        "alpha.portfolio.optimizer_selection",
+        "OptimizerSelectionResult",
+    ),
+    "OptimizerSelectionService": (
+        "alpha.portfolio.optimizer_selection",
+        "OptimizerSelectionService",
     ),
     "PortfolioConstraint": ("alpha.portfolio.constraints", "PortfolioConstraint"),
     "PositionLimitConstraint": (
@@ -152,9 +180,16 @@ __all__ = [
     "OptimizerBenchmarkScenario",
     "OptimizerBenchmarkService",
     "OptimizerBenchmarkSummary",
+    "OptimizerComparisonEntry",
+    "OptimizerComparisonReport",
+    "OptimizerComparisonService",
     "OptimizerConfig",
     "OptimizerFactory",
     "OptimizerRegistry",
+    "OptimizerSelection",
+    "OptimizerSelectionCriteria",
+    "OptimizerSelectionResult",
+    "OptimizerSelectionService",
     "PortfolioConstraint",
     "PositionLimitConstraint",
     "RiskParityOptimizer",
