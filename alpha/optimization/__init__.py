@@ -56,6 +56,10 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
         "alpha.portfolio.minimum_variance_optimizer",
         "MinimumVarianceOptimizer",
     ),
+    "OptimizationDiagnostics": (
+        "alpha.portfolio.optimization_diagnostics",
+        "OptimizationDiagnostics",
+    ),
     "OptimizationInput": ("alpha.portfolio.optimizer", "OptimizationInput"),
     "OptimizationResult": (
         "alpha.portfolio.optimization_result",
@@ -99,6 +103,7 @@ __all__ = [
     "Objective",
     "ObjectiveEvaluator",
     "ObjectiveResult",
+    "OptimizationDiagnostics",
     "OptimizationInput",
     "OptimizationResult",
     "Optimizer",
