@@ -23,7 +23,9 @@ class RiskParityOptimizer(Optimizer):
     tolerance: Decimal = Decimal("0.000001")
     step_size: Decimal = Decimal("0.10")
     evaluator: ObjectiveEvaluator = field(default_factory=ObjectiveEvaluator)
-    constraint_evaluator: ConstraintEvaluator = field(default_factory=ConstraintEvaluator)
+    constraint_evaluator: ConstraintEvaluator = field(
+        default_factory=ConstraintEvaluator
+    )
     turnover_objective: TurnoverObjective = field(default_factory=TurnoverObjective)
     variance_objective: VarianceObjective = field(default_factory=VarianceObjective)
 
