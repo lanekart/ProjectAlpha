@@ -47,9 +47,10 @@ class ExecutionSimulator:
         if self._rng.random() < 0.5:
             return (
                 self._create_fill(
-                    order_id,
-                    base_price,
-                    quantity,
+                    order_id=order_id,
+                    symbol=symbol,
+                    price=base_price,
+                    quantity=quantity,
                 ),
             )
 
@@ -66,9 +67,10 @@ class ExecutionSimulator:
 
             fills.append(
                 self._create_fill(
-                    order_id,
-                    price,
-                    chunk,
+                    order_id=order_id,
+                    symbol=symbol,
+                    price=price,
+                    quantity=chunk,
                 )
             )
 
@@ -85,6 +87,7 @@ class ExecutionSimulator:
     def _create_fill(
         self,
         order_id: UUID,
+        symbol: str,
         price: Decimal,
         quantity: int,
     ) -> Fill:
@@ -95,6 +98,7 @@ class ExecutionSimulator:
         return Fill(
             fill_id=uuid4(),
             order_id=order_id,
+            symbol=symbol,
             quantity=quantity,
             price=price,
             timestamp=self._clock,

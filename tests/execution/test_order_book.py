@@ -2,6 +2,8 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
+import pytest
+
 from alpha.execution.enums import OrderStatus, OrderType, TimeInForce
 from alpha.execution.fill import Fill
 from alpha.execution.order import Order
@@ -9,7 +11,7 @@ from alpha.execution.order_book import OrderBook
 from alpha.portfolio.enums import Direction
 
 
-def make_order():
+def make_order() -> Order:
     return Order(
         order_id=uuid4(),
         symbol="RELIANCE",
@@ -21,7 +23,7 @@ def make_order():
     )
 
 
-def test_register_order():
+def test_register_order() -> None:
     ob = OrderBook()
     order = make_order()
 
@@ -30,20 +32,17 @@ def test_register_order():
     assert ob.get_status(order.order_id) == OrderStatus.PENDING
 
 
-def test_duplicate_order_rejected():
+def test_duplicate_order_rejected() -> None:
     ob = OrderBook()
     order = make_order()
 
     ob.register(order)
 
-    try:
+    with pytest.raises(ValueError):
         ob.register(order)
-        assert False
-    except ValueError:
-        assert True
 
 
-def test_fill_updates_status():
+def test_fill_updates_status() -> None:
     ob = OrderBook()
     order = make_order()
 
@@ -52,6 +51,7 @@ def test_fill_updates_status():
     fill = Fill(
         fill_id=uuid4(),
         order_id=order.order_id,
+        symbol="RELIANCE",
         quantity=10,
         price=Decimal("100"),
         timestamp=datetime.now(UTC),
@@ -62,7 +62,7 @@ def test_fill_updates_status():
     assert ob.get_status(order.order_id) == OrderStatus.FILLED
 
 
-def test_partial_fill():
+def test_partial_fill() -> None:
     ob = OrderBook()
     order = make_order()
 
@@ -71,6 +71,7 @@ def test_partial_fill():
     fill = Fill(
         fill_id=uuid4(),
         order_id=order.order_id,
+        symbol="RELIANCE",
         quantity=5,
         price=Decimal("100"),
         timestamp=datetime.now(UTC),
@@ -81,7 +82,7 @@ def test_partial_fill():
     assert ob.get_status(order.order_id) == OrderStatus.PARTIALLY_FILLED
 
 
-def test_get_fills():
+def test_get_fills() -> None:
     ob = OrderBook()
     order = make_order()
 
@@ -90,6 +91,7 @@ def test_get_fills():
     fill = Fill(
         fill_id=uuid4(),
         order_id=order.order_id,
+        symbol="RELIANCE",
         quantity=10,
         price=Decimal("100"),
         timestamp=datetime.now(UTC),

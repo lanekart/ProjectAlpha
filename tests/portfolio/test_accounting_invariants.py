@@ -7,6 +7,8 @@ from uuid import uuid4
 from alpha.execution.fill import Fill
 from alpha.portfolio.accounting_engine import AccountingEngine
 
+TEST_SYMBOL = "AAPL"
+
 
 def make_fill(
     quantity: int,
@@ -15,6 +17,7 @@ def make_fill(
     return Fill(
         fill_id=uuid4(),
         order_id=uuid4(),
+        symbol=TEST_SYMBOL,
         quantity=quantity,
         price=Decimal(price),
         timestamp=datetime.now(UTC),

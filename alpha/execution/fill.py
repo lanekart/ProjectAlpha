@@ -1,5 +1,3 @@
-"""Execution fill model."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,13 +9,24 @@ from uuid import UUID
 @dataclass(frozen=True, slots=True)
 class Fill:
     """
-    Represents a single execution (fill) of an order.
+    Immutable execution fill.
 
-    An order may produce one or many fills.
+    Invariants
+    ----------
+    - fill_id is immutable
+    - order_id is immutable
+    - symbol is non-empty
+    - quantity > 0
+    - price > 0
+    - commission >= 0
+    - slippage >= 0
+    - timestamp is timezone-aware
     """
 
     fill_id: UUID
     order_id: UUID
+
+    symbol: str
 
     quantity: int
     price: Decimal
@@ -27,6 +36,9 @@ class Fill:
     slippage: Decimal = Decimal("0")
 
     def __post_init__(self) -> None:
+        if not self.symbol:
+            raise ValueError("symbol cannot be empty")
+
         if self.quantity <= 0:
             raise ValueError("fill quantity must be > 0")
 
@@ -39,17 +51,5 @@ class Fill:
         if self.slippage < Decimal("0"):
             raise ValueError("slippage cannot be negative")
 
-    @property
-    def gross_value(self) -> Decimal:
-        """Execution value before costs."""
-        return self.price * Decimal(self.quantity)
-
-    @property
-    def total_cost(self) -> Decimal:
-        """Total execution costs."""
-        return self.commission + self.slippage
-
-    @property
-    def net_value(self) -> Decimal:
-        """Execution value including costs."""
-        return self.gross_value + self.total_cost
+        if self.timestamp.tzinfo is None:
+            raise ValueError("timestamp must be timezone-aware")

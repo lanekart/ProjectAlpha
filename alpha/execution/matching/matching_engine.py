@@ -19,15 +19,21 @@ class MatchingEngine:
 
     book: OrderBookL2
 
-    def match(self, order: Order, market_price: Decimal) -> MatchResult:
+    def match(
+        self,
+        order: Order,
+        market_price: Decimal,
+    ) -> MatchResult:
         fills: list[Fill] = []
 
-        # MARKET ORDER → immediate fill
+        # MARKET ORDER → immediate execution
+
         if order.order_type == "MARKET":
             fills.append(
                 Fill(
                     fill_id=order.order_id,
                     order_id=order.order_id,
+                    symbol=order.symbol,
                     quantity=order.quantity,
                     price=market_price,
                     timestamp=datetime.now(UTC),
@@ -35,9 +41,17 @@ class MatchingEngine:
                     slippage=Decimal("0"),
                 )
             )
-            return MatchResult(match_type=MatchType.FULL, fills=tuple(fills))
 
-        # LIMIT ORDER → rest in book
+            return MatchResult(
+                match_type=MatchType.FULL,
+                fills=tuple(fills),
+            )
+
+        # LIMIT ORDER
+
         self.book.add_order(order)
 
-        return MatchResult(match_type=MatchType.NONE, fills=())
+        return MatchResult(
+            match_type=MatchType.NONE,
+            fills=(),
+        )

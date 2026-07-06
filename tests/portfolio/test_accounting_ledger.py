@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
@@ -5,13 +7,16 @@ from uuid import uuid4
 from alpha.execution.fill import Fill
 from alpha.portfolio.accounting_engine import AccountingEngine
 
+TEST_SYMBOL = "AAPL"
 
-def test_apply_fill_creates_ledger_event():
+
+def test_apply_fill_creates_ledger_event() -> None:
     engine = AccountingEngine()
 
     fill = Fill(
         fill_id=uuid4(),
         order_id=uuid4(),
+        symbol=TEST_SYMBOL,
         quantity=100,
         price=Decimal("150"),
         timestamp=datetime.now(UTC),

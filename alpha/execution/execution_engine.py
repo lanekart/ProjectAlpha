@@ -18,9 +18,10 @@ class ExecutionEngine:
     """
     Executes validated orders against the current market context.
 
-    Phase G19:
+    Phase G21.3:
     - deterministic execution model
     - full-fill simulation
+    - symbol-aware fills
     - typed execution pipeline
     """
 
@@ -95,6 +96,7 @@ class ExecutionEngine:
         fill = Fill(
             fill_id=uuid4(),
             order_id=order.order_id,
+            symbol=order.symbol,
             quantity=order.quantity,
             price=price,
             timestamp=order.timestamp or datetime.now(UTC),

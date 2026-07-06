@@ -8,10 +8,11 @@ from alpha.execution.execution_result import ExecutionResult
 from alpha.execution.fill import Fill
 
 
-def test_success_result():
+def test_success_result() -> None:
     fill = Fill(
         fill_id=uuid4(),
         order_id=uuid4(),
+        symbol="AAPL",
         quantity=10,
         price=Decimal("100"),
         timestamp=datetime.now(UTC),
@@ -26,7 +27,7 @@ def test_success_result():
     assert result.average_price == Decimal("100")
 
 
-def test_rejected_requires_reason():
+def test_rejected_requires_reason() -> None:
     with pytest.raises(ValueError):
         ExecutionResult(
             accepted=False,
@@ -34,10 +35,11 @@ def test_rejected_requires_reason():
         )
 
 
-def test_rejected_cannot_have_fills():
+def test_rejected_cannot_have_fills() -> None:
     fill = Fill(
         fill_id=uuid4(),
         order_id=uuid4(),
+        symbol="AAPL",
         quantity=10,
         price=Decimal("100"),
         timestamp=datetime.now(UTC),
