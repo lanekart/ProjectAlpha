@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
 from itertools import product
@@ -88,9 +88,10 @@ class ParameterGrid:
 
         for index, values in enumerate(product(*parameter_values)):
             combination_values = dict(zip(parameter_names, values, strict=True))
+            experiment_id = _experiment_id(index=index, values=combination_values)
             combinations.append(
                 ParameterCombination(
-                    experiment_id=_experiment_id(index=index, values=combination_values),
+                    experiment_id=experiment_id,
                     values=combination_values,
                 )
             )
@@ -134,7 +135,9 @@ class ParameterSweepReport:
             raise ValueError("parameter sweep report requires at least one result")
         for result in self.results:
             if result.objective_metric != normalized_metric:
-                raise ValueError("all sweep results must use the report objective metric")
+                raise ValueError(
+                    "all sweep results must use the report objective metric"
+                )
 
         object.__setattr__(self, "objective_metric", normalized_metric)
         object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
@@ -220,4 +223,7 @@ def _experiment_id(*, index: int, values: Mapping[str, ParameterValue]) -> str:
 
 
 def _encode_value(value: ParameterValue) -> str:
-    return str(value).strip().replace(" ", "_").replace(".", "p").replace("-", "m")
+    encoded = str(value).strip()
+    encoded = encoded.replace(" ", "_")
+    encoded = encoded.replace(".", "p")
+    return encoded.replace("-", "m")
