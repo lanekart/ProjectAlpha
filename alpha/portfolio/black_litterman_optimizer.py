@@ -11,6 +11,7 @@ from alpha.optimization.evaluator import ObjectiveEvaluator
 from alpha.optimization.objectives.expected_return import ExpectedReturnObjective
 from alpha.optimization.objectives.turnover import TurnoverObjective
 from alpha.optimization.objectives.variance import VarianceObjective
+from alpha.portfolio.constraint_evaluator import ConstraintEvaluator
 from alpha.portfolio.optimization_result import OptimizationResult
 from alpha.portfolio.optimizer import OptimizationInput, Optimizer
 
@@ -40,6 +41,7 @@ class BlackLittermanOptimizer(Optimizer):
     name: str = "black_litterman"
     metadata: Mapping[str, str] = field(default_factory=dict)
     evaluator: ObjectiveEvaluator = field(default_factory=ObjectiveEvaluator)
+    constraint_evaluator: ConstraintEvaluator = field(default_factory=ConstraintEvaluator)
     expected_return_objective: ExpectedReturnObjective = field(
         default_factory=ExpectedReturnObjective
     )
@@ -104,20 +106,17 @@ class BlackLittermanOptimizer(Optimizer):
             optimization_input=optimization_input,
             target_weights=target_weights,
         )
-
-        violations = optimization_input.constraints.validate(
+        constraint_result = self.constraint_evaluator.evaluate_input(
+            optimization_input=optimization_input,
             target_weights=target_weights,
-            current_weights=optimization_input.current_weights,
-            sector_by_symbol=optimization_input.sector_by_symbol,
-            cash_weight=optimization_input.cash_reserve,
         )
 
         return OptimizationResult(
             target_weights=target_weights,
-            success=len(violations) == 0,
+            success=constraint_result.passed,
             expected_turnover=turnover_result.score,
             cash_weight=optimization_input.cash_reserve,
-            constraint_violations=violations,
+            constraint_violations=constraint_result.violations,
             metadata={
                 "optimizer": self.name,
                 "views": str(len(self.views)),
