@@ -110,6 +110,10 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
         "alpha.portfolio.optimizer_comparison",
         "OptimizerComparisonReport",
     ),
+    "OptimizerComparisonResult": (
+        "alpha.portfolio.optimizer_comparison",
+        "OptimizerComparisonResult",
+    ),
     "OptimizerComparisonService": (
         "alpha.portfolio.optimizer_comparison",
         "OptimizerComparisonService",
@@ -182,6 +186,7 @@ __all__ = [
     "OptimizerBenchmarkSummary",
     "OptimizerComparisonEntry",
     "OptimizerComparisonReport",
+    "OptimizerComparisonResult",
     "OptimizerComparisonService",
     "OptimizerConfig",
     "OptimizerFactory",
