@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
 from types import MappingProxyType
-from typing import Any, Protocol
+from typing import Protocol
 
 from alpha.research.parameter_sweep import (
     ParameterCombination,
@@ -163,7 +163,9 @@ class InMemoryResearchExperimentRepository:
         try:
             return self._manifests[normalized_run_id]
         except KeyError as exc:
-            raise KeyError(f"unknown research experiment run: {normalized_run_id}") from exc
+            raise KeyError(
+                f"unknown research experiment run: {normalized_run_id}"
+            ) from exc
 
     def contains(self, run_id: str) -> bool:
         """Return whether a run id has been persisted."""
