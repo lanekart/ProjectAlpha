@@ -8,7 +8,6 @@ from decimal import Decimal
 
 from alpha.optimization.evaluator import ObjectiveEvaluator
 from alpha.optimization.objectives.turnover import TurnoverObjective
-from alpha.optimization.objectives.variance import VarianceObjective
 from alpha.portfolio.optimization_result import OptimizationResult
 from alpha.portfolio.optimizer import OptimizationInput, Optimizer
 
@@ -20,7 +19,6 @@ class InverseVolatilityOptimizer(Optimizer):
     name: str = "inverse_volatility"
     evaluator: ObjectiveEvaluator = field(default_factory=ObjectiveEvaluator)
     turnover_objective: TurnoverObjective = field(default_factory=TurnoverObjective)
-    variance_objective: VarianceObjective = field(default_factory=VarianceObjective)
 
     def optimize(self, optimization_input: OptimizationInput) -> OptimizationResult:
         """Build target weights from diagonal covariance volatility estimates."""
@@ -36,11 +34,6 @@ class InverseVolatilityOptimizer(Optimizer):
         )
         turnover_result = self.evaluator.evaluate(
             objective=self.turnover_objective,
-            optimization_input=optimization_input,
-            target_weights=target_weights,
-        )
-        variance_result = self.evaluator.evaluate(
-            objective=self.variance_objective,
             optimization_input=optimization_input,
             target_weights=target_weights,
         )
@@ -60,10 +53,7 @@ class InverseVolatilityOptimizer(Optimizer):
             constraint_violations=violations,
             metadata={
                 "optimizer": self.name,
-                "objectives": {
-                    turnover_result.name: turnover_result.score,
-                    variance_result.name: variance_result.score,
-                },
+                "objectives": {turnover_result.name: turnover_result.score},
             },
         )
 
