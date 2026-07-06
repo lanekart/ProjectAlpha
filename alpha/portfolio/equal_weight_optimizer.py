@@ -23,13 +23,10 @@ class EqualWeightOptimizer(Optimizer):
         if investable_weight < Decimal("0"):
             raise ValueError("cash_reserve cannot exceed 1")
 
-        per_symbol_weight = investable_weight / Decimal(
-            len(optimization_input.universe)
+        target_weights = self._target_weights(
+            universe=optimization_input.universe,
+            investable_weight=investable_weight,
         )
-        target_weights = {
-            symbol: per_symbol_weight for symbol in optimization_input.universe
-        }
-
         expected_turnover = self._calculate_turnover(
             current_weights=optimization_input.current_weights,
             target_weights=target_weights,
@@ -50,6 +47,15 @@ class EqualWeightOptimizer(Optimizer):
             constraint_violations=violations,
             metadata={"optimizer": self.name},
         )
+
+    def _target_weights(
+        self,
+        *,
+        universe: tuple[str, ...],
+        investable_weight: Decimal,
+    ) -> dict[str, Decimal]:
+        per_symbol_weight = investable_weight / Decimal(len(universe))
+        return {symbol: per_symbol_weight for symbol in universe}
 
     def _calculate_turnover(
         self,

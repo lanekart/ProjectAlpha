@@ -1,11 +1,26 @@
 """Public optimization package boundary.
 
-This package is the stable import surface for portfolio optimizers and optimizer
-infrastructure. Implementations are currently hosted in alpha.portfolio for
-backward compatibility and will be migrated behind this boundary in a later
-behavior-preserving refactor.
+This package is the stable import surface for portfolio optimizers, optimizer
+infrastructure, and reusable optimization objectives. Implementations are
+currently hosted in alpha.portfolio for backward compatibility and will be
+migrated behind this boundary in later behavior-preserving refactors.
 """
 
+from alpha.optimization.evaluator import ObjectiveEvaluator
+from alpha.optimization.objective import Objective
+from alpha.optimization.objective_result import ObjectiveResult
+from alpha.optimization.objectives import (
+    ConcentrationObjective,
+    ExpectedReturnObjective,
+    TrackingErrorObjective,
+    TransactionCostObjective,
+    TurnoverObjective,
+    VarianceObjective,
+)
+from alpha.optimization.weighted_objective import (
+    WeightedObjective,
+    WeightedObjectiveComponent,
+)
 from alpha.portfolio.black_litterman_optimizer import (
     BlackLittermanOptimizer,
     BlackLittermanView,
@@ -35,11 +50,16 @@ __all__ = [
     "BlackLittermanOptimizer",
     "BlackLittermanView",
     "CashReserveConstraint",
+    "ConcentrationObjective",
     "ConstraintSet",
     "ConstraintViolation",
     "EqualWeightOptimizer",
+    "ExpectedReturnObjective",
     "InverseVolatilityOptimizer",
     "MinimumVarianceOptimizer",
+    "Objective",
+    "ObjectiveEvaluator",
+    "ObjectiveResult",
     "OptimizationInput",
     "OptimizationResult",
     "Optimizer",
@@ -50,6 +70,12 @@ __all__ = [
     "PositionLimitConstraint",
     "RiskParityOptimizer",
     "SectorLimitConstraint",
+    "TrackingErrorObjective",
+    "TransactionCostObjective",
     "TurnoverConstraint",
+    "TurnoverObjective",
+    "VarianceObjective",
+    "WeightedObjective",
+    "WeightedObjectiveComponent",
     "default_optimizer_registry",
 ]
