@@ -39,6 +39,14 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
         "alpha.portfolio.constraints",
         "CashReserveConstraint",
     ),
+    "ConstraintEvaluator": (
+        "alpha.portfolio.constraint_evaluator",
+        "ConstraintEvaluator",
+    ),
+    "ConstraintResult": (
+        "alpha.portfolio.constraint_result",
+        "ConstraintResult",
+    ),
     "ConstraintSet": ("alpha.portfolio.constraints", "ConstraintSet"),
     "ConstraintViolation": (
         "alpha.portfolio.optimization_result",
@@ -94,6 +102,8 @@ __all__ = [
     "BlackLittermanView",
     "CashReserveConstraint",
     "ConcentrationObjective",
+    "ConstraintEvaluator",
+    "ConstraintResult",
     "ConstraintSet",
     "ConstraintViolation",
     "EqualWeightOptimizer",
