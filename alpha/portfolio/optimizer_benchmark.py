@@ -78,7 +78,11 @@ class OptimizerBenchmarkRun:
 
         object.__setattr__(self, "optimizer", normalized_optimizer)
         object.__setattr__(self, "scenario", normalized_scenario)
-        object.__setattr__(self, "metric_values", MappingProxyType(dict(self.metric_values)))
+        object.__setattr__(
+            self,
+            "metric_values",
+            MappingProxyType(dict(self.metric_values)),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -227,7 +231,11 @@ class OptimizerBenchmarkService:
         return tuple(
             sorted(
                 summaries,
-                key=lambda summary: (summary.average_score, summary.success_rate, summary.optimizer),
+                key=lambda summary: (
+                    summary.average_score,
+                    summary.success_rate,
+                    summary.optimizer,
+                ),
                 reverse=True,
             )
         )
@@ -245,7 +253,10 @@ class OptimizerBenchmarkService:
             / run_count
         )
         violation_rate = (
-            sum((Decimal("1") for run in runs if run.result.has_violations), Decimal("0"))
+            sum(
+                (Decimal("1") for run in runs if run.result.has_violations),
+                Decimal("0"),
+            )
             / run_count
         )
         average_turnover = (
