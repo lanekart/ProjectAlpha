@@ -23,8 +23,12 @@ def test_maximum_sharpe_optimizer_prefers_best_risk_adjusted_return() -> None:
     )
 
     assert result.success
-    assert result.target_weights["HIGH"] == Decimal("0.6666666666666666666666666667")
-    assert result.target_weights["LOW"] == Decimal("0.3333333333333333333333333333")
+    assert result.target_weights["HIGH"] == Decimal(
+        "0.6666666666666666666666666667"
+    )
+    assert result.target_weights["LOW"] == Decimal(
+        "0.3333333333333333333333333333"
+    )
     assert result.metadata["optimizer"] == "maximum_sharpe"
 
 
@@ -43,8 +47,12 @@ def test_maximum_sharpe_optimizer_penalizes_higher_volatility() -> None:
         )
     )
 
-    assert result.target_weights["LOW_VOL"] == Decimal("0.6666666666666666666666666667")
-    assert result.target_weights["HIGH_VOL"] == Decimal("0.3333333333333333333333333333")
+    assert result.target_weights["LOW_VOL"] == Decimal(
+        "0.6666666666666666666666666667"
+    )
+    assert result.target_weights["HIGH_VOL"] == Decimal(
+        "0.3333333333333333333333333333"
+    )
 
 
 def test_maximum_sharpe_optimizer_respects_cash_reserve() -> None:
@@ -65,7 +73,7 @@ def test_maximum_sharpe_optimizer_respects_cash_reserve() -> None:
     assert result.total_weight == Decimal("1.000000000000000000000000000")
 
 
-def test_maximum_sharpe_optimizer_falls_back_to_equal_weight_when_no_positive_scores() -> None:
+def test_maximum_sharpe_optimizer_uses_equal_weight_without_positive_scores() -> None:
     result = MaximumSharpeOptimizer(risk_free_rate=Decimal("0.05")).optimize(
         OptimizationInput(
             universe=("AAPL", "MSFT"),
@@ -140,7 +148,10 @@ def test_maximum_sharpe_optimizer_rejects_missing_variance() -> None:
         MaximumSharpeOptimizer().optimize(
             OptimizationInput(
                 universe=("AAPL", "MSFT"),
-                expected_returns={"AAPL": Decimal("0.12"), "MSFT": Decimal("0.06")},
+                expected_returns={
+                    "AAPL": Decimal("0.12"),
+                    "MSFT": Decimal("0.06"),
+                },
                 covariance={
                     "AAPL": {"AAPL": Decimal("0.04")},
                     "MSFT": {},
