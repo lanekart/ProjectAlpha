@@ -66,6 +66,23 @@ class OptimizationInput:
             MappingProxyType(copied_covariance),
         )
 
+    def with_expected_returns(
+        self,
+        expected_returns: Mapping[str, Decimal],
+    ) -> OptimizationInput:
+        """Return a copy with replacement expected returns."""
+
+        return OptimizationInput(
+            universe=self.universe,
+            current_weights=self.current_weights,
+            expected_returns=expected_returns,
+            covariance=self.covariance,
+            sector_by_symbol=self.sector_by_symbol,
+            constraints=self.constraints,
+            cash_reserve=self.cash_reserve,
+            metadata=self.metadata,
+        )
+
 
 class Optimizer(Protocol):
     """Protocol for all portfolio optimizers."""
