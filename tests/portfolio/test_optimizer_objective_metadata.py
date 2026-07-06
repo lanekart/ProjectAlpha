@@ -78,7 +78,7 @@ def test_risk_parity_optimizer_reports_turnover_and_variance_metadata() -> None:
     assert objectives["variance"] > Decimal("0")
 
 
-def test_black_litterman_optimizer_reports_return_turnover_and_variance_metadata() -> None:
+def test_black_litterman_optimizer_reports_objective_metadata() -> None:
     result = BlackLittermanOptimizer().optimize(
         OptimizationInput(
             universe=("AAPL", "MSFT"),
