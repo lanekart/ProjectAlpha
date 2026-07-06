@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 
+from alpha.optimization.evaluator import ObjectiveEvaluator
+from alpha.optimization.objectives.turnover import TurnoverObjective
+from alpha.optimization.objectives.variance import VarianceObjective
 from alpha.portfolio.optimization_result import OptimizationResult
 from alpha.portfolio.optimizer import OptimizationInput, Optimizer
 
@@ -15,6 +18,9 @@ class InverseVolatilityOptimizer(Optimizer):
     """Optimizer that weights assets inversely to their volatility."""
 
     name: str = "inverse_volatility"
+    evaluator: ObjectiveEvaluator = field(default_factory=ObjectiveEvaluator)
+    turnover_objective: TurnoverObjective = field(default_factory=TurnoverObjective)
+    variance_objective: VarianceObjective = field(default_factory=VarianceObjective)
 
     def optimize(self, optimization_input: OptimizationInput) -> OptimizationResult:
         """Build target weights from diagonal covariance volatility estimates."""
@@ -23,29 +29,19 @@ class InverseVolatilityOptimizer(Optimizer):
         if investable_weight < Decimal("0"):
             raise ValueError("cash_reserve cannot exceed 1")
 
-        inverse_volatility_by_symbol = self._calculate_inverse_volatilities(
+        target_weights = self._target_weights(
             universe=optimization_input.universe,
             covariance=optimization_input.covariance,
+            investable_weight=investable_weight,
         )
-        total_inverse_volatility = sum(
-            inverse_volatility_by_symbol.values(),
-            Decimal("0"),
+        turnover_result = self.evaluator.evaluate(
+            objective=self.turnover_objective,
+            optimization_input=optimization_input,
+            target_weights=target_weights,
         )
-
-        if total_inverse_volatility <= Decimal("0"):
-            raise ValueError("total inverse volatility must be positive")
-
-        target_weights = {
-            symbol: (
-                inverse_volatility_by_symbol[symbol]
-                / total_inverse_volatility
-                * investable_weight
-            )
-            for symbol in optimization_input.universe
-        }
-
-        expected_turnover = self._calculate_turnover(
-            current_weights=optimization_input.current_weights,
+        variance_result = self.evaluator.evaluate(
+            objective=self.variance_objective,
+            optimization_input=optimization_input,
             target_weights=target_weights,
         )
 
@@ -59,11 +55,45 @@ class InverseVolatilityOptimizer(Optimizer):
         return OptimizationResult(
             target_weights=target_weights,
             success=len(violations) == 0,
-            expected_turnover=expected_turnover,
+            expected_turnover=turnover_result.score,
             cash_weight=optimization_input.cash_reserve,
             constraint_violations=violations,
-            metadata={"optimizer": self.name},
+            metadata={
+                "optimizer": self.name,
+                "objectives": {
+                    turnover_result.name: turnover_result.score,
+                    variance_result.name: variance_result.score,
+                },
+            },
         )
+
+    def _target_weights(
+        self,
+        *,
+        universe: tuple[str, ...],
+        covariance: Mapping[str, Mapping[str, Decimal]],
+        investable_weight: Decimal,
+    ) -> dict[str, Decimal]:
+        inverse_volatility_by_symbol = self._calculate_inverse_volatilities(
+            universe=universe,
+            covariance=covariance,
+        )
+        total_inverse_volatility = sum(
+            inverse_volatility_by_symbol.values(),
+            Decimal("0"),
+        )
+
+        if total_inverse_volatility <= Decimal("0"):
+            raise ValueError("total inverse volatility must be positive")
+
+        return {
+            symbol: (
+                inverse_volatility_by_symbol[symbol]
+                / total_inverse_volatility
+                * investable_weight
+            )
+            for symbol in universe
+        }
 
     def _calculate_inverse_volatilities(
         self,
@@ -90,13 +120,13 @@ class InverseVolatilityOptimizer(Optimizer):
         current_weights: Mapping[str, Decimal],
         target_weights: Mapping[str, Decimal],
     ) -> Decimal:
-        normalized_current: dict[str, Decimal] = dict(current_weights)
-        symbols = set(normalized_current) | set(target_weights)
+        """Calculate turnover for backward-compatible internal tests."""
 
-        return sum(
-            abs(
-                target_weights.get(symbol, Decimal("0"))
-                - normalized_current.get(symbol, Decimal("0"))
-            )
-            for symbol in symbols
-        ) / Decimal("2")
+        universe = tuple(sorted(set(current_weights) | set(target_weights)))
+        return self.turnover_objective.evaluate(
+            optimization_input=OptimizationInput(
+                universe=universe,
+                current_weights=current_weights,
+            ),
+            target_weights=target_weights,
+        ).score
