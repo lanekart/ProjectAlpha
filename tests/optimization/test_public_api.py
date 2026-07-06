@@ -2,6 +2,8 @@ from decimal import Decimal
 
 from alpha.optimization import (
     BlackLittermanOptimizer,
+    ConstraintEvaluator,
+    ConstraintResult,
     EqualWeightOptimizer,
     InverseVolatilityOptimizer,
     MinimumVarianceOptimizer,
@@ -21,6 +23,14 @@ def test_optimization_package_exports_first_party_optimizers() -> None:
     assert registry.get("risk_parity") is RiskParityOptimizer
     assert registry.get("minimum_variance") is MinimumVarianceOptimizer
     assert registry.get("black_litterman") is BlackLittermanOptimizer
+
+
+def test_optimization_package_exports_constraint_evaluation_primitives() -> None:
+    assert ConstraintEvaluator().evaluate_input(
+        optimization_input=OptimizationInput(universe=("RELIANCE",)),
+        target_weights={"RELIANCE": Decimal("1")},
+    ).passed
+    assert ConstraintResult().passed
 
 
 def test_optimization_package_factory_creates_optimizer() -> None:
