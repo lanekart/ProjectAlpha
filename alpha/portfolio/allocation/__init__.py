@@ -1,3 +1,4 @@
+from alpha.portfolio.allocation.optimizer_adapter import OptimizationAllocationAdapter
 from alpha.portfolio.allocation.rebalance import (
     RebalanceOrder,
     RebalancePlan,
@@ -7,6 +8,7 @@ from alpha.portfolio.allocation.target import AllocationTarget, PortfolioAllocat
 
 __all__ = [
     "AllocationTarget",
+    "OptimizationAllocationAdapter",
     "PortfolioAllocation",
     "RebalanceOrder",
     "RebalancePlan",
