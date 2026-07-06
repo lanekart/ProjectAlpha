@@ -4,6 +4,8 @@ from alpha.portfolio.black_litterman_optimizer import (
     BlackLittermanOptimizer,
     BlackLittermanView,
 )
+from alpha.portfolio.constraint_evaluator import ConstraintEvaluator
+from alpha.portfolio.constraint_result import ConstraintResult
 from alpha.portfolio.constraints import (
     CashReserveConstraint,
     ConstraintSet,
@@ -30,6 +32,8 @@ __all__ = [
     "BlackLittermanOptimizer",
     "BlackLittermanView",
     "CashReserveConstraint",
+    "ConstraintEvaluator",
+    "ConstraintResult",
     "ConstraintSet",
     "ConstraintViolation",
     "EqualWeightOptimizer",
