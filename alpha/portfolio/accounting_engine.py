@@ -10,7 +10,7 @@ from alpha.portfolio.inventory import InventoryLot
 from alpha.portfolio.inventory_book import InventoryBook
 from alpha.portfolio.ledger_event import LedgerEvent
 from alpha.portfolio.portfolio_ledger import PortfolioLedger
-from alpha.portfolio.portfolio_snapshot import PortfolioSnapshot
+from alpha.portfolio.portfolio_snapshot import PortfolioSnapshot, PositionSnapshot
 from alpha.portfolio.position import Position
 from alpha.portfolio.snapshot_book import SnapshotBook
 
@@ -19,15 +19,6 @@ from alpha.portfolio.snapshot_book import SnapshotBook
 class AccountingEngine:
     """
     Institutional portfolio accounting engine.
-
-    Responsibilities
-    ----------------
-    - Maintain FIFO inventory
-    - Update portfolio quantity
-    - Maintain average remaining cost basis
-    - Compute realized PnL
-    - Record immutable ledger events
-    - Produce immutable portfolio snapshots
     """
 
     inventory: InventoryBook = field(default_factory=InventoryBook)
@@ -39,14 +30,6 @@ class AccountingEngine:
         position: Position | None,
         fill: Fill,
     ) -> Position:
-        """
-        Apply a fill to a portfolio position.
-        """
-
-        # -------------------------------------------------
-        # Create brand-new position
-        # -------------------------------------------------
-
         if position is None:
             self.inventory.add_lot(
                 InventoryLot(
@@ -59,17 +42,14 @@ class AccountingEngine:
 
             position = Position(
                 position_id=uuid4(),
-                symbol=str(fill.order_id),
+                symbol=fill.symbol,
                 quantity=fill.quantity,
                 average_price=fill.price,
                 realized_pnl=Decimal("0"),
                 entry_time=fill.timestamp,
+                commission=fill.commission,
+                slippage=fill.slippage,
             )
-
-        # -------------------------------------------------
-        # Existing position
-        # -------------------------------------------------
-
         else:
             if fill.quantity > 0:
                 self.inventory.add_lot(
@@ -82,7 +62,6 @@ class AccountingEngine:
                 )
 
                 position.quantity += fill.quantity
-
             else:
                 realized = self.inventory.consume_fifo(
                     quantity=abs(fill.quantity),
@@ -92,29 +71,22 @@ class AccountingEngine:
                 position.quantity += fill.quantity
                 position.realized_pnl += realized
 
+            position.commission += fill.commission
+            position.slippage += fill.slippage
+
             remaining = self.inventory.open_lots()
 
             if remaining:
                 total_quantity = sum(lot.quantity for lot in remaining)
-
                 total_cost = sum(
                     (lot.price * Decimal(lot.quantity) for lot in remaining),
                     Decimal("0"),
                 )
-
                 position.average_price = total_cost / Decimal(total_quantity)
             else:
                 position.average_price = Decimal("0")
 
-        # -------------------------------------------------
-        # Validate accounting state
-        # -------------------------------------------------
-
         self._validate_state(position)
-
-        # -------------------------------------------------
-        # Record immutable accounting event
-        # -------------------------------------------------
 
         self.ledger.append(
             LedgerEvent(
@@ -135,18 +107,25 @@ class AccountingEngine:
 
     def create_snapshot(
         self,
-        position: Position,
+        positions: tuple[Position, ...],
+        cash: Decimal = Decimal("0"),
     ) -> PortfolioSnapshot:
-        """
-        Capture an immutable portfolio snapshot.
-        """
-
         snapshot = PortfolioSnapshot(
             snapshot_id=uuid4(),
             timestamp=datetime.now(UTC),
-            position_quantity=position.quantity,
-            average_price=position.average_price,
-            realized_pnl=position.realized_pnl,
+            cash=cash,
+            positions=tuple(
+                PositionSnapshot(
+                    symbol=position.symbol,
+                    quantity=position.quantity,
+                    average_price=position.average_price,
+                    realized_pnl=position.realized_pnl,
+                    unrealized_pnl=position.unrealized_pnl,
+                    commission=position.commission,
+                    slippage=position.slippage,
+                )
+                for position in positions
+            ),
         )
 
         self.snapshots.append(snapshot)
@@ -157,10 +136,6 @@ class AccountingEngine:
         self,
         position: Position,
     ) -> None:
-        """
-        Validate internal accounting invariants.
-        """
-
         open_lots = self.inventory.open_lots()
 
         inventory_quantity = sum(lot.quantity for lot in open_lots)

@@ -6,7 +6,7 @@ from alpha.portfolio.accounting_engine import AccountingEngine
 from alpha.portfolio.position import Position
 
 
-def test_create_snapshot():
+def test_create_snapshot() -> None:
     engine = AccountingEngine()
 
     position = Position(
@@ -18,10 +18,16 @@ def test_create_snapshot():
         entry_time=datetime.now(UTC),
     )
 
-    snapshot = engine.create_snapshot(position)
+    snapshot = engine.create_snapshot(
+        positions=(position,),
+        cash=Decimal("10000"),
+    )
 
-    assert snapshot.position_quantity == 25
-    assert snapshot.average_price == Decimal("2450")
+    assert snapshot.cash == Decimal("10000")
+    assert snapshot.position_count == 1
+    assert snapshot.positions[0].symbol == "RELIANCE"
+    assert snapshot.positions[0].quantity == 25
+    assert snapshot.positions[0].average_price == Decimal("2450")
     assert snapshot.realized_pnl == Decimal("350")
 
     assert len(engine.snapshots) == 1

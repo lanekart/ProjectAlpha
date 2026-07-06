@@ -18,6 +18,12 @@ class BarSeries(Sequence[Bar]):
         "_timestamps",
     )
 
+    _bars: tuple[Bar, ...]
+    _initialized: bool
+    _symbol: str
+    _timeframe: Timeframe
+    _timestamps: tuple[datetime, ...]
+
     def __init__(self, bars: Sequence[Bar]) -> None:
         if not bars:
             raise ValueError("BarSeries cannot be empty")

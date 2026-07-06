@@ -5,38 +5,28 @@ from enum import IntEnum
 
 
 class Timeframe(IntEnum):
-    # Intraday
     ONE_MINUTE = 60
     FIVE_MINUTES = 300
     FIFTEEN_MINUTES = 900
     THIRTY_MINUTES = 1800
     ONE_HOUR = 3600
     FOUR_HOURS = 14400
-
-    # Daily+
     ONE_DAY = 86400
     ONE_WEEK = 604800
 
-    # Alias used by Bar model/tests
     D1 = ONE_DAY
 
-    # -------------------------
-    # Core properties
-    # -------------------------
     @property
     def seconds(self) -> int:
         return int(self.value)
 
     @property
     def duration(self) -> timedelta:
-        return timedelta(seconds=self.value)
+        return timedelta(seconds=self.seconds)
 
-    # -------------------------
-    # Classification
-    # -------------------------
     @property
     def is_intraday(self) -> bool:
-        return self.value < self.ONE_DAY.value
+        return self.seconds < Timeframe.ONE_DAY.seconds
 
     @property
     def is_time_based(self) -> bool:
@@ -44,53 +34,41 @@ class Timeframe(IntEnum):
 
     @property
     def is_daily_or_higher(self) -> bool:
-        return self.value >= self.ONE_DAY.value
+        return not self.is_intraday
 
-    # -------------------------
-    # Ranking (monotonic order)
-    # -------------------------
     @property
     def rank(self) -> int:
-        order = [
-            self.ONE_MINUTE,
-            self.FIVE_MINUTES,
-            self.FIFTEEN_MINUTES,
-            self.THIRTY_MINUTES,
-            self.ONE_HOUR,
-            self.FOUR_HOURS,
-            self.ONE_DAY,
-            self.ONE_WEEK,
-        ]
+        order = (
+            Timeframe.ONE_MINUTE,
+            Timeframe.FIVE_MINUTES,
+            Timeframe.FIFTEEN_MINUTES,
+            Timeframe.THIRTY_MINUTES,
+            Timeframe.ONE_HOUR,
+            Timeframe.FOUR_HOURS,
+            Timeframe.ONE_DAY,
+            Timeframe.ONE_WEEK,
+        )
         return order.index(self)
 
-    # -------------------------
-    # Display
-    # -------------------------
     def __str__(self) -> str:
-        mapping = {
-            self.ONE_MINUTE: "1m",
-            self.FIVE_MINUTES: "5m",
-            self.FIFTEEN_MINUTES: "15m",
-            self.THIRTY_MINUTES: "30m",
-            self.ONE_HOUR: "1h",
-            self.FOUR_HOURS: "4h",
-            self.ONE_DAY: "1d",
-            self.ONE_WEEK: "1w",
+        labels = {
+            Timeframe.ONE_MINUTE: "1m",
+            Timeframe.FIVE_MINUTES: "5m",
+            Timeframe.FIFTEEN_MINUTES: "15m",
+            Timeframe.THIRTY_MINUTES: "30m",
+            Timeframe.ONE_HOUR: "1h",
+            Timeframe.FOUR_HOURS: "4h",
+            Timeframe.ONE_DAY: "1d",
+            Timeframe.ONE_WEEK: "1w",
         }
-        return mapping[self]
+        return labels[self]
 
     @property
     def label(self) -> str:
         return str(self)
 
-    # -------------------------
-    # Parsing
-    # -------------------------
     @classmethod
     def parse(cls, value: str) -> Timeframe:
-        if not isinstance(value, str):
-            raise ValueError("Invalid timeframe")
-
         normalized = value.strip().lower()
 
         mapping = {
@@ -108,9 +86,3 @@ class Timeframe(IntEnum):
             raise ValueError(f"{value!r} is not a valid Timeframe")
 
         return mapping[normalized]
-
-    # ordering safety
-    def __lt__(self, other: Timeframe) -> bool:
-        if not isinstance(other, Timeframe):
-            return NotImplemented
-        return self.value < other.value

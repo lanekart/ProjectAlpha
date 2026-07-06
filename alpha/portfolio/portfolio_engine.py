@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 
 from alpha.execution.fill import Fill
 from alpha.portfolio.accounting_engine import AccountingEngine
@@ -13,30 +14,14 @@ from alpha.portfolio.position import Position
 class PortfolioEngine:
     """
     Institutional portfolio orchestration engine.
-
-    Responsibilities
-    ----------------
-    - Own the PortfolioBook
-    - Route fills to AccountingEngine
-    - Keep portfolio positions synchronized
-    - Expose portfolio queries
-
-    AccountingEngine remains responsible only for accounting logic.
     """
 
     accounting: AccountingEngine = field(default_factory=AccountingEngine)
     portfolio: PortfolioBook = field(default_factory=PortfolioBook)
+    cash: Decimal = Decimal("0")
 
     def apply_fill(self, fill: Fill) -> Position:
-        """
-        Apply an execution fill to the portfolio.
-
-        The PortfolioEngine locates the existing position (if any),
-        delegates accounting to AccountingEngine, stores the updated
-        position, and returns it.
-        """
-
-        position = self.portfolio.get(str(fill.order_id))
+        position = self.portfolio.get(fill.symbol)
 
         updated = self.accounting.apply_fill(
             position,
@@ -51,32 +36,21 @@ class PortfolioEngine:
         self,
         symbol: str,
     ) -> Position | None:
-        """
-        Return the current position for a symbol.
-        """
-
         return self.portfolio.get(symbol)
 
     def positions(self) -> tuple[Position, ...]:
-        """
-        Return all current portfolio positions.
-        """
-
         return self.portfolio.positions()
 
     def symbols(self) -> tuple[str, ...]:
-        """
-        Return every symbol currently tracked.
-        """
-
         return self.portfolio.symbols()
 
     def create_snapshot(
         self,
-        position: Position,
+        position: Position | None = None,
     ) -> PortfolioSnapshot:
-        """
-        Delegate snapshot creation to the accounting engine.
-        """
+        positions = (position,) if position is not None else self.positions()
 
-        return self.accounting.create_snapshot(position)
+        return self.accounting.create_snapshot(
+            positions=positions,
+            cash=self.cash,
+        )
