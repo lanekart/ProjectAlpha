@@ -55,7 +55,9 @@ class OptimizationDiagnostics:
             MappingProxyType(
                 {
                     constraint_name: tuple(violations)
-                    for constraint_name, violations in self.violations_by_constraint.items()
+                    for constraint_name, violations in (
+                        self.violations_by_constraint.items()
+                    )
                 }
             ),
         )
