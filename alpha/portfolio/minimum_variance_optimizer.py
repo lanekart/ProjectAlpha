@@ -20,7 +20,9 @@ class MinimumVarianceOptimizer(Optimizer):
 
     name: str = "minimum_variance"
     evaluator: ObjectiveEvaluator = field(default_factory=ObjectiveEvaluator)
-    constraint_evaluator: ConstraintEvaluator = field(default_factory=ConstraintEvaluator)
+    constraint_evaluator: ConstraintEvaluator = field(
+        default_factory=ConstraintEvaluator
+    )
     turnover_objective: TurnoverObjective = field(default_factory=TurnoverObjective)
     variance_objective: VarianceObjective = field(default_factory=VarianceObjective)
 
