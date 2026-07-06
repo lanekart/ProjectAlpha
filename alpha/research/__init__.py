@@ -9,6 +9,13 @@ from alpha.research.parameter_sweep import (
     ParameterSweepReport,
     ParameterSweepResult,
 )
+from alpha.research.persistence import (
+    InMemoryResearchExperimentRepository,
+    ResearchExperimentManifest,
+    ResearchExperimentPersistenceService,
+    ResearchExperimentRecord,
+    ResearchExperimentRepository,
+)
 from alpha.research.walk_forward import (
     WalkForwardEngine,
     WalkForwardEvaluator,
@@ -19,6 +26,7 @@ from alpha.research.walk_forward import (
 )
 
 __all__ = [
+    "InMemoryResearchExperimentRepository",
     "ParameterCombination",
     "ParameterDefinition",
     "ParameterGrid",
@@ -26,6 +34,10 @@ __all__ = [
     "ParameterSweepEvaluator",
     "ParameterSweepReport",
     "ParameterSweepResult",
+    "ResearchExperimentManifest",
+    "ResearchExperimentPersistenceService",
+    "ResearchExperimentRecord",
+    "ResearchExperimentRepository",
     "WalkForwardEngine",
     "WalkForwardEvaluator",
     "WalkForwardReport",
