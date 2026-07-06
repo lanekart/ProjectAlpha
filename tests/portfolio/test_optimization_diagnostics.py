@@ -1,4 +1,6 @@
+from collections.abc import MutableMapping
 from decimal import Decimal
+from typing import cast
 
 import pytest
 
@@ -9,7 +11,9 @@ from alpha.portfolio import (
     OptimizationInput,
     PositionLimitConstraint,
 )
-from alpha.portfolio.optimization_diagnostics import OptimizationDiagnostics as DirectDiagnostics
+from alpha.portfolio.optimization_diagnostics import (
+    OptimizationDiagnostics as DirectDiagnostics,
+)
 from alpha.portfolio.optimization_result import OptimizationResult
 
 
@@ -65,10 +69,15 @@ def test_optimization_diagnostics_is_immutable() -> None:
         objective_scores={"turnover": Decimal("0")},
     )
 
+    objective_scores = cast(
+        MutableMapping[str, Decimal],
+        diagnostics.objective_scores,
+    )
+
     assert diagnostics.optimizer == "equal_weight"
 
     with pytest.raises(TypeError):
-        diagnostics.objective_scores["turnover"] = Decimal("1")  # type: ignore[index]
+        objective_scores["turnover"] = Decimal("1")
 
 
 def test_optimization_diagnostics_falls_back_for_missing_metadata() -> None:
