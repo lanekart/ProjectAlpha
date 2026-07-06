@@ -19,7 +19,9 @@ class InverseVolatilityOptimizer(Optimizer):
 
     name: str = "inverse_volatility"
     evaluator: ObjectiveEvaluator = field(default_factory=ObjectiveEvaluator)
-    constraint_evaluator: ConstraintEvaluator = field(default_factory=ConstraintEvaluator)
+    constraint_evaluator: ConstraintEvaluator = field(
+        default_factory=ConstraintEvaluator
+    )
     turnover_objective: TurnoverObjective = field(default_factory=TurnoverObjective)
 
     def optimize(self, optimization_input: OptimizationInput) -> OptimizationResult:
