@@ -9,6 +9,7 @@ from types import MappingProxyType
 from alpha.portfolio.black_litterman_optimizer import BlackLittermanOptimizer
 from alpha.portfolio.equal_weight_optimizer import EqualWeightOptimizer
 from alpha.portfolio.inverse_volatility_optimizer import InverseVolatilityOptimizer
+from alpha.portfolio.maximum_sharpe_optimizer import MaximumSharpeOptimizer
 from alpha.portfolio.minimum_variance_optimizer import MinimumVarianceOptimizer
 from alpha.portfolio.optimizer import Optimizer
 from alpha.portfolio.risk_parity_optimizer import RiskParityOptimizer
@@ -70,5 +71,6 @@ def default_optimizer_registry() -> OptimizerRegistry:
     registry.register("inverse_volatility", InverseVolatilityOptimizer)
     registry.register("risk_parity", RiskParityOptimizer)
     registry.register("minimum_variance", MinimumVarianceOptimizer)
+    registry.register("maximum_sharpe", MaximumSharpeOptimizer)
     registry.register("black_litterman", BlackLittermanOptimizer)
     return registry
