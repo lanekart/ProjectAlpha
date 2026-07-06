@@ -2,12 +2,12 @@ from decimal import Decimal
 
 import pytest
 
+from alpha.portfolio.optimizer import OptimizationInput
 from alpha.portfolio.optimizer_benchmark import (
     OptimizerBenchmarkMetric,
     OptimizerBenchmarkScenario,
     OptimizerBenchmarkService,
 )
-from alpha.portfolio.optimizer import OptimizationInput
 from alpha.portfolio.optimizer_config import OptimizerConfig
 
 
