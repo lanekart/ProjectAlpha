@@ -1,5 +1,9 @@
 """Portfolio construction domain."""
 
+from __future__ import annotations
+
+from typing import Any
+
 from alpha.portfolio.black_litterman_optimizer import (
     BlackLittermanOptimizer,
     BlackLittermanView,
@@ -37,6 +41,37 @@ from alpha.portfolio.optimizer_registry import (
 )
 from alpha.portfolio.risk_parity_optimizer import RiskParityOptimizer
 
+_LAZY_EXPORTS: dict[str, tuple[str, str]] = {
+    "OptimizerComparisonEntry": (
+        "alpha.portfolio.optimizer_comparison",
+        "OptimizerComparisonEntry",
+    ),
+    "OptimizerComparisonReport": (
+        "alpha.portfolio.optimizer_comparison",
+        "OptimizerComparisonReport",
+    ),
+    "OptimizerComparisonService": (
+        "alpha.portfolio.optimizer_comparison",
+        "OptimizerComparisonService",
+    ),
+    "OptimizerSelection": (
+        "alpha.portfolio.optimizer_selection",
+        "OptimizerSelection",
+    ),
+    "OptimizerSelectionCriteria": (
+        "alpha.portfolio.optimizer_selection",
+        "OptimizerSelectionCriteria",
+    ),
+    "OptimizerSelectionResult": (
+        "alpha.portfolio.optimizer_selection",
+        "OptimizerSelectionResult",
+    ),
+    "OptimizerSelectionService": (
+        "alpha.portfolio.optimizer_selection",
+        "OptimizerSelectionService",
+    ),
+}
+
 __all__ = [
     "BlackLittermanOptimizer",
     "BlackLittermanView",
@@ -59,9 +94,16 @@ __all__ = [
     "OptimizerBenchmarkScenario",
     "OptimizerBenchmarkService",
     "OptimizerBenchmarkSummary",
+    "OptimizerComparisonEntry",
+    "OptimizerComparisonReport",
+    "OptimizerComparisonService",
     "OptimizerConfig",
     "OptimizerFactory",
     "OptimizerRegistry",
+    "OptimizerSelection",
+    "OptimizerSelectionCriteria",
+    "OptimizerSelectionResult",
+    "OptimizerSelectionService",
     "PortfolioConstraint",
     "PositionLimitConstraint",
     "RiskParityOptimizer",
@@ -69,3 +111,17 @@ __all__ = [
     "TurnoverConstraint",
     "default_optimizer_registry",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    """Load optional portfolio exports lazily."""
+
+    try:
+        module_name, attribute_name = _LAZY_EXPORTS[name]
+    except KeyError as exc:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from exc
+
+    module = __import__(module_name, fromlist=[attribute_name])
+    value = getattr(module, attribute_name)
+    globals()[name] = value
+    return value
