@@ -78,6 +78,30 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
         "OptimizationResult",
     ),
     "Optimizer": ("alpha.portfolio.optimizer", "Optimizer"),
+    "OptimizerBenchmarkMetric": (
+        "alpha.portfolio.optimizer_benchmark",
+        "OptimizerBenchmarkMetric",
+    ),
+    "OptimizerBenchmarkReport": (
+        "alpha.portfolio.optimizer_benchmark",
+        "OptimizerBenchmarkReport",
+    ),
+    "OptimizerBenchmarkRun": (
+        "alpha.portfolio.optimizer_benchmark",
+        "OptimizerBenchmarkRun",
+    ),
+    "OptimizerBenchmarkScenario": (
+        "alpha.portfolio.optimizer_benchmark",
+        "OptimizerBenchmarkScenario",
+    ),
+    "OptimizerBenchmarkService": (
+        "alpha.portfolio.optimizer_benchmark",
+        "OptimizerBenchmarkService",
+    ),
+    "OptimizerBenchmarkSummary": (
+        "alpha.portfolio.optimizer_benchmark",
+        "OptimizerBenchmarkSummary",
+    ),
     "OptimizerConfig": ("alpha.portfolio.optimizer_config", "OptimizerConfig"),
     "OptimizerFactory": ("alpha.portfolio.optimizer_factory", "OptimizerFactory"),
     "OptimizerRegistry": (
@@ -122,6 +146,12 @@ __all__ = [
     "OptimizationInput",
     "OptimizationResult",
     "Optimizer",
+    "OptimizerBenchmarkMetric",
+    "OptimizerBenchmarkReport",
+    "OptimizerBenchmarkRun",
+    "OptimizerBenchmarkScenario",
+    "OptimizerBenchmarkService",
+    "OptimizerBenchmarkSummary",
     "OptimizerConfig",
     "OptimizerFactory",
     "OptimizerRegistry",
