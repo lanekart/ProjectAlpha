@@ -7,16 +7,24 @@ from alpha.costs.slippage import (
     FixedSlippageModel,
     PerShareSlippageModel,
 )
+from alpha.costs.taxes import (
+    CappedPercentageFeeModel,
+    FlatFeeModel,
+    PercentageTaxModel,
+)
 
 __all__ = [
     "BasisPointSlippageModel",
+    "CappedPercentageFeeModel",
     "CostBreakdown",
     "CostComponentModel",
     "CostInput",
     "FixedCommissionModel",
     "FixedSlippageModel",
+    "FlatFeeModel",
     "ParticipationRateImpactModel",
     "PercentageCommissionModel",
+    "PercentageTaxModel",
     "PerShareSlippageModel",
     "SquareRootImpactModel",
     "TransactionCostEstimator",
