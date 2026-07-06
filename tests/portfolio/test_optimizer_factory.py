@@ -6,6 +6,7 @@ from alpha.portfolio import (
     BlackLittermanOptimizer,
     EqualWeightOptimizer,
     InverseVolatilityOptimizer,
+    MaximumSharpeOptimizer,
     MinimumVarianceOptimizer,
     OptimizationInput,
     OptimizerConfig,
@@ -74,6 +75,7 @@ def test_default_registry_contains_first_party_optimizers() -> None:
     assert registry.get("inverse_volatility") is InverseVolatilityOptimizer
     assert registry.get("risk_parity") is RiskParityOptimizer
     assert registry.get("minimum_variance") is MinimumVarianceOptimizer
+    assert registry.get("maximum_sharpe") is MaximumSharpeOptimizer
     assert registry.get("black_litterman") is BlackLittermanOptimizer
 
 
@@ -103,6 +105,18 @@ def test_factory_passes_optimizer_parameters() -> None:
     assert optimizer.max_iterations == 25
     assert optimizer.tolerance == Decimal("0.01")
     assert optimizer.step_size == Decimal("0.20")
+
+
+def test_factory_passes_maximum_sharpe_parameters() -> None:
+    optimizer = OptimizerFactory().create(
+        OptimizerConfig(
+            name="maximum_sharpe",
+            parameters={"risk_free_rate": Decimal("0.03")},
+        )
+    )
+
+    assert isinstance(optimizer, MaximumSharpeOptimizer)
+    assert optimizer.risk_free_rate == Decimal("0.03")
 
 
 def test_factory_supports_plugin_optimizer_without_engine_changes() -> None:
