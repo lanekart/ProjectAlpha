@@ -6,6 +6,7 @@ from alpha.optimization import (
     ConstraintResult,
     EqualWeightOptimizer,
     InverseVolatilityOptimizer,
+    MaximumSharpeOptimizer,
     MinimumVarianceOptimizer,
     OptimizationInput,
     OptimizerConfig,
@@ -22,6 +23,7 @@ def test_optimization_package_exports_first_party_optimizers() -> None:
     assert registry.get("inverse_volatility") is InverseVolatilityOptimizer
     assert registry.get("risk_parity") is RiskParityOptimizer
     assert registry.get("minimum_variance") is MinimumVarianceOptimizer
+    assert registry.get("maximum_sharpe") is MaximumSharpeOptimizer
     assert registry.get("black_litterman") is BlackLittermanOptimizer
 
 
@@ -45,3 +47,9 @@ def test_optimization_package_factory_creates_optimizer() -> None:
     assert result.success
     assert result.target_weights["RELIANCE"] == Decimal("0.5")
     assert result.target_weights["TCS"] == Decimal("0.5")
+
+
+def test_optimization_package_factory_creates_maximum_sharpe_optimizer() -> None:
+    optimizer = OptimizerFactory().create(OptimizerConfig(name="maximum_sharpe"))
+
+    assert isinstance(optimizer, MaximumSharpeOptimizer)
