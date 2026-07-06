@@ -16,7 +16,10 @@ from alpha.research import (
 )
 
 
-def make_walk_forward_report(metric: str = "score", value: Decimal = Decimal("1")) -> WalkForwardReport:
+def make_walk_forward_report(
+    metric: str = "score",
+    value: Decimal = Decimal("1"),
+) -> WalkForwardReport:
     return WalkForwardReport(
         results=(
             WalkForwardResult(
