@@ -60,6 +60,10 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
         "alpha.portfolio.inverse_volatility_optimizer",
         "InverseVolatilityOptimizer",
     ),
+    "MaximumSharpeOptimizer": (
+        "alpha.portfolio.maximum_sharpe_optimizer",
+        "MaximumSharpeOptimizer",
+    ),
     "MinimumVarianceOptimizer": (
         "alpha.portfolio.minimum_variance_optimizer",
         "MinimumVarianceOptimizer",
@@ -109,6 +113,7 @@ __all__ = [
     "EqualWeightOptimizer",
     "ExpectedReturnObjective",
     "InverseVolatilityOptimizer",
+    "MaximumSharpeOptimizer",
     "MinimumVarianceOptimizer",
     "Objective",
     "ObjectiveEvaluator",
