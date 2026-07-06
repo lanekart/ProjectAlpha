@@ -16,6 +16,13 @@ from alpha.research.persistence import (
     ResearchExperimentRecord,
     ResearchExperimentRepository,
 )
+from alpha.research.session import (
+    ResearchSession,
+    ResearchSessionBuilder,
+    ResearchSessionEntry,
+    ResearchSessionSummary,
+    SessionMetadataValue,
+)
 from alpha.research.walk_forward import (
     WalkForwardEngine,
     WalkForwardEvaluator,
@@ -38,6 +45,11 @@ __all__ = [
     "ResearchExperimentPersistenceService",
     "ResearchExperimentRecord",
     "ResearchExperimentRepository",
+    "ResearchSession",
+    "ResearchSessionBuilder",
+    "ResearchSessionEntry",
+    "ResearchSessionSummary",
+    "SessionMetadataValue",
     "WalkForwardEngine",
     "WalkForwardEvaluator",
     "WalkForwardReport",

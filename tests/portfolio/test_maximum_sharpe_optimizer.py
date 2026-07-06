@@ -16,19 +16,15 @@ def test_maximum_sharpe_optimizer_prefers_best_risk_adjusted_return() -> None:
             universe=("HIGH", "LOW"),
             expected_returns={"HIGH": Decimal("0.12"), "LOW": Decimal("0.06")},
             covariance={
-                "HIGH": {"HIGH": Decimal("0.04")},
-                "LOW": {"LOW": Decimal("0.04")},
+                "HIGH": {"HIGH": Decimal("0.04"), "LOW": Decimal("0")},
+                "LOW": {"HIGH": Decimal("0"), "LOW": Decimal("0.04")},
             },
         )
     )
 
     assert result.success
-    assert result.target_weights["HIGH"] == Decimal(
-        "0.6666666666666666666666666667"
-    )
-    assert result.target_weights["LOW"] == Decimal(
-        "0.3333333333333333333333333333"
-    )
+    assert result.target_weights["HIGH"] == Decimal("0.6666666666666666666666666667")
+    assert result.target_weights["LOW"] == Decimal("0.3333333333333333333333333333")
     assert result.metadata["optimizer"] == "maximum_sharpe"
 
 
@@ -41,15 +37,19 @@ def test_maximum_sharpe_optimizer_penalizes_higher_volatility() -> None:
                 "HIGH_VOL": Decimal("0.10"),
             },
             covariance={
-                "LOW_VOL": {"LOW_VOL": Decimal("0.04")},
-                "HIGH_VOL": {"HIGH_VOL": Decimal("0.16")},
+                "LOW_VOL": {
+                    "LOW_VOL": Decimal("0.04"),
+                    "HIGH_VOL": Decimal("0"),
+                },
+                "HIGH_VOL": {
+                    "LOW_VOL": Decimal("0"),
+                    "HIGH_VOL": Decimal("0.16"),
+                },
             },
         )
     )
 
-    assert result.target_weights["LOW_VOL"] == Decimal(
-        "0.6666666666666666666666666667"
-    )
+    assert result.target_weights["LOW_VOL"] == Decimal("0.6666666666666666666666666667")
     assert result.target_weights["HIGH_VOL"] == Decimal(
         "0.3333333333333333333333333333"
     )
@@ -61,8 +61,8 @@ def test_maximum_sharpe_optimizer_respects_cash_reserve() -> None:
             universe=("AAPL", "MSFT"),
             expected_returns={"AAPL": Decimal("0.12"), "MSFT": Decimal("0.06")},
             covariance={
-                "AAPL": {"AAPL": Decimal("0.04")},
-                "MSFT": {"MSFT": Decimal("0.04")},
+                "AAPL": {"AAPL": Decimal("0.04"), "MSFT": Decimal("0")},
+                "MSFT": {"AAPL": Decimal("0"), "MSFT": Decimal("0.04")},
             },
             cash_reserve=Decimal("0.10"),
         )
@@ -79,13 +79,16 @@ def test_maximum_sharpe_optimizer_uses_equal_weight_without_positive_scores() ->
             universe=("AAPL", "MSFT"),
             expected_returns={"AAPL": Decimal("0.02"), "MSFT": Decimal("0.03")},
             covariance={
-                "AAPL": {"AAPL": Decimal("0.04")},
-                "MSFT": {"MSFT": Decimal("0.09")},
+                "AAPL": {"AAPL": Decimal("0.04"), "MSFT": Decimal("0")},
+                "MSFT": {"AAPL": Decimal("0"), "MSFT": Decimal("0.09")},
             },
         )
     )
 
-    assert result.target_weights == {"AAPL": Decimal("0.5"), "MSFT": Decimal("0.5")}
+    assert result.target_weights == {
+        "AAPL": Decimal("0.5"),
+        "MSFT": Decimal("0.5"),
+    }
 
 
 def test_maximum_sharpe_optimizer_reports_objective_metadata() -> None:
@@ -115,8 +118,8 @@ def test_maximum_sharpe_optimizer_reports_constraint_violations() -> None:
             universe=("AAPL", "MSFT"),
             expected_returns={"AAPL": Decimal("0.12"), "MSFT": Decimal("0.06")},
             covariance={
-                "AAPL": {"AAPL": Decimal("0.04")},
-                "MSFT": {"MSFT": Decimal("0.04")},
+                "AAPL": {"AAPL": Decimal("0.04"), "MSFT": Decimal("0")},
+                "MSFT": {"AAPL": Decimal("0"), "MSFT": Decimal("0.04")},
             },
             constraints=ConstraintSet(
                 constraints=(PositionLimitConstraint(max_weight=Decimal("0.60")),)
