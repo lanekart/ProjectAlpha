@@ -21,6 +21,14 @@ from alpha.portfolio.minimum_variance_optimizer import MinimumVarianceOptimizer
 from alpha.portfolio.optimization_diagnostics import OptimizationDiagnostics
 from alpha.portfolio.optimization_result import ConstraintViolation, OptimizationResult
 from alpha.portfolio.optimizer import OptimizationInput, Optimizer
+from alpha.portfolio.optimizer_benchmark import (
+    OptimizerBenchmarkMetric,
+    OptimizerBenchmarkReport,
+    OptimizerBenchmarkRun,
+    OptimizerBenchmarkScenario,
+    OptimizerBenchmarkService,
+    OptimizerBenchmarkSummary,
+)
 from alpha.portfolio.optimizer_config import OptimizerConfig
 from alpha.portfolio.optimizer_factory import OptimizerFactory
 from alpha.portfolio.optimizer_registry import (
@@ -45,6 +53,12 @@ __all__ = [
     "OptimizationInput",
     "OptimizationResult",
     "Optimizer",
+    "OptimizerBenchmarkMetric",
+    "OptimizerBenchmarkReport",
+    "OptimizerBenchmarkRun",
+    "OptimizerBenchmarkScenario",
+    "OptimizerBenchmarkService",
+    "OptimizerBenchmarkSummary",
     "OptimizerConfig",
     "OptimizerFactory",
     "OptimizerRegistry",
