@@ -41,7 +41,9 @@ class BlackLittermanOptimizer(Optimizer):
     name: str = "black_litterman"
     metadata: Mapping[str, str] = field(default_factory=dict)
     evaluator: ObjectiveEvaluator = field(default_factory=ObjectiveEvaluator)
-    constraint_evaluator: ConstraintEvaluator = field(default_factory=ConstraintEvaluator)
+    constraint_evaluator: ConstraintEvaluator = field(
+        default_factory=ConstraintEvaluator
+    )
     expected_return_objective: ExpectedReturnObjective = field(
         default_factory=ExpectedReturnObjective
     )
