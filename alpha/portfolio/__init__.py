@@ -15,6 +15,7 @@ from alpha.portfolio.constraints import (
 from alpha.portfolio.equal_weight_optimizer import EqualWeightOptimizer
 from alpha.portfolio.inverse_volatility_optimizer import InverseVolatilityOptimizer
 from alpha.portfolio.minimum_variance_optimizer import MinimumVarianceOptimizer
+from alpha.portfolio.optimization_diagnostics import OptimizationDiagnostics
 from alpha.portfolio.optimization_result import ConstraintViolation, OptimizationResult
 from alpha.portfolio.optimizer import OptimizationInput, Optimizer
 from alpha.portfolio.optimizer_config import OptimizerConfig
@@ -34,6 +35,7 @@ __all__ = [
     "EqualWeightOptimizer",
     "InverseVolatilityOptimizer",
     "MinimumVarianceOptimizer",
+    "OptimizationDiagnostics",
     "OptimizationInput",
     "OptimizationResult",
     "Optimizer",
