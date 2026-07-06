@@ -116,3 +116,41 @@ def test_optimization_input_rejects_empty_universe() -> None:
 def test_optimization_input_rejects_duplicate_symbols() -> None:
     with pytest.raises(ValueError):
         OptimizationInput(universe=("AAPL", "AAPL"))
+
+
+def test_optimization_input_with_expected_returns_preserves_original_input() -> None:
+    original = OptimizationInput(
+        universe=("AAPL", "MSFT"),
+        current_weights={"AAPL": Decimal("0.50")},
+        expected_returns={"AAPL": Decimal("0.10")},
+        covariance={
+            "AAPL": {"AAPL": Decimal("0.04")},
+            "MSFT": {"MSFT": Decimal("0.09")},
+        },
+        sector_by_symbol={"AAPL": "Technology"},
+        cash_reserve=Decimal("0.05"),
+        metadata={"source": "unit"},
+    )
+
+    updated = original.with_expected_returns(
+        {
+            "AAPL": Decimal("0.12"),
+            "MSFT": Decimal("0.08"),
+        }
+    )
+
+    assert original.expected_returns == {"AAPL": Decimal("0.10")}
+    assert updated.expected_returns == {
+        "AAPL": Decimal("0.12"),
+        "MSFT": Decimal("0.08"),
+    }
+    assert updated.universe == original.universe
+    assert updated.current_weights == original.current_weights
+    assert updated.covariance == original.covariance
+    assert updated.sector_by_symbol == original.sector_by_symbol
+    assert updated.constraints == original.constraints
+    assert updated.cash_reserve == original.cash_reserve
+    assert updated.metadata == original.metadata
+
+    with pytest.raises(TypeError):
+        updated.expected_returns["AAPL"] = Decimal("0")  # type: ignore[index]
