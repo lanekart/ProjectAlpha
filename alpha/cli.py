@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation
 
 import typer
 
-from alpha.application.backtest import CliBacktestService
+from alpha.application.backtest import BacktestApplicationService, BacktestSummary
 from alpha.application.historical_ingestion import HistoricalIngestionService
 from alpha.version import __version__
 
@@ -78,9 +78,9 @@ def backtest(
     if starting_cash <= Decimal("0"):
         raise typer.BadParameter("Starting cash must be greater than zero.")
 
-    service = CliBacktestService()
+    service = BacktestApplicationService()
     try:
-        summary = service.run(
+        run = service.run(
             strategy=strategy,
             start=start_date,
             end=end_date,
@@ -89,22 +89,26 @@ def backtest(
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
 
-    result = summary.result
+    _print_backtest_summary(run.summary)
 
+
+def _print_backtest_summary(summary: BacktestSummary) -> None:
     print("\nProject Alpha Backtest\n")
     print(f"Strategy       : {summary.strategy}")
     print(f"Start          : {summary.start.isoformat()}")
     print(f"End            : {summary.end.isoformat()}")
     print(f"Processed Days : {summary.processed_days}")
     print(f"Starting Cash  : {summary.starting_cash}")
-    print(f"Ending Cash    : {result.ending_cash}")
-    print(f"Equity         : {result.equity}")
+    print(f"Ending Cash    : {summary.ending_cash}")
+    print(f"Equity         : {summary.equity}")
+    print(f"Total Return   : {summary.total_return}")
     print(f"Orders         : {summary.order_count}")
-    print(f"Trades         : {result.trade_count}")
+    print(f"Trades         : {summary.trade_count}")
+    print(f"Positions      : {summary.position_count}")
 
-    if result.positions:
+    if summary.positions:
         print("\nPositions:")
-        for symbol, quantity in sorted(result.positions.items()):
+        for symbol, quantity in sorted(summary.positions.items()):
             print(f"{symbol}: {quantity}")
     else:
         print("\nPositions: none")
