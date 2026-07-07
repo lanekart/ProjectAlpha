@@ -1,0 +1,302 @@
+Project Alpha — RC-005A Handoff
+
+Milestone
+- RC-005A: Wire deterministic BacktestEngine into CLI
+
+Modified Files
+- alpha/application/backtest.py
+- alpha/cli.py
+
+Validation Requested
+- poetry run pytest
+- poetry run ruff check .
+- poetry run mypy alpha
+
+Notes
+- BacktestEngine public API remains unchanged.
+- CLI backtest now executes a deterministic momentum backtest instead of only printing config.
+- Unsupported strategies fail fast with a clear CLI error.
+- Default starting cash is 1,000,000 and can be overridden with --cash.
+
+---
+FILE: alpha/application/backtest.py
+---
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import date, timedelta
+from decimal import Decimal
+from typing import Any, Protocol, cast
+
+import pandas as pd
+
+from alpha.analysis.signals.daily_report import DailyMarketReport
+from alpha.backtest.engine import BacktestEngine
+from alpha.backtest.models import BacktestOrder, BacktestResult
+from alpha.application.ingestion import IngestionService
+from alpha.data.downloader.bhavcopy import BhavcopyDownloader
+from alpha.market.resolver import TradingDateResolver
+
+
+class MarketReportGenerator(Protocol):
+    def generate(self, df: pd.DataFrame) -> Any:
+        """Generate a deterministic market report from normalized prices."""
+        ...
+
+
+@dataclass(frozen=True, slots=True)
+class CliBacktestResult:
+    strategy: str
+    start: date
+    end: date
+    starting_cash: Decimal
+    processed_days: int
+    orders: tuple[BacktestOrder, ...]
+    result: BacktestResult
+
+    @property
+    def order_count(self) -> int:
+        return len(self.orders)
+
+
+@dataclass(slots=True)
+class CliBacktestService:
+    resolver: TradingDateResolver = field(default_factory=TradingDateResolver)
+    downloader: BhavcopyDownloader = field(default_factory=BhavcopyDownloader)
+    ingestion: IngestionService = field(default_factory=IngestionService)
+    report: MarketReportGenerator = field(default_factory=DailyMarketReport)
+    engine: BacktestEngine = field(default_factory=BacktestEngine)
+
+    def run(
+        self,
+        *,
+        strategy: str,
+        start: date,
+        end: date,
+        starting_cash: Decimal,
+    ) -> CliBacktestResult:
+        normalized_strategy = strategy.strip().lower()
+        if normalized_strategy != "momentum":
+            raise ValueError(f"unsupported backtest strategy: {strategy}")
+        if end < start:
+            raise ValueError("end date must be on or after start date")
+        if starting_cash <= Decimal("0"):
+            raise ValueError("starting cash must be greater than zero")
+
+        latest_frame, processed_days = self._load_market_data(start=start, end=end)
+        report_data = self.report.generate(latest_frame)
+        signal_frame = cast(pd.DataFrame, report_data["signals"])
+
+        prices = self._prices_from_frame(latest_frame)
+        orders = self._momentum_orders(signal_frame=signal_frame, prices=prices)
+        result = self.engine.run(
+            starting_cash=starting_cash,
+            orders=orders,
+            prices=prices,
+        )
+
+        return CliBacktestResult(
+            strategy=normalized_strategy,
+            start=start,
+            end=end,
+            starting_cash=starting_cash,
+            processed_days=processed_days,
+            orders=orders,
+            result=result,
+        )
+
+    def _load_market_data(self, *, start: date, end: date) -> tuple[pd.DataFrame, int]:
+        latest_frame: pd.DataFrame | None = None
+        processed_days = 0
+        current = start
+
+        while current <= end:
+            trading_day = self.resolver.resolve(current)
+            archive = self.downloader.download(trading_day)
+            frame = self.ingestion.ingest(archive)
+            if not frame.empty:
+                latest_frame = frame
+            processed_days += 1
+            current += timedelta(days=1)
+
+        if latest_frame is None:
+            raise ValueError("no market data available for backtest range")
+
+        return latest_frame, processed_days
+
+    def _prices_from_frame(self, frame: pd.DataFrame) -> dict[str, Decimal]:
+        required_columns = {"symbol", "close"}
+        missing_columns = required_columns.difference(frame.columns)
+        if missing_columns:
+            missing = ", ".join(sorted(missing_columns))
+            raise ValueError(f"market data missing required columns: {missing}")
+
+        prices: dict[str, Decimal] = {}
+        records = cast(list[dict[str, Any]], frame[["symbol", "close"]].to_dict("records"))
+        for record in records:
+            symbol = str(record["symbol"]).strip()
+            if not symbol:
+                continue
+            prices[symbol] = Decimal(str(record["close"]))
+
+        if not prices:
+            raise ValueError("no close prices available for backtest")
+
+        return prices
+
+    def _momentum_orders(
+        self,
+        *,
+        signal_frame: pd.DataFrame,
+        prices: dict[str, Decimal],
+    ) -> tuple[BacktestOrder, ...]:
+        required_columns = {"symbol", "signal"}
+        missing_columns = required_columns.difference(signal_frame.columns)
+        if missing_columns:
+            missing = ", ".join(sorted(missing_columns))
+            raise ValueError(f"signals missing required columns: {missing}")
+
+        records = cast(
+            list[dict[str, Any]],
+            signal_frame[["symbol", "signal"]].to_dict("records"),
+        )
+        orders: list[BacktestOrder] = []
+        for record in records:
+            symbol = str(record["symbol"]).strip()
+            signal = str(record["signal"]).strip().upper()
+            if signal == "BUY" and symbol in prices:
+                orders.append(BacktestOrder(symbol=symbol, quantity=1))
+
+        return tuple(orders)
+
+---
+FILE: alpha/cli.py
+---
+from __future__ import annotations
+
+from datetime import date as dt_date
+from decimal import Decimal, InvalidOperation
+
+import typer
+
+from alpha.application.backtest import CliBacktestService
+from alpha.application.historical_ingestion import HistoricalIngestionService
+from alpha.version import __version__
+
+app = typer.Typer()
+
+
+@app.command()
+def version() -> None:
+    print(__version__)
+
+
+@app.command()
+def download(date: str = "today") -> None:
+    """
+    Download NSE bhavcopy.
+    """
+
+    service = HistoricalIngestionService()
+    count = service.download_only(date)
+
+    print(f"Downloaded records: {count}")
+
+
+@app.command()
+def report(date: str = "today") -> None:
+    """
+    Generate daily report.
+    """
+
+    service = HistoricalIngestionService()
+    report_data = service.generate_report(date)
+
+    print("\n📊 NSE DAILY REPORT\n")
+
+    print("🔥 Top Gainers:")
+    print(
+        report_data["top_gainers"]
+        .loc[:, ["symbol", "momentum_score"]]
+        .to_string(index=False)
+    )
+
+    print("\n📉 Top Losers:")
+    print(
+        report_data["top_losers"]
+        .loc[:, ["symbol", "momentum_score"]]
+        .to_string(index=False)
+    )
+
+    print("\n📈 Market Regime:", report_data["regime"])
+
+
+@app.command()
+def backtest(
+    strategy: str = typer.Option(..., help="Strategy name"),
+    start: str = typer.Option(..., help="Start date (YYYY-MM-DD)"),
+    end: str = typer.Option(..., help="End date (YYYY-MM-DD)"),
+    cash: str = typer.Option("1000000", help="Starting cash"),
+) -> None:
+    """
+    Run a deterministic backtest.
+    """
+
+    start_date = _parse_date(start)
+    end_date = _parse_date(end)
+
+    if end_date < start_date:
+        raise typer.BadParameter("End date must be on or after start date.")
+
+    starting_cash = _parse_decimal(cash)
+    if starting_cash <= Decimal("0"):
+        raise typer.BadParameter("Starting cash must be greater than zero.")
+
+    service = CliBacktestService()
+    try:
+        summary = service.run(
+            strategy=strategy,
+            start=start_date,
+            end=end_date,
+            starting_cash=starting_cash,
+        )
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+
+    result = summary.result
+
+    print("\nProject Alpha Backtest\n")
+    print(f"Strategy       : {summary.strategy}")
+    print(f"Start          : {summary.start.isoformat()}")
+    print(f"End            : {summary.end.isoformat()}")
+    print(f"Processed Days : {summary.processed_days}")
+    print(f"Starting Cash  : {summary.starting_cash}")
+    print(f"Ending Cash    : {result.ending_cash}")
+    print(f"Equity         : {result.equity}")
+    print(f"Orders         : {summary.order_count}")
+    print(f"Trades         : {result.trade_count}")
+
+    if result.positions:
+        print("\nPositions:")
+        for symbol, quantity in sorted(result.positions.items()):
+            print(f"{symbol}: {quantity}")
+    else:
+        print("\nPositions: none")
+
+
+def _parse_date(date_str: str) -> dt_date:
+    if date_str == "today":
+        return dt_date.today()
+
+    return dt_date.fromisoformat(date_str)
+
+
+def _parse_decimal(value: str) -> Decimal:
+    try:
+        return Decimal(value)
+    except InvalidOperation as error:
+        raise typer.BadParameter("Expected a decimal value.") from error
+
+
+if __name__ == "__main__":
+    app()
