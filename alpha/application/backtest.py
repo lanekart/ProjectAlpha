@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
 from types import MappingProxyType
-from typing import Any, Protocol, TypeAlias, cast
+from typing import Any, Protocol, cast
 
 import pandas as pd
 
@@ -206,5 +206,5 @@ class BacktestApplicationService:
         return tuple(orders)
 
 
-CliBacktestService: TypeAlias = BacktestApplicationService
-CliBacktestResult: TypeAlias = BacktestRun
+CliBacktestService = BacktestApplicationService
+CliBacktestResult = BacktestRun
