@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any
 
+import pandas as pd
+
 from alpha.analysis.signals.daily_report import DailyMarketReport, DailyReport
 from alpha.application.ingestion import IngestionService
 from alpha.data.downloader.bhavcopy import BhavcopyDownloader
@@ -11,7 +13,7 @@ from alpha.market.resolver import TradingDateResolver
 
 class HistoricalIngestionService:
     """
-    Orchestrates historical ingestion + reporting.
+    Orchestrates historical ingestion and reporting.
     """
 
     def __init__(
@@ -39,10 +41,6 @@ class HistoricalIngestionService:
 
         return processed
 
-    # -------------------------
-    # CLI SUPPORT METHODS
-    # -------------------------
-
     def download_only(self, date_str: str) -> int:
         target = self._parse(date_str)
         trading_day = self.resolver.resolve(target)
@@ -51,7 +49,12 @@ class HistoricalIngestionService:
 
     def generate_report(self, date_str: str) -> dict[str, Any]:
         """
-        Returns dict for CLI (keeps CLI simple).
+        Generate a daily market report.
+
+        If the archive has already been processed, the ingestion pipeline
+        returns an empty DataFrame by design. In that idempotent case, reload
+        the canonical persisted prices for the trading date before generating
+        the report.
         """
 
         target = self._parse(date_str)
@@ -59,6 +62,7 @@ class HistoricalIngestionService:
 
         archive = self.downloader.download(trading_day)
         df = self.ingestion.ingest(archive)
+        df = self._resolve_report_dataframe(df, trading_day)
 
         report: DailyReport = DailyMarketReport().generate(df)
 
@@ -67,6 +71,22 @@ class HistoricalIngestionService:
             "top_losers": report["top_losers"],
             "regime": report["regime"],
         }
+
+    def _resolve_report_dataframe(
+        self,
+        ingested: pd.DataFrame,
+        trading_day: date,
+    ) -> pd.DataFrame:
+        if not ingested.empty:
+            return ingested
+
+        persisted = self.ingestion.prices.find_by_trade_date(trading_day)
+        if not persisted.empty:
+            return persisted
+
+        raise ValueError(
+            f"No market data available for report date {trading_day.isoformat()}"
+        )
 
     def _parse(self, date_str: str) -> date:
         if date_str == "today":
