@@ -206,5 +206,24 @@ class BacktestApplicationService:
         return tuple(orders)
 
 
-CliBacktestService = BacktestApplicationService
-CliBacktestResult = BacktestRun
+@dataclass(slots=True)
+class CliBacktestService(BacktestApplicationService):
+    """Backward-compatible RC-005A CLI backtest service adapter."""
+
+    def run(
+        self,
+        *,
+        strategy: str,
+        start: date,
+        end: date,
+        starting_cash: Decimal,
+    ) -> BacktestSummary:
+        return super().run(
+            strategy=strategy,
+            start=start,
+            end=end,
+            starting_cash=starting_cash,
+        ).summary
+
+
+CliBacktestResult = BacktestSummary
