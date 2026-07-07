@@ -19,7 +19,7 @@ class Database:
 
     def _init_schema(self) -> None:
         """
-        Initialize required tables if they do not exist.
+        Initialize required tables and migrate legacy local schemas.
         """
 
         self.connection.execute(
@@ -39,6 +39,50 @@ class Database:
         )
 
         self.connection.execute(AUDIT_TABLE_SQL)
+        self._migrate_audit_schema()
+
+    def _migrate_audit_schema(self) -> None:
+        """
+        Migrate older ingestion_audit tables in existing local DuckDB files.
+
+        Early development databases may contain only file_name and processed_at.
+        Current repositories expect status and error columns. This migration is
+        intentionally idempotent and preserves legacy rows as successful audits.
+        """
+
+        columns = self._table_columns("ingestion_audit")
+
+        if "status" not in columns:
+            self.connection.execute(
+                "ALTER TABLE ingestion_audit ADD COLUMN status TEXT"
+            )
+
+        if "error" not in columns:
+            self.connection.execute("ALTER TABLE ingestion_audit ADD COLUMN error TEXT")
+
+        if "processed_at" not in columns:
+            self.connection.execute(
+                "ALTER TABLE ingestion_audit ADD COLUMN processed_at TIMESTAMP"
+            )
+
+        self.connection.execute(
+            """
+            UPDATE ingestion_audit
+            SET status = 'SUCCESS'
+            WHERE status IS NULL
+            """
+        )
+        self.connection.execute(
+            """
+            UPDATE ingestion_audit
+            SET processed_at = CURRENT_TIMESTAMP
+            WHERE processed_at IS NULL
+            """
+        )
+
+    def _table_columns(self, table_name: str) -> set[str]:
+        rows = self.connection.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+        return {str(row[1]) for row in rows}
 
     def execute(self, sql: str, parameters: tuple[Any, ...] | None = None) -> Any:
         """

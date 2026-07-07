@@ -7,14 +7,28 @@ import typer
 
 from alpha.application.backtest import BacktestApplicationService, BacktestSummary
 from alpha.application.historical_ingestion import HistoricalIngestionService
+from alpha.application.research_cli import research_app
+from alpha.exceptions import BhavcopyNotFoundError, ProjectAlphaError
+from alpha.release import current_release
 from alpha.version import __version__
 
 app = typer.Typer()
+app.add_typer(research_app, name="research")
 
 
 @app.command()
 def version() -> None:
     print(__version__)
+
+
+@app.command()
+def doctor() -> None:
+    """
+    Print Project Alpha release and quality gate metadata.
+    """
+
+    release = current_release()
+    print("\n".join(release.as_lines()))
 
 
 @app.command()
@@ -24,7 +38,12 @@ def download(date: str = "today") -> None:
     """
 
     service = HistoricalIngestionService()
-    count = service.download_only(date)
+    try:
+        count = service.download_only(date)
+    except BhavcopyNotFoundError as exc:
+        _exit_with_error("Data download failed", exc)
+    except ProjectAlphaError as exc:
+        _exit_with_error("Project Alpha command failed", exc)
 
     print(f"Downloaded records: {count}")
 
@@ -36,7 +55,12 @@ def report(date: str = "today") -> None:
     """
 
     service = HistoricalIngestionService()
-    report_data = service.generate_report(date)
+    try:
+        report_data = service.generate_report(date)
+    except BhavcopyNotFoundError as exc:
+        _exit_with_error("Report generation failed", exc)
+    except ProjectAlphaError as exc:
+        _exit_with_error("Project Alpha command failed", exc)
 
     print("\n📊 NSE DAILY REPORT\n")
 
@@ -126,6 +150,11 @@ def _parse_decimal(value: str) -> Decimal:
         return Decimal(value)
     except InvalidOperation as error:
         raise typer.BadParameter("Expected a decimal value.") from error
+
+
+def _exit_with_error(title: str, exc: ProjectAlphaError) -> None:
+    typer.echo(f"{title}: {exc}", err=True)
+    raise typer.Exit(code=1) from exc
 
 
 if __name__ == "__main__":

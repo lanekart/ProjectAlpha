@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "alpha"
-version = "0.1.0"
-description = "Professional NSE trading intelligence platform for identifying high-probability trading opportunities."
+version = "1.0.0"
+description = "Enterprise-grade quantitative research platform for the Indian equity market."
 authors = ["Rishab Wahal"]
 license = "MIT"
 readme = "README.md"
@@ -83,3 +83,4 @@ testpaths = ["tests"]
 [build-system]
 requires = ["poetry-core>=2.0.0"]
 build-backend = "poetry.core.masonry.api"
+
