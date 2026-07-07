@@ -210,7 +210,11 @@ class BacktestApplicationService:
 class CliBacktestService:
     """Backward-compatible RC-005A CLI backtest service adapter."""
 
-    service: BacktestApplicationService = field(default_factory=BacktestApplicationService)
+    resolver: TradingDateResolver = field(default_factory=TradingDateResolver)
+    downloader: BhavcopyDownloader = field(default_factory=BhavcopyDownloader)
+    ingestion: IngestionService = field(default_factory=IngestionService)
+    report: MarketReportGenerator = field(default_factory=DailyMarketReport)
+    engine: BacktestEngine = field(default_factory=BacktestEngine)
 
     def run(
         self,
@@ -220,7 +224,14 @@ class CliBacktestService:
         end: date,
         starting_cash: Decimal,
     ) -> BacktestSummary:
-        return self.service.run(
+        service = BacktestApplicationService(
+            resolver=self.resolver,
+            downloader=self.downloader,
+            ingestion=self.ingestion,
+            report=self.report,
+            engine=self.engine,
+        )
+        return service.run(
             strategy=strategy,
             start=start,
             end=end,
