@@ -1,47 +1,55 @@
-Python
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
 
-pycache/ .py[cod] .pyo .pyd .so
+# Virtual environments
+.venv/
+venv/
+env/
 
-Virtual environments
-
-.venv/ venv/ env/
-
-macOS
-
+# macOS
 .DS_Store
 
-Editors / IDEs
+# Editors and IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
 
-.vscode/ .idea/
+# Environment files
+.env
+.env.*
 
-Environment
-
-.env .env.*
-
-Testing
-
+# Testing and coverage
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
 
-Coverage
-
-.coverage .coverage.* htmlcov/
-
-Logs
-
+# Logs
 *.log
 
-Build artifacts
+# Build artifacts
+build/
+dist/
+*.egg-info/
 
-build/ dist/ *.egg-info/
-
-Generated reports
-
+# Generated reports and exports
 reports/
+exports/
 
-Downloaded / extracted market data
-
-data/raw/ data/extracted/
-
-Local databases
-
+# Runtime market data and local databases
+data/raw/
+data/extracted/
+data/*.duckdb
 *.duckdb
+
+# Temporary editor files
+*.save
+*.tmp
+*.bak
