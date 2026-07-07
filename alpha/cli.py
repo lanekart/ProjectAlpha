@@ -1,7 +1,11 @@
+from __future__ import annotations
+
 from datetime import date as dt_date
+from decimal import Decimal, InvalidOperation
 
 import typer
 
+from alpha.application.backtest import CliBacktestService
 from alpha.application.historical_ingestion import HistoricalIngestionService
 from alpha.version import __version__
 
@@ -58,11 +62,10 @@ def backtest(
     strategy: str = typer.Option(..., help="Strategy name"),
     start: str = typer.Option(..., help="Start date (YYYY-MM-DD)"),
     end: str = typer.Option(..., help="End date (YYYY-MM-DD)"),
+    cash: str = typer.Option("1000000", help="Starting cash"),
 ) -> None:
     """
-    Prepare a backtest configuration.
-
-    Execution engine will be added in a later commit.
+    Run a deterministic backtest.
     """
 
     start_date = _parse_date(start)
@@ -71,10 +74,40 @@ def backtest(
     if end_date < start_date:
         raise typer.BadParameter("End date must be on or after start date.")
 
+    starting_cash = _parse_decimal(cash)
+    if starting_cash <= Decimal("0"):
+        raise typer.BadParameter("Starting cash must be greater than zero.")
+
+    service = CliBacktestService()
+    try:
+        summary = service.run(
+            strategy=strategy,
+            start=start_date,
+            end=end_date,
+            starting_cash=starting_cash,
+        )
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+
+    result = summary.result
+
     print("\nProject Alpha Backtest\n")
-    print(f"Strategy : {strategy}")
-    print(f"Start    : {start_date.isoformat()}")
-    print(f"End      : {end_date.isoformat()}")
+    print(f"Strategy       : {summary.strategy}")
+    print(f"Start          : {summary.start.isoformat()}")
+    print(f"End            : {summary.end.isoformat()}")
+    print(f"Processed Days : {summary.processed_days}")
+    print(f"Starting Cash  : {summary.starting_cash}")
+    print(f"Ending Cash    : {result.ending_cash}")
+    print(f"Equity         : {result.equity}")
+    print(f"Orders         : {summary.order_count}")
+    print(f"Trades         : {result.trade_count}")
+
+    if result.positions:
+        print("\nPositions:")
+        for symbol, quantity in sorted(result.positions.items()):
+            print(f"{symbol}: {quantity}")
+    else:
+        print("\nPositions: none")
 
 
 def _parse_date(date_str: str) -> dt_date:
@@ -82,6 +115,13 @@ def _parse_date(date_str: str) -> dt_date:
         return dt_date.today()
 
     return dt_date.fromisoformat(date_str)
+
+
+def _parse_decimal(value: str) -> Decimal:
+    try:
+        return Decimal(value)
+    except InvalidOperation as error:
+        raise typer.BadParameter("Expected a decimal value.") from error
 
 
 if __name__ == "__main__":
