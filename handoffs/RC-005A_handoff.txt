@@ -31,9 +31,9 @@ from typing import Any, Protocol, cast
 import pandas as pd
 
 from alpha.analysis.signals.daily_report import DailyMarketReport
+from alpha.application.ingestion import IngestionService
 from alpha.backtest.engine import BacktestEngine
 from alpha.backtest.models import BacktestOrder, BacktestResult
-from alpha.application.ingestion import IngestionService
 from alpha.data.downloader.bhavcopy import BhavcopyDownloader
 from alpha.market.resolver import TradingDateResolver
 
@@ -132,7 +132,10 @@ class CliBacktestService:
             raise ValueError(f"market data missing required columns: {missing}")
 
         prices: dict[str, Decimal] = {}
-        records = cast(list[dict[str, Any]], frame[["symbol", "close"]].to_dict("records"))
+        records = cast(
+            list[dict[str, Any]],
+            frame[["symbol", "close"]].to_dict("records"),
+        )
         for record in records:
             symbol = str(record["symbol"]).strip()
             if not symbol:
