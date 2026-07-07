@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Any, Protocol, cast
+from types import MappingProxyType
+from typing import Any, Protocol, TypeAlias, cast
 
 import pandas as pd
 
@@ -35,14 +37,41 @@ class BacktestSummary:
     order_count: int
     trade_count: int
     position_count: int
-    positions: dict[str, int]
+    positions: Mapping[str, int]
     result: BacktestResult
+
+    def __post_init__(self) -> None:
+        normalized_strategy = self.strategy.strip().lower()
+        if not normalized_strategy:
+            raise ValueError("strategy cannot be empty")
+        if self.end < self.start:
+            raise ValueError("end date must be on or after start date")
+        if self.starting_cash <= Decimal("0"):
+            raise ValueError("starting cash must be greater than zero")
+        if self.processed_days <= 0:
+            raise ValueError("processed days must be positive")
+        if self.order_count < 0:
+            raise ValueError("order count cannot be negative")
+        if self.trade_count < 0:
+            raise ValueError("trade count cannot be negative")
+        if self.position_count < 0:
+            raise ValueError("position count cannot be negative")
+
+        copied_positions: dict[str, int] = {}
+        for symbol, quantity in self.positions.items():
+            normalized_symbol = symbol.strip()
+            if not normalized_symbol:
+                raise ValueError("position symbol cannot be empty")
+            copied_positions[normalized_symbol] = quantity
+
+        if self.position_count != len(copied_positions):
+            raise ValueError("position count must match positions")
+
+        object.__setattr__(self, "strategy", normalized_strategy)
+        object.__setattr__(self, "positions", MappingProxyType(copied_positions))
 
     @property
     def total_return(self) -> Decimal:
-        if self.starting_cash == Decimal("0"):
-            return Decimal("0")
-
         return (self.equity - self.starting_cash) / self.starting_cash
 
 
@@ -103,7 +132,7 @@ class BacktestApplicationService:
             order_count=len(orders),
             trade_count=result.trade_count,
             position_count=len(result.positions),
-            positions=dict(result.positions),
+            positions=result.positions,
             result=result,
         )
 
@@ -177,5 +206,5 @@ class BacktestApplicationService:
         return tuple(orders)
 
 
-CliBacktestService = BacktestApplicationService
-CliBacktestResult = BacktestRun
+CliBacktestService: TypeAlias = BacktestApplicationService
+CliBacktestResult: TypeAlias = BacktestRun
