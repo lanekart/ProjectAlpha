@@ -81,8 +81,8 @@ def current_release() -> ProjectAlphaRelease:
     return ProjectAlphaRelease(
         name="Project Alpha",
         version=__version__,
-        stage="v1.2",
-        status="engineering",
+        stage="v1.3-production-validation",
+        status="production validation",
         capabilities=(
             "deterministic market data engine",
             "NSE providers",
@@ -106,12 +106,22 @@ def current_release() -> ProjectAlphaRelease:
             "strategy comparison",
             "professional research reports",
             "research CLI",
+            "trading signal intelligence",
+            "market digital twin",
+            "market intelligence engines",
+            "historical probability engine",
+            "recommendation intelligence",
+            "portfolio intelligence",
+            "capital allocation engine",
+            "explainable allocation reports",
         ),
         quality_gates=(
             "pytest",
             "ruff",
             "mypy",
             "poetry build",
+            "runtime validation",
+            "user acceptance testing",
         ),
     )
 
