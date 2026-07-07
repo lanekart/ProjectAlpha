@@ -108,6 +108,11 @@ REQUIRED_CANONICAL_COLUMNS = (
     "volume",
 )
 
+SUPPORTED_DATE_FORMATS = (
+    "%Y-%m-%d",
+    "%d-%b-%Y",
+)
+
 
 def _detect_schema(df: pd.DataFrame) -> SchemaDetectionResult:
     columns = set(df.columns)
@@ -165,10 +170,7 @@ def _coerce_canonical_types(df: pd.DataFrame) -> pd.DataFrame:
     normalized = df.copy()
 
     normalized["symbol"] = normalized["symbol"].astype(str).str.strip()
-    normalized["trade_date"] = pd.to_datetime(
-        normalized["trade_date"],
-        errors="coerce",
-    )
+    normalized["trade_date"] = _parse_trade_dates(normalized["trade_date"])
 
     numeric_columns = ("open", "high", "low", "close", "volume", "turnover", "trades")
     for column in numeric_columns:
@@ -183,6 +185,24 @@ def _coerce_canonical_types(df: pd.DataFrame) -> pd.DataFrame:
         normalized["exchange"] = "NSE"
 
     return normalized
+
+
+def _parse_trade_dates(values: pd.Series) -> pd.Series:
+    raw_values = values.astype(str).str.strip()
+    parsed = pd.Series(pd.NaT, index=values.index, dtype="datetime64[ns]")
+
+    for date_format in SUPPORTED_DATE_FORMATS:
+        unresolved = parsed.isna()
+        if not unresolved.any():
+            break
+
+        parsed.loc[unresolved] = pd.to_datetime(
+            raw_values.loc[unresolved],
+            format=date_format,
+            errors="coerce",
+        )
+
+    return parsed
 
 
 __all__ = ["Normalizer", "SchemaDetectionResult"]
