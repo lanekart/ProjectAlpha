@@ -21,7 +21,8 @@ from alpha.backtest.backtest_report_artifact_naming import (
 from alpha.backtest.backtest_report_writer import BacktestReportWriter
 from alpha.backtest.broker import BrokerSimulator
 from alpha.backtest.engine import BacktestEngine
-from alpha.backtest.ledger import ExecutionLedger, LedgerState
+from alpha.backtest.equity_curve import EquityCurveBuilder
+from alpha.backtest.ledger import ExecutionLedger
 from alpha.backtest.models import BacktestOrder, BacktestResult, BacktestTrade
 from alpha.backtest.optimized_runner import (
     OptimizedBacktestResult,
@@ -59,9 +60,9 @@ __all__ = [
     "BacktestResult",
     "BacktestTrade",
     "BrokerSimulator",
+    "EquityCurveBuilder",
     "EquityCurvePoint",
     "ExecutionLedger",
-    "LedgerState",
     "OptimizedBacktestResult",
     "OptimizedBacktestRunner",
     "PerformanceAnalytics",

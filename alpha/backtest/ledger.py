@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from decimal import Decimal
 
 from alpha.backtest.accounting import (
@@ -243,4 +244,6 @@ class ExecutionLedger:
         timestamp = getattr(trade, "timestamp", None)
         if timestamp is None:
             return None
-        return timestamp
+        if isinstance(timestamp, datetime | date):
+            return timestamp
+        raise TypeError("timestamp must be a date or datetime")

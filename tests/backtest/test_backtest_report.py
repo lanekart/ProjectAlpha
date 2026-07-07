@@ -142,6 +142,99 @@ def test_backtest_report_renderer_handles_empty_positions() -> None:
     assert BacktestReportRenderer().render(report)[-1] == "Positions: none"
 
 
+def test_backtest_report_includes_financial_explainability_sections() -> None:
+    report = BacktestReportBuilder().build(
+        strategy="momentum",
+        start="2024-01-01",
+        end="2024-01-31",
+        processed_days=22,
+        starting_cash=Decimal("1000"),
+        ending_cash=Decimal("100"),
+        holdings_market_value=Decimal("1000"),
+        equity=Decimal("1100"),
+        order_count=1,
+        trade_count=1,
+        position_count=1,
+        positions={"AAPL": 10},
+        performance=make_performance_report(),
+        strategy_statistics=make_strategy_statistics_report(),
+        reconciliation={
+            "cash_plus_holdings": "1100",
+            "ending_equity": "1100",
+            "is_balanced": "true",
+        },
+        position_details=(
+            {
+                "symbol": "AAPL",
+                "quantity": "10",
+                "cost_basis": "900",
+                "market_value": "1000",
+                "unrealized_pnl": "100",
+            },
+        ),
+        trade_ledger=(
+            {
+                "timestamp": "2024-01-02",
+                "side": "BUY",
+                "symbol": "AAPL",
+                "quantity": "10",
+                "running_cash": "100",
+            },
+        ),
+        equity_curve=(
+            {
+                "timestamp": "2024-01-31",
+                "equity": "1100",
+                "drawdown": "0",
+                "cumulative_return": "0.10",
+            },
+        ),
+    )
+
+    payload = report.as_dict()
+
+    assert payload["metadata"]["holdings_market_value"] == "1000"
+    assert payload["reconciliation"] == {
+        "cash_plus_holdings": "1100",
+        "ending_equity": "1100",
+        "is_balanced": "true",
+    }
+    assert payload["position_details"] == [
+        {
+            "symbol": "AAPL",
+            "quantity": "10",
+            "cost_basis": "900",
+            "market_value": "1000",
+            "unrealized_pnl": "100",
+        }
+    ]
+    assert payload["trade_ledger"] == [
+        {
+            "timestamp": "2024-01-02",
+            "side": "BUY",
+            "symbol": "AAPL",
+            "quantity": "10",
+            "running_cash": "100",
+        }
+    ]
+    assert payload["equity_curve"] == [
+        {
+            "timestamp": "2024-01-31",
+            "equity": "1100",
+            "drawdown": "0",
+            "cumulative_return": "0.10",
+        }
+    ]
+
+    rendered = BacktestReportRenderer().render(report)
+
+    assert "Holdings Value : 1000" in rendered
+    assert "Reconciliation:" in rendered
+    assert "Position Details:" in rendered
+    assert "Trade Ledger:" in rendered
+    assert "Equity Curve:" in rendered
+
+
 def test_backtest_report_builder_rejects_invalid_inputs() -> None:
     builder = BacktestReportBuilder()
 

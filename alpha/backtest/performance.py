@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from math import sqrt
 
+from alpha.backtest.accounting import EquityCurvePoint
 from alpha.backtest.models import BacktestResult, BacktestTrade
 
 _ZERO = Decimal("0")
@@ -50,6 +51,11 @@ class PerformanceAnalytics:
     The deterministic BacktestEngine remains responsible only for execution.
     This class derives performance metrics from immutable inputs without mutating
     the result, trades, positions, or cash balances.
+
+    If an explicit equity_curve is supplied, it remains authoritative for
+    backward compatibility. Otherwise, the enriched BacktestResult.equity_curve
+    is used when available. Legacy results without an embedded curve still fall
+    back to the original two-point starting/ending equity curve.
     """
 
     periods_per_year: Decimal = _DEFAULT_PERIODS_PER_YEAR
@@ -122,13 +128,15 @@ class PerformanceAnalytics:
     ) -> tuple[Decimal, ...]:
         curve: tuple[Decimal, ...]
 
-        if equity_curve is None:
+        if equity_curve is not None:
+            curve = tuple(equity_curve)
+        elif result.equity_curve:
+            curve = self._curve_from_result(result.equity_curve)
+        else:
             curve = (
                 result.starting_cash,
                 result.equity,
             )
-        else:
-            curve = tuple(equity_curve)
 
         if not curve:
             raise ValueError("equity_curve cannot be empty")
@@ -144,6 +152,12 @@ class PerformanceAnalytics:
             curve = (*curve, result.equity)
 
         return curve
+
+    def _curve_from_result(
+        self,
+        equity_curve: Sequence[EquityCurvePoint],
+    ) -> tuple[Decimal, ...]:
+        return tuple(point.equity for point in equity_curve)
 
     def _period_returns(self, equity_curve: Sequence[Decimal]) -> tuple[Decimal, ...]:
         returns: list[Decimal] = []

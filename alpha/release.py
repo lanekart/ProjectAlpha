@@ -81,11 +81,22 @@ def current_release() -> ProjectAlphaRelease:
     return ProjectAlphaRelease(
         name="Project Alpha",
         version=__version__,
-        stage="v1.0",
-        status="release candidate",
+        stage="v1.2",
+        status="engineering",
         capabilities=(
+            "deterministic market data engine",
+            "NSE providers",
+            "UDiFF integration",
             "deterministic backtesting",
-            "portfolio accounting",
+            "financial accounting model",
+            "execution ledger",
+            "position accounting",
+            "portfolio reconciliation",
+            "explainable backtest results",
+            "equity curve builder",
+            "equity-driven performance analytics",
+            "explainable JSON exports",
+            "explainable text reports",
             "portfolio optimization",
             "objective and constraint evaluation",
             "walk-forward research",
@@ -100,6 +111,7 @@ def current_release() -> ProjectAlphaRelease:
             "pytest",
             "ruff",
             "mypy",
+            "poetry build",
         ),
     )
 

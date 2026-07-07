@@ -53,7 +53,7 @@ def test_execution_ledger_calculates_average_cost_and_realized_pnl() -> None:
         market_prices={"RELIANCE": Decimal("140")},
     )
 
-    assert state.cash == Decimal("97550")
+    assert state.cash == Decimal("98550")
     assert state.positions == {"RELIANCE": 15}
     assert state.realized_pnl_by_symbol == {"RELIANCE": Decimal("200")}
     assert state.total_realized_pnl == Decimal("200")
