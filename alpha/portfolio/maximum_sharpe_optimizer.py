@@ -112,9 +112,7 @@ class MaximumSharpeOptimizer(Optimizer):
         if total_score <= Decimal("0"):
             return self._equal_unit_weights(universe)
 
-        return {
-            symbol: positive_scores[symbol] / total_score for symbol in universe
-        }
+        return {symbol: positive_scores[symbol] / total_score for symbol in universe}
 
     def _risk_adjusted_score(
         self,

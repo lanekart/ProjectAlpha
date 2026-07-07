@@ -28,10 +28,14 @@ def test_optimization_package_exports_first_party_optimizers() -> None:
 
 
 def test_optimization_package_exports_constraint_evaluation_primitives() -> None:
-    assert ConstraintEvaluator().evaluate_input(
-        optimization_input=OptimizationInput(universe=("RELIANCE",)),
-        target_weights={"RELIANCE": Decimal("1")},
-    ).passed
+    assert (
+        ConstraintEvaluator()
+        .evaluate_input(
+            optimization_input=OptimizationInput(universe=("RELIANCE",)),
+            target_weights={"RELIANCE": Decimal("1")},
+        )
+        .passed
+    )
     assert ConstraintResult().passed
 
 

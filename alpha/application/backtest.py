@@ -11,8 +11,22 @@ import pandas as pd
 
 from alpha.analysis.signals.daily_report import DailyMarketReport
 from alpha.application.ingestion import IngestionService
+from alpha.backtest.backtest_report import BacktestReport, BacktestReportBuilder
 from alpha.backtest.engine import BacktestEngine
 from alpha.backtest.models import BacktestOrder, BacktestResult
+from alpha.backtest.performance import PerformanceAnalytics, PerformanceSummary
+from alpha.backtest.performance_export import (
+    PerformanceReport,
+    PerformanceReportBuilder,
+)
+from alpha.backtest.strategy_statistics import (
+    StrategyStatistics,
+    StrategyStatisticsEngine,
+)
+from alpha.backtest.strategy_statistics_export import (
+    StrategyStatisticsReport,
+    StrategyStatisticsReportBuilder,
+)
 from alpha.data.downloader.bhavcopy import BhavcopyDownloader
 from alpha.market.resolver import TradingDateResolver
 
@@ -39,6 +53,11 @@ class BacktestSummary:
     position_count: int
     positions: Mapping[str, int]
     result: BacktestResult
+    performance: PerformanceSummary = field(init=False)
+    performance_report: PerformanceReport = field(init=False)
+    strategy_statistics: StrategyStatistics = field(init=False)
+    strategy_statistics_report: StrategyStatisticsReport = field(init=False)
+    report: BacktestReport = field(init=False)
 
     def __post_init__(self) -> None:
         normalized_strategy = self.strategy.strip().lower()
@@ -67,12 +86,139 @@ class BacktestSummary:
         if self.position_count != len(copied_positions):
             raise ValueError("position count must match positions")
 
+        performance = PerformanceAnalytics().summarize(self.result)
+        performance_report = PerformanceReportBuilder().build(performance)
+        strategy_statistics = StrategyStatisticsEngine().summarize(
+            performance,
+            trade_pnls=self._trade_pnls(),
+            observed_periods=self.processed_days,
+        )
+        strategy_statistics_report = StrategyStatisticsReportBuilder().build(
+            strategy_statistics
+        )
+        report = BacktestReportBuilder().build(
+            strategy=normalized_strategy,
+            start=self.start.isoformat(),
+            end=self.end.isoformat(),
+            processed_days=self.processed_days,
+            starting_cash=self.starting_cash,
+            ending_cash=self.ending_cash,
+            equity=self.equity,
+            order_count=self.order_count,
+            trade_count=self.trade_count,
+            position_count=self.position_count,
+            positions=copied_positions,
+            performance=performance_report,
+            strategy_statistics=strategy_statistics_report,
+        )
+
         object.__setattr__(self, "strategy", normalized_strategy)
         object.__setattr__(self, "positions", MappingProxyType(copied_positions))
+        object.__setattr__(self, "performance", performance)
+        object.__setattr__(self, "performance_report", performance_report)
+        object.__setattr__(self, "strategy_statistics", strategy_statistics)
+        object.__setattr__(
+            self,
+            "strategy_statistics_report",
+            strategy_statistics_report,
+        )
+        object.__setattr__(self, "report", report)
 
     @property
     def total_return(self) -> Decimal:
-        return (self.equity - self.starting_cash) / self.starting_cash
+        return self.performance.total_return
+
+    @property
+    def cagr(self) -> Decimal:
+        return self.performance.cagr
+
+    @property
+    def volatility(self) -> Decimal:
+        return self.performance.volatility
+
+    @property
+    def sharpe_ratio(self) -> Decimal:
+        return self.performance.sharpe_ratio
+
+    @property
+    def sortino_ratio(self) -> Decimal:
+        return self.performance.sortino_ratio
+
+    @property
+    def calmar_ratio(self) -> Decimal:
+        return self.performance.calmar_ratio
+
+    @property
+    def maximum_drawdown(self) -> Decimal:
+        return self.performance.maximum_drawdown
+
+    @property
+    def win_rate(self) -> Decimal:
+        return self.performance.win_rate
+
+    @property
+    def profit_factor(self) -> Decimal:
+        return self.performance.profit_factor
+
+    @property
+    def average_win(self) -> Decimal:
+        return self.performance.average_win
+
+    @property
+    def average_loss(self) -> Decimal:
+        return self.performance.average_loss
+
+    @property
+    def expectancy(self) -> Decimal:
+        return self.performance.expectancy
+
+    @property
+    def exposure(self) -> Decimal:
+        return self.performance.exposure
+
+    @property
+    def ending_equity(self) -> Decimal:
+        return self.performance.ending_equity
+
+    @property
+    def cash_balance(self) -> Decimal:
+        return self.performance.cash_balance
+
+    def _trade_pnls(self) -> tuple[Decimal, ...]:
+        quantities: dict[str, int] = {}
+        average_costs: dict[str, Decimal] = {}
+        pnls: list[Decimal] = []
+
+        for trade in self.result.trades:
+            current_quantity = quantities.get(trade.symbol, 0)
+            current_average_cost = average_costs.get(trade.symbol, Decimal("0"))
+
+            if trade.quantity > 0:
+                new_quantity = current_quantity + trade.quantity
+                new_average_cost = (
+                    (current_average_cost * Decimal(current_quantity)) + trade.notional
+                ) / Decimal(new_quantity)
+                quantities[trade.symbol] = new_quantity
+                average_costs[trade.symbol] = new_average_cost
+                continue
+
+            sell_quantity = abs(trade.quantity)
+            if current_quantity <= 0:
+                continue
+
+            closed_quantity = min(sell_quantity, current_quantity)
+            pnl = (trade.price - current_average_cost) * Decimal(closed_quantity)
+            pnls.append(pnl)
+
+            remaining_quantity = current_quantity - closed_quantity
+            if remaining_quantity > 0:
+                quantities[trade.symbol] = remaining_quantity
+                average_costs[trade.symbol] = current_average_cost
+            else:
+                quantities.pop(trade.symbol, None)
+                average_costs.pop(trade.symbol, None)
+
+        return tuple(pnls)
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,8 +293,13 @@ class BacktestApplicationService:
             trading_day = self.resolver.resolve(current)
             archive = self.downloader.download(trading_day)
             frame = self.ingestion.ingest(archive)
+
+            if frame.empty:
+                frame = self.ingestion.load_prices_for_trade_date(trading_day)
+
             if not frame.empty:
                 latest_frame = frame
+
             processed_days += 1
             current += timedelta(days=1)
 

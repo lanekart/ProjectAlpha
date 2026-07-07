@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from datetime import date as dt_date
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 
 import typer
 
 from alpha.application.backtest import BacktestApplicationService, BacktestSummary
+from alpha.application.backtest_export import BacktestExportService
 from alpha.application.historical_ingestion import HistoricalIngestionService
 from alpha.application.research_cli import research_app
+from alpha.backtest.backtest_report import BacktestReportRenderer
 from alpha.exceptions import BhavcopyNotFoundError, ProjectAlphaError
 from alpha.release import current_release
 from alpha.version import __version__
@@ -87,6 +90,16 @@ def backtest(
     start: str = typer.Option(..., help="Start date (YYYY-MM-DD)"),
     end: str = typer.Option(..., help="End date (YYYY-MM-DD)"),
     cash: str = typer.Option("1000000", help="Starting cash"),
+    export_json: Path | None = typer.Option(
+        None,
+        "--export-json",
+        help="Write unified backtest report JSON to this path.",
+    ),
+    export_text: Path | None = typer.Option(
+        None,
+        "--export-text",
+        help="Write unified backtest report text to this path.",
+    ),
 ) -> None:
     """
     Run a deterministic backtest.
@@ -102,6 +115,8 @@ def backtest(
     if starting_cash <= Decimal("0"):
         raise typer.BadParameter("Starting cash must be greater than zero.")
 
+    _validate_export_paths(export_json=export_json, export_text=export_text)
+
     service = BacktestApplicationService()
     try:
         run = service.run(
@@ -114,28 +129,54 @@ def backtest(
         raise typer.BadParameter(str(error)) from error
 
     _print_backtest_summary(run.summary)
+    _export_backtest_summary(
+        summary=run.summary,
+        export_json=export_json,
+        export_text=export_text,
+    )
 
 
 def _print_backtest_summary(summary: BacktestSummary) -> None:
-    print("\nProject Alpha Backtest\n")
-    print(f"Strategy       : {summary.strategy}")
-    print(f"Start          : {summary.start.isoformat()}")
-    print(f"End            : {summary.end.isoformat()}")
-    print(f"Processed Days : {summary.processed_days}")
-    print(f"Starting Cash  : {summary.starting_cash}")
-    print(f"Ending Cash    : {summary.ending_cash}")
-    print(f"Equity         : {summary.equity}")
-    print(f"Total Return   : {summary.total_return}")
-    print(f"Orders         : {summary.order_count}")
-    print(f"Trades         : {summary.trade_count}")
-    print(f"Positions      : {summary.position_count}")
+    renderer = BacktestReportRenderer()
 
-    if summary.positions:
-        print("\nPositions:")
-        for symbol, quantity in sorted(summary.positions.items()):
-            print(f"{symbol}: {quantity}")
-    else:
-        print("\nPositions: none")
+    print()
+    for line in renderer.render(summary.report):
+        print(line)
+
+
+def _export_backtest_summary(
+    *,
+    summary: BacktestSummary,
+    export_json: Path | None,
+    export_text: Path | None,
+) -> None:
+    service = BacktestExportService()
+    try:
+        result = service.export(
+            summary,
+            json_path=export_json,
+            text_path=export_text,
+        )
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+
+    if result.json_path is not None:
+        print(f"\nJSON report written: {result.json_path}")
+
+    if result.text_path is not None:
+        print(f"\nText report written: {result.text_path}")
+
+
+def _validate_export_paths(
+    *,
+    export_json: Path | None,
+    export_text: Path | None,
+) -> None:
+    if export_json is not None and export_json.suffix.lower() != ".json":
+        raise typer.BadParameter("Expected --export-json path to end with .json.")
+
+    if export_text is not None and export_text.suffix.lower() != ".txt":
+        raise typer.BadParameter("Expected --export-text path to end with .txt.")
 
 
 def _parse_date(date_str: str) -> dt_date:
