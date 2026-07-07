@@ -11,9 +11,13 @@ import pandas as pd
 
 from alpha.analysis.signals.daily_report import DailyMarketReport
 from alpha.application.ingestion import IngestionService
+from alpha.backtest.accounting import PortfolioReconciliation
 from alpha.backtest.backtest_report import BacktestReport, BacktestReportBuilder
+from alpha.backtest.broker import BrokerSimulator
 from alpha.backtest.engine import BacktestEngine
-from alpha.backtest.models import BacktestOrder, BacktestResult
+from alpha.backtest.equity_curve import EquityCurveBuilder
+from alpha.backtest.ledger import ExecutionLedger, LedgerState
+from alpha.backtest.models import BacktestOrder, BacktestResult, BacktestTrade
 from alpha.backtest.performance import PerformanceAnalytics, PerformanceSummary
 from alpha.backtest.performance_export import (
     PerformanceReport,
@@ -30,11 +34,19 @@ from alpha.backtest.strategy_statistics_export import (
 from alpha.data.downloader.bhavcopy import BhavcopyDownloader
 from alpha.market.resolver import TradingDateResolver
 
+_ZERO = Decimal("0")
+
 
 class MarketReportGenerator(Protocol):
     def generate(self, df: pd.DataFrame) -> Any:
         """Generate a deterministic market report from normalized prices."""
         ...
+
+
+@dataclass(frozen=True, slots=True)
+class _BacktestMarketFrame:
+    trade_date: date
+    frame: pd.DataFrame
 
 
 @dataclass(frozen=True, slots=True)
@@ -238,6 +250,9 @@ class BacktestApplicationService:
     ingestion: IngestionService = field(default_factory=IngestionService)
     report: MarketReportGenerator = field(default_factory=DailyMarketReport)
     engine: BacktestEngine = field(default_factory=BacktestEngine)
+    broker: BrokerSimulator = field(default_factory=BrokerSimulator)
+    ledger: ExecutionLedger = field(default_factory=ExecutionLedger)
+    equity_curve_builder: EquityCurveBuilder = field(default_factory=EquityCurveBuilder)
 
     def run(
         self,
@@ -255,16 +270,13 @@ class BacktestApplicationService:
         if starting_cash <= Decimal("0"):
             raise ValueError("starting cash must be greater than zero")
 
-        latest_frame, processed_days = self._load_market_data(start=start, end=end)
-        report_data = self.report.generate(latest_frame)
-        signal_frame = cast(pd.DataFrame, report_data["signals"])
-
-        prices = self._prices_from_frame(latest_frame)
-        orders = self._momentum_orders(signal_frame=signal_frame, prices=prices)
-        result = self.engine.run(
+        market_frames, processed_days = self._load_market_data(
+            start=start,
+            end=end,
+        )
+        result, orders = self._run_dated_backtest(
             starting_cash=starting_cash,
-            orders=orders,
-            prices=prices,
+            market_frames=market_frames,
         )
 
         summary = BacktestSummary(
@@ -284,8 +296,13 @@ class BacktestApplicationService:
 
         return BacktestRun(summary=summary, orders=orders)
 
-    def _load_market_data(self, *, start: date, end: date) -> tuple[pd.DataFrame, int]:
-        latest_frame: pd.DataFrame | None = None
+    def _load_market_data(
+        self,
+        *,
+        start: date,
+        end: date,
+    ) -> tuple[tuple[_BacktestMarketFrame, ...], int]:
+        market_frames: list[_BacktestMarketFrame] = []
         processed_days = 0
         current = start
 
@@ -298,15 +315,113 @@ class BacktestApplicationService:
                 frame = self.ingestion.load_prices_for_trade_date(trading_day)
 
             if not frame.empty:
-                latest_frame = frame
+                market_frames.append(
+                    _BacktestMarketFrame(
+                        trade_date=trading_day,
+                        frame=frame,
+                    )
+                )
 
             processed_days += 1
             current += timedelta(days=1)
 
-        if latest_frame is None:
+        if not market_frames:
             raise ValueError("no market data available for backtest range")
 
-        return latest_frame, processed_days
+        return tuple(market_frames), processed_days
+
+    def _run_dated_backtest(
+        self,
+        *,
+        starting_cash: Decimal,
+        market_frames: tuple[_BacktestMarketFrame, ...],
+    ) -> tuple[BacktestResult, tuple[BacktestOrder, ...]]:
+        trades: list[BacktestTrade] = []
+        orders: list[BacktestOrder] = []
+        equity_points: list[tuple[date, Decimal, Decimal]] = []
+        latest_state: LedgerState | None = None
+        latest_holdings_value = _ZERO
+
+        for market_frame in market_frames:
+            prices = self._prices_from_frame(market_frame.frame)
+            report_data = self.report.generate(market_frame.frame)
+            signal_frame = cast(pd.DataFrame, report_data["signals"])
+            daily_orders = self._momentum_orders(
+                signal_frame=signal_frame,
+                prices=prices,
+            )
+            daily_trades = self._execute_orders(
+                orders=daily_orders,
+                prices=prices,
+            )
+            orders.extend(daily_orders)
+            trades.extend(daily_trades)
+
+            latest_state = self.ledger.apply(
+                starting_cash=starting_cash,
+                trades=tuple(trades),
+                market_prices=prices,
+            )
+            latest_holdings_value = self._holdings_market_value(latest_state)
+            equity_points.append(
+                (
+                    market_frame.trade_date,
+                    latest_state.cash,
+                    latest_holdings_value,
+                )
+            )
+
+        if latest_state is None:
+            raise ValueError("no market data available for backtest range")
+
+        equity = latest_state.cash + latest_holdings_value
+        reconciliation = PortfolioReconciliation(
+            starting_cash=starting_cash,
+            ending_cash=latest_state.cash,
+            holdings_market_value=latest_holdings_value,
+            ending_equity=equity,
+        )
+        reconciliation.validate()
+
+        return (
+            BacktestResult(
+                starting_cash=starting_cash,
+                ending_cash=latest_state.cash,
+                equity=equity,
+                positions=latest_state.positions,
+                trades=latest_state.trades,
+                holdings_market_value=latest_holdings_value,
+                reconciliation=reconciliation,
+                position_reports=latest_state.position_reports,
+                trade_ledger=latest_state.trade_ledger,
+                equity_curve=self.equity_curve_builder.build(
+                    starting_cash=starting_cash,
+                    points=tuple(equity_points),
+                ),
+            ),
+            tuple(orders),
+        )
+
+    def _execute_orders(
+        self,
+        *,
+        orders: tuple[BacktestOrder, ...],
+        prices: dict[str, Decimal],
+    ) -> tuple[BacktestTrade, ...]:
+        trades: list[BacktestTrade] = []
+
+        for order in orders:
+            trade = self.broker.execute(order=order, prices=prices)
+            if trade is not None:
+                trades.append(trade)
+
+        return tuple(trades)
+
+    def _holdings_market_value(self, state: LedgerState) -> Decimal:
+        return sum(
+            (report.market_value for report in state.position_reports),
+            _ZERO,
+        )
 
     def _prices_from_frame(self, frame: pd.DataFrame) -> dict[str, Decimal]:
         required_columns = {"symbol", "close"}
