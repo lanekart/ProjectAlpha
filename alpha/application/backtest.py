@@ -22,22 +22,42 @@ class MarketReportGenerator(Protocol):
 
 
 @dataclass(frozen=True, slots=True)
-class CliBacktestResult:
+class BacktestSummary:
+    """Stable application-facing summary for deterministic backtest runs."""
+
     strategy: str
     start: date
     end: date
     starting_cash: Decimal
+    ending_cash: Decimal
+    equity: Decimal
     processed_days: int
-    orders: tuple[BacktestOrder, ...]
+    order_count: int
+    trade_count: int
+    position_count: int
+    positions: dict[str, int]
     result: BacktestResult
 
     @property
-    def order_count(self) -> int:
-        return len(self.orders)
+    def total_return(self) -> Decimal:
+        if self.starting_cash == Decimal("0"):
+            return Decimal("0")
+
+        return (self.equity - self.starting_cash) / self.starting_cash
+
+
+@dataclass(frozen=True, slots=True)
+class BacktestRun:
+    """Complete reusable backtest application result."""
+
+    summary: BacktestSummary
+    orders: tuple[BacktestOrder, ...]
 
 
 @dataclass(slots=True)
-class CliBacktestService:
+class BacktestApplicationService:
+    """Application service for deterministic backtest execution."""
+
     resolver: TradingDateResolver = field(default_factory=TradingDateResolver)
     downloader: BhavcopyDownloader = field(default_factory=BhavcopyDownloader)
     ingestion: IngestionService = field(default_factory=IngestionService)
@@ -51,7 +71,7 @@ class CliBacktestService:
         start: date,
         end: date,
         starting_cash: Decimal,
-    ) -> CliBacktestResult:
+    ) -> BacktestRun:
         normalized_strategy = strategy.strip().lower()
         if normalized_strategy != "momentum":
             raise ValueError(f"unsupported backtest strategy: {strategy}")
@@ -72,15 +92,22 @@ class CliBacktestService:
             prices=prices,
         )
 
-        return CliBacktestResult(
+        summary = BacktestSummary(
             strategy=normalized_strategy,
             start=start,
             end=end,
             starting_cash=starting_cash,
+            ending_cash=result.ending_cash,
+            equity=result.equity,
             processed_days=processed_days,
-            orders=orders,
+            order_count=len(orders),
+            trade_count=result.trade_count,
+            position_count=len(result.positions),
+            positions=dict(result.positions),
             result=result,
         )
+
+        return BacktestRun(summary=summary, orders=orders)
 
     def _load_market_data(self, *, start: date, end: date) -> tuple[pd.DataFrame, int]:
         latest_frame: pd.DataFrame | None = None
@@ -148,3 +175,7 @@ class CliBacktestService:
                 orders.append(BacktestOrder(symbol=symbol, quantity=1))
 
         return tuple(orders)
+
+
+CliBacktestService = BacktestApplicationService
+CliBacktestResult = BacktestRun
