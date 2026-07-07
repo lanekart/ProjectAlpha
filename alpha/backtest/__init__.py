@@ -1,3 +1,9 @@
+from alpha.backtest.accounting import (
+    EquityCurvePoint,
+    PortfolioReconciliation,
+    PositionReport,
+    TradeLedgerEntry,
+)
 from alpha.backtest.backtest_export_manifest import (
     BacktestExportArtifact,
     BacktestExportManifest,
@@ -15,7 +21,7 @@ from alpha.backtest.backtest_report_artifact_naming import (
 from alpha.backtest.backtest_report_writer import BacktestReportWriter
 from alpha.backtest.broker import BrokerSimulator
 from alpha.backtest.engine import BacktestEngine
-from alpha.backtest.ledger import ExecutionLedger
+from alpha.backtest.ledger import ExecutionLedger, LedgerState
 from alpha.backtest.models import BacktestOrder, BacktestResult, BacktestTrade
 from alpha.backtest.optimized_runner import (
     OptimizedBacktestResult,
@@ -53,7 +59,9 @@ __all__ = [
     "BacktestResult",
     "BacktestTrade",
     "BrokerSimulator",
+    "EquityCurvePoint",
     "ExecutionLedger",
+    "LedgerState",
     "OptimizedBacktestResult",
     "OptimizedBacktestRunner",
     "PerformanceAnalytics",
@@ -61,10 +69,13 @@ __all__ = [
     "PerformanceReportBuilder",
     "PerformanceReportRenderer",
     "PerformanceSummary",
+    "PortfolioReconciliation",
+    "PositionReport",
     "RebalanceExecutionAdapter",
     "StrategyStatistics",
     "StrategyStatisticsEngine",
     "StrategyStatisticsReport",
     "StrategyStatisticsReportBuilder",
     "StrategyStatisticsReportRenderer",
+    "TradeLedgerEntry",
 ]
