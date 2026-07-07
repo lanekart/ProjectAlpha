@@ -207,8 +207,10 @@ class BacktestApplicationService:
 
 
 @dataclass(slots=True)
-class CliBacktestService(BacktestApplicationService):
+class CliBacktestService:
     """Backward-compatible RC-005A CLI backtest service adapter."""
+
+    service: BacktestApplicationService = field(default_factory=BacktestApplicationService)
 
     def run(
         self,
@@ -218,7 +220,7 @@ class CliBacktestService(BacktestApplicationService):
         end: date,
         starting_cash: Decimal,
     ) -> BacktestSummary:
-        return super().run(
+        return self.service.run(
             strategy=strategy,
             start=start,
             end=end,
