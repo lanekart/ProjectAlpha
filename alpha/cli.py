@@ -9,7 +9,11 @@ import typer
 from alpha.application.backtest import BacktestApplicationService, BacktestSummary
 from alpha.application.backtest_export import BacktestExportService
 from alpha.application.historical_ingestion import HistoricalIngestionService
-from alpha.application.intelligence import IntelligenceApplicationService
+from alpha.application.intelligence import (
+    IntelligenceApplicationService,
+    IntelligenceRun,
+)
+from alpha.application.intelligence_export import IntelligenceExportService
 from alpha.application.research_cli import research_app
 from alpha.backtest.backtest_report import BacktestReportRenderer
 from alpha.exceptions import BhavcopyNotFoundError, ProjectAlphaError
@@ -86,18 +90,38 @@ def report(date: str = "today") -> None:
 
 
 @app.command()
-def intelligence(date: str = "today") -> None:
+def intelligence(
+    date: str = "today",
+    export_json: Path | None = typer.Option(
+        None,
+        "--export-json",
+        help="Write deterministic recommendation intelligence JSON to this path.",
+    ),
+    export_text: Path | None = typer.Option(
+        None,
+        "--export-text",
+        help="Write deterministic recommendation intelligence text to this path.",
+    ),
+) -> None:
     """
     Run the deterministic intelligence orchestration report.
     """
 
     observed_on = _parse_date(date)
+    _validate_command_export_paths(export_json=export_json, export_text=export_text)
+
     service = IntelligenceApplicationService()
     run = service.run(observed_on=observed_on)
 
     print()
     for line in run.summary_lines:
         print(line)
+
+    _export_intelligence_run(
+        run=run,
+        export_json=export_json,
+        export_text=export_text,
+    )
 
 
 @app.command()
@@ -131,7 +155,7 @@ def backtest(
     if starting_cash <= Decimal("0"):
         raise typer.BadParameter("Starting cash must be greater than zero.")
 
-    _validate_export_paths(export_json=export_json, export_text=export_text)
+    _validate_command_export_paths(export_json=export_json, export_text=export_text)
 
     service = BacktestApplicationService()
     try:
@@ -181,6 +205,41 @@ def _export_backtest_summary(
 
     if result.text_path is not None:
         print(f"\nText report written: {result.text_path}")
+
+
+def _export_intelligence_run(
+    *,
+    run: IntelligenceRun,
+    export_json: Path | None,
+    export_text: Path | None,
+) -> None:
+    service = IntelligenceExportService()
+    try:
+        result = service.export(
+            run,
+            json_path=export_json,
+            text_path=export_text,
+        )
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+
+    if result.json_path is not None:
+        print(f"\nJSON report written: {result.json_path}")
+
+    if result.text_path is not None:
+        print(f"\nText report written: {result.text_path}")
+
+
+def _validate_command_export_paths(
+    *,
+    export_json: Path | None,
+    export_text: Path | None,
+) -> None:
+    try:
+        _validate_export_paths(export_json=export_json, export_text=export_text)
+    except typer.BadParameter as error:
+        typer.echo(str(error))
+        raise typer.Exit(code=2) from error
 
 
 def _validate_export_paths(

@@ -50,6 +50,73 @@ class IntelligenceRun:
     allocation_plan: CapitalAllocationPlan
     summary_lines: tuple[str, ...]
 
+    def as_dict(self) -> dict[str, object]:
+        """Return a deterministic machine-readable intelligence payload."""
+
+        return {
+            "metadata": {
+                "observed_on": self.observed_on.isoformat(),
+            },
+            "market": {
+                "symbol": self.market_report.symbol,
+                "bias": self.market_report.bias.value,
+                "composite_score": str(self.market_report.composite_score),
+                "accumulation": self.market_report.accumulation.classification,
+                "distribution": self.market_report.distribution.classification,
+                "liquidity": self.market_report.liquidity.classification,
+                "breadth": self.market_report.breadth.classification,
+                "sector_rotation": self.market_report.sector_rotation.phase.value,
+                "top_sector": self.market_report.sector_rotation.top_sector.sector,
+                "correlation_risk": self.market_report.correlation.classification,
+                "reasons": list(self.market_report.reasons),
+            },
+            "recommendations": [
+                {
+                    "rank": index,
+                    "symbol": recommendation.symbol,
+                    "action": recommendation.action.value,
+                    "decision": recommendation.decision.value,
+                    "score": str(recommendation.score),
+                    "allocation_percent": str(
+                        recommendation.allocation.adjusted_allocation_percent
+                    ),
+                    "expected_return": str(
+                        recommendation.expected_value.expected_return
+                    ),
+                    "expected_drawdown": str(
+                        recommendation.expected_value.expected_drawdown
+                    ),
+                    "explanation": list(recommendation.explanation),
+                }
+                for index, recommendation in enumerate(
+                    self.recommendations,
+                    start=1,
+                )
+            ],
+            "allocation": {
+                "generated_on": self.allocation_plan.generated_on.isoformat(),
+                "allocated_weight": str(self.allocation_plan.total_allocated_weight),
+                "allocated_amount": str(self.allocation_plan.total_allocated_amount),
+                "remaining_cash": str(self.allocation_plan.remaining_cash),
+                "reasons": list(self.allocation_plan.reasons),
+                "reports": [
+                    {
+                        "symbol": allocation_report.symbol,
+                        "sector": allocation_report.sector,
+                        "decision": allocation_report.decision.value,
+                        "target_weight": str(allocation_report.target_weight),
+                        "target_amount": str(allocation_report.target_amount),
+                        "reasons": list(allocation_report.reasons),
+                        "constraints": [
+                            constraint.value
+                            for constraint in allocation_report.risk_budget.constraints
+                        ],
+                    }
+                    for allocation_report in self.allocation_plan.reports
+                ],
+            },
+        }
+
 
 class IntelligenceApplicationService:
     """Orchestrate existing intelligence engines into a user-facing report."""
