@@ -9,6 +9,7 @@ import typer
 from alpha.application.backtest import BacktestApplicationService, BacktestSummary
 from alpha.application.backtest_export import BacktestExportService
 from alpha.application.historical_ingestion import HistoricalIngestionService
+from alpha.application.intelligence import IntelligenceApplicationService
 from alpha.application.research_cli import research_app
 from alpha.backtest.backtest_report import BacktestReportRenderer
 from alpha.exceptions import BhavcopyNotFoundError, ProjectAlphaError
@@ -82,6 +83,21 @@ def report(date: str = "today") -> None:
     )
 
     print("\n📈 Market Regime:", report_data["regime"])
+
+
+@app.command()
+def intelligence(date: str = "today") -> None:
+    """
+    Run the deterministic intelligence orchestration report.
+    """
+
+    observed_on = _parse_date(date)
+    service = IntelligenceApplicationService()
+    run = service.run(observed_on=observed_on)
+
+    print()
+    for line in run.summary_lines:
+        print(line)
 
 
 @app.command()
