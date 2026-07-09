@@ -116,7 +116,8 @@ class ProjectAlphaRuntime:
 
         market_analysis = self.historical_ingestion.load_analysis(date_str)
         service = IntelligenceApplicationService.from_analysis(
-            analysis=market_analysis.analysis
+            analysis=market_analysis.analysis,
+            price_repository=self.historical_ingestion.ingestion.prices,
         )
         intelligence_run = service.run(observed_on=market_analysis.observed_on)
         completed_at = _now_utc()

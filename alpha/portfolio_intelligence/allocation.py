@@ -29,6 +29,18 @@ class AllocationConstraint(StrEnum):
     LOW_CONVICTION = "LOW_CONVICTION"
 
 
+class AllocationReasonCode(StrEnum):
+    POSITION_SIZE_CAP = "POSITION_SIZE_CAP"
+    VOLATILITY_ADJUSTMENT = "VOLATILITY_ADJUSTMENT"
+    CONCENTRATION_CONTROL = "CONCENTRATION_CONTROL"
+    CASH_RESERVE_RULE = "CASH_RESERVE_RULE"
+    CONFIDENCE_ADJUSTMENT = "CONFIDENCE_ADJUSTMENT"
+    WATCHLIST_NOT_DEPLOYABLE = "WATCHLIST_NOT_DEPLOYABLE"
+    NOT_ACTIONABLE = "NOT_ACTIONABLE"
+    EXIT_SIGNAL = "EXIT_SIGNAL"
+    POLICY_SKIP = "POLICY_SKIP"
+
+
 class AllocationConviction(StrEnum):
     STRONG_BUY = "STRONG_BUY"
     BUY = "BUY"
@@ -349,9 +361,20 @@ class AllocationCandidate:
     def has_blocked_recommendation_intent(self) -> bool:
         blocked = {"AVOID", "SELL", "REJECT"}
         approved_deployment_actions = {"BUY", "ACCUMULATE"}
+        trade_plan_valid = self.metadata.get("trade_plan_valid", "True") == "True"
+        actionable_strategy_action = self.metadata.get("actionable_strategy_action")
+        watchlist_allocation_allowed = (
+            self.metadata.get("watchlist_allocation_allowed", "False") == "True"
+        )
         return (
             self.recommendation_action not in approved_deployment_actions
             or self.final_signal in blocked
+            or (
+                actionable_strategy_action is not None
+                and actionable_strategy_action != "BUY_NOW"
+            )
+            or (self.final_signal == "WATCHLIST" and not watchlist_allocation_allowed)
+            or not trade_plan_valid
         )
 
 

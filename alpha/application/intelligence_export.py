@@ -182,6 +182,38 @@ class IntelligenceExportService:
                 "adjustment_points": self._decimal(allocation.adjustment_points),
                 "reasons": list(allocation.reasons),
             },
+            "trade_setup": {
+                "setup_name": recommendation.setup_name,
+                "setup_category": recommendation.setup_category,
+                "setup_quality": recommendation.setup_quality_label,
+                "setup_confidence": self._decimal(recommendation.setup_confidence),
+                "setup_stage": recommendation.setup_stage,
+                "entry_ready": recommendation.setup_entry_ready,
+                "aggressive_entry": self._decimal(
+                    recommendation.trade_plan.aggressive_entry
+                ),
+                "preferred_entry": self._decimal(
+                    recommendation.trade_plan.preferred_entry
+                ),
+                "confirmation_entry": self._decimal(
+                    recommendation.trade_plan.confirmation_entry
+                ),
+                "maximum_chase_price": self._decimal(
+                    recommendation.trade_plan.maximum_chase_price
+                ),
+                "stop_chase_price": self._decimal(
+                    recommendation.trade_plan.stop_chase_price
+                ),
+                "move_stop_to_breakeven": self._decimal(
+                    recommendation.trade_plan.move_stop_to_breakeven
+                ),
+                "partial_exit": self._decimal(recommendation.trade_plan.partial_exit),
+                "atr_trail": recommendation.trade_plan.atr_trail,
+                "final_exit": self._decimal(recommendation.trade_plan.final_exit),
+                "expectancy_status": recommendation.trade_plan.setup_expectancy_status,
+                "rationale": recommendation.trade_plan.setup_rationale,
+                "readiness_reason": (recommendation.trade_plan.setup_readiness_reason),
+            },
             "supporting_evidence": [
                 {
                     "label": evidence.label,
@@ -284,7 +316,9 @@ class IntelligenceExportService:
     def _ensure_parent_directory(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
 
-    def _decimal(self, value: Decimal) -> str:
+    def _decimal(self, value: Decimal | None) -> str | None:
+        if value is None:
+            return None
         return str(value)
 
 

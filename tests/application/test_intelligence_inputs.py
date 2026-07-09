@@ -48,6 +48,26 @@ def test_intelligence_input_builder_builds_inputs_from_analysis_frame() -> None:
     assert inputs.liquidity_by_symbol["CCC"] == Decimal("1")
 
 
+def test_intelligence_input_builder_uses_persisted_price_history() -> None:
+    repository = _FakePriceRepository(_history_frame("AAA", bars=75))
+
+    inputs = IntelligenceInputBuilder(
+        price_repository=repository,
+        history_window=60,
+    ).build(
+        observed_on=date(2026, 7, 7),
+        analysis=_analysis_frame(),
+    )
+    candidate_by_symbol = {
+        candidate.symbol: candidate for candidate in inputs.recommendation_candidates
+    }
+
+    assert repository.calls == [("AAA", "BBB", "CCC", date(2026, 7, 7), 60)]
+    assert len(candidate_by_symbol["AAA"].price_history) == 60
+    assert candidate_by_symbol["AAA"].metadata["historical_bars"] == "60"
+    assert "average_volume" in candidate_by_symbol["AAA"].metadata
+
+
 def test_intelligence_input_set_builds_allocation_candidates() -> None:
     inputs = DemoIntelligenceInputBuilder().build(observed_on=date(2026, 1, 30))
 
@@ -159,6 +179,41 @@ def _analysis_frame() -> pd.DataFrame:
             "signal": ["BUY", "SELL", "BUY"],
             "correlation_to_index": [0.30, 0.60, 0.40],
             "correlation_to_sector": [0.35, 0.65, 0.45],
+        }
+    )
+
+
+class _FakePriceRepository:
+    def __init__(self, frame: pd.DataFrame) -> None:
+        self._frame = frame
+        self.calls: list[tuple[object, ...]] = []
+
+    def find_history_by_symbols(
+        self,
+        *,
+        symbols: tuple[str, ...],
+        end_date: date,
+        limit: int,
+    ) -> pd.DataFrame:
+        self.calls.append((*symbols, end_date, limit))
+        return self._frame.groupby("symbol", group_keys=False).tail(limit)
+
+
+def _history_frame(symbol: str, *, bars: int) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "symbol": [symbol] * bars,
+            "trade_date": [
+                date.fromordinal(date(2026, 1, 1).toordinal() + index)
+                for index in range(bars)
+            ],
+            "open": [100 + index for index in range(bars)],
+            "high": [102 + index for index in range(bars)],
+            "low": [99 + index for index in range(bars)],
+            "close": [101 + index for index in range(bars)],
+            "volume": [100000 + (index * 1000) for index in range(bars)],
+            "sector": ["BANKS"] * bars,
+            "exchange": ["NSE"] * bars,
         }
     )
 

@@ -96,3 +96,36 @@ def test_prices_repository_preserves_optional_sector(tmp_path: Path) -> None:
     prices = repo.find_by_trade_date(date(2026, 7, 7))
 
     assert prices.loc[0, "sector"] == "BANKS"
+
+
+def test_prices_repository_loads_rolling_history_by_symbol(tmp_path: Path) -> None:
+    db = Database(str(tmp_path / "test_price_history.duckdb"))
+    repo = PricesRepository(db)
+    repo.insert(
+        df=pd.DataFrame(
+            {
+                "symbol": ["abc"] * 5 + ["xyz"] * 3,
+                "trade_date": [date(2026, 7, day) for day in (1, 2, 3, 4, 5, 1, 2, 3)],
+                "open": [100, 101, 102, 103, 104, 200, 201, 202],
+                "high": [101, 102, 103, 104, 105, 201, 202, 203],
+                "low": [99, 100, 101, 102, 103, 199, 200, 201],
+                "close": [100, 101, 102, 103, 104, 200, 201, 202],
+                "volume": [1000, 1100, 1200, 1300, 1400, 2000, 2100, 2200],
+                "sector": ["BANKS"] * 5 + ["IT"] * 3,
+                "exchange": ["NSE"] * 8,
+            }
+        )
+    )
+
+    history = repo.find_history_by_symbols(
+        symbols=("ABC", "XYZ"),
+        end_date=date(2026, 7, 5),
+        limit=3,
+    )
+
+    assert list(history["symbol"]) == ["abc", "abc", "abc", "xyz", "xyz", "xyz"]
+    assert list(history.loc[history["symbol"] == "abc", "trade_date"]) == [
+        date(2026, 7, 3),
+        date(2026, 7, 4),
+        date(2026, 7, 5),
+    ]

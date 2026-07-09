@@ -9,6 +9,7 @@ import pandas as pd
 
 from alpha.application.intelligence_inputs import (
     DemoIntelligenceInputBuilder,
+    HistoricalPriceRepository,
     IntelligenceInputBuilder,
     IntelligenceInputSet,
 )
@@ -22,13 +23,22 @@ from alpha.market_intelligence import (
     MarketIntelligenceReport,
 )
 from alpha.portfolio_intelligence import (
+    AllocationReasonCode,
+    AllocationReport,
     CapitalAllocationEngine,
     CapitalAllocationPlan,
     PortfolioConstructionEngine,
 )
 from alpha.recommendation_intelligence import (
+    EdgeConfidence,
+    EntryTriggerStyle,
+    EntryZoneBasis,
     RecommendationEngine,
     RecommendationReport,
+    StrategyEdgeStats,
+    TradeStrategyAction,
+    TradeStrategyPlaybook,
+    TriggerStatus,
 )
 
 
@@ -143,7 +153,13 @@ class IntelligenceApplicationService:
         )
 
     @classmethod
-    def from_analysis(cls, *, analysis: pd.DataFrame) -> IntelligenceApplicationService:
+    def from_analysis(
+        cls,
+        *,
+        analysis: pd.DataFrame,
+        price_repository: HistoricalPriceRepository | None = None,
+        history_window: int = 250,
+    ) -> IntelligenceApplicationService:
         """
         Build a production-style service backed by analyzed market data.
 
@@ -154,7 +170,10 @@ class IntelligenceApplicationService:
         return cls(
             input_provider=_AnalysisIntelligenceInputProvider(
                 analysis=analysis,
-                builder=IntelligenceInputBuilder(),
+                builder=IntelligenceInputBuilder(
+                    price_repository=price_repository,
+                    history_window=history_window,
+                ),
             )
         )
 
@@ -239,60 +258,82 @@ class IntelligenceApplicationService:
         lines.extend(
             (
                 "",
+                "Capital Deployment Dashboard:",
+            )
+        )
+        lines.extend(
+            _capital_deployment_dashboard_lines(
+                recommendations=recommendations,
+                allocation_plan=allocation_plan,
+            )
+        )
+
+        lines.extend(
+            (
+                "",
                 "Recommendations:",
             )
         )
         for index, recommendation in enumerate(recommendations, start=1):
-            lines.append(
-                f"{index}. {recommendation.symbol}: {recommendation.decision.value} "
-                f"score={recommendation.score} action="
-                f"{recommendation.action.value} raw_allocation_hint="
-                f"{recommendation.allocation.adjusted_allocation_percent}%"
-            )
-            driver_line = _recommendation_driver_line(recommendation)
-            if driver_line is not None:
-                lines.append(driver_line)
-            lines.extend(_recommendation_detail_lines(recommendation))
-            for explanation in recommendation.explanation[:5]:
-                lines.append(f"   - {explanation}")
+            lines.extend(_recommendation_detail_lines(index, recommendation))
 
         lines.extend(
             (
                 "",
                 "Portfolio Allocation:",
-                "Approved Deployment Weight : "
-                f"{allocation_plan.total_allocated_weight}",
-                "Approved Deployment Amount : "
-                f"{allocation_plan.total_allocated_amount}",
-                f"Remaining Cash              : {allocation_plan.remaining_cash}",
-                _approved_deployment_summary(allocation_plan.reasons),
+                "- Approved Capital: "
+                f"{_money_text(allocation_plan.total_allocated_amount)}",
+                f"- Remaining Cash: {_money_text(allocation_plan.remaining_cash)}",
+                f"- Deployment Count: {_deployment_count(allocation_plan)}",
+                "",
+                "Positions:",
             )
         )
-        lines.extend(("", "Portfolio Summary:"))
-        lines.extend(_portfolio_summary_lines(recommendations, allocation_plan))
-        for allocation_report in allocation_plan.reports:
+        for index, allocation_report in enumerate(allocation_plan.reports, start=1):
             allocation_recommendation = recommendation_by_symbol.get(
                 allocation_report.symbol
             )
             if allocation_recommendation is None:
-                recommendation_context = "recommendation=UNKNOWN"
+                investment_verdict = "UNKNOWN"
+                execution_status = "DO NOTHING"
             else:
-                recommendation_context = (
-                    f"recommendation={allocation_recommendation.decision.value} "
-                    f"action={allocation_recommendation.action.value} "
-                    f"score={allocation_recommendation.score}"
-                )
+                investment_verdict = _verdict_label(allocation_recommendation)
+                execution_status = _execution_status(allocation_recommendation)
             capital_action = _allocation_capital_action(allocation_report.reasons)
 
-            lines.append(
-                f"- {allocation_report.symbol}: {allocation_report.decision.value} "
-                f"capital_action={capital_action} "
-                f"target_weight={allocation_report.target_weight} "
-                f"target_amount={allocation_report.target_amount} "
-                f"{recommendation_context}"
+            lines.extend(
+                (
+                    f"{index}. {allocation_report.symbol}",
+                    f"   Investment Verdict: {investment_verdict}",
+                    f"   Execution Status: {execution_status}",
+                    (
+                        "   Allocation Status: "
+                        f"{_allocation_status(allocation_report, capital_action)}"
+                    ),
+                    "   Approved Capital: "
+                    f"{_money_text(allocation_report.target_amount)}",
+                    "   Target Weight: "
+                    f"{_weight_percent(allocation_report.target_weight)}",
+                    "   Reason: "
+                    f"{_allocation_reason(capital_action, execution_status)}",
+                )
             )
-            for reason in allocation_report.reasons[:4]:
-                lines.append(f"  - {reason}")
+            if capital_action == "reduced_deployment":
+                lines.extend(_reduced_allocation_reason_lines())
+
+        lines.extend(
+            (
+                "",
+                "Final Decision Summary:",
+            )
+        )
+        lines.extend(
+            _final_decision_summary_lines(
+                recommendations=recommendations,
+                allocation_plan=allocation_plan,
+                market_report=market_report,
+            )
+        )
 
         if market_report.bias is IntelligenceBias.NEGATIVE:
             lines.extend(
@@ -322,6 +363,99 @@ def _approved_deployment_summary(reasons: tuple[str, ...]) -> str:
     return "approved capital deployments: 0"
 
 
+def _deployment_count(allocation_plan: CapitalAllocationPlan) -> int:
+    return len(
+        tuple(report for report in allocation_plan.reports if report.target_weight > 0)
+    )
+
+
+def _allocation_status(
+    allocation_report: AllocationReport,
+    capital_action: str,
+) -> str:
+    if allocation_report.target_weight <= Decimal("0"):
+        return "NO ALLOCATION"
+    if capital_action == "reduced_deployment":
+        return "REDUCED ALLOCATION"
+    if capital_action == "full_deployment":
+        return "ALLOCATION APPROVED"
+    return "NOT ELIGIBLE"
+
+
+def _allocation_reason(capital_action: str, execution_status: str = "") -> str:
+    if capital_action == "full_deployment":
+        return "Approved for deployment."
+    if capital_action == "reduced_deployment":
+        return "Reduced allocation approved by policy."
+    if capital_action == "skip":
+        if execution_status == "WAIT FOR CONFIRMATION":
+            return "Waiting for entry confirmation."
+        return "Skipped by allocation policy."
+    return _sentence_label(capital_action)
+
+
+def _capital_deployment_dashboard_lines(
+    *,
+    recommendations: tuple[RecommendationReport, ...],
+    allocation_plan: CapitalAllocationPlan,
+) -> tuple[str, ...]:
+    recommendation_by_symbol = {
+        recommendation.symbol: recommendation for recommendation in recommendations
+    }
+    deploy_today: list[str] = []
+    reserve_watch: list[str] = []
+    no_deployment: list[str] = []
+    exit_sell: list[str] = []
+
+    for report in allocation_plan.reports:
+        recommendation = recommendation_by_symbol.get(report.symbol)
+        if recommendation is None:
+            continue
+        strategy = recommendation.actionable_trade_strategy
+        if report.target_weight > Decimal("0") and strategy is not None:
+            deploy_today.append(
+                f"- {report.symbol}: {strategy.name}, "
+                f"{_money_text(report.target_amount)}, "
+                f"{_weight_percent(report.target_weight)}, "
+                f"risk stop {strategy.stop_rule}, "
+                f"holding period {strategy.expected_holding_period}",
+            )
+        elif recommendation.final_signal == "WATCHLIST":
+            reserve_watch.append(
+                f"- {report.symbol}: reserve/watch; trigger not confirmed"
+            )
+        elif recommendation.final_signal in {"SELL", "STRONG_SELL"}:
+            exit_sell.append(f"- {report.symbol}: exit/sell")
+        else:
+            no_deployment.append(f"- {report.symbol}: no deployment")
+
+    return (
+        "- Deploy Today:",
+        *(deploy_today or ("  none",)),
+        "- Reserve / Watch:",
+        *(reserve_watch or ("  none",)),
+        "- No Deployment:",
+        *(no_deployment or ("  none",)),
+        "- Exit / Sell:",
+        *(exit_sell or ("  none",)),
+    )
+
+
+def _reduced_allocation_reason_lines() -> tuple[str, ...]:
+    labels = tuple(
+        _sentence_label(code.value)
+        for code in (
+            AllocationReasonCode.POSITION_SIZE_CAP,
+            AllocationReasonCode.VOLATILITY_ADJUSTMENT,
+            AllocationReasonCode.CASH_RESERVE_RULE,
+        )
+    )
+    return (
+        "   Why Reduced:",
+        *(f"   - {label}" for label in labels),
+    )
+
+
 def _recommendation_driver_line(
     recommendation: RecommendationReport,
 ) -> str | None:
@@ -336,80 +470,875 @@ def _recommendation_driver_line(
 
 
 def _recommendation_detail_lines(
+    index: int,
     recommendation: RecommendationReport,
 ) -> tuple[str, ...]:
-    price = recommendation.price_evidence
-    volume = recommendation.volume_evidence
-    atr_value = _optional_decimal_text(recommendation.trade_plan.atr_value)
-    dma_20 = _optional_decimal_text(recommendation.trade_plan.dma_20_invalidation)
-    candle_entry = _optional_decimal_text(recommendation.candle_entry_trigger)
-    candle_stop = _optional_decimal_text(recommendation.candle_stop_level)
-    candle_invalidation = _optional_decimal_text(
-        recommendation.candle_invalidation_level
+    unavailable_lines = _data_completion_lines(recommendation)
+    lines = [
+        f"{index}. {recommendation.symbol} — {_verdict_label(recommendation)}",
+        f"   Final Verdict: {_verdict_label(recommendation)}",
+        (
+            f"   Score: {recommendation.final_score}/100 | "
+            f"Confidence: {recommendation.confidence}"
+        ),
+        f"   Execution Status: {_execution_status(recommendation)}",
+        f"   Portfolio Allocation: {_portfolio_allocation_status(recommendation)}",
+        f"   Current View: {_current_view(recommendation)}",
+        f"   Data Quality: {_recommendation_data_quality(recommendation)}",
+        f"   Next Trigger: {_next_trigger_text(recommendation)}",
+        f"   Entry Instruction: {_entry_instruction(recommendation)}",
+        "",
+        "   Action Now:",
+        f"   - Execution: {_execution_status(recommendation)}",
+        f"   - Actionable Strategy: {_actionable_strategy_text(recommendation)}",
+        f"   - Entry: {_action_now_entry_text(recommendation)}",
+        f"   - Risk Stop: {_action_now_stop_text(recommendation)}",
+    ]
+    reentry_watch = _reentry_watch_level(recommendation)
+    if reentry_watch is not None:
+        lines.append(f"   Re-entry Watch Level: {reentry_watch}")
+    lines.extend(
+        [
+            "",
+            "   Setup:",
+            f"   - Name: {_sentence_label(recommendation.setup_name)}",
+            f"   - Category: {_sentence_label(recommendation.setup_category)}",
+            f"   - Quality: {recommendation.setup_quality_label}",
+            f"   - Stage: {_sentence_label(recommendation.setup_stage)}",
+            f"   - Entry Ready: {_yes_no(recommendation.setup_entry_ready)}",
+            "",
+            "   Trade Strategies:",
+        ]
     )
-
-    return (
-        "   Recommendation Output:",
-        f"      final_signal={recommendation.final_signal}",
-        f"      final_score={recommendation.final_score}",
-        f"      confidence={recommendation.confidence}",
-        "      Price-Volume Evidence: "
-        f"price_trend={price.trend_state}; "
-        f"structure={price.structure_state}; "
-        f"breakout={price.breakout_state}; "
-        f"retracement={price.retracement_state}; "
-        f"support_resistance={price.support_resistance_state}; "
-        f"close_strength={price.close_strength}; "
-        f"volatility={price.volatility_state}; "
-        f"price_score={price.price_score}; "
-        f"volume_vs_average={volume.volume_vs_average}; "
-        f"volume_score={volume.volume_score}; "
-        f"breakout_volume_confirmation={volume.breakout_volume_confirmation}; "
-        f"selloff_volume_penalty={volume.selloff_volume_penalty}",
-        "      Trend Evidence: "
-        f"20/50/200 trend points="
-        f"{recommendation.score_breakdown.trend_structure_points}; "
-        f"price trend={price.trend_state}",
-        "      Retracement Evidence: "
-        f"score={recommendation.retracement_score}; "
-        f"weight={recommendation.retracement_weight}; "
-        f"zone={recommendation.retracement_zone}; "
-        f"nearest_fibonacci_level={recommendation.nearest_fibonacci_level}; "
-        f"swing_high={recommendation.swing_high}; "
-        f"swing_low={recommendation.swing_low}; "
-        f"support_level_used={recommendation.support_level_used}",
-        "      Candle Pattern Evidence: "
-        f"pattern={recommendation.candle_pattern}; "
-        f"score={recommendation.candle_score}; "
-        f"weight={recommendation.candle_weight}; "
-        f"confirmation={recommendation.candle_confirmation}; "
-        f"entry_trigger={candle_entry}; "
-        f"stop_level={candle_stop}; "
-        f"invalidation_level={candle_invalidation}; "
-        f"explanation={recommendation.candle_explanation}",
-        "      Entry Zone: "
-        f"{recommendation.entry_zone_low} to {recommendation.entry_zone_high}",
-        f"      Entry Trigger: {recommendation.entry_price}",
-        f"      Initial Stop Loss: {recommendation.initial_stop_loss}",
-        "      20-DMA Invalidation: "
-        f"Trade invalid if daily close is below 20-DMA, currently {dma_20}.",
-        f"      ATR Value: {atr_value}",
-        f"      Trailing Stop: {recommendation.trailing_stop_strategy}",
-        f"      Target 1: {recommendation.target_1}",
-        f"      Target 2: {recommendation.target_2}",
-        f"      Target 3: {recommendation.target_3}",
-        f"      Risk-Reward Ratio: {recommendation.risk_reward_ratio}",
-        "      Invalidation: "
-        f"{recommendation.invalidation_level} "
-        f"({recommendation.invalidation_reason})",
-        f"      Why: {recommendation.trade_plan_explanation}",
+    lines.extend(_trade_strategy_lines(recommendation))
+    recommended = _recommended_strategy_lines(recommendation)
+    if recommended:
+        lines.extend(("", "   Recommended Strategy:"))
+        lines.extend(recommended)
+    lines.extend(("", "   Risk Controls:"))
+    lines.extend(_risk_control_lines(recommendation))
+    lines.extend(
+        (
+            "",
+            "   Evidence:",
+            f"   - Price/Volume: {_price_volume_sentence(recommendation)}",
+            f"   - Trend: {_trend_sentence(recommendation)}",
+            f"   - Retracement: {_retracement_sentence(recommendation)}",
+            f"   - Candle: {_candle_sentence(recommendation)}",
+            "   - Relative Volume: "
+            f"{_relative_volume_text(recommendation.relative_volume)}",
+        )
     )
+    if unavailable_lines:
+        lines.extend(("", "   Data Completion:"))
+        lines.extend(unavailable_lines)
+    lines.extend(
+        (
+            "",
+            "   Decision Reason:",
+            f"   - {_decision_reason(recommendation)}",
+        )
+    )
+    return tuple(lines)
 
 
 def _sector_metadata_notice(sector: str) -> str | None:
     if sector.strip().upper() == "UNKNOWN":
         return "Metadata Notice: Sector metadata unavailable from current live feed."
     return None
+
+
+def _recommendation_data_quality(recommendation: RecommendationReport) -> str:
+    return recommendation.metadata.get(
+        "data_quality",
+        "Partial" if recommendation.unavailable_reasons else "Complete",
+    )
+
+
+def _data_completion_lines(recommendation: RecommendationReport) -> tuple[str, ...]:
+    lines: list[str] = []
+    for reason in recommendation.unavailable_reasons:
+        available = _available_bars_from_reason(reason)
+        available_after_fetch = (
+            available
+            if available is not None
+            else str(recommendation.historical_bar_count)
+        )
+        lines.extend(
+            (
+                f"   - Requirement: {reason}",
+                "   - Archive fetch attempted: yes",
+                f"   - Available after fetch: {available_after_fetch}",
+                "   - Status: still insufficient",
+            )
+        )
+    return tuple(lines)
+
+
+def _available_bars_from_reason(reason: str) -> str | None:
+    marker = "has "
+    if marker not in reason:
+        return None
+    return reason.rsplit(marker, maxsplit=1)[-1].strip()
+
+
+def _actionable_strategy_text(recommendation: RecommendationReport) -> str:
+    strategy = recommendation.actionable_trade_strategy
+    if strategy is None:
+        return "none"
+    return strategy.name
+
+
+def _action_now_entry_text(recommendation: RecommendationReport) -> str:
+    strategy = recommendation.actionable_trade_strategy
+    if strategy is None:
+        return "not actionable"
+    return _strategy_entry_text(strategy)
+
+
+def _action_now_stop_text(recommendation: RecommendationReport) -> str:
+    strategy = recommendation.actionable_trade_strategy
+    if strategy is None:
+        return "not applicable"
+    return strategy.stop_rule
+
+
+def _trade_strategy_lines(recommendation: RecommendationReport) -> list[str]:
+    if not recommendation.trade_strategies:
+        return _trade_plan_lines(recommendation)
+    lines: list[str] = []
+    for index, strategy in enumerate(recommendation.trade_strategies, start=1):
+        lines.extend(
+            (
+                f"   {index}. {_sentence_label(strategy.name)}",
+                f"      Action: {_strategy_action_text(strategy.action)}",
+                f"      Strategy Rank: {strategy.strategy_rank.label}",
+                (
+                    "      Strategy Quality: "
+                    f"{_sentence_label(strategy.strategy_rank.quality.value)}"
+                ),
+                f"      Entry: {_strategy_entry_text(strategy)}",
+                "      Entry Zone Basis:",
+            )
+        )
+        lines.extend(_entry_zone_basis_lines(strategy.entry_zone_basis))
+        lines.extend(
+            (
+                f"      Trigger: {strategy.trigger_text}",
+                f"      Risk Stop: {strategy.stop_rule}",
+            )
+        )
+        if strategy.trend_invalidation_reference is not None:
+            lines.append(
+                f"      Trend Reference: {strategy.trend_invalidation_reference}"
+            )
+        lines.extend(
+            (
+                "      Targets: "
+                + _targets_text(
+                    strategy.target_1,
+                    strategy.target_2,
+                    strategy.target_3,
+                ),
+                "      Risk / Reward:",
+            )
+        )
+        lines.extend(_risk_reward_lines(strategy))
+        lines.extend(("      Strategy Scorecard:",))
+        lines.extend(_strategy_scorecard_lines(strategy))
+        lines.extend(("      Historical Edge:",))
+        lines.extend(_historical_edge_lines(strategy.edge_stats))
+        lines.extend(
+            (
+                "      Fill Probability: "
+                f"{_fill_probability_text(strategy.edge_stats)}",
+                (
+                    "      Position Size: "
+                    f"{strategy.position_size_multiplier}x base allocation"
+                ),
+                f"      Holding Period: {strategy.expected_holding_period}",
+                f"      Comment: {strategy.explanation}",
+            )
+        )
+    return lines
+
+
+def _entry_zone_basis_lines(basis: tuple[EntryZoneBasis, ...]) -> list[str]:
+    return [
+        (
+            "      - "
+            f"{_sentence_label(item.basis_type.value)}: "
+            f"{_money_text(item.level)} - {item.description}"
+        )
+        for item in basis
+    ]
+
+
+def _risk_reward_lines(strategy: TradeStrategyPlaybook) -> list[str]:
+    entry = strategy.entry_high or strategy.entry_low
+    if entry is None or strategy.stop_loss is None:
+        return [
+            f"      - Entry: {_strategy_entry_text(strategy)}",
+            f"      - Risk Stop: {strategy.stop_rule}",
+            "      - Reward/Risk to Target 1: unavailable",
+        ]
+    max_risk = _signed_percent_text(_return_ratio(strategy.stop_loss, entry))
+    target_1 = _signed_percent_text(_return_ratio(strategy.target_1, entry))
+    target_2 = _signed_percent_text(_return_ratio(strategy.target_2, entry))
+    target_3 = _signed_percent_text(_return_ratio(strategy.target_3, entry))
+    return [
+        f"      - Entry: {_strategy_entry_text(strategy)}",
+        f"      - Risk Stop: {strategy.stop_rule}",
+        f"      - Max Risk: {max_risk}",
+        f"      - Target 1 Upside: {target_1}",
+        f"      - Target 2 Upside: {target_2}",
+        f"      - Target 3 Upside: {target_3}",
+        (f"      - Reward/Risk to Target 1: {_reward_risk_text(strategy.risk_reward)}"),
+    ]
+
+
+def _return_ratio(target: Decimal | None, entry: Decimal) -> Decimal | None:
+    if target is None or entry <= Decimal("0"):
+        return None
+    return (target - entry) / entry
+
+
+def _reward_risk_text(value: Decimal | None) -> str:
+    if value is None:
+        return "unavailable"
+    return f"1 : {value.quantize(Decimal('0.01'))}"
+
+
+def _historical_edge_lines(stats: StrategyEdgeStats | None) -> list[str]:
+    if stats is None:
+        return [
+            "      - Status: Not yet computed",
+            "      - Reason: empirical setup matching unavailable",
+            "      - Data Fetch Status: not attempted",
+        ]
+    if (
+        stats.confidence is EdgeConfidence.INSUFFICIENT_DATA
+        and stats.target_1_hit_rate is None
+    ):
+        return [
+            "      - Status: Not yet computed",
+            "      - Dataset Source: local historical bars",
+            "      - Lookback Period: available repository history",
+            f"      - Historical Bars Used: {stats.sample_size}",
+            "      - Matched Setups: 0",
+            "      - Match Criteria: setup, trend, volume, DMA state",
+            "      - Confidence Level: insufficient data",
+            "      - Archive Fetch Status: attempted; empirical matcher unavailable",
+            "      - Reason: empirical setup matching unavailable",
+        ]
+    return [
+        f"      - Sample Size: {stats.sample_size}",
+        f"      - Target 1 Hit Rate: {_percent_text(stats.target_1_hit_rate)}",
+        f"      - Target 2 Hit Rate: {_percent_text(stats.target_2_hit_rate)}",
+        f"      - Target 3 Hit Rate: {_percent_text(stats.target_3_hit_rate)}",
+        f"      - Stop Loss Hit Rate: {_percent_text(stats.stop_loss_hit_rate)}",
+        f"      - Average Return: {_signed_percent_text(stats.average_return)}",
+        f"      - Median Holding Period: {_holding_period_text(stats)}",
+        f"      - Expectancy: {_signed_percent_text(stats.expectancy)}",
+    ]
+
+
+def _strategy_scorecard_lines(strategy: TradeStrategyPlaybook) -> list[str]:
+    scorecard = _strategy_scorecard(strategy)
+    return [
+        f"      - Risk/Reward Score: {scorecard['risk_reward']}/100",
+        f"      - Historical Edge Score: {scorecard['historical_edge']}/100",
+        f"      - Trend Strength Score: {scorecard['trend_strength']}/100",
+        f"      - Liquidity Score: {scorecard['liquidity']}/100",
+        f"      - Volatility Score: {scorecard['volatility']}/100",
+        f"      - Execution Ease Score: {scorecard['execution_ease']}/100",
+        f"      - Overall Strategy Score: {scorecard['overall']}/100",
+    ]
+
+
+def _strategy_scorecard(strategy: TradeStrategyPlaybook) -> dict[str, int]:
+    risk_reward = _score_from_ratio(strategy.risk_reward)
+    historical_edge = (
+        0
+        if strategy.edge_stats is None or strategy.edge_stats.target_1_hit_rate is None
+        else int((strategy.edge_stats.target_1_hit_rate * Decimal("100")).to_integral())
+    )
+    trend_strength = 75 if strategy.action is TradeStrategyAction.BUY_NOW else 65
+    liquidity = 70
+    volatility = 65 if strategy.strategy_type is not None else 50
+    execution_ease = _execution_ease_score(strategy.action)
+    overall = int(
+        (
+            risk_reward
+            + historical_edge
+            + trend_strength
+            + liquidity
+            + volatility
+            + execution_ease
+        )
+        / 6
+    )
+    return {
+        "risk_reward": risk_reward,
+        "historical_edge": historical_edge,
+        "trend_strength": trend_strength,
+        "liquidity": liquidity,
+        "volatility": volatility,
+        "execution_ease": execution_ease,
+        "overall": overall,
+    }
+
+
+def _score_from_ratio(value: Decimal | None) -> int:
+    if value is None:
+        return 0
+    return int(min(value * Decimal("25"), Decimal("100")).to_integral())
+
+
+def _execution_ease_score(action: TradeStrategyAction) -> int:
+    if action is TradeStrategyAction.BUY_NOW:
+        return 90
+    if action is TradeStrategyAction.WAIT_FOR_PULLBACK:
+        return 65
+    if action is TradeStrategyAction.WAIT_FOR_DEEP_PULLBACK:
+        return 40
+    if action is TradeStrategyAction.WAIT_FOR_CONFIRMATION:
+        return 55
+    return 0
+
+
+def _fill_probability_text(stats: StrategyEdgeStats | None) -> str:
+    if stats is None or stats.fill_probability is None:
+        return "unavailable"
+    if stats.fill_window_days == 0:
+        return "Already in entry zone / trigger confirmed"
+    window = (
+        f" within {stats.fill_window_days} trading days"
+        if stats.fill_window_days is not None
+        else ""
+    )
+    return f"{_percent_text(stats.fill_probability)}{window}"
+
+
+def _recommended_strategy_lines(
+    recommendation: RecommendationReport,
+) -> list[str]:
+    strategy = _recommended_strategy(recommendation)
+    if strategy is None:
+        return []
+    capital = (
+        "deploy now only if this is the BUY NOW strategy"
+        if strategy.action is TradeStrategyAction.BUY_NOW
+        else "reserve only; not deployed now"
+    )
+    return [
+        (
+            f"   {strategy.strategy_rank.label} {_sentence_label(strategy.name)} — "
+            f"{_sentence_label(strategy.strategy_rank.quality.value)}"
+        ),
+        f"   - Action: {_strategy_action_text(strategy.action)}",
+        f"   - Entry: {_strategy_entry_text(strategy)}",
+        f"   - Why: {strategy.strategy_rank.rationale}",
+        f"   - Capital: {capital}",
+    ]
+
+
+def _recommended_strategy(
+    recommendation: RecommendationReport,
+) -> TradeStrategyPlaybook | None:
+    ranked = tuple(
+        strategy
+        for strategy in recommendation.trade_strategies
+        if strategy.strategy_rank.rank is not None
+        and strategy.action is not TradeStrategyAction.AVOID
+    )
+    return min(ranked, key=_strategy_rank_key, default=None)
+
+
+def _strategy_rank_key(strategy: TradeStrategyPlaybook) -> int:
+    if strategy.strategy_rank.rank is None:
+        return 999
+    return strategy.strategy_rank.rank
+
+
+def _risk_control_lines(recommendation: RecommendationReport) -> list[str]:
+    if _is_exit_or_avoid(recommendation):
+        return [
+            "   - Initial Risk Stop: not applicable",
+            "   - Trend Reference: not actionable",
+        ]
+    strategy = recommendation.actionable_trade_strategy or _recommended_strategy(
+        recommendation
+    )
+    stop = strategy.stop_rule if strategy is not None else "not applicable"
+    trend_reference = (
+        strategy.trend_invalidation_reference
+        if strategy is not None and strategy.trend_invalidation_reference is not None
+        else "unavailable"
+    )
+    lines = [
+        f"   - Initial Risk Stop: {stop}",
+        f"   - Trend Reference: {trend_reference}",
+    ]
+    lines.extend(_trailing_stop_lines())
+    return lines
+
+
+def _trailing_stop_lines() -> list[str]:
+    return [
+        "   - Trailing Stop: Not active until Target 1",
+        "   - After Target 1: move stop to breakeven",
+        (
+            "   - After Target 2: trail using highest valid level among "
+            "20-DMA, 2x ATR, and swing low"
+        ),
+        "   - Current Computed Trail: unavailable until live/next close data",
+    ]
+
+
+def _strategy_action_text(action: TradeStrategyAction) -> str:
+    return action.value.replace("_", " ")
+
+
+def _strategy_entry_text(strategy: TradeStrategyPlaybook) -> str:
+    if strategy.entry_low is not None and strategy.entry_high is not None:
+        return (
+            f"{_money_text(strategy.entry_low)} to {_money_text(strategy.entry_high)}"
+        )
+    if strategy.entry_low is not None:
+        return _money_text(strategy.entry_low)
+    if strategy.entry_high is not None:
+        return _money_text(strategy.entry_high)
+    return "not applicable"
+
+
+def _targets_text(
+    target_1: Decimal | None,
+    target_2: Decimal | None,
+    target_3: Decimal | None,
+) -> str:
+    targets = tuple(
+        _money_text(target)
+        for target in (target_1, target_2, target_3)
+        if target is not None
+    )
+    if not targets:
+        return "not applicable"
+    return " / ".join(targets)
+
+
+def _probability_text(value: Decimal | None) -> str:
+    if value is None:
+        return "unavailable"
+    return f"{(value * Decimal('100')).quantize(Decimal('1'))}%"
+
+
+def _percent_text(value: Decimal | None) -> str:
+    if value is None:
+        return "unavailable"
+    return f"{(value * Decimal('100')).quantize(Decimal('1'))}%"
+
+
+def _signed_percent_text(value: Decimal | None) -> str:
+    if value is None:
+        return "unavailable"
+    sign = "+" if value >= Decimal("0") else ""
+    return f"{sign}{(value * Decimal('100')).quantize(Decimal('0.1'))}%"
+
+
+def _holding_period_text(stats: StrategyEdgeStats) -> str:
+    if stats.median_holding_period_days is None:
+        return "unavailable"
+    return f"{stats.median_holding_period_days} sessions"
+
+
+def _trade_plan_lines(recommendation: RecommendationReport) -> list[str]:
+    return [
+        (
+            "   - Expected Holding Period: "
+            f"{recommendation.trade_plan.expected_holding_period}"
+        ),
+        f"   - Entry Style: {_entry_style(recommendation)}",
+        f"   - Entry Zone: {_entry_zone_text(recommendation)}",
+        f"   - Entry Trigger: {_entry_trigger_text(recommendation)}",
+        f"   - Initial Stop Loss: {_money_text(recommendation.initial_stop_loss)}",
+        (f"   - Invalidation: {_invalidation_text(recommendation)}"),
+        f"   - ATR: {_money_text(recommendation.trade_plan.atr_value)}",
+        f"   - Trailing Stop: {_trailing_stop_text(recommendation)}",
+        f"   - Target 1: {_money_text(recommendation.target_1)}",
+        f"   - Target 2: {_money_text(recommendation.target_2)}",
+        f"   - Target 3: {_money_text(recommendation.target_3)}",
+        f"   - Risk/Reward: {_plain_text(recommendation.risk_reward_ratio)}",
+    ]
+
+
+def _entry_zone_text(recommendation: RecommendationReport) -> str:
+    low = recommendation.entry_zone_low
+    high = recommendation.entry_zone_high
+    if low is not None and high is not None:
+        return f"{_money_text(low)} to {_money_text(high)}"
+    if low is not None:
+        return _money_text(low)
+    if high is not None:
+        return _money_text(high)
+    return "unavailable"
+
+
+def _entry_trigger_text(recommendation: RecommendationReport) -> str:
+    trigger = _money_text(recommendation.entry_price)
+    style = recommendation.trade_plan.entry_trigger_style
+    if recommendation.entry_price is None:
+        return "unavailable"
+    if style is EntryTriggerStyle.CROSS_ABOVE:
+        return f"Price crosses above {trigger} during market hours."
+    if style is EntryTriggerStyle.BREAKOUT_WITH_VOLUME:
+        return (
+            f"Breakout above {trigger} with volume at least 1.5x the "
+            "20-day average volume."
+        )
+    if style is EntryTriggerStyle.RETEST_HOLD:
+        return f"Retest holds near support, then price closes above {trigger}."
+    if style is EntryTriggerStyle.PULLBACK_TO_LEVEL:
+        return f"Pullback enters the zone and closes back above {trigger}."
+    if style is EntryTriggerStyle.ENTER_IN_ZONE:
+        return "Enter only while price trades inside the planned entry zone."
+    return f"Daily close above {trigger}."
+
+
+def _verdict_label(recommendation: RecommendationReport) -> str:
+    if recommendation.final_signal == "STRONG_BUY":
+        return "STRONG BUY"
+    if recommendation.final_signal == "STRONG_SELL":
+        return "STRONG SELL"
+    if recommendation.final_signal == "REJECT":
+        return "AVOID / REJECT"
+    return recommendation.final_signal.replace("_", " ")
+
+
+def _next_trigger_text(recommendation: RecommendationReport) -> str:
+    if _is_exit_or_avoid(recommendation):
+        return "Action: Avoid / Exit."
+    if recommendation.trigger_status is TriggerStatus.TRIGGER_CONFIRMED:
+        return "Already confirmed."
+    if recommendation.entry_price is None:
+        return "No actionable trigger is available yet."
+    trigger = _money_text(recommendation.entry_price)
+    if recommendation.trigger_status is TriggerStatus.WAITING_FOR_CROSS_ABOVE:
+        return f"Buy only after price crosses above {trigger} during market hours."
+    if recommendation.trigger_status is TriggerStatus.WAITING_FOR_VOLUME_CONFIRMATION:
+        return (
+            f"Buy only after breakout above {trigger} with volume at least "
+            "1.5x the 20-day average volume."
+        )
+    if recommendation.trigger_status is TriggerStatus.INVALID_OR_NOT_ACTIONABLE:
+        return "No actionable trigger is available yet."
+    return f"Buy only after daily close above {trigger}."
+
+
+def _entry_instruction(recommendation: RecommendationReport) -> str:
+    if _is_exit_or_avoid(recommendation):
+        return "Avoid / Exit."
+    if (
+        recommendation.setup_entry_ready
+        and recommendation.trigger_status is TriggerStatus.TRIGGER_CONFIRMED
+    ):
+        return (
+            f"Buy within the entry zone {_entry_zone_text(recommendation)}, "
+            "subject to portfolio risk limits."
+        )
+    return "Wait. Do not enter yet."
+
+
+def _reentry_watch_level(recommendation: RecommendationReport) -> str | None:
+    if not _is_exit_or_avoid(recommendation) or recommendation.entry_price is None:
+        return None
+    return (
+        f"Daily close above {_money_text(recommendation.entry_price)}, "
+        "only if setup improves."
+    )
+
+
+def _is_exit_or_avoid(recommendation: RecommendationReport) -> bool:
+    return recommendation.final_signal in {
+        "AVOID",
+        "REJECT",
+        "SELL",
+        "STRONG_SELL",
+    }
+
+
+def _entry_style(recommendation: RecommendationReport) -> str:
+    style = recommendation.trade_plan.entry_trigger_style
+    if style is EntryTriggerStyle.BREAKOUT_WITH_VOLUME:
+        return "Breakout"
+    if style is EntryTriggerStyle.RETEST_HOLD:
+        return "Retest"
+    if style is EntryTriggerStyle.PULLBACK_TO_LEVEL:
+        return "Pullback"
+    if style is EntryTriggerStyle.ENTER_IN_ZONE:
+        return "Accumulation"
+    return "Breakout" if recommendation.setup_category == "BREAKOUT" else "Confirmation"
+
+
+def _invalidation_text(recommendation: RecommendationReport) -> str:
+    dma_20 = recommendation.trade_plan.dma_20_invalidation
+    if dma_20 is not None and "20-DMA" in recommendation.invalidation_reason:
+        return (
+            f"Exit if daily close is below the 20-DMA, currently {_money_text(dma_20)}."
+        )
+    if recommendation.invalidation_level is None:
+        return "unavailable"
+    return (
+        f"Exit if invalidation level breaks at "
+        f"{_money_text(recommendation.invalidation_level)}"
+        f"{_reason_suffix(recommendation.invalidation_reason)}."
+    )
+
+
+def _trailing_stop_text(recommendation: RecommendationReport) -> str:
+    return (
+        "After Target 1, move stop to breakeven. After Target 2, trail using "
+        "the higher of the 20-DMA or 2x ATR."
+    )
+
+
+def _execution_status(recommendation: RecommendationReport) -> str:
+    if recommendation.final_signal in {"SELL", "STRONG_SELL"}:
+        return "EXIT / SELL"
+    if recommendation.final_signal in {"AVOID", "REJECT"}:
+        return "DO NOTHING"
+    if (
+        recommendation.setup_stage in {"ENTRY_READY", "ACTIVE"}
+        and recommendation.setup_entry_ready
+        and recommendation.trigger_status is TriggerStatus.TRIGGER_CONFIRMED
+        and recommendation.entry_price is not None
+    ):
+        return "BUY NOW"
+    if recommendation.setup_stage == "READY_FOR_CONFIRMATION":
+        return "WAIT FOR CONFIRMATION"
+    if recommendation.setup_stage == "BUILDING":
+        return "WATCH ONLY"
+    if recommendation.setup_stage == "LATE":
+        return "HOLD EXISTING"
+    if recommendation.final_signal == "HOLD":
+        return "HOLD EXISTING"
+    if recommendation.final_signal == "REDUCE":
+        return "TRIM / REDUCE EXPOSURE"
+    return "WATCH ONLY"
+
+
+def _portfolio_allocation_status(recommendation: RecommendationReport) -> str:
+    if recommendation.final_signal in {"SELL", "STRONG_SELL"}:
+        return "EXIT POSITION"
+    if recommendation.final_signal in {"AVOID", "REJECT"}:
+        return "NO ALLOCATION"
+    if recommendation.final_signal == "WATCHLIST":
+        return "NO ALLOCATION — waiting for confirmation"
+    if (
+        recommendation.final_signal in {"BUY", "STRONG_BUY"}
+        and _execution_status(recommendation) == "BUY NOW"
+        and recommendation.trigger_status is TriggerStatus.TRIGGER_CONFIRMED
+    ):
+        return "ALLOCATION ELIGIBLE — final size set by portfolio policy"
+    return "NOT ELIGIBLE"
+
+
+def _current_view(recommendation: RecommendationReport) -> str:
+    if recommendation.final_signal == "WATCHLIST":
+        return "Bullish setup, but not entry-ready."
+    if recommendation.final_signal in {"BUY", "STRONG_BUY"}:
+        return "Setup is entry-ready with a valid trade plan."
+    if recommendation.final_signal in {"SELL", "STRONG_SELL"}:
+        return "Bearish or invalid setup; risk control takes priority."
+    if recommendation.final_signal in {"AVOID", "REJECT"}:
+        return "No deployable setup is available."
+    return "Hold or monitor; no fresh action is required."
+
+
+def _reason_suffix(reason: str) -> str:
+    if not reason.strip():
+        return ""
+    return f" ({reason.strip()})"
+
+
+def _price_volume_sentence(recommendation: RecommendationReport) -> str:
+    price = recommendation.price_evidence
+    volume = recommendation.volume_evidence
+    breakout = "breakout confirmed"
+    if price.breakout_state == "BREAKDOWN":
+        breakout = "breakdown risk"
+    elif price.breakout_state == "NONE":
+        breakout = "no breakout yet"
+    volume_phrase = "volume confirms the move"
+    if volume.selloff_volume_penalty >= Decimal("0.70"):
+        volume_phrase = "heavy selloff volume is a warning"
+    elif volume.breakout_volume_confirmation < Decimal("0.45"):
+        volume_phrase = "volume confirmation is weak"
+    return (
+        f"{_sentence_label(price.trend_state)}, "
+        f"{_sentence_label(price.structure_state)}, {breakout}; "
+        f"{volume_phrase}."
+    )
+
+
+def _trend_sentence(recommendation: RecommendationReport) -> str:
+    dma_20 = _money_text(recommendation.trade_plan.dma_20_invalidation)
+    dma_50 = _money_text(recommendation.dma_50)
+    dma_200 = _money_text(recommendation.dma_200)
+    return (
+        f"{_sentence_label(recommendation.price_evidence.trend_state)} with "
+        f"20-DMA {dma_20}, 50-DMA {dma_50}, 200-DMA {dma_200}."
+    )
+
+
+def _retracement_sentence(recommendation: RecommendationReport) -> str:
+    support = _money_text(recommendation.support_level_used)
+    fibonacci = _money_text(recommendation.nearest_fibonacci_level)
+    return (
+        f"{_sentence_label(recommendation.price_evidence.retracement_state)} "
+        f"retracement near {support}; nearest Fibonacci level {fibonacci}."
+    )
+
+
+def _candle_sentence(recommendation: RecommendationReport) -> str:
+    return (
+        f"{_sentence_label(recommendation.candle_pattern)} pattern "
+        f"{_sentence_label(recommendation.candle_confirmation).lower()} the setup."
+    )
+
+
+def _decision_reason(recommendation: RecommendationReport) -> str:
+    holding_period = (
+        f" Expected holding period is "
+        f"{recommendation.trade_plan.expected_holding_period} based on "
+        f"{recommendation.trade_plan.holding_period_basis}."
+    )
+    if (
+        recommendation.final_signal in {"BUY", "STRONG_BUY"}
+        and recommendation.setup_entry_ready
+        and recommendation.trigger_status is TriggerStatus.TRIGGER_CONFIRMED
+    ):
+        return (
+            "BUY because the setup is entry-ready, trigger is already "
+            "confirmed, and price-volume evidence is constructive."
+            f"{holding_period}"
+        )
+    if recommendation.final_signal == "WATCHLIST":
+        return (
+            "WATCHLIST because the setup is bullish but confirmation is still "
+            "pending. No capital is approved until the trigger confirms."
+            f"{holding_period}"
+        )
+    if _is_exit_or_avoid(recommendation):
+        return (
+            f"{_verdict_label(recommendation)} because the setup is not "
+            "actionable and risk control takes priority."
+            f"{holding_period}"
+        )
+    return (
+        f"{_verdict_label(recommendation)} because the detected "
+        f"{_sentence_label(recommendation.setup_name)} is in "
+        f"{_sentence_label(recommendation.setup_stage)} stage, "
+        "entry confirmation is still pending, "
+        f"and price-volume evidence is "
+        f"{_sentence_label(recommendation.price_evidence.structure_state).lower()}. "
+        f"{holding_period.strip()}"
+    )
+
+
+def _sentence_label(value: str) -> str:
+    return value.strip().replace("_", " ").replace("/", " / ").title()
+
+
+def _yes_no(value: bool) -> str:
+    return "Yes" if value else "No"
+
+
+def _final_decision_summary_lines(
+    *,
+    recommendations: tuple[RecommendationReport, ...],
+    allocation_plan: CapitalAllocationPlan,
+    market_report: MarketIntelligenceReport,
+) -> tuple[str, ...]:
+    strong_buy_count = _verdict_count(recommendations, "STRONG_BUY")
+    buy_count = _verdict_count(recommendations, "BUY")
+    watchlist_count = _verdict_count(recommendations, "WATCHLIST")
+    hold_count = _verdict_count(recommendations, "HOLD")
+    reduce_count = _verdict_count(recommendations, "REDUCE")
+    sell_count = sum(
+        1
+        for recommendation in recommendations
+        if recommendation.final_signal in {"SELL", "STRONG_SELL"}
+    )
+    avoid_count = sum(
+        1
+        for recommendation in recommendations
+        if recommendation.final_signal in {"AVOID", "REJECT"}
+    )
+    deployable = tuple(
+        recommendation
+        for recommendation in recommendations
+        if recommendation.final_signal in {"BUY", "STRONG_BUY"}
+        and _execution_status(recommendation) == "BUY NOW"
+        and recommendation.trigger_status is TriggerStatus.TRIGGER_CONFIRMED
+    )
+    highest_conviction = max(
+        recommendations,
+        key=lambda recommendation: (
+            recommendation.score,
+            recommendation.setup_confidence,
+        ),
+        default=None,
+    )
+    best_setup = max(
+        recommendations,
+        key=lambda recommendation: (
+            recommendation.setup_confidence,
+            recommendation.score,
+        ),
+        default=None,
+    )
+    return (
+        f"- Strong Buy: {strong_buy_count}",
+        f"- Buy: {buy_count}",
+        f"- Watchlist: {watchlist_count}",
+        f"- Hold: {hold_count}",
+        f"- Reduce: {reduce_count}",
+        f"- Sell / Strong Sell: {sell_count}",
+        f"- Avoid / Reject: {avoid_count}",
+        f"- Deployable Ideas: {len(deployable)}",
+        f"- Capital Approved: {_money_text(allocation_plan.total_allocated_amount)}",
+        f"- Cash Remaining: {_money_text(allocation_plan.remaining_cash)}",
+        f"- Highest Conviction: {_summary_symbol(highest_conviction)}",
+        f"- Best Setup: {_summary_setup(best_setup)}",
+        f"- Main Market Risk: {market_report.correlation.classification}",
+    )
+
+
+def _verdict_count(
+    recommendations: tuple[RecommendationReport, ...],
+    verdict: str,
+) -> int:
+    return sum(
+        1
+        for recommendation in recommendations
+        if recommendation.final_signal == verdict
+    )
+
+
+def _summary_symbol(recommendation: RecommendationReport | None) -> str:
+    if recommendation is None:
+        return "NONE"
+    return f"{recommendation.symbol} ({recommendation.final_signal})"
+
+
+def _summary_setup(recommendation: RecommendationReport | None) -> str:
+    if recommendation is None:
+        return "NONE"
+    return (
+        f"{recommendation.symbol} - {_sentence_label(recommendation.setup_name)} "
+        f"({recommendation.setup_quality_label})"
+    )
 
 
 def _driver_slug(value: str) -> str:
@@ -476,10 +1405,28 @@ def _weight_percent(value: Decimal) -> str:
     return f"{(value * Decimal('100')).quantize(Decimal('0.01'))}%"
 
 
-def _optional_decimal_text(value: Decimal | None) -> str:
+def _plain_text(value: Decimal | None) -> str:
     if value is None:
         return "unavailable"
     return str(value)
+
+
+def _money_text(value: Decimal | None) -> str:
+    if value is None:
+        return "unavailable"
+    return f"₹{value}"
+
+
+def _relative_volume_text(value: Decimal | None) -> str:
+    if value is None:
+        return "unavailable"
+    return f"{value}x"
+
+
+def _dma_20_invalidation_text(level: Decimal | None) -> str:
+    if level is None:
+        return "20-DMA invalidation unavailable due to insufficient price history."
+    return f"Trade invalid if daily close is below 20-DMA, currently ₹{level}."
 
 
 @dataclass(frozen=True, slots=True)

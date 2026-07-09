@@ -122,6 +122,71 @@ class PricesRepository:
 
         return pd.DataFrame(rows, columns=columns)
 
+    def find_history_by_symbols(
+        self,
+        *,
+        symbols: tuple[str, ...],
+        end_date: date,
+        limit: int,
+    ) -> pd.DataFrame:
+        """
+        Load a rolling historical price window for each requested symbol.
+
+        The query deliberately ranks rows per symbol inside DuckDB so callers
+        receive up to ``limit`` bars for each symbol, ordered chronologically.
+        """
+
+        normalized_symbols = tuple(
+            dict.fromkeys(
+                symbol.strip().upper() for symbol in symbols if symbol.strip()
+            )
+        )
+        if not normalized_symbols:
+            return pd.DataFrame(columns=_PRICE_COLUMNS)
+        if limit <= 0:
+            raise ValueError("history limit must be positive")
+
+        placeholders = ", ".join("?" for _ in normalized_symbols)
+        result = self.db.execute(
+            f"""
+            WITH ranked_prices AS (
+                SELECT
+                    symbol,
+                    trade_date,
+                    open,
+                    high,
+                    low,
+                    close,
+                    volume,
+                    sector,
+                    exchange,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY symbol
+                        ORDER BY trade_date DESC
+                    ) AS row_number
+                FROM daily_prices
+                WHERE UPPER(symbol) IN ({placeholders})
+                  AND trade_date <= ?
+            )
+            SELECT
+                symbol,
+                trade_date,
+                open,
+                high,
+                low,
+                close,
+                volume,
+                sector,
+                exchange
+            FROM ranked_prices
+            WHERE row_number <= ?
+            ORDER BY symbol, trade_date
+            """,
+            (*normalized_symbols, end_date, limit),
+        )
+
+        return pd.DataFrame(result.fetchall(), columns=_PRICE_COLUMNS)
+
 
 def _normalize_optional_text(value: object) -> str | None:
     if value is None:
@@ -131,3 +196,16 @@ def _normalize_optional_text(value: object) -> str | None:
     if normalized in {"", "NAN", "NONE", "<NA>", "NAT"}:
         return None
     return normalized
+
+
+_PRICE_COLUMNS = [
+    "symbol",
+    "trade_date",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "sector",
+    "exchange",
+]

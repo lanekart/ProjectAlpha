@@ -68,6 +68,31 @@ def test_allocation_engine_allocates_buy_with_strong_score() -> None:
     assert report.reasons[0] == "capital action: fresh_allocation"
 
 
+def test_allocation_engine_skips_buy_without_buy_now_strategy() -> None:
+    plan = CapitalAllocationEngine().allocate(
+        (
+            _candidate(
+                "hal",
+                recommendation_score=Decimal("84"),
+                recommendation_action="BUY",
+                final_signal="BUY",
+                metadata={
+                    "source": "recommendation_engine",
+                    "trade_plan_valid": "True",
+                    "actionable_strategy_action": "WAIT_FOR_PULLBACK",
+                },
+            ),
+        ),
+        _context(),
+    )
+
+    report = plan.reports[0]
+
+    assert report.decision is AllocationDecision.SKIP
+    assert report.target_weight == Decimal("0.0000")
+    assert report.reasons[0] == "capital action: skip"
+
+
 def test_allocation_engine_skips_high_score_avoid_recommendation() -> None:
     plan = CapitalAllocationEngine().allocate(
         (
@@ -129,7 +154,7 @@ def test_allocation_engine_skips_reduce_action_without_deployment_wording() -> N
     assert report.reasons[0] == "capital action: skip"
 
 
-def test_allocation_engine_reduces_fresh_watchlist_deployment() -> None:
+def test_allocation_engine_skips_fresh_watchlist_deployment_by_default() -> None:
     plan = CapitalAllocationEngine().allocate(
         (
             _candidate(
@@ -144,9 +169,33 @@ def test_allocation_engine_reduces_fresh_watchlist_deployment() -> None:
 
     report = plan.reports[0]
 
-    assert report.decision is AllocationDecision.REDUCE
-    assert report.target_weight > Decimal("0")
-    assert report.reasons[0] == "capital action: reduced_deployment"
+    assert report.decision is AllocationDecision.SKIP
+    assert report.target_weight == Decimal("0.0000")
+    assert report.reasons[0] == "capital action: skip"
+
+
+def test_allocation_engine_skips_watchlist_without_valid_trade_plan() -> None:
+    plan = CapitalAllocationEngine().allocate(
+        (
+            _candidate(
+                "idea",
+                recommendation_score=Decimal("72"),
+                recommendation_action="ACCUMULATE",
+                final_signal="WATCHLIST",
+                metadata={
+                    "source": "recommendation_engine",
+                    "trade_plan_valid": "False",
+                },
+            ),
+        ),
+        _context(min_recommendation_score=Decimal("50")),
+    )
+
+    report = plan.reports[0]
+
+    assert report.decision is AllocationDecision.SKIP
+    assert report.target_weight == Decimal("0.0000")
+    assert report.reasons[0] == "capital action: skip"
 
 
 def test_allocation_engine_reduces_highly_correlated_candidate() -> None:
@@ -322,6 +371,7 @@ def _candidate(
     conviction_score: Decimal = Decimal("0.88"),
     recommendation_action: str = "BUY",
     final_signal: str | None = None,
+    metadata: dict[str, str] | None = None,
 ) -> AllocationCandidate:
     return AllocationCandidate(
         symbol=symbol,
@@ -334,7 +384,7 @@ def _candidate(
         correlation_to_portfolio=correlation_to_portfolio,
         liquidity_score=liquidity_score,
         conviction_score=conviction_score,
-        metadata={"source": "recommendation_engine"},
+        metadata=metadata or {"source": "recommendation_engine"},
         recommendation_action=recommendation_action,
         final_signal=final_signal,
     )

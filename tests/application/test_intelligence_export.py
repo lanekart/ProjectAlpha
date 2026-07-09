@@ -26,6 +26,8 @@ def test_intelligence_export_writes_json_and_text(tmp_path) -> None:
     payload = json.loads(json_path.read_text(encoding="utf-8"))
     assert payload["kind"] == "recommendation_report"
     assert payload["observed_on"] == "2026-01-30"
+    assert payload["recommendations"][0]["trade_setup"]["setup_name"]
+    assert "entry_ready" in payload["recommendations"][0]["trade_setup"]
     assert [item["symbol"] for item in payload["recommendations"]] == [
         "HAL",
         "LT",

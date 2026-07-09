@@ -7,6 +7,7 @@ import pytest
 
 from alpha.recommendation_intelligence import (
     ExpectedValueEngine,
+    OHLCVBar,
     OpportunityCostEngine,
     PortfolioContext,
     RecommendationAction,
@@ -67,7 +68,8 @@ def test_recommendation_engine_builds_sorted_explainable_reports() -> None:
 
     assert len(reports) == 2
     assert reports[0].symbol == "HAL"
-    assert reports[0].decision is RecommendationDecision.STRONG_BUY
+    assert reports[0].decision is RecommendationDecision.WATCHLIST
+    assert reports[0].setup_stage == "READY_FOR_CONFIRMATION"
     assert reports[0].score > reports[1].score
     assert reports[0].opportunity_cost.rank == 1
     assert any("Why this ranks here:" in line for line in reports[0].explanation)
@@ -142,5 +144,26 @@ def _candidate(
                 rationale="News flow can increase volatility.",
             ),
         ),
+        price_history=_price_history(),
+        setup_type="BREAKOUT",
+        market_regime="BULL",
+        higher_highs_higher_lows=True,
+        breakout_attempt=True,
+        resistance_level=Decimal("160"),
+        prior_day_high=Decimal("158"),
         metadata=metadata or {},
+    )
+
+
+def _price_history() -> tuple[OHLCVBar, ...]:
+    return tuple(
+        OHLCVBar(
+            observed_on=date.fromordinal(date(2025, 11, 12).toordinal() + index),
+            open_price=Decimal(100 + index),
+            high_price=Decimal(102 + index),
+            low_price=Decimal(99 + index),
+            close_price=Decimal(101 + index),
+            volume=Decimal("100000") + Decimal(index * 1000),
+        )
+        for index in range(60)
     )

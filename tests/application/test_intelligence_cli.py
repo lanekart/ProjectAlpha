@@ -49,44 +49,99 @@ def test_intelligence_command_prints_orchestrated_demo_report() -> None:
     assert "Metadata Notice:" not in result.stdout
     assert "Market Intelligence Reasons:" in result.stdout
     assert "Recommendations:" in result.stdout
-    assert "HAL:" in result.stdout
-    assert "raw_allocation_hint=" in result.stdout
-    assert " allocation_hint=" not in result.stdout
-    assert "final_signal=" in result.stdout
-    assert "final_score=" in result.stdout
-    assert "confidence=" in result.stdout
-    assert "Price-Volume Evidence:" in result.stdout
-    assert "Trend Evidence:" in result.stdout
-    assert "Retracement Evidence:" in result.stdout
-    assert "Candle Pattern Evidence:" in result.stdout
-    assert "Entry Zone:" in result.stdout
-    assert "Entry Trigger:" in result.stdout
-    assert "Initial Stop Loss:" in result.stdout
-    assert "20-DMA Invalidation:" in result.stdout
-    assert (
-        "20-DMA Invalidation: Trade invalid if daily close is below 20-DMA, "
-        "currently unavailable."
-    ) not in result.stdout
-    assert "ATR Value:" in result.stdout
-    assert "Trailing Stop:" in result.stdout
-    assert "Target 1:" in result.stdout
-    assert "Target 2:" in result.stdout
-    assert "Target 3:" in result.stdout
-    assert "Risk-Reward Ratio:" in result.stdout
-    assert "Why:" in result.stdout
-    assert "   drivers: market_intelligence, strategy_strength, drawdown" in (
-        result.stdout
-    )
+    assert "1. HAL —" in result.stdout
+    assert "Final Verdict:" in result.stdout
+    assert "Execution Status:" in result.stdout
     assert "Portfolio Allocation:" in result.stdout
-    assert "Approved Deployment Weight :" in result.stdout
-    assert "approved capital deployments:" in result.stdout
-    assert "Remaining Cash              :" in result.stdout
-    assert "Portfolio Summary:" in result.stdout
-    assert "Approved Deployments : 3" in result.stdout
-    assert "Approved Capital     : 128400.00" in result.stdout
-    assert "Cash Remaining       : 171600.00" in result.stdout
-    assert "Highest Conviction   : HAL" in result.stdout
-    assert "Largest Position     : HAL 8.08%" in result.stdout
+    assert "Score:" in result.stdout
+    assert "Confidence:" in result.stdout
+    assert "Action: ACCUMULATE" not in result.stdout
+    assert "WATCHLIST Action: ACCUMULATE" not in result.stdout
+    assert "Decision: REDUCE" not in result.stdout
+    assert "Reason: Reduced deployment only" not in result.stdout
+    assert "raw_allocation_hint=" not in result.stdout
+    assert " allocation_hint=" not in result.stdout
+    assert "final_signal=" not in result.stdout
+    assert "final_score=" not in result.stdout
+    assert "confidence=" not in result.stdout
+    assert "   Setup:" in result.stdout
+    assert "   Trade Strategies:" in result.stdout
+    assert "   Evidence:" in result.stdout
+    assert "   Decision Reason:" in result.stdout
+    assert "Relative Volume:" in result.stdout
+    assert "20-DMA unavailable; requires 20 bars" in result.stdout
+    assert "Support used: unavailable at unavailable" not in result.stdout
+    assert "Retracement improved the signal" not in result.stdout
+    assert "Trade Setup:" not in result.stdout
+    assert "Setup Entry Engine:" not in result.stdout
+    assert "Setup Exit Engine:" not in result.stdout
+    assert "Price/Volume:" in result.stdout
+    assert "Trend:" in result.stdout
+    assert "Retracement:" in result.stdout
+    assert "Candle:" in result.stdout
+    assert "Entry:" in result.stdout
+    assert "Entry Zone: ₹0.00 to ₹0.00" not in result.stdout
+    assert "Entry Zone: unavailable to unavailable" not in result.stdout
+    assert "Trigger:" in result.stdout
+    assert "Risk Stop:" in result.stdout
+    assert "ATR Value: ₹1.00" not in result.stdout
+    assert "Active Exit Rule:" not in result.stdout
+    assert "Strategy Rank:" in result.stdout
+    assert "Strategy Quality:" in result.stdout
+    assert "Entry Zone Basis:" in result.stdout
+    assert "Historical Edge:" in result.stdout
+    assert "Fill Probability:" in result.stdout
+    assert "Recommended Strategy:" in result.stdout
+    assert "Suitability:" not in result.stdout
+    assert "      Probability:" not in result.stdout
+    assert "Trend Reference:" in result.stdout
+    assert "Targets:" in result.stdout
+    assert "Targets: unavailable, unavailable, unavailable" not in result.stdout
+    assert "Risk / Reward:" in result.stdout
+    assert "Reward/Risk to Target 1:" in result.stdout
+    assert "Capital Deployment Dashboard:" in result.stdout
+    assert "Data Completion:" in result.stdout
+    assert "FULL ALLOCATION if portfolio policy allows" not in result.stdout
+    assert "price_trend=" not in result.stdout
+    assert "structure=" not in result.stdout
+    assert "Portfolio Allocation:" in result.stdout
+    assert "- Approved Capital:" in result.stdout
+    assert "- Remaining Cash:" in result.stdout
+    assert "- Deployment Count:" in result.stdout
+    assert "Positions:" in result.stdout
+    assert "Allocation Status: NO ALLOCATION" in result.stdout
+    assert "Approved Capital:" in result.stdout
+    assert "Target Weight:" in result.stdout
+    assert "Final Decision Summary:" in result.stdout
+    assert "- Deployable Ideas:" in result.stdout
+    assert "- Strong Buy:" in result.stdout
+    assert "- Buy:" in result.stdout
+    assert "- Watchlist:" in result.stdout
+    assert "- Hold:" in result.stdout
+    assert "- Reduce:" in result.stdout
+    assert "- Sell / Strong Sell:" in result.stdout
+    assert "- Avoid / Reject:" in result.stdout
+    assert "- Capital Approved:" in result.stdout
+    assert "- Cash Remaining:" in result.stdout
+    assert "- Highest Conviction:" in result.stdout
+    assert "- Best Setup:" in result.stdout
+    assert "- Main Market Risk:" in result.stdout
+
+
+def test_daily_run_default_is_concise_and_verbose_shows_details() -> None:
+    concise = runner.invoke(app, ["run", "--date", "2026-01-30", "--demo"])
+    verbose = runner.invoke(
+        app,
+        ["run", "--date", "2026-01-30", "--demo", "--verbose"],
+    )
+
+    assert concise.exit_code == 0
+    assert "Top Recommendations" in concise.stdout
+    assert "Use --verbose for full strategy options and evidence." in concise.stdout
+    assert "Strategy Scorecard:" not in concise.stdout
+    assert verbose.exit_code == 0
+    assert "Strategy Scorecard:" in verbose.stdout
+    assert "Trade Strategies:" in verbose.stdout
 
 
 def test_intelligence_summary_prints_none_without_approved_deployments() -> None:
@@ -160,45 +215,49 @@ def test_runtime_output_locks_recommendation_and_allocation_semantics(
     positive_reports = tuple(
         report for report in run.allocation_plan.reports if report.target_weight > 0
     )
-    positive_weight = sum(
-        (report.target_weight for report in positive_reports),
-        Decimal("0"),
-    )
     positive_amount = sum(
         (report.target_amount for report in positive_reports),
         Decimal("0"),
     )
 
-    assert " raw_allocation_hint=" in output
+    assert " raw_allocation_hint=" not in output
     assert " allocation_hint=" not in output
-    assert "final_signal=" in output
-    assert "Price-Volume Evidence:" in output
-    assert "Trend Evidence:" in output
-    assert "Retracement Evidence:" in output
-    assert "Candle Pattern Evidence:" in output
-    assert "Entry Zone:" in output
-    assert "Entry Trigger:" in output
-    assert "Initial Stop Loss:" in output
-    assert "20-DMA Invalidation:" in output
-    assert (
-        "20-DMA Invalidation: Trade invalid if daily close is below 20-DMA, "
-        "currently unavailable."
-    ) not in output
-    assert "ATR Value:" in output
-    assert "Trailing Stop:" in output
-    assert "Target 1:" in output
-    assert "Target 2:" in output
-    assert "Target 3:" in output
-    assert "Risk-Reward Ratio:" in output
-    assert "Why:" in output
-    assert "3. BBB: SELL action=AVOID score=23.40 raw_allocation_hint=3.8115%" in output
-    assert (
-        "- BBB: SKIP capital_action=skip target_weight=0.0000 target_amount=0.00"
-        in output
-    )
+    assert "final_signal=" not in output
+    assert "Action: ACCUMULATE" not in output
+    assert "Decision: REDUCE" not in output
+    assert "Reason: Reduced deployment only" not in output
+    assert "   Setup:" in output
+    assert "   Trade Strategies:" in output
+    assert "   Evidence:" in output
+    assert "Data Completion:" in output
+    assert "Price/Volume:" in output
+    assert "Trend:" in output
+    assert "Retracement:" in output
+    assert "Candle:" in output
+    assert "Entry:" in output
+    assert "Entry Zone: ₹0.00 to ₹0.00" not in output
+    assert "Trigger:" in output
+    assert "Risk Stop:" in output
+    assert "Active Exit Rule:" not in output
+    assert "Action Now:" in output
+    assert "Recommended Strategy:" in output
+    assert "Risk Controls:" in output
+    assert "Historical Edge:" in output
+    assert "Allocation" in output
+    assert "Targets:" in output
+    assert "Risk / Reward:" in output
+    assert "Strategy Scorecard:" in output
+    assert "Capital Deployment Dashboard:" in output
+    assert "3. BBB — SELL" in output
+    assert "Portfolio Summary" in output
+    assert "Investment Verdict:" in output
+    assert "Execution Status:" in output
+    assert "Allocation Status:" in output
+    assert "Reduced allocation approved by policy." not in output
+    assert "Why Reduced:" in output or "Allocation Status: NO ALLOCATION" in output
     assert f"Approved Deployments : {len(positive_reports)}" in output
-    assert f"Approved Deployment Weight : {positive_weight}" in output
-    assert f"Approved Deployment Amount : {positive_amount}" in output
+    assert f"- Approved Capital: ₹{positive_amount}" in output
+    assert "- Deployment Count:" in output
     assert (
         "Metadata Notice: Sector metadata unavailable from current live feed." in output
     )
@@ -231,6 +290,8 @@ def test_intelligence_command_exports_json_and_text(tmp_path) -> None:
     payload = json.loads(json_path.read_text(encoding="utf-8"))
     assert payload["kind"] == "recommendation_report"
     assert payload["observed_on"] == "2026-01-30"
+    assert payload["recommendations"][0]["trade_setup"]["setup_name"]
+    assert "setup_stage" in payload["recommendations"][0]["trade_setup"]
     assert [item["symbol"] for item in payload["recommendations"]] == [
         "HAL",
         "LT",

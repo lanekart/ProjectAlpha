@@ -4,36 +4,25 @@ from datetime import date
 from decimal import Decimal
 
 from alpha.recommendation_intelligence import (
+    OHLCVBar,
     RecommendationAction,
     RecommendationCandidate,
     RecommendationDecision,
     RecommendationEngine,
     RecommendationEvidence,
     RecommendationRisk,
+    TradePlanIntelligenceEngine,
 )
 
 
 def test_recommendation_engine_aligns_buy_action_with_buy_score() -> None:
-    report = RecommendationEngine().build(
-        (
-            _candidate(
-                symbol="HAL",
-                strategy_score=Decimal("0.92"),
-                probability_score=Decimal("0.88"),
-                market_intelligence_score=Decimal("0.83"),
-                liquidity_score=Decimal("0.91"),
-                risk_score=Decimal("0.82"),
-            ),
-        )
-    )[0]
+    report = RecommendationEngine().build((_history_candidate(symbol="HAL"),))[0]
 
-    assert report.score >= Decimal("80")
-    assert report.action is RecommendationAction.BUY
-    assert report.decision in {
-        RecommendationDecision.BUY,
-        RecommendationDecision.STRONG_BUY,
-    }
-    assert "Action: BUY" in report.explanation
+    assert Decimal("60") <= report.score < Decimal("75")
+    assert report.action is RecommendationAction.ACCUMULATE
+    assert report.decision is RecommendationDecision.WATCHLIST
+    assert report.setup_stage == "READY_FOR_CONFIRMATION"
+    assert "Action: ACCUMULATE" in report.explanation
 
 
 def test_recommendation_engine_does_not_emit_buy_for_low_score() -> None:
@@ -271,6 +260,122 @@ def test_trade_plan_includes_20_dma_invalidation_and_atr_trailing_stop() -> None
         report.trade_plan_explanation
     )
     assert "Trail at 2 x ATR (4)" in report.trailing_stop_strategy
+
+
+def test_trade_plan_engine_calculates_market_levels() -> None:
+    levels = TradePlanIntelligenceEngine().market_levels(
+        _history_candidate(setup_type="BREAKOUT")
+    )
+
+    assert levels.atr_14 == Decimal("4.00")
+    assert levels.dma_20 == Decimal("149.50")
+    assert levels.dma_50 == Decimal("134.50")
+    assert levels.recent_swing_high == Decimal("161.00")
+    assert levels.recent_swing_low == Decimal("98.00")
+    assert levels.fibonacci.level_382 == Decimal("136.93")
+    assert levels.fibonacci.level_500 == Decimal("129.50")
+    assert levels.fibonacci.level_618 == Decimal("122.07")
+
+
+def test_relative_volume_uses_rolling_20_day_average() -> None:
+    report = RecommendationEngine().build(
+        (_history_candidate(symbol="RELVOL", setup_type="BREAKOUT"),)
+    )[0]
+
+    assert report.volume_evidence.volume_vs_average == Decimal(
+        "1.070707070707070707070707071"
+    )
+    assert report.relative_volume == Decimal("1.0707")
+
+
+def test_trade_plan_engine_calculates_breakout_entry_stop_and_targets() -> None:
+    report = RecommendationEngine().build((_history_candidate(setup_type="BREAKOUT"),))[
+        0
+    ]
+
+    assert report.entry_price == Decimal("160.00")
+    assert report.entry_zone_low == Decimal("160.00")
+    assert report.entry_zone_high == Decimal("162.00")
+    assert report.initial_stop_loss is not None
+    assert report.initial_stop_loss < report.entry_price
+    assert report.initial_stop_loss >= Decimal("0")
+    assert report.target_1 is not None
+    assert report.target_2 is not None
+    assert report.target_3 is not None
+    assert report.target_1 == report.entry_price + (
+        (report.entry_price - report.initial_stop_loss) * Decimal("2")
+    )
+    assert report.target_2 == report.entry_price + (
+        (report.entry_price - report.initial_stop_loss) * Decimal("3")
+    )
+    assert report.target_3 > report.entry_price
+
+
+def test_trade_plan_engine_calculates_retracement_entry_zone() -> None:
+    report = RecommendationEngine().build(
+        (
+            _history_candidate(
+                setup_type="PULLBACK",
+                breakout_attempt=False,
+                resistance_level=Decimal("170"),
+                prior_day_high=Decimal("157"),
+            ),
+        )
+    )[0]
+
+    assert report.entry_zone_low == Decimal("149.50")
+    assert report.entry_zone_high == Decimal("151.50")
+    assert report.entry_price == Decimal("161.00")
+
+
+def test_trade_plan_engine_returns_unavailable_when_data_is_insufficient() -> None:
+    report = RecommendationEngine().build(
+        (
+            _candidate(
+                symbol="NODATA",
+                strategy_score=Decimal("0.90"),
+                probability_score=Decimal("0.88"),
+                market_intelligence_score=Decimal("0.86"),
+                liquidity_score=Decimal("0.86"),
+                risk_score=Decimal("0.86"),
+            ),
+        )
+    )[0]
+
+    assert report.entry_price is None
+    assert report.initial_stop_loss is None
+    assert report.target_1 is None
+    assert report.trade_plan.atr_value is None
+    assert report.trade_plan.dma_20_invalidation is None
+    assert "insufficient price history" in report.trade_plan_explanation
+    assert any("20-DMA unavailable" in reason for reason in report.unavailable_reasons)
+
+
+def test_retracement_unavailable_remains_neutral() -> None:
+    report = RecommendationEngine().build(
+        (
+            _candidate(
+                symbol="NORETRACE",
+                strategy_score=Decimal("0.80"),
+                probability_score=Decimal("0.78"),
+                market_intelligence_score=Decimal("0.76"),
+                liquidity_score=Decimal("0.74"),
+                risk_score=Decimal("0.76"),
+                retracement_score=Decimal("0.95"),
+            ),
+        )
+    )[0]
+
+    assert report.score_breakdown.retracement_points == Decimal("5.0000")
+    assert "Retracement improved the signal" not in report.trade_plan_explanation
+
+
+def test_candle_engine_receives_latest_ohlc_from_price_history() -> None:
+    report = RecommendationEngine().build((_engulfing_history_candidate(),))[0]
+
+    assert report.candle_pattern == "BULLISH_ENGULFING"
+    assert report.candle_entry_trigger == Decimal("112.00")
+    assert report.candle_stop_level == Decimal("98.00")
 
 
 def test_confidence_and_top_evidence_contributors_are_explainable() -> None:
@@ -531,6 +636,57 @@ def test_shooting_star_on_high_volume_generates_warning() -> None:
     assert any("Candle pattern:" in line for line in report.explanation)
 
 
+def test_candle_conflict_downgrades_without_forcing_avoid_when_not_hard_risk() -> None:
+    report = RecommendationEngine().build(
+        (
+            _candle_candidate(
+                symbol="SOFTCONFLICT",
+                open_price=Decimal("103"),
+                current_price=Decimal("102"),
+                high_price=Decimal("109"),
+                low_price=Decimal("101"),
+                previous_open_price=Decimal("100"),
+                previous_close=Decimal("104"),
+                breakout_attempt=False,
+                resistance_level=Decimal("115"),
+                strategy_score=Decimal("0.95"),
+                relative_strength_score=Decimal("0.94"),
+                volume_confirmation_score=Decimal("0.92"),
+                breakout_setup_score=Decimal("0.90"),
+                metadata={"volume": "180000", "average_volume": "100000"},
+            ),
+        )
+    )[0]
+
+    assert report.candle_pattern == "SHOOTING_STAR"
+    assert report.candle_confirmation == "CONFLICTS"
+    assert report.final_signal != "AVOID"
+    assert not any("Hard-risk override:" in line for line in report.explanation)
+
+
+def test_hard_risk_candle_override_requires_high_volume_context() -> None:
+    report = RecommendationEngine().build(
+        (
+            _candle_candidate(
+                symbol="HARDRISK",
+                open_price=Decimal("106"),
+                current_price=Decimal("99"),
+                high_price=Decimal("107"),
+                low_price=Decimal("98"),
+                previous_open_price=Decimal("100"),
+                previous_close=Decimal("105"),
+                resistance_level=Decimal("106"),
+                breakout_attempt=True,
+                metadata={"volume": "250000", "average_volume": "100000"},
+            ),
+        )
+    )[0]
+
+    assert report.candle_pattern == "BEARISH_ENGULFING"
+    assert report.final_signal == "AVOID"
+    assert any("Hard-risk override:" in line for line in report.explanation)
+
+
 def test_doji_alone_does_not_create_buy() -> None:
     report = RecommendationEngine().build(
         (
@@ -590,6 +746,7 @@ def _candidate(
     market_intelligence_score: Decimal,
     liquidity_score: Decimal,
     risk_score: Decimal,
+    retracement_score: Decimal = Decimal("0.50"),
 ) -> RecommendationCandidate:
     return RecommendationCandidate(
         symbol=symbol,
@@ -618,6 +775,7 @@ def _candidate(
                 rationale="expected drawdown remains controlled",
             ),
         ),
+        retracement_score=retracement_score,
     )
 
 
@@ -938,4 +1096,142 @@ def _candle_candidate(
         higher_highs_higher_lows=True,
         breakout_attempt=breakout_attempt,
         metadata=metadata or {"volume": "180000", "average_volume": "100000"},
+    )
+
+
+def _history_candidate(
+    *,
+    symbol: str = "HISTORY",
+    setup_type: str = "BREAKOUT",
+    breakout_attempt: bool = True,
+    resistance_level: Decimal = Decimal("160"),
+    prior_day_high: Decimal = Decimal("158"),
+) -> RecommendationCandidate:
+    return RecommendationCandidate(
+        symbol=symbol,
+        observed_on=date(2026, 7, 7),
+        action=RecommendationAction.BUY,
+        strategy_score=Decimal("0.88"),
+        probability_score=Decimal("0.82"),
+        market_intelligence_score=Decimal("0.80"),
+        liquidity_score=Decimal("0.76"),
+        risk_score=Decimal("0.82"),
+        expected_return=Decimal("0.12"),
+        expected_drawdown=Decimal("0.04"),
+        expected_holding_period_days=Decimal("30"),
+        evidence=(
+            RecommendationEvidence(
+                label="History-backed setup",
+                score_points=Decimal("9"),
+                max_points=Decimal("10"),
+                rationale="Trade levels are derived from deterministic OHLCV bars.",
+            ),
+        ),
+        risks=(
+            RecommendationRisk(
+                label="Execution risk",
+                penalty_points=Decimal("1"),
+                rationale="Stops and targets depend on market structure.",
+            ),
+        ),
+        price_history=_rising_history(),
+        retracement_score=Decimal("0.82"),
+        trend_structure_score=Decimal("0.86"),
+        relative_strength_score=Decimal("0.84"),
+        volume_confirmation_score=Decimal("0.82"),
+        breakout_setup_score=Decimal("0.86"),
+        market_regime_score=Decimal("0.82"),
+        sector_strength_score=Decimal("0.78"),
+        momentum_confirmation_score=Decimal("0.83"),
+        setup_type=setup_type,
+        market_regime="BULL",
+        open_price=Decimal("157"),
+        high_price=Decimal("160"),
+        low_price=Decimal("156"),
+        current_price=Decimal("159"),
+        resistance_level=resistance_level,
+        prior_day_high=prior_day_high,
+        breakout_attempt=breakout_attempt,
+        higher_highs_higher_lows=True,
+        breakout_volume_confirmation=Decimal("0.90"),
+        metadata={"volume": "180000", "average_volume": "100000"},
+    )
+
+
+def _rising_history() -> tuple[OHLCVBar, ...]:
+    return tuple(
+        OHLCVBar(
+            observed_on=date.fromordinal(date(2026, 5, 9).toordinal() + offset),
+            open_price=Decimal(99 + offset),
+            high_price=Decimal(102 + offset),
+            low_price=Decimal(98 + offset),
+            close_price=Decimal(100 + offset),
+            volume=Decimal("100000") + Decimal(offset * 1000),
+        )
+        for offset in range(60)
+    )
+
+
+def _engulfing_history_candidate() -> RecommendationCandidate:
+    history = (
+        OHLCVBar(
+            observed_on=date(2026, 7, 5),
+            open_price=Decimal("106"),
+            high_price=Decimal("107"),
+            low_price=Decimal("101"),
+            close_price=Decimal("103"),
+            volume=Decimal("100000"),
+        ),
+        OHLCVBar(
+            observed_on=date(2026, 7, 6),
+            open_price=Decimal("104"),
+            high_price=Decimal("105"),
+            low_price=Decimal("100"),
+            close_price=Decimal("101"),
+            volume=Decimal("100000"),
+        ),
+        OHLCVBar(
+            observed_on=date(2026, 7, 7),
+            open_price=Decimal("100"),
+            high_price=Decimal("112"),
+            low_price=Decimal("98"),
+            close_price=Decimal("110"),
+            volume=Decimal("180000"),
+        ),
+    )
+    return RecommendationCandidate(
+        symbol="ENGULF",
+        observed_on=date(2026, 7, 7),
+        action=RecommendationAction.BUY,
+        strategy_score=Decimal("0.84"),
+        probability_score=Decimal("0.80"),
+        market_intelligence_score=Decimal("0.78"),
+        liquidity_score=Decimal("0.76"),
+        risk_score=Decimal("0.80"),
+        expected_return=Decimal("0.12"),
+        expected_drawdown=Decimal("0.04"),
+        expected_holding_period_days=Decimal("30"),
+        evidence=(
+            RecommendationEvidence(
+                label="Candle history",
+                score_points=Decimal("8"),
+                max_points=Decimal("10"),
+                rationale="Candle pattern should hydrate from OHLC history.",
+            ),
+        ),
+        price_history=history,
+        retracement_score=Decimal("0.74"),
+        trend_structure_score=Decimal("0.82"),
+        relative_strength_score=Decimal("0.84"),
+        volume_confirmation_score=Decimal("0.78"),
+        breakout_setup_score=Decimal("0.82"),
+        market_regime_score=Decimal("0.80"),
+        sector_strength_score=Decimal("0.76"),
+        momentum_confirmation_score=Decimal("0.83"),
+        setup_type="PULLBACK",
+        market_regime="BULL",
+        support_level=Decimal("99"),
+        resistance_level=Decimal("112"),
+        breakout_volume_confirmation=Decimal("0.80"),
+        metadata={"volume": "180000", "average_volume": "100000"},
     )

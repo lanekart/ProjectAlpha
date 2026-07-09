@@ -5,10 +5,11 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from types import MappingProxyType
-from typing import Any, cast
+from typing import Any, Protocol, cast
 
 import pandas as pd
 
+from alpha.application.data_completeness import DataCompletenessEngine
 from alpha.market_intelligence import (
     CorrelationInput,
     MarketBreadthInput,
@@ -24,14 +25,16 @@ from alpha.portfolio_intelligence import (
     PortfolioContext as AllocationPortfolioContext,
 )
 from alpha.recommendation_intelligence import (
-    PortfolioContext as RecommendationPortfolioContext,
-)
-from alpha.recommendation_intelligence import (
+    OHLCVBar,
     RecommendationAction,
     RecommendationCandidate,
     RecommendationEvidence,
     RecommendationReport,
     RecommendationRisk,
+    TradeStrategyAction,
+)
+from alpha.recommendation_intelligence import (
+    PortfolioContext as RecommendationPortfolioContext,
 )
 
 _ZERO = Decimal("0")
@@ -51,6 +54,20 @@ _STRONG_MOMENTUM_REFERENCE = Decimal("0.10")
 _ACCEPTABLE_VOLATILITY_REFERENCE = Decimal("0.08")
 _EXPECTED_RETURN_FLOOR = Decimal("0.01")
 _EXPECTED_DRAWDOWN_FLOOR = Decimal("0.01")
+_DEFAULT_HISTORY_WINDOW = 250
+_SUPPORTED_HISTORY_WINDOWS = frozenset({60, 120, 250})
+
+
+class HistoricalPriceRepository(Protocol):
+    def find_history_by_symbols(
+        self,
+        *,
+        symbols: tuple[str, ...],
+        end_date: date,
+        limit: int,
+    ) -> pd.DataFrame:
+        """Return chronological OHLCV rows for the requested symbols."""
+        ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,7 +140,13 @@ class IntelligenceInputSet:
                     Decimal("0.60"),
                 ),
                 conviction_score=recommendation.score / _HUNDRED,
-                metadata={"source": "recommendation_intelligence"},
+                metadata={
+                    "source": "recommendation_intelligence",
+                    "trade_plan_valid": str(_has_deployable_trade_plan(recommendation)),
+                    "actionable_strategy_action": _actionable_strategy_action(
+                        recommendation
+                    ),
+                },
                 recommendation_action=recommendation.action.value,
                 final_signal=recommendation.final_signal,
             )
@@ -153,6 +176,17 @@ class IntelligenceInputBuilder:
     spread_percent, correlation_to_index, correlation_to_sector.
     """
 
+    def __init__(
+        self,
+        *,
+        price_repository: HistoricalPriceRepository | None = None,
+        history_window: int = _DEFAULT_HISTORY_WINDOW,
+    ) -> None:
+        if history_window not in _SUPPORTED_HISTORY_WINDOWS:
+            raise ValueError("history window must be one of 60, 120, or 250 bars")
+        self._price_repository = price_repository
+        self._history_window = history_window
+
     def build(
         self,
         *,
@@ -165,6 +199,10 @@ class IntelligenceInputBuilder:
         correlation_by_symbol = _correlation_by_symbol(frame)
         sector_strength_by_sector = _sector_strength_by_sector(frame)
         strategy_score_by_symbol = _strategy_score_by_symbol(frame)
+        price_history_by_symbol = self._price_history_by_symbol(
+            frame=frame,
+            observed_on=observed_on,
+        )
         frame = _ranked_quality_frame(
             frame=frame,
             strategy_score_by_symbol=strategy_score_by_symbol,
@@ -182,6 +220,7 @@ class IntelligenceInputBuilder:
             liquidity_by_symbol=liquidity_by_symbol,
             correlation_by_symbol=correlation_by_symbol,
             sector_strength_by_sector=sector_strength_by_sector,
+            price_history_by_symbol=price_history_by_symbol,
         )
 
         return IntelligenceInputSet(
@@ -307,6 +346,7 @@ class IntelligenceInputBuilder:
         liquidity_by_symbol: Mapping[str, Decimal],
         correlation_by_symbol: Mapping[str, Decimal],
         sector_strength_by_sector: Mapping[str, Decimal],
+        price_history_by_symbol: Mapping[str, tuple[OHLCVBar, ...]],
     ) -> tuple[RecommendationCandidate, ...]:
         records = cast(
             list[dict[str, Any]],
@@ -329,6 +369,8 @@ class IntelligenceInputBuilder:
             correlation = correlation_by_symbol.get(symbol, Decimal("0.50"))
             sector_strength = sector_strength_by_sector.get(sector, Decimal("0.50"))
             volatility = _decimal(record["volatility"])
+            price_history = price_history_by_symbol.get(symbol, ())
+            data_completion = DataCompletenessEngine().assess(price_history)
             drawdown_quality = _drawdown_quality(volatility)
             signal_quality = _signal_quality(str(record["signal"]))
 
@@ -410,11 +452,37 @@ class IntelligenceInputBuilder:
                     metadata={
                         "source": "intelligence_input_builder",
                         "sector": sector,
+                        "historical_bars": str(len(price_history)),
+                        "data_quality": data_completion.status,
+                        "data_fetch_attempted": str(data_completion.fetch_attempted),
+                        **_volume_metadata(record, price_history),
                     },
+                    price_history=price_history,
+                    open_price=_optional_record_decimal(record, "open"),
+                    high_price=_optional_record_decimal(record, "high"),
+                    low_price=_optional_record_decimal(record, "low"),
+                    current_price=_optional_record_decimal(record, "close"),
                 )
             )
 
         return tuple(candidates)
+
+    def _price_history_by_symbol(
+        self,
+        *,
+        frame: pd.DataFrame,
+        observed_on: date,
+    ) -> Mapping[str, tuple[OHLCVBar, ...]]:
+        symbols = tuple(str(symbol).strip().upper() for symbol in frame["symbol"])
+        if self._price_repository is not None:
+            history_frame = self._price_repository.find_history_by_symbols(
+                symbols=symbols,
+                end_date=observed_on,
+                limit=self._history_window,
+            )
+            if not history_frame.empty:
+                return _price_history_by_symbol(history_frame, observed_on)
+        return _price_history_by_symbol(frame, observed_on)
 
     def _recommendation_portfolio_context(
         self,
@@ -923,6 +991,27 @@ def _sector_turnover_ratio(frame: pd.DataFrame) -> Decimal:
     return _decimal(frame["turnover_value"].sum()) / denominator
 
 
+def _has_deployable_trade_plan(recommendation: RecommendationReport) -> bool:
+    return (
+        recommendation.entry_price is not None
+        and recommendation.entry_zone_low is not None
+        and recommendation.entry_zone_high is not None
+        and recommendation.initial_stop_loss is not None
+        and recommendation.target_1 is not None
+        and recommendation.trade_plan.atr_value is not None
+        and recommendation.trade_plan.dma_20_invalidation is not None
+        and _actionable_strategy_action(recommendation)
+        == TradeStrategyAction.BUY_NOW.value
+    )
+
+
+def _actionable_strategy_action(recommendation: RecommendationReport) -> str:
+    strategy = recommendation.actionable_trade_strategy
+    if strategy is None:
+        return "NONE"
+    return strategy.action.value
+
+
 def _normalize_symbol_sector(values: Mapping[str, str]) -> Mapping[str, str]:
     normalized = {
         symbol.strip().upper(): sector.strip().upper()
@@ -982,6 +1071,108 @@ def _turnover_quality(row: Mapping[str, Any]) -> Decimal:
     if average_turnover <= _ZERO:
         return Decimal("0.50")
     return _bounded_ratio((turnover / average_turnover) / Decimal("1.50"))
+
+
+def _volume_metadata(
+    record: Mapping[str, Any],
+    price_history: tuple[OHLCVBar, ...],
+) -> dict[str, str]:
+    volume = _optional_record_decimal(record, "volume")
+    average_volume = _rolling_average_volume(price_history)
+    metadata: dict[str, str] = {}
+    if volume is not None:
+        metadata["volume"] = str(volume)
+    if average_volume is not None:
+        metadata["average_volume"] = str(average_volume)
+    return metadata
+
+
+def _rolling_average_volume(price_history: tuple[OHLCVBar, ...]) -> Decimal | None:
+    if len(price_history) < 20:
+        return None
+    bars = price_history[-21:-1] if len(price_history) >= 21 else price_history[-20:]
+    if not bars:
+        return None
+    return sum((bar.volume for bar in bars), _ZERO) / Decimal(len(bars))
+
+
+def _price_history_by_symbol(
+    frame: pd.DataFrame,
+    observed_on: date,
+) -> Mapping[str, tuple[OHLCVBar, ...]]:
+    required_columns = {"symbol", "open", "high", "low", "close", "volume"}
+    if not required_columns.issubset(frame.columns):
+        return MappingProxyType({})
+
+    date_column = next(
+        (
+            column
+            for column in ("observed_on", "date", "trade_date", "timestamp")
+            if column in frame.columns
+        ),
+        None,
+    )
+    sort_columns = ["symbol"]
+    if date_column is not None:
+        sort_columns.append(date_column)
+    grouped = frame.sort_values(sort_columns).groupby("symbol", sort=True)
+    histories: dict[str, tuple[OHLCVBar, ...]] = {}
+
+    for symbol, symbol_frame in grouped:
+        bars: list[OHLCVBar] = []
+        for index, raw_record in enumerate(symbol_frame.to_dict("records")):
+            record = cast(dict[str, Any], raw_record)
+            if any(pd.isna(record[column]) for column in required_columns):
+                continue
+            bars.append(
+                OHLCVBar(
+                    observed_on=_record_date(
+                        record,
+                        date_column=date_column,
+                        fallback=observed_on,
+                        offset=index,
+                    ),
+                    open_price=_decimal(record["open"]),
+                    high_price=_decimal(record["high"]),
+                    low_price=_decimal(record["low"]),
+                    close_price=_decimal(record["close"]),
+                    volume=_decimal(record["volume"]),
+                )
+            )
+        if bars:
+            histories[str(symbol).strip().upper()] = tuple(bars)
+
+    return MappingProxyType(dict(sorted(histories.items())))
+
+
+def _record_date(
+    record: Mapping[str, Any],
+    *,
+    date_column: str | None,
+    fallback: date,
+    offset: int,
+) -> date:
+    if date_column is None:
+        return date.fromordinal(fallback.toordinal() + offset)
+    value = record[date_column]
+    if isinstance(value, date):
+        return value
+    parsed = pd.to_datetime(value, errors="coerce")
+    if pd.isna(parsed):
+        return date.fromordinal(fallback.toordinal() + offset)
+    parsed_date = parsed.date()
+    if isinstance(parsed_date, date):
+        return parsed_date
+    return fallback
+
+
+def _optional_record_decimal(
+    record: Mapping[str, Any],
+    key: str,
+) -> Decimal | None:
+    if key not in record or pd.isna(record[key]):
+        return None
+    return _decimal(record[key])
 
 
 def _action_from_signal(signal: str) -> RecommendationAction:

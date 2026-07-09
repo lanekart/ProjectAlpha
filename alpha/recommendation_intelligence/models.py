@@ -23,6 +23,36 @@ class RecommendationAction(StrEnum):
     AVOID = "AVOID"
 
 
+@dataclass(frozen=True, slots=True)
+class OHLCVBar:
+    observed_on: date
+    open_price: Decimal
+    high_price: Decimal
+    low_price: Decimal
+    close_price: Decimal
+    volume: Decimal
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "open_price",
+            "high_price",
+            "low_price",
+            "close_price",
+            "volume",
+        ):
+            value = _as_decimal(getattr(self, field_name))
+            if value < _ZERO:
+                raise ValueError(f"{field_name} cannot be negative")
+            object.__setattr__(self, field_name, value)
+
+        if self.high_price < self.low_price:
+            raise ValueError("bar high cannot be below low")
+        if self.open_price > self.high_price or self.open_price < self.low_price:
+            raise ValueError("bar open must be within high/low range")
+        if self.close_price > self.high_price or self.close_price < self.low_price:
+            raise ValueError("bar close must be within high/low range")
+
+
 class RecommendationDecision(StrEnum):
     STRONG_BUY = "STRONG_BUY"
     BUY = "BUY"
@@ -36,6 +66,263 @@ class EvidenceDirection(StrEnum):
     BULLISH = "BULLISH"
     BEARISH = "BEARISH"
     NEUTRAL = "NEUTRAL"
+
+
+class EntryTriggerStyle(StrEnum):
+    ENTER_IN_ZONE = "ENTER_IN_ZONE"
+    CROSS_ABOVE = "CROSS_ABOVE"
+    CLOSE_ABOVE = "CLOSE_ABOVE"
+    BREAKOUT_WITH_VOLUME = "BREAKOUT_WITH_VOLUME"
+    RETEST_HOLD = "RETEST_HOLD"
+    PULLBACK_TO_LEVEL = "PULLBACK_TO_LEVEL"
+
+
+class TriggerStatus(StrEnum):
+    TRIGGER_CONFIRMED = "TRIGGER_CONFIRMED"
+    WAITING_FOR_CLOSE_ABOVE = "WAITING_FOR_CLOSE_ABOVE"
+    WAITING_FOR_CROSS_ABOVE = "WAITING_FOR_CROSS_ABOVE"
+    WAITING_FOR_VOLUME_CONFIRMATION = "WAITING_FOR_VOLUME_CONFIRMATION"
+    INVALID_OR_NOT_ACTIONABLE = "INVALID_OR_NOT_ACTIONABLE"
+
+
+class TradeStrategyType(StrEnum):
+    MOMENTUM_BREAKOUT = "MOMENTUM_BREAKOUT"
+    PULLBACK_ENTRY = "PULLBACK_ENTRY"
+    AGGRESSIVE_ACCUMULATION = "AGGRESSIVE_ACCUMULATION"
+    RETEST_HOLD = "RETEST_HOLD"
+    NO_TRADE = "NO_TRADE"
+
+
+class TradeStrategyAction(StrEnum):
+    BUY_NOW = "BUY_NOW"
+    WAIT_FOR_PULLBACK = "WAIT_FOR_PULLBACK"
+    WAIT_FOR_DEEP_PULLBACK = "WAIT_FOR_DEEP_PULLBACK"
+    WAIT_FOR_RETEST = "WAIT_FOR_RETEST"
+    WAIT_FOR_CONFIRMATION = "WAIT_FOR_CONFIRMATION"
+    HOLD_EXISTING = "HOLD_EXISTING"
+    AVOID = "AVOID"
+
+
+class StrategySuitability(StrEnum):
+    HIGH_PROBABILITY = "HIGH_PROBABILITY"
+    BALANCED = "BALANCED"
+    HIGH_RISK_REWARD = "HIGH_RISK_REWARD"
+    SPECULATIVE = "SPECULATIVE"
+    NOT_SUITABLE = "NOT_SUITABLE"
+
+
+class EdgeConfidence(StrEnum):
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
+
+
+class StrategyQuality(StrEnum):
+    EXCELLENT = "EXCELLENT"
+    GOOD = "GOOD"
+    FAIR = "FAIR"
+    SPECULATIVE = "SPECULATIVE"
+    NOT_SUITABLE = "NOT_SUITABLE"
+
+
+class EntryZoneBasisType(StrEnum):
+    BREAKOUT_LEVEL = "BREAKOUT_LEVEL"
+    PRIOR_RESISTANCE = "PRIOR_RESISTANCE"
+    SUPPORT = "SUPPORT"
+    SWING_LOW = "SWING_LOW"
+    FIBONACCI_RETRACEMENT = "FIBONACCI_RETRACEMENT"
+    MOVING_AVERAGE_20 = "MOVING_AVERAGE_20"
+    MOVING_AVERAGE_50 = "MOVING_AVERAGE_50"
+    ATR_BAND = "ATR_BAND"
+    VOLUME_DEMAND_ZONE = "VOLUME_DEMAND_ZONE"
+    RECENT_CLOSE = "RECENT_CLOSE"
+    UNKNOWN = "UNKNOWN"
+
+
+@dataclass(frozen=True, slots=True)
+class EntryZoneBasis:
+    basis_type: EntryZoneBasisType
+    level: Decimal | None
+    description: str
+
+    def __post_init__(self) -> None:
+        description = self.description.strip()
+        if not description:
+            raise ValueError("entry zone basis description cannot be empty")
+        object.__setattr__(self, "basis_type", EntryZoneBasisType(self.basis_type))
+        object.__setattr__(self, "level", _optional_decimal(self.level))
+        object.__setattr__(self, "description", description)
+
+
+@dataclass(frozen=True, slots=True)
+class StrategyEdgeStats:
+    sample_size: int
+    target_1_hit_rate: Decimal | None
+    target_2_hit_rate: Decimal | None
+    target_3_hit_rate: Decimal | None
+    stop_loss_hit_rate: Decimal | None
+    average_return: Decimal | None
+    median_return: Decimal | None
+    average_drawdown: Decimal | None
+    median_holding_period_days: int | None
+    expectancy: Decimal | None
+    fill_probability: Decimal | None
+    fill_window_days: int | None
+    confidence: EdgeConfidence
+
+    def __post_init__(self) -> None:
+        if self.sample_size < 0:
+            raise ValueError("strategy edge sample size cannot be negative")
+        if (
+            self.median_holding_period_days is not None
+            and self.median_holding_period_days < 0
+        ):
+            raise ValueError("median holding period cannot be negative")
+        if self.fill_window_days is not None and self.fill_window_days < 0:
+            raise ValueError("fill window days cannot be negative")
+
+        object.__setattr__(
+            self,
+            "target_1_hit_rate",
+            _optional_bounded_ratio(self.target_1_hit_rate, "target 1 hit rate"),
+        )
+        object.__setattr__(
+            self,
+            "target_2_hit_rate",
+            _optional_bounded_ratio(self.target_2_hit_rate, "target 2 hit rate"),
+        )
+        object.__setattr__(
+            self,
+            "target_3_hit_rate",
+            _optional_bounded_ratio(self.target_3_hit_rate, "target 3 hit rate"),
+        )
+        object.__setattr__(
+            self,
+            "stop_loss_hit_rate",
+            _optional_bounded_ratio(self.stop_loss_hit_rate, "stop loss hit rate"),
+        )
+        object.__setattr__(
+            self,
+            "average_return",
+            _optional_decimal(self.average_return),
+        )
+        object.__setattr__(self, "median_return", _optional_decimal(self.median_return))
+        object.__setattr__(
+            self,
+            "average_drawdown",
+            _optional_decimal(self.average_drawdown),
+        )
+        object.__setattr__(self, "expectancy", _optional_decimal(self.expectancy))
+        object.__setattr__(
+            self,
+            "fill_probability",
+            _optional_bounded_ratio(self.fill_probability, "fill probability"),
+        )
+        object.__setattr__(self, "confidence", EdgeConfidence(self.confidence))
+
+
+@dataclass(frozen=True, slots=True)
+class StrategyRank:
+    rank: int | None
+    label: str
+    quality: StrategyQuality
+    rationale: str
+
+    def __post_init__(self) -> None:
+        label = self.label.strip()
+        rationale = self.rationale.strip()
+        if self.rank is not None and self.rank <= 0:
+            raise ValueError("strategy rank must be positive")
+        if not label:
+            raise ValueError("strategy rank label cannot be empty")
+        if not rationale:
+            raise ValueError("strategy rank rationale cannot be empty")
+        object.__setattr__(self, "label", label)
+        object.__setattr__(self, "quality", StrategyQuality(self.quality))
+        object.__setattr__(self, "rationale", rationale)
+
+
+@dataclass(frozen=True, slots=True)
+class TradeStrategyPlaybook:
+    strategy_type: TradeStrategyType
+    name: str
+    action: TradeStrategyAction
+    strategy_rank: StrategyRank
+    edge_stats: StrategyEdgeStats | None
+    entry_zone_basis: tuple[EntryZoneBasis, ...]
+    expected_wait_days: int | None
+    entry_low: Decimal | None
+    entry_high: Decimal | None
+    trigger_text: str
+    stop_loss: Decimal | None
+    stop_rule: str
+    trend_invalidation_reference: str | None
+    target_1: Decimal | None
+    target_2: Decimal | None
+    target_3: Decimal | None
+    risk_reward: Decimal | None
+    position_size_multiplier: Decimal
+    expected_holding_period: str
+    explanation: str
+
+    def __post_init__(self) -> None:
+        name = self.name.strip()
+        trigger_text = self.trigger_text.strip()
+        stop_rule = self.stop_rule.strip()
+        trend_reference = (
+            self.trend_invalidation_reference.strip()
+            if self.trend_invalidation_reference is not None
+            else None
+        )
+        expected_holding_period = self.expected_holding_period.strip()
+        explanation = self.explanation.strip()
+
+        if not name:
+            raise ValueError("trade strategy name cannot be empty")
+        if not trigger_text:
+            raise ValueError("trade strategy trigger text cannot be empty")
+        if not stop_rule:
+            raise ValueError("trade strategy stop rule cannot be empty")
+        if not expected_holding_period:
+            raise ValueError("trade strategy holding period cannot be empty")
+        if not explanation:
+            raise ValueError("trade strategy explanation cannot be empty")
+        if self.expected_wait_days is not None and self.expected_wait_days < 0:
+            raise ValueError("expected wait days cannot be negative")
+
+        object.__setattr__(
+            self,
+            "strategy_type",
+            TradeStrategyType(self.strategy_type),
+        )
+        object.__setattr__(self, "name", name)
+        object.__setattr__(self, "action", TradeStrategyAction(self.action))
+        object.__setattr__(self, "entry_zone_basis", tuple(self.entry_zone_basis))
+        object.__setattr__(self, "entry_low", _optional_decimal(self.entry_low))
+        object.__setattr__(self, "entry_high", _optional_decimal(self.entry_high))
+        object.__setattr__(self, "trigger_text", trigger_text)
+        object.__setattr__(self, "stop_loss", _optional_decimal(self.stop_loss))
+        object.__setattr__(self, "stop_rule", stop_rule)
+        object.__setattr__(
+            self,
+            "trend_invalidation_reference",
+            trend_reference if trend_reference else None,
+        )
+        object.__setattr__(self, "target_1", _optional_decimal(self.target_1))
+        object.__setattr__(self, "target_2", _optional_decimal(self.target_2))
+        object.__setattr__(self, "target_3", _optional_decimal(self.target_3))
+        object.__setattr__(self, "risk_reward", _optional_decimal(self.risk_reward))
+        object.__setattr__(
+            self,
+            "position_size_multiplier",
+            _bounded_ratio(
+                self.position_size_multiplier,
+                "position size multiplier",
+            ),
+        )
+        object.__setattr__(self, "expected_holding_period", expected_holding_period)
+        object.__setattr__(self, "explanation", explanation)
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,6 +398,7 @@ class RecommendationCandidate:
     evidence: tuple[RecommendationEvidence, ...]
     risks: tuple[RecommendationRisk, ...] = ()
     metadata: Mapping[str, str] = field(default_factory=dict)
+    price_history: tuple[OHLCVBar, ...] = ()
     retracement_score: Decimal = Decimal("0.50")
     trend_structure_score: Decimal | None = None
     relative_strength_score: Decimal | None = None
@@ -186,6 +474,11 @@ class RecommendationCandidate:
             raise ValueError("candidate requires at least one evidence item")
 
         object.__setattr__(self, "symbol", symbol)
+        object.__setattr__(
+            self,
+            "price_history",
+            tuple(sorted(self.price_history, key=lambda bar: bar.observed_on)),
+        )
         object.__setattr__(
             self,
             "strategy_score",
@@ -786,6 +1079,146 @@ class SetupQualityAssessment:
 
 
 @dataclass(frozen=True, slots=True)
+class TradeSetupAssessment:
+    setup_name: str
+    setup_category: str
+    setup_quality: str
+    setup_confidence: Decimal
+    setup_stage: str
+    entry_ready: bool
+    aggressive_entry: Decimal | None
+    preferred_entry: Decimal | None
+    confirmation_entry: Decimal | None
+    maximum_chase_price: Decimal | None
+    stop_chase_price: Decimal | None
+    initial_stop: Decimal | None
+    move_stop_to_breakeven: Decimal | None
+    partial_exit: Decimal | None
+    atr_trail: str
+    final_exit: Decimal | None
+    historical_win_rate: Decimal | None = None
+    average_gain: Decimal | None = None
+    average_loss: Decimal | None = None
+    average_hold_period_days: Decimal | None = None
+    profit_factor: Decimal | None = None
+    expected_value: Decimal | None = None
+    expected_holding_period: str = "unavailable"
+    minimum_holding_period: int | None = None
+    maximum_holding_period: int | None = None
+    holding_period_basis: str = "unavailable"
+    rationale: str = ""
+    readiness_reason: str = ""
+
+    def __post_init__(self) -> None:
+        setup_name = self.setup_name.strip().upper()
+        setup_category = self.setup_category.strip().upper()
+        setup_quality = self.setup_quality.strip().upper()
+        setup_stage = self.setup_stage.strip().upper()
+        atr_trail = self.atr_trail.strip()
+        expected_holding_period = self.expected_holding_period.strip()
+        holding_period_basis = self.holding_period_basis.strip()
+        rationale = self.rationale.strip()
+        readiness_reason = self.readiness_reason.strip()
+
+        if not setup_name:
+            raise ValueError("setup name cannot be empty")
+        if not setup_category:
+            raise ValueError("setup category cannot be empty")
+        if not setup_quality:
+            raise ValueError("setup quality cannot be empty")
+        if not setup_stage:
+            raise ValueError("setup stage cannot be empty")
+        if not atr_trail:
+            raise ValueError("setup ATR trail cannot be empty")
+        if not expected_holding_period:
+            raise ValueError("expected holding period cannot be empty")
+        if not holding_period_basis:
+            raise ValueError("holding period basis cannot be empty")
+        if not rationale:
+            raise ValueError("setup rationale cannot be empty")
+        if not readiness_reason:
+            raise ValueError("setup readiness reason cannot be empty")
+        if setup_stage in {"ENTRY_READY", "ACTIVE"} and not self.entry_ready:
+            raise ValueError("ENTRY_READY and ACTIVE setups must be entry-ready")
+        if (
+            setup_stage
+            in {
+                "BUILDING",
+                "READY_FOR_CONFIRMATION",
+                "LATE",
+                "INVALID",
+            }
+            and self.entry_ready
+        ):
+            raise ValueError(f"{setup_stage} setups cannot be entry-ready")
+
+        object.__setattr__(self, "setup_name", setup_name)
+        object.__setattr__(self, "setup_category", setup_category)
+        object.__setattr__(self, "setup_quality", setup_quality)
+        object.__setattr__(
+            self,
+            "setup_confidence",
+            _bounded_points(self.setup_confidence, "setup confidence"),
+        )
+        object.__setattr__(self, "setup_stage", setup_stage)
+        for field_name in (
+            "aggressive_entry",
+            "preferred_entry",
+            "confirmation_entry",
+            "maximum_chase_price",
+            "stop_chase_price",
+            "initial_stop",
+            "move_stop_to_breakeven",
+            "partial_exit",
+            "final_exit",
+            "average_gain",
+            "average_loss",
+            "average_hold_period_days",
+            "profit_factor",
+            "expected_value",
+        ):
+            object.__setattr__(
+                self,
+                field_name,
+                _optional_decimal(getattr(self, field_name)),
+            )
+        if self.minimum_holding_period is not None and self.minimum_holding_period < 0:
+            raise ValueError("minimum holding period cannot be negative")
+        if self.maximum_holding_period is not None and self.maximum_holding_period < 0:
+            raise ValueError("maximum holding period cannot be negative")
+        object.__setattr__(
+            self,
+            "historical_win_rate",
+            _optional_bounded_ratio(self.historical_win_rate, "setup win rate"),
+        )
+        object.__setattr__(self, "atr_trail", atr_trail)
+        object.__setattr__(
+            self,
+            "expected_holding_period",
+            expected_holding_period,
+        )
+        object.__setattr__(self, "holding_period_basis", holding_period_basis)
+        object.__setattr__(self, "rationale", rationale)
+        object.__setattr__(self, "readiness_reason", readiness_reason)
+
+    @property
+    def expectancy_status(self) -> str:
+        if any(
+            value is not None
+            for value in (
+                self.historical_win_rate,
+                self.average_gain,
+                self.average_loss,
+                self.average_hold_period_days,
+                self.profit_factor,
+                self.expected_value,
+            )
+        ):
+            return "available"
+        return "unavailable"
+
+
+@dataclass(frozen=True, slots=True)
 class HistoricalExpectancy:
     win_rate: Decimal | None = None
     average_gain: Decimal | None = None
@@ -915,26 +1348,33 @@ class RecommendationTradePlan:
     final_signal: str
     final_score: Decimal
     confidence: str
-    entry_price: Decimal
-    entry_zone_low: Decimal
-    entry_zone_high: Decimal
-    initial_stop_loss: Decimal
+    entry_price: Decimal | None
+    entry_trigger_style: EntryTriggerStyle
+    trigger_status: TriggerStatus
+    entry_zone_low: Decimal | None
+    entry_zone_high: Decimal | None
+    initial_stop_loss: Decimal | None
     trailing_stop_strategy: str
-    target_1: Decimal
-    target_2: Decimal
-    target_3: Decimal
-    risk_reward_ratio: Decimal
-    invalidation_level: Decimal
+    target_1: Decimal | None
+    target_2: Decimal | None
+    target_3: Decimal | None
+    risk_reward_ratio: Decimal | None
+    invalidation_level: Decimal | None
     invalidation_reason: str
     retracement_score: Decimal
     retracement_weight: Decimal
     retracement_zone: str
-    nearest_fibonacci_level: Decimal
-    swing_high: Decimal
-    swing_low: Decimal
-    support_level_used: Decimal
+    nearest_fibonacci_level: Decimal | None
+    swing_high: Decimal | None
+    swing_low: Decimal | None
+    support_level_used: Decimal | None
     atr_value: Decimal | None
     dma_20_invalidation: Decimal | None
+    dma_50: Decimal | None
+    dma_200: Decimal | None
+    relative_volume: Decimal | None
+    historical_bar_count: int
+    unavailable_reasons: tuple[str, ...]
     candle_pattern: str
     candle_score: Decimal
     candle_weight: Decimal
@@ -943,6 +1383,28 @@ class RecommendationTradePlan:
     candle_stop_level: Decimal | None
     candle_invalidation_level: Decimal | None
     candle_explanation: str
+    setup_name: str
+    setup_category: str
+    setup_quality_label: str
+    setup_confidence: Decimal
+    setup_stage: str
+    setup_entry_ready: bool
+    aggressive_entry: Decimal | None
+    preferred_entry: Decimal | None
+    confirmation_entry: Decimal | None
+    maximum_chase_price: Decimal | None
+    stop_chase_price: Decimal | None
+    move_stop_to_breakeven: Decimal | None
+    partial_exit: Decimal | None
+    atr_trail: str
+    final_exit: Decimal | None
+    setup_expectancy_status: str
+    expected_holding_period: str
+    minimum_holding_period: int | None
+    maximum_holding_period: int | None
+    holding_period_basis: str
+    setup_rationale: str
+    setup_readiness_reason: str
     trade_plan_explanation: str
 
     def __post_init__(self) -> None:
@@ -952,6 +1414,16 @@ class RecommendationTradePlan:
         retracement_zone = self.retracement_zone.strip()
         trailing_stop_strategy = self.trailing_stop_strategy.strip()
         trade_plan_explanation = self.trade_plan_explanation.strip()
+        setup_name = self.setup_name.strip().upper()
+        setup_category = self.setup_category.strip().upper()
+        setup_quality_label = self.setup_quality_label.strip().upper()
+        setup_stage = self.setup_stage.strip().upper()
+        atr_trail = self.atr_trail.strip()
+        setup_expectancy_status = self.setup_expectancy_status.strip().lower()
+        expected_holding_period = self.expected_holding_period.strip()
+        holding_period_basis = self.holding_period_basis.strip()
+        setup_rationale = self.setup_rationale.strip()
+        setup_readiness_reason = self.setup_readiness_reason.strip()
 
         if not final_signal:
             raise ValueError("final signal cannot be empty")
@@ -965,6 +1437,26 @@ class RecommendationTradePlan:
             raise ValueError("trailing stop strategy cannot be empty")
         if not trade_plan_explanation:
             raise ValueError("trade plan explanation cannot be empty")
+        if not setup_name:
+            raise ValueError("setup name cannot be empty")
+        if not setup_category:
+            raise ValueError("setup category cannot be empty")
+        if not setup_quality_label:
+            raise ValueError("setup quality label cannot be empty")
+        if not setup_stage:
+            raise ValueError("setup stage cannot be empty")
+        if not atr_trail:
+            raise ValueError("setup ATR trail cannot be empty")
+        if not setup_expectancy_status:
+            raise ValueError("setup expectancy status cannot be empty")
+        if not expected_holding_period:
+            raise ValueError("expected holding period cannot be empty")
+        if not holding_period_basis:
+            raise ValueError("holding period basis cannot be empty")
+        if not setup_rationale:
+            raise ValueError("setup rationale cannot be empty")
+        if not setup_readiness_reason:
+            raise ValueError("setup readiness reason cannot be empty")
 
         object.__setattr__(self, "final_signal", final_signal)
         object.__setattr__(
@@ -973,26 +1465,44 @@ class RecommendationTradePlan:
             _bounded_points(self.final_score, "final_score"),
         )
         object.__setattr__(self, "confidence", confidence)
-        object.__setattr__(self, "entry_price", _as_decimal(self.entry_price))
-        object.__setattr__(self, "entry_zone_low", _as_decimal(self.entry_zone_low))
-        object.__setattr__(self, "entry_zone_high", _as_decimal(self.entry_zone_high))
+        object.__setattr__(
+            self,
+            "entry_trigger_style",
+            EntryTriggerStyle(self.entry_trigger_style),
+        )
+        object.__setattr__(
+            self,
+            "trigger_status",
+            TriggerStatus(self.trigger_status),
+        )
+        object.__setattr__(self, "entry_price", _optional_decimal(self.entry_price))
+        object.__setattr__(
+            self,
+            "entry_zone_low",
+            _optional_decimal(self.entry_zone_low),
+        )
+        object.__setattr__(
+            self,
+            "entry_zone_high",
+            _optional_decimal(self.entry_zone_high),
+        )
         object.__setattr__(
             self,
             "initial_stop_loss",
-            _as_decimal(self.initial_stop_loss),
+            _optional_decimal(self.initial_stop_loss),
         )
-        object.__setattr__(self, "target_1", _as_decimal(self.target_1))
-        object.__setattr__(self, "target_2", _as_decimal(self.target_2))
-        object.__setattr__(self, "target_3", _as_decimal(self.target_3))
+        object.__setattr__(self, "target_1", _optional_decimal(self.target_1))
+        object.__setattr__(self, "target_2", _optional_decimal(self.target_2))
+        object.__setattr__(self, "target_3", _optional_decimal(self.target_3))
         object.__setattr__(
             self,
             "risk_reward_ratio",
-            _as_decimal(self.risk_reward_ratio),
+            _optional_decimal(self.risk_reward_ratio),
         )
         object.__setattr__(
             self,
             "invalidation_level",
-            _as_decimal(self.invalidation_level),
+            _optional_decimal(self.invalidation_level),
         )
         object.__setattr__(
             self,
@@ -1007,20 +1517,36 @@ class RecommendationTradePlan:
         object.__setattr__(
             self,
             "nearest_fibonacci_level",
-            _as_decimal(self.nearest_fibonacci_level),
+            _optional_decimal(self.nearest_fibonacci_level),
         )
-        object.__setattr__(self, "swing_high", _as_decimal(self.swing_high))
-        object.__setattr__(self, "swing_low", _as_decimal(self.swing_low))
+        object.__setattr__(self, "swing_high", _optional_decimal(self.swing_high))
+        object.__setattr__(self, "swing_low", _optional_decimal(self.swing_low))
         object.__setattr__(
             self,
             "support_level_used",
-            _as_decimal(self.support_level_used),
+            _optional_decimal(self.support_level_used),
         )
         object.__setattr__(self, "atr_value", _optional_decimal(self.atr_value))
         object.__setattr__(
             self,
             "dma_20_invalidation",
             _optional_decimal(self.dma_20_invalidation),
+        )
+        object.__setattr__(self, "dma_50", _optional_decimal(self.dma_50))
+        object.__setattr__(self, "dma_200", _optional_decimal(self.dma_200))
+        object.__setattr__(
+            self,
+            "relative_volume",
+            _optional_decimal(self.relative_volume),
+        )
+        if self.historical_bar_count < 0:
+            raise ValueError("historical bar count cannot be negative")
+        object.__setattr__(
+            self,
+            "unavailable_reasons",
+            tuple(
+                reason.strip() for reason in self.unavailable_reasons if reason.strip()
+            ),
         )
         object.__setattr__(self, "candle_pattern", self.candle_pattern.strip().upper())
         object.__setattr__(
@@ -1058,6 +1584,65 @@ class RecommendationTradePlan:
             "candle_explanation",
             self.candle_explanation.strip(),
         )
+        object.__setattr__(self, "setup_name", setup_name)
+        object.__setattr__(self, "setup_category", setup_category)
+        object.__setattr__(self, "setup_quality_label", setup_quality_label)
+        object.__setattr__(
+            self,
+            "setup_confidence",
+            _bounded_points(self.setup_confidence, "setup confidence"),
+        )
+        object.__setattr__(self, "setup_stage", setup_stage)
+        object.__setattr__(
+            self,
+            "aggressive_entry",
+            _optional_decimal(self.aggressive_entry),
+        )
+        object.__setattr__(
+            self,
+            "preferred_entry",
+            _optional_decimal(self.preferred_entry),
+        )
+        object.__setattr__(
+            self,
+            "confirmation_entry",
+            _optional_decimal(self.confirmation_entry),
+        )
+        object.__setattr__(
+            self,
+            "maximum_chase_price",
+            _optional_decimal(self.maximum_chase_price),
+        )
+        object.__setattr__(
+            self,
+            "stop_chase_price",
+            _optional_decimal(self.stop_chase_price),
+        )
+        object.__setattr__(
+            self,
+            "move_stop_to_breakeven",
+            _optional_decimal(self.move_stop_to_breakeven),
+        )
+        object.__setattr__(self, "partial_exit", _optional_decimal(self.partial_exit))
+        object.__setattr__(self, "atr_trail", atr_trail)
+        object.__setattr__(self, "final_exit", _optional_decimal(self.final_exit))
+        object.__setattr__(
+            self,
+            "setup_expectancy_status",
+            setup_expectancy_status,
+        )
+        if self.minimum_holding_period is not None and self.minimum_holding_period < 0:
+            raise ValueError("minimum holding period cannot be negative")
+        if self.maximum_holding_period is not None and self.maximum_holding_period < 0:
+            raise ValueError("maximum holding period cannot be negative")
+        object.__setattr__(
+            self,
+            "expected_holding_period",
+            expected_holding_period,
+        )
+        object.__setattr__(self, "holding_period_basis", holding_period_basis)
+        object.__setattr__(self, "setup_rationale", setup_rationale)
+        object.__setattr__(self, "setup_readiness_reason", setup_readiness_reason)
         object.__setattr__(self, "invalidation_reason", invalidation_reason)
         object.__setattr__(self, "retracement_zone", retracement_zone)
         object.__setattr__(self, "trailing_stop_strategy", trailing_stop_strategy)
@@ -1132,6 +1717,8 @@ class RecommendationReport:
     explanation: tuple[str, ...]
     trade_plan: RecommendationTradePlan
     evidence_assessment: EvidenceAssessment
+    trade_setup: TradeSetupAssessment
+    trade_strategies: tuple[TradeStrategyPlaybook, ...] = ()
     metadata: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -1143,10 +1730,12 @@ class RecommendationReport:
             raise ValueError("recommendation report symbol cannot be empty")
         if any(not line for line in explanation):
             raise ValueError("recommendation explanation lines cannot be empty")
+        trade_strategies = tuple(self.trade_strategies)
 
         object.__setattr__(self, "symbol", symbol)
         object.__setattr__(self, "score", _bounded_points(self.score, "score"))
         object.__setattr__(self, "explanation", explanation)
+        object.__setattr__(self, "trade_strategies", trade_strategies)
         object.__setattr__(self, "metadata", metadata)
 
     @property
@@ -1160,6 +1749,21 @@ class RecommendationReport:
     @property
     def confidence(self) -> str:
         return self.trade_plan.confidence
+
+    @property
+    def trigger_status(self) -> TriggerStatus:
+        return self.trade_plan.trigger_status
+
+    @property
+    def actionable_trade_strategy(self) -> TradeStrategyPlaybook | None:
+        return next(
+            (
+                strategy
+                for strategy in self.trade_strategies
+                if strategy.action is TradeStrategyAction.BUY_NOW
+            ),
+            None,
+        )
 
     @property
     def confidence_score(self) -> Decimal:
@@ -1226,19 +1830,19 @@ class RecommendationReport:
         return self.trade_plan.candle_explanation
 
     @property
-    def entry_price(self) -> Decimal:
+    def entry_price(self) -> Decimal | None:
         return self.trade_plan.entry_price
 
     @property
-    def entry_zone_low(self) -> Decimal:
+    def entry_zone_low(self) -> Decimal | None:
         return self.trade_plan.entry_zone_low
 
     @property
-    def entry_zone_high(self) -> Decimal:
+    def entry_zone_high(self) -> Decimal | None:
         return self.trade_plan.entry_zone_high
 
     @property
-    def initial_stop_loss(self) -> Decimal:
+    def initial_stop_loss(self) -> Decimal | None:
         return self.trade_plan.initial_stop_loss
 
     @property
@@ -1246,23 +1850,23 @@ class RecommendationReport:
         return self.trade_plan.trailing_stop_strategy
 
     @property
-    def target_1(self) -> Decimal:
+    def target_1(self) -> Decimal | None:
         return self.trade_plan.target_1
 
     @property
-    def target_2(self) -> Decimal:
+    def target_2(self) -> Decimal | None:
         return self.trade_plan.target_2
 
     @property
-    def target_3(self) -> Decimal:
+    def target_3(self) -> Decimal | None:
         return self.trade_plan.target_3
 
     @property
-    def risk_reward_ratio(self) -> Decimal:
+    def risk_reward_ratio(self) -> Decimal | None:
         return self.trade_plan.risk_reward_ratio
 
     @property
-    def invalidation_level(self) -> Decimal:
+    def invalidation_level(self) -> Decimal | None:
         return self.trade_plan.invalidation_level
 
     @property
@@ -1282,24 +1886,68 @@ class RecommendationReport:
         return self.trade_plan.retracement_zone
 
     @property
-    def nearest_fibonacci_level(self) -> Decimal:
+    def nearest_fibonacci_level(self) -> Decimal | None:
         return self.trade_plan.nearest_fibonacci_level
 
     @property
-    def swing_high(self) -> Decimal:
+    def swing_high(self) -> Decimal | None:
         return self.trade_plan.swing_high
 
     @property
-    def swing_low(self) -> Decimal:
+    def swing_low(self) -> Decimal | None:
         return self.trade_plan.swing_low
 
     @property
-    def support_level_used(self) -> Decimal:
+    def support_level_used(self) -> Decimal | None:
         return self.trade_plan.support_level_used
 
     @property
     def trade_plan_explanation(self) -> str:
         return self.trade_plan.trade_plan_explanation
+
+    @property
+    def dma_50(self) -> Decimal | None:
+        return self.trade_plan.dma_50
+
+    @property
+    def dma_200(self) -> Decimal | None:
+        return self.trade_plan.dma_200
+
+    @property
+    def relative_volume(self) -> Decimal | None:
+        return self.trade_plan.relative_volume
+
+    @property
+    def historical_bar_count(self) -> int:
+        return self.trade_plan.historical_bar_count
+
+    @property
+    def unavailable_reasons(self) -> tuple[str, ...]:
+        return self.trade_plan.unavailable_reasons
+
+    @property
+    def setup_name(self) -> str:
+        return self.trade_setup.setup_name
+
+    @property
+    def setup_category(self) -> str:
+        return self.trade_setup.setup_category
+
+    @property
+    def setup_quality_label(self) -> str:
+        return self.trade_setup.setup_quality
+
+    @property
+    def setup_confidence(self) -> Decimal:
+        return self.trade_setup.setup_confidence
+
+    @property
+    def setup_stage(self) -> str:
+        return self.trade_setup.setup_stage
+
+    @property
+    def setup_entry_ready(self) -> bool:
+        return self.trade_setup.entry_ready
 
 
 def _normalize_metadata(metadata: Mapping[str, str]) -> Mapping[str, str]:
