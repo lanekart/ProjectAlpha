@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS daily_prices (
     last DOUBLE,
     previous_close DOUBLE,
 
+    sector VARCHAR,
     volume BIGINT,
     turnover DOUBLE,
     trades BIGINT,

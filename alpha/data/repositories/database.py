@@ -32,6 +32,7 @@ class Database:
                 low DOUBLE,
                 close DOUBLE,
                 volume BIGINT,
+                sector TEXT,
                 exchange TEXT,
                 PRIMARY KEY (symbol, trade_date, exchange)
             )
@@ -39,7 +40,18 @@ class Database:
         )
 
         self.connection.execute(AUDIT_TABLE_SQL)
+        self._migrate_daily_prices_schema()
         self._migrate_audit_schema()
+
+    def _migrate_daily_prices_schema(self) -> None:
+        """
+        Preserve optional market metadata in existing local DuckDB files.
+        """
+
+        columns = self._table_columns("daily_prices")
+
+        if "sector" not in columns:
+            self.connection.execute("ALTER TABLE daily_prices ADD COLUMN sector TEXT")
 
     def _migrate_audit_schema(self) -> None:
         """

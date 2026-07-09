@@ -1,5 +1,8 @@
 import zipfile
+from datetime import date
 from pathlib import Path
+
+import pandas as pd
 
 from alpha.data.ingestion.pipeline import BhavcopyIngestionPipeline
 from alpha.data.repositories.database import Database
@@ -68,3 +71,28 @@ def test_ingestion_pipeline_runs_end_to_end(tmp_path: Path) -> None:
     )
 
     assert inserted == expected
+
+
+def test_prices_repository_preserves_optional_sector(tmp_path: Path) -> None:
+    db = Database(str(tmp_path / "test_prices.duckdb"))
+    repo = PricesRepository(db)
+
+    repo.insert(
+        df=pd.DataFrame(
+            {
+                "symbol": ["abc"],
+                "trade_date": ["2026-07-07"],
+                "open": [100.0],
+                "high": [110.0],
+                "low": [99.0],
+                "close": [108.0],
+                "volume": [1000],
+                "sector": [" banks "],
+                "exchange": ["NSE"],
+            }
+        )
+    )
+
+    prices = repo.find_by_trade_date(date(2026, 7, 7))
+
+    assert prices.loc[0, "sector"] == "BANKS"

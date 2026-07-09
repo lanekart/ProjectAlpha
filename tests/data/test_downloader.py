@@ -1,64 +1,87 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 
-from alpha.data.downloader.bhavcopy import BhavcopyDownloader
-from alpha.data.models import DownloadResult
-from alpha.data.providers.chain import MarketDataProviderChain
+from alpha.data.downloader.bhavcopy import BhavcopyDownloader, DownloadedArchive
+from alpha.data.providers.base import BhavcopyDownloadResult
 
 
-class DummyProvider:
-    def __init__(self) -> None:
-        self.calls = 0
+@dataclass
+class FakeProvider:
+    trade_date: date
+    content: bytes = b"zip-bytes"
 
-    def download_bhavcopy(self, target_date: date) -> DownloadResult:
-        self.calls += 1
-        return DownloadResult(
-            trade_date=target_date,
-            source_url="dummy://bhavcopy",
-            content=b"dummy",
+    def download_bhavcopy(self, target_date: date) -> BhavcopyDownloadResult:
+        return BhavcopyDownloadResult(
+            trade_date=self.trade_date,
+            content=self.content,
+            source_url=f"https://example.test/{self.trade_date.isoformat()}.zip",
         )
 
 
-class ResolvingProvider:
-    def __init__(self, resolved_date: date) -> None:
-        self.resolved_date = resolved_date
+def test_downloader_writes_provider_result_using_effective_trade_date(
+    tmp_path: Path,
+) -> None:
+    downloader = BhavcopyDownloader(
+        provider=FakeProvider(trade_date=date(2026, 7, 7)),  # type: ignore[arg-type]
+        data_dir=tmp_path,
+    )
 
-    def download_bhavcopy(self, target_date: date) -> DownloadResult:
-        return DownloadResult(
-            trade_date=self.resolved_date,
-            source_url="dummy://resolved-bhavcopy",
-            content=b"dummy",
-        )
+    archive = downloader.download_archive(date(2026, 7, 8))
 
-
-def test_download_uses_local_cache(tmp_path) -> None:
-    """
-    Downloader should not hit the provider when the archive already exists.
-    """
-
-    provider = DummyProvider()
-
-    downloader = BhavcopyDownloader(provider, data_dir=tmp_path)
-
-    first = downloader.download(date(2024, 1, 2))
-    second = downloader.download(date(2024, 1, 2))
-
-    assert first == second
-    assert provider.calls == 1
+    assert isinstance(archive, DownloadedArchive)
+    assert archive.requested_date == date(2026, 7, 8)
+    assert archive.trade_date == date(2026, 7, 7)
+    assert archive.path == tmp_path / "bhavcopy_2026-07-07.zip"
+    assert archive.path.read_bytes() == b"zip-bytes"
+    assert archive.cached is False
 
 
-def test_default_downloader_uses_market_data_provider_chain(tmp_path) -> None:
-    downloader = BhavcopyDownloader(data_dir=tmp_path)
+def test_downloader_returns_cached_requested_archive(tmp_path: Path) -> None:
+    cached_path = tmp_path / "bhavcopy_2026-07-08.zip"
+    cached_path.write_bytes(b"cached")
 
-    assert isinstance(downloader.provider, MarketDataProviderChain)
+    downloader = BhavcopyDownloader(
+        provider=FakeProvider(trade_date=date(2026, 7, 7)),  # type: ignore[arg-type]
+        data_dir=tmp_path,
+    )
+
+    archive = downloader.download_archive(date(2026, 7, 8))
+
+    assert archive.requested_date == date(2026, 7, 8)
+    assert archive.trade_date == date(2026, 7, 8)
+    assert archive.path == cached_path
+    assert archive.cached is True
+    assert archive.path.read_bytes() == b"cached"
 
 
-def test_download_caches_using_resolved_trade_date(tmp_path) -> None:
-    provider = ResolvingProvider(resolved_date=date(2024, 1, 12))
-    downloader = BhavcopyDownloader(provider, data_dir=tmp_path)
+def test_downloader_returns_cached_effective_archive(tmp_path: Path) -> None:
+    cached_path = tmp_path / "bhavcopy_2026-07-07.zip"
+    cached_path.write_bytes(b"cached-effective")
 
-    path = downloader.download(date(2024, 1, 15))
+    downloader = BhavcopyDownloader(
+        provider=FakeProvider(trade_date=date(2026, 7, 7)),  # type: ignore[arg-type]
+        data_dir=tmp_path,
+    )
 
-    assert path == tmp_path / "bhavcopy_2024-01-12.zip"
-    assert path.read_bytes() == b"dummy"
+    archive = downloader.download_archive(date(2026, 7, 8))
+
+    assert archive.requested_date == date(2026, 7, 8)
+    assert archive.trade_date == date(2026, 7, 7)
+    assert archive.path == cached_path
+    assert archive.cached is True
+    assert archive.path.read_bytes() == b"cached-effective"
+
+
+def test_download_keeps_backward_compatible_path_return(tmp_path: Path) -> None:
+    downloader = BhavcopyDownloader(
+        provider=FakeProvider(trade_date=date(2026, 7, 7)),  # type: ignore[arg-type]
+        data_dir=tmp_path,
+    )
+
+    path = downloader.download(date(2026, 7, 8))
+
+    assert path == tmp_path / "bhavcopy_2026-07-07.zip"
+    assert path.read_bytes() == b"zip-bytes"

@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 from alpha.application.historical_ingestion import HistoricalIngestionService
+from alpha.data.downloader.bhavcopy import DownloadedArchive
 
 
 class FakeResolver:
@@ -15,12 +16,34 @@ class FakeResolver:
 
 
 class FakeDownloader:
-    def __init__(self) -> None:
+    def __init__(self, effective_date: date | None = None) -> None:
         self.downloaded: list[date] = []
+        self.effective_date = effective_date
+
+    def download_archive(self, trading_day: date) -> DownloadedArchive:
+        self.downloaded.append(trading_day)
+        effective_date = self.effective_date or trading_day
+        return DownloadedArchive(
+            path=Path(f"data/raw/bhavcopy_{effective_date.isoformat()}.zip"),
+            requested_date=trading_day,
+            trade_date=effective_date,
+            cached=False,
+        )
 
     def download(self, trading_day: date) -> Path:
         self.downloaded.append(trading_day)
-        return Path(f"data/raw/bhavcopy_{trading_day.isoformat()}.zip")
+        effective_date = self.effective_date or trading_day
+        return Path(f"data/raw/bhavcopy_{effective_date.isoformat()}.zip")
+
+
+class FakeLegacyDownloader:
+    def __init__(self, effective_date: date) -> None:
+        self.downloaded: list[date] = []
+        self.effective_date = effective_date
+
+    def download(self, trading_day: date) -> Path:
+        self.downloaded.append(trading_day)
+        return Path(f"data/raw/bhavcopy_{self.effective_date.isoformat()}.zip")
 
 
 class FakePricesRepository:
@@ -50,14 +73,14 @@ class FakeIngestion:
         return self.ingested.copy()
 
 
-def _market_frame() -> pd.DataFrame:
+def _market_frame(trade_date: date = date(2026, 7, 6)) -> pd.DataFrame:
     return pd.DataFrame(
         {
             "symbol": ["GAINER", "LOSER", "FLAT"],
             "trade_date": [
-                date(2026, 7, 6),
-                date(2026, 7, 6),
-                date(2026, 7, 6),
+                trade_date,
+                trade_date,
+                trade_date,
             ],
             "open": [100.0, 100.0, 100.0],
             "high": [112.0, 101.0, 100.5],
@@ -90,6 +113,7 @@ def test_generate_report_uses_newly_ingested_prices() -> None:
 
     assert downloader.downloaded == [date(2026, 7, 6)]
     assert len(ingestion.archives) == 1
+    assert report["observed_on"] == date(2026, 7, 6)
     assert report["top_gainers"].iloc[0]["symbol"] == "GAINER"
     assert ingestion.prices.requested_dates == []
 
@@ -112,7 +136,95 @@ def test_generate_report_reloads_persisted_prices_when_idempotent() -> None:
     assert downloader.downloaded == [date(2026, 7, 6)]
     assert len(ingestion.archives) == 1
     assert ingestion.prices.requested_dates == [date(2026, 7, 6)]
+    assert report["observed_on"] == date(2026, 7, 6)
     assert report["top_gainers"].iloc[0]["symbol"] == "GAINER"
+
+
+def test_load_analysis_returns_effective_observed_date_and_analysis_frame() -> None:
+    effective_date = date(2026, 7, 7)
+    downloader = FakeDownloader(effective_date=effective_date)
+    ingestion = FakeIngestion(
+        ingested=pd.DataFrame(),
+        persisted=_market_frame(effective_date),
+    )
+
+    service = HistoricalIngestionService(
+        resolver=FakeResolver(),  # type: ignore[arg-type]
+        downloader=downloader,  # type: ignore[arg-type]
+        ingestion=ingestion,  # type: ignore[arg-type]
+    )
+
+    analysis = service.load_analysis("2026-07-08")
+
+    assert analysis.requested_on == date(2026, 7, 8)
+    assert analysis.observed_on == effective_date
+    assert "alpha_score" in analysis.analysis.columns
+    assert "signal" in analysis.analysis.columns
+    assert ingestion.prices.requested_dates == [effective_date]
+
+
+def test_load_analysis_preserves_persisted_sector_metadata() -> None:
+    effective_date = date(2026, 7, 7)
+    persisted = _market_frame(effective_date)
+    persisted["sector"] = ["BANKS", "IT", "BANKS"]
+    downloader = FakeDownloader(effective_date=effective_date)
+    ingestion = FakeIngestion(
+        ingested=pd.DataFrame(),
+        persisted=persisted,
+    )
+
+    service = HistoricalIngestionService(
+        resolver=FakeResolver(),  # type: ignore[arg-type]
+        downloader=downloader,  # type: ignore[arg-type]
+        ingestion=ingestion,  # type: ignore[arg-type]
+    )
+
+    analysis = service.load_analysis("2026-07-08")
+
+    assert set(analysis.analysis["sector"]) == {"BANKS", "IT"}
+
+
+def test_generate_report_reloads_persisted_prices_for_effective_download_date() -> None:
+    effective_date = date(2026, 7, 7)
+    downloader = FakeDownloader(effective_date=effective_date)
+    ingestion = FakeIngestion(
+        ingested=pd.DataFrame(),
+        persisted=_market_frame(effective_date),
+    )
+
+    service = HistoricalIngestionService(
+        resolver=FakeResolver(),  # type: ignore[arg-type]
+        downloader=downloader,  # type: ignore[arg-type]
+        ingestion=ingestion,  # type: ignore[arg-type]
+    )
+
+    report = service.generate_report("2026-07-08")
+
+    assert downloader.downloaded == [date(2026, 7, 8)]
+    assert ingestion.prices.requested_dates == [effective_date]
+    assert report["observed_on"] == effective_date
+    assert report["top_gainers"].iloc[0]["symbol"] == "GAINER"
+
+
+def test_generate_report_derives_effective_date_from_legacy_archive_path() -> None:
+    effective_date = date(2026, 7, 7)
+    downloader = FakeLegacyDownloader(effective_date=effective_date)
+    ingestion = FakeIngestion(
+        ingested=pd.DataFrame(),
+        persisted=_market_frame(effective_date),
+    )
+
+    service = HistoricalIngestionService(
+        resolver=FakeResolver(),  # type: ignore[arg-type]
+        downloader=downloader,  # type: ignore[arg-type]
+        ingestion=ingestion,  # type: ignore[arg-type]
+    )
+
+    report = service.generate_report("2026-07-08")
+
+    assert downloader.downloaded == [date(2026, 7, 8)]
+    assert ingestion.prices.requested_dates == [effective_date]
+    assert report["observed_on"] == effective_date
 
 
 def test_generate_report_raises_when_no_data_exists() -> None:

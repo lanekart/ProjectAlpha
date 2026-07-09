@@ -26,6 +26,7 @@ class Normalizer:
     Canonical output columns include:
     - symbol
     - trade_date
+    - sector, when available
     - open
     - high
     - low
@@ -113,6 +114,14 @@ SUPPORTED_DATE_FORMATS = (
     "%d-%b-%Y",
 )
 
+SECTOR_SOURCE_COLUMNS = (
+    "sector",
+    "industry",
+    "macrosector",
+    "sectorname",
+    "industrygroup",
+)
+
 
 def _detect_schema(df: pd.DataFrame) -> SchemaDetectionResult:
     columns = set(df.columns)
@@ -139,6 +148,7 @@ def _detect_schema(df: pd.DataFrame) -> SchemaDetectionResult:
 
 def _normalize_legacy(df: pd.DataFrame) -> pd.DataFrame:
     normalized = df.rename(columns=LEGACY_RENAME_LOOKUP).copy()
+    normalized = _canonicalize_sector_column(normalized)
     normalized = _ensure_required_columns(normalized)
     normalized = _coerce_canonical_types(normalized)
     return normalized
@@ -150,9 +160,23 @@ def _normalize_udiff(df: pd.DataFrame) -> pd.DataFrame:
     if "series" in normalized.columns:
         normalized = normalized[normalized["series"].astype(str).str.strip() == "EQ"]
 
+    normalized = _canonicalize_sector_column(normalized)
     normalized["exchange"] = "NSE"
     normalized = _ensure_required_columns(normalized)
     normalized = _coerce_canonical_types(normalized)
+    return normalized
+
+
+def _canonicalize_sector_column(df: pd.DataFrame) -> pd.DataFrame:
+    normalized = df.copy()
+    if "sector" in normalized.columns:
+        return normalized
+
+    for column in SECTOR_SOURCE_COLUMNS:
+        if column in normalized.columns:
+            normalized["sector"] = normalized[column]
+            return normalized
+
     return normalized
 
 
@@ -184,6 +208,21 @@ def _coerce_canonical_types(df: pd.DataFrame) -> pd.DataFrame:
     if "exchange" not in normalized.columns:
         normalized["exchange"] = "NSE"
 
+    if "sector" in normalized.columns:
+        normalized["sector"] = [
+            _normalize_optional_sector(value) for value in normalized["sector"]
+        ]
+
+    return normalized
+
+
+def _normalize_optional_sector(value: object) -> str | None:
+    if value is None:
+        return None
+
+    normalized = str(value).strip().upper()
+    if normalized in {"", "NAN", "NONE", "<NA>", "NAT"}:
+        return None
     return normalized
 
 

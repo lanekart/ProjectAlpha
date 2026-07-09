@@ -12,6 +12,7 @@ from alpha.backtest.backtest_export_manifest import (
     BacktestExportManifest,
 )
 from alpha.backtest.backtest_export_session import BacktestExportSession
+from alpha.explainability import ExplainabilityJsonRenderer
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +108,9 @@ class IntelligenceExportService:
                 self._recommendation_payload(recommendation)
                 for recommendation in run.recommendations
             ],
+            "explainability": ExplainabilityJsonRenderer().render(
+                run.explainability_report
+            ),
         }
 
     def _recommendation_payload(self, recommendation: Any) -> dict[str, Any]:
@@ -114,8 +118,9 @@ class IntelligenceExportService:
         expected_value = recommendation.expected_value
         allocation = recommendation.allocation
         opportunity_cost = recommendation.opportunity_cost
+        conviction = getattr(recommendation, "conviction", None)
 
-        return {
+        payload = {
             "symbol": recommendation.symbol,
             "observed_on": recommendation.observed_on.isoformat(),
             "action": recommendation.action.value,
@@ -199,6 +204,17 @@ class IntelligenceExportService:
             "metadata": dict(recommendation.metadata),
         }
 
+        if conviction is not None:
+            payload["conviction"] = {
+                "level": conviction.level.value,
+                "allocation_policy": conviction.allocation_policy.value,
+                "confidence": conviction.confidence,
+                "score": self._decimal(conviction.score),
+                "reasons": list(conviction.reasons),
+            }
+
+        return payload
+
     def _text_lines(self, run: IntelligenceRun) -> tuple[str, ...]:
         lines = [
             "Project Alpha Recommendation Report",
@@ -218,7 +234,7 @@ class IntelligenceExportService:
                     f"   Action       : {recommendation.action.value}",
                     f"   Decision     : {recommendation.decision.value}",
                     f"   Score        : {recommendation.score}",
-                    "   Allocation   : "
+                    "   Raw Allocation Hint : "
                     f"{recommendation.allocation.adjusted_allocation_percent}%",
                     "   Expected Ret : "
                     f"{recommendation.expected_value.expected_return}",
@@ -239,6 +255,18 @@ class IntelligenceExportService:
                 )
             lines.append("   Explanation:")
             lines.extend(f"   - {line}" for line in recommendation.explanation)
+
+        lines.extend(
+            (
+                "",
+                "Explainability:",
+                f"   Confidence   : {run.explainability_report.confidence.value}",
+            )
+        )
+        lines.extend(
+            f"   - {bullet.label}: {bullet.detail}"
+            for bullet in run.explainability_report.executive_summary
+        )
 
         return tuple(lines)
 

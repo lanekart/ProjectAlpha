@@ -43,8 +43,110 @@ def test_capital_allocation_allocates_best_ranked_candidate_first() -> None:
     assert len(plan.reports) == 2
     assert plan.reports[0].symbol == "HAL"
     assert plan.reports[0].decision is AllocationDecision.ALLOCATE
+    assert plan.reports[0].reasons[0] == "capital action: fresh_allocation"
     assert plan.approved_reports[0].target_amount > Decimal("0")
     assert plan.remaining_cash < context.available_cash
+
+
+def test_allocation_engine_allocates_buy_with_strong_score() -> None:
+    plan = CapitalAllocationEngine().allocate(
+        (
+            _candidate(
+                "hal",
+                recommendation_score=Decimal("84"),
+                recommendation_action="BUY",
+                final_signal="BUY",
+            ),
+        ),
+        _context(),
+    )
+
+    report = plan.reports[0]
+
+    assert report.decision is AllocationDecision.ALLOCATE
+    assert report.target_weight > Decimal("0")
+    assert report.reasons[0] == "capital action: fresh_allocation"
+
+
+def test_allocation_engine_skips_high_score_avoid_recommendation() -> None:
+    plan = CapitalAllocationEngine().allocate(
+        (
+            _candidate(
+                "idea",
+                recommendation_score=Decimal("88"),
+                recommendation_action="AVOID",
+                final_signal="AVOID",
+            ),
+        ),
+        _context(),
+    )
+
+    report = plan.reports[0]
+
+    assert report.decision is AllocationDecision.SKIP
+    assert report.target_weight == Decimal("0.0000")
+    assert report.reasons[0] == "capital action: skip"
+    assert AllocationConstraint.LOW_CONVICTION in report.risk_budget.constraints
+
+
+def test_allocation_engine_skips_high_score_sell_recommendation() -> None:
+    plan = CapitalAllocationEngine().allocate(
+        (
+            _candidate(
+                "idea",
+                recommendation_score=Decimal("91"),
+                recommendation_action="SELL",
+                final_signal="SELL",
+            ),
+        ),
+        _context(),
+    )
+
+    report = plan.reports[0]
+
+    assert report.decision is AllocationDecision.SKIP
+    assert report.target_weight == Decimal("0.0000")
+    assert report.reasons[0] == "capital action: skip"
+
+
+def test_allocation_engine_skips_reduce_action_without_deployment_wording() -> None:
+    plan = CapitalAllocationEngine().allocate(
+        (
+            _candidate(
+                "idea",
+                recommendation_score=Decimal("82"),
+                recommendation_action="REDUCE",
+                final_signal="WATCHLIST",
+            ),
+        ),
+        _context(min_recommendation_score=Decimal("50")),
+    )
+
+    report = plan.reports[0]
+
+    assert report.decision is AllocationDecision.SKIP
+    assert report.target_weight == Decimal("0.0000")
+    assert report.reasons[0] == "capital action: skip"
+
+
+def test_allocation_engine_reduces_fresh_watchlist_deployment() -> None:
+    plan = CapitalAllocationEngine().allocate(
+        (
+            _candidate(
+                "idea",
+                recommendation_score=Decimal("72"),
+                recommendation_action="ACCUMULATE",
+                final_signal="WATCHLIST",
+            ),
+        ),
+        _context(min_recommendation_score=Decimal("50")),
+    )
+
+    report = plan.reports[0]
+
+    assert report.decision is AllocationDecision.REDUCE
+    assert report.target_weight > Decimal("0")
+    assert report.reasons[0] == "capital action: reduced_deployment"
 
 
 def test_allocation_engine_reduces_highly_correlated_candidate() -> None:
@@ -63,6 +165,87 @@ def test_allocation_engine_reduces_highly_correlated_candidate() -> None:
     assert report.correlation.penalty == Decimal("0.50")
     assert report.target_weight < report.sizing.suggested_weight
     assert report.decision is AllocationDecision.REDUCE
+    assert report.reasons[0] == "capital action: reduced_deployment"
+    assert plan.approved_reports == (report,)
+
+
+def test_allocation_engine_labels_existing_position_reduction() -> None:
+    context = PortfolioContext(
+        total_capital=Decimal("1000000"),
+        available_cash=Decimal("300000"),
+        current_positions={"bel": Decimal("0.08")},
+        risk_budget=RiskBudget(min_recommendation_score=Decimal("50")),
+    )
+
+    plan = CapitalAllocationEngine().allocate(
+        (
+            _candidate(
+                "bel",
+                recommendation_score=Decimal("94"),
+            ),
+        ),
+        context,
+    )
+
+    report = plan.reports[0]
+
+    assert report.decision is AllocationDecision.REDUCE
+    assert report.target_weight > Decimal("0")
+    assert report.target_weight < context.current_position_weight("bel")
+    assert report.reasons[0] == "capital action: existing_position_reduction"
+
+
+def test_allocation_engine_skips_hold_without_existing_position_logic() -> None:
+    plan = CapitalAllocationEngine().allocate(
+        (
+            _candidate(
+                "infy",
+                recommendation_score=Decimal("45"),
+            ),
+        ),
+        _context(min_recommendation_score=Decimal("40")),
+    )
+
+    report = plan.reports[0]
+
+    assert report.decision is AllocationDecision.SKIP
+    assert report.target_weight == Decimal("0.0000")
+    assert report.reasons[0] == "capital action: skip"
+
+
+def test_allocation_engine_skips_avoid_candidate() -> None:
+    plan = CapitalAllocationEngine().allocate(
+        (
+            _candidate(
+                "infy",
+                recommendation_score=Decimal("30"),
+            ),
+        ),
+        _context(min_recommendation_score=Decimal("30")),
+    )
+
+    report = plan.reports[0]
+
+    assert report.decision is AllocationDecision.SKIP
+    assert report.target_weight == Decimal("0.0000")
+    assert report.reasons[0] == "capital action: skip"
+
+
+def test_approved_reports_include_allocate_and_positive_reduce() -> None:
+    plan = CapitalAllocationEngine().allocate(
+        (
+            _candidate("hal", recommendation_score=Decimal("84")),
+            _candidate("idea", sector="telecom", recommendation_score=Decimal("72")),
+        ),
+        _context(min_recommendation_score=Decimal("50")),
+    )
+
+    assert [report.decision for report in plan.approved_reports] == [
+        AllocationDecision.ALLOCATE,
+        AllocationDecision.REDUCE,
+    ]
+    assert all(report.target_weight > Decimal("0") for report in plan.approved_reports)
+    assert "approved capital deployments: 2" in plan.reasons
 
 
 def test_allocation_engine_blocks_low_conviction_candidate() -> None:
@@ -80,6 +263,7 @@ def test_allocation_engine_blocks_low_conviction_candidate() -> None:
 
     assert report.decision is AllocationDecision.SKIP
     assert report.target_weight == Decimal("0.0000")
+    assert report.reasons[0] == "capital action: skip"
     assert AllocationConstraint.LOW_CONVICTION in report.risk_budget.constraints
 
 
@@ -136,6 +320,8 @@ def _candidate(
     correlation_to_portfolio: Decimal = Decimal("0.42"),
     liquidity_score: Decimal = Decimal("0.90"),
     conviction_score: Decimal = Decimal("0.88"),
+    recommendation_action: str = "BUY",
+    final_signal: str | None = None,
 ) -> AllocationCandidate:
     return AllocationCandidate(
         symbol=symbol,
@@ -149,10 +335,15 @@ def _candidate(
         liquidity_score=liquidity_score,
         conviction_score=conviction_score,
         metadata={"source": "recommendation_engine"},
+        recommendation_action=recommendation_action,
+        final_signal=final_signal,
     )
 
 
-def _context() -> PortfolioContext:
+def _context(
+    *,
+    min_recommendation_score: Decimal = Decimal("70"),
+) -> PortfolioContext:
     return PortfolioContext(
         total_capital=Decimal("1000000"),
         available_cash=Decimal("300000"),
@@ -167,6 +358,6 @@ def _context() -> PortfolioContext:
             max_position_weight=Decimal("0.10"),
             max_sector_weight=Decimal("0.30"),
             max_correlation=Decimal("0.75"),
-            min_recommendation_score=Decimal("70"),
+            min_recommendation_score=min_recommendation_score,
         ),
     )

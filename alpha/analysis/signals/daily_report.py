@@ -15,6 +15,7 @@ class DailyReport(TypedDict):
     top_losers: pd.DataFrame
     regime: str
     signals: pd.DataFrame
+    analysis: pd.DataFrame
 
 
 class DailyMarketReport:
@@ -45,6 +46,7 @@ class DailyMarketReport:
             "top_losers": top_losers,
             "regime": regime,
             "signals": df[["symbol", "alpha_score", "signal"]],
+            "analysis": df,
         }
 
     def _detect_regime(self, df: pd.DataFrame) -> str:

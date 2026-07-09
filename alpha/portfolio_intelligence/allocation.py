@@ -11,6 +11,42 @@ _ZERO = Decimal("0")
 _ONE = Decimal("1")
 _HUNDRED = Decimal("100")
 _FOUR_PLACES = Decimal("0.0001")
+_TWO_PLACES = Decimal("0.01")
+
+
+class AllocationDecision(StrEnum):
+    ALLOCATE = "ALLOCATE"
+    REDUCE = "REDUCE"
+    SKIP = "SKIP"
+
+
+class AllocationConstraint(StrEnum):
+    CASH_LIMIT = "CASH_LIMIT"
+    POSITION_LIMIT = "POSITION_LIMIT"
+    SECTOR_LIMIT = "SECTOR_LIMIT"
+    CORRELATION_LIMIT = "CORRELATION_LIMIT"
+    RISK_BUDGET = "RISK_BUDGET"
+    LOW_CONVICTION = "LOW_CONVICTION"
+
+
+class AllocationConviction(StrEnum):
+    STRONG_BUY = "STRONG_BUY"
+    BUY = "BUY"
+    WATCHLIST = "WATCHLIST"
+    HOLD = "HOLD"
+    AVOID = "AVOID"
+
+    @property
+    def is_allocation_eligible(self) -> bool:
+        return self in {
+            AllocationConviction.STRONG_BUY,
+            AllocationConviction.BUY,
+            AllocationConviction.WATCHLIST,
+        }
+
+    @property
+    def requires_reduced_allocation(self) -> bool:
+        return self is AllocationConviction.WATCHLIST
 
 
 def _bounded_weight(value: Decimal, label: str) -> Decimal:
@@ -32,12 +68,12 @@ def _quantize(value: Decimal) -> Decimal:
 
 
 def _quantize_money(value: Decimal) -> Decimal:
-    return Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return Decimal(str(value)).quantize(_TWO_PLACES, rounding=ROUND_HALF_UP)
 
 
 def _as_percent(value: Decimal) -> str:
     percent = Decimal(str(value)) * _HUNDRED
-    return f"{percent.quantize(Decimal('0.01'))}%"
+    return f"{percent.quantize(_TWO_PLACES, rounding=ROUND_HALF_UP)}%"
 
 
 def _reward_to_risk(
@@ -61,19 +97,17 @@ def _weighted_average(values: Iterable[tuple[Decimal, Decimal]]) -> Decimal:
     return sum((value * weight for value, weight in pairs), _ZERO) / total_weight
 
 
-class AllocationDecision(StrEnum):
-    ALLOCATE = "ALLOCATE"
-    REDUCE = "REDUCE"
-    SKIP = "SKIP"
-
-
-class AllocationConstraint(StrEnum):
-    CASH_LIMIT = "CASH_LIMIT"
-    POSITION_LIMIT = "POSITION_LIMIT"
-    SECTOR_LIMIT = "SECTOR_LIMIT"
-    CORRELATION_LIMIT = "CORRELATION_LIMIT"
-    RISK_BUDGET = "RISK_BUDGET"
-    LOW_CONVICTION = "LOW_CONVICTION"
+def _conviction_from_score(score: Decimal) -> AllocationConviction:
+    normalized = _bounded_score_100(score, "recommendation score")
+    if normalized >= Decimal("90"):
+        return AllocationConviction.STRONG_BUY
+    if normalized >= Decimal("80"):
+        return AllocationConviction.BUY
+    if normalized >= Decimal("50"):
+        return AllocationConviction.WATCHLIST
+    if normalized >= Decimal("40"):
+        return AllocationConviction.HOLD
+    return AllocationConviction.AVOID
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,7 +134,7 @@ class RiskBudget:
     max_sector_weight: Decimal = Decimal("0.30")
     max_correlation: Decimal = Decimal("0.75")
     max_portfolio_risk_weight: Decimal = Decimal("0.35")
-    min_recommendation_score: Decimal = Decimal("70")
+    min_recommendation_score: Decimal = Decimal("50")
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -215,15 +249,25 @@ class AllocationCandidate:
     liquidity_score: Decimal
     conviction_score: Decimal
     metadata: Mapping[str, str] = field(default_factory=lambda: MappingProxyType({}))
+    recommendation_action: str = "BUY"
+    final_signal: str | None = None
 
     def __post_init__(self) -> None:
         symbol = self.symbol.strip().upper()
         sector = self.sector.strip().upper()
+        recommendation_action = self.recommendation_action.strip().upper()
+        final_signal = (
+            self.final_signal.strip().upper() if self.final_signal is not None else None
+        )
 
         if not symbol:
             raise ValueError("candidate symbol cannot be empty")
         if not sector:
             raise ValueError("candidate sector cannot be empty")
+        if not recommendation_action:
+            raise ValueError("candidate recommendation action cannot be empty")
+        if final_signal == "":
+            raise ValueError("candidate final signal cannot be empty")
 
         metadata = MappingProxyType(
             dict(
@@ -279,10 +323,36 @@ class AllocationCandidate:
             _bounded_weight(self.conviction_score, "conviction score"),
         )
         object.__setattr__(self, "metadata", metadata)
+        object.__setattr__(
+            self,
+            "recommendation_action",
+            recommendation_action,
+        )
+        object.__setattr__(self, "final_signal", final_signal)
 
     @property
     def recommendation_strength(self) -> Decimal:
         return _quantize(self.recommendation_score / _HUNDRED)
+
+    @property
+    def conviction(self) -> AllocationConviction:
+        return _conviction_from_score(self.recommendation_score)
+
+    @property
+    def is_allocation_eligible(self) -> bool:
+        return (
+            self.conviction.is_allocation_eligible
+            and not self.has_blocked_recommendation_intent
+        )
+
+    @property
+    def has_blocked_recommendation_intent(self) -> bool:
+        blocked = {"AVOID", "SELL", "REJECT"}
+        approved_deployment_actions = {"BUY", "ACCUMULATE"}
+        return (
+            self.recommendation_action not in approved_deployment_actions
+            or self.final_signal in blocked
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -478,11 +548,7 @@ class CapitalAllocationPlan:
 
     @property
     def approved_reports(self) -> tuple[AllocationReport, ...]:
-        return tuple(
-            report
-            for report in self.reports
-            if report.decision is AllocationDecision.ALLOCATE
-        )
+        return tuple(report for report in self.reports if report.target_weight > _ZERO)
 
 
 class KellySizingEngine:
@@ -513,6 +579,12 @@ class KellySizingEngine:
         )
         suggested_weight = min(cap * quality_weight, cap)
 
+        if candidate.conviction.requires_reduced_allocation:
+            suggested_weight *= Decimal("0.50")
+
+        if not candidate.is_allocation_eligible:
+            suggested_weight = _ZERO
+
         return PositionSizingAssessment(
             symbol=candidate.symbol,
             base_weight=cap,
@@ -522,6 +594,8 @@ class KellySizingEngine:
             conviction_weight=candidate.conviction_score,
             suggested_weight=_quantize(suggested_weight),
             reasons=(
+                f"recommendation conviction: {candidate.conviction.value}",
+                f"recommendation action: {candidate.recommendation_action}",
                 "recommendation strength: "
                 f"{_as_percent(candidate.recommendation_strength)}",
                 f"success probability: {_as_percent(candidate.success_probability)}",
@@ -543,7 +617,9 @@ class PortfolioConstraintEngine:
         requested = _bounded_weight(requested_weight, "requested weight")
         budget = context.risk_budget
         constraints: list[AllocationConstraint] = []
-        reasons: list[str] = []
+        reasons: list[str] = [
+            f"recommendation conviction: {candidate.conviction.value}",
+        ]
 
         current_position = context.current_position_weight(candidate.symbol)
         sector_weight = context.sector_weight(candidate.sector)
@@ -555,7 +631,15 @@ class PortfolioConstraintEngine:
         )
         approved = min(requested, max(capacity, _ZERO))
 
-        if candidate.recommendation_score < budget.min_recommendation_score:
+        if candidate.has_blocked_recommendation_intent:
+            constraints.append(AllocationConstraint.LOW_CONVICTION)
+            reasons.append("recommendation action or final signal blocks deployment")
+            approved = _ZERO
+        elif not candidate.conviction.is_allocation_eligible:
+            constraints.append(AllocationConstraint.LOW_CONVICTION)
+            reasons.append("recommendation conviction is not allocation eligible")
+            approved = _ZERO
+        elif candidate.recommendation_score < budget.min_recommendation_score:
             constraints.append(AllocationConstraint.LOW_CONVICTION)
             reasons.append("recommendation score is below required threshold")
             approved = _ZERO
@@ -650,7 +734,7 @@ class CapitalAllocationEngine:
         allocated_amount = sum((report.target_amount for report in reports), _ZERO)
         allocated_weight = sum((report.target_weight for report in reports), _ZERO)
         remaining_cash = context.available_cash - allocated_amount
-        allocated_count = sum(1 for report in reports if report.target_weight > _ZERO)
+        deployed_count = sum(1 for report in reports if report.target_weight > _ZERO)
 
         return CapitalAllocationPlan(
             generated_on=ordered[0].observed_on,
@@ -660,7 +744,7 @@ class CapitalAllocationEngine:
             remaining_cash=_quantize_money(remaining_cash),
             reasons=(
                 f"candidate count: {len(ordered)}",
-                f"allocated reports: {allocated_count}",
+                f"approved capital deployments: {deployed_count}",
                 f"remaining cash: {_quantize_money(remaining_cash)}",
             ),
         )
@@ -685,9 +769,13 @@ class CapitalAllocationEngine:
                 shadow_context,
                 correlation.adjusted_weight,
             )
+            current_position = shadow_context.current_position_weight(candidate.symbol)
             decision = self._decision(
+                candidate=candidate,
+                correlation=correlation,
                 risk=risk,
                 sizing=sizing,
+                current_position=current_position,
             )
             target_amount = risk.approved_weight * context.total_capital
             remaining_cash = max(remaining_cash - target_amount, _ZERO)
@@ -706,7 +794,10 @@ class CapitalAllocationEngine:
                     reasons=self._report_reasons(
                         candidate=candidate,
                         decision=decision,
+                        correlation=correlation,
+                        sizing=sizing,
                         risk=risk,
+                        current_position=current_position,
                     ),
                 )
             )
@@ -728,7 +819,9 @@ class CapitalAllocationEngine:
         penalty = _ZERO
         reasons = ["correlation is within acceptable range"]
 
-        if candidate.correlation_to_portfolio >= Decimal("0.85"):
+        if not candidate.is_allocation_eligible:
+            reasons = ["recommendation intent blocked allocation"]
+        elif candidate.correlation_to_portfolio >= Decimal("0.85"):
             penalty = Decimal("0.50")
             reasons = ["very high portfolio correlation reduced allocation"]
         elif candidate.correlation_to_portfolio >= Decimal("0.75"):
@@ -751,13 +844,23 @@ class CapitalAllocationEngine:
     def _decision(
         self,
         *,
+        candidate: AllocationCandidate,
+        correlation: CorrelationAdjustment,
         risk: RiskBudgetAssessment,
         sizing: PositionSizingAssessment,
+        current_position: Decimal,
     ) -> AllocationDecision:
         if not risk.is_approved:
             return AllocationDecision.SKIP
+
+        if candidate.conviction.requires_reduced_allocation:
+            return AllocationDecision.REDUCE
+        if correlation.adjusted_weight < sizing.suggested_weight:
+            return AllocationDecision.REDUCE
         if risk.approved_weight < sizing.suggested_weight:
             return AllocationDecision.REDUCE
+        if current_position <= _ZERO:
+            return AllocationDecision.ALLOCATE
         return AllocationDecision.ALLOCATE
 
     def _next_context(
@@ -790,14 +893,44 @@ class CapitalAllocationEngine:
         *,
         candidate: AllocationCandidate,
         decision: AllocationDecision,
+        correlation: CorrelationAdjustment,
+        sizing: PositionSizingAssessment,
         risk: RiskBudgetAssessment,
+        current_position: Decimal,
     ) -> tuple[str, ...]:
         return (
+            f"capital action: {self._capital_action(decision, risk, current_position)}",
             f"decision: {decision.value}",
+            f"recommendation conviction: {candidate.conviction.value}",
+            f"recommendation action: {candidate.recommendation_action}",
+            f"recommendation final signal: {candidate.final_signal or 'UNAVAILABLE'}",
             f"recommendation score: {candidate.recommendation_score}",
             f"success probability: {_as_percent(candidate.success_probability)}",
+            f"requested allocation: {_as_percent(sizing.suggested_weight)}",
+            "correlation-adjusted allocation: "
+            f"{_as_percent(correlation.adjusted_weight)}",
             f"approved allocation: {_as_percent(risk.approved_weight)}",
         )
+
+    def _capital_action(
+        self,
+        decision: AllocationDecision,
+        risk: RiskBudgetAssessment,
+        current_position: Decimal,
+    ) -> str:
+        if not risk.is_approved:
+            return "skip"
+        if (
+            decision is AllocationDecision.REDUCE
+            and current_position > _ZERO
+            and risk.approved_weight < current_position
+        ):
+            return "existing_position_reduction"
+        if decision is AllocationDecision.REDUCE:
+            return "reduced_deployment"
+        if current_position > _ZERO:
+            return "add_to_existing_position"
+        return "fresh_allocation"
 
     def _rank_candidates(
         self,
@@ -809,6 +942,11 @@ class CapitalAllocationEngine:
                 key=lambda candidate: (
                     -candidate.recommendation_score,
                     -candidate.success_probability,
+                    -_reward_to_risk(
+                        expected_return=candidate.expected_return,
+                        expected_drawdown=candidate.expected_drawdown,
+                    ),
+                    -candidate.expected_return,
                     candidate.symbol,
                 ),
             )
@@ -865,6 +1003,7 @@ def _normalized_reasons(
 __all__ = [
     "AllocationCandidate",
     "AllocationConstraint",
+    "AllocationConviction",
     "AllocationDecision",
     "AllocationReport",
     "CapitalAllocationEngine",

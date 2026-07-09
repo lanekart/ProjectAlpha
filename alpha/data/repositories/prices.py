@@ -32,6 +32,11 @@ class PricesRepository:
         else:
             df["exchange"] = df["exchange"].fillna("NSE").astype(str).str.strip()
 
+        if "sector" not in df.columns:
+            df["sector"] = None
+        else:
+            df["sector"] = [_normalize_optional_text(value) for value in df["sector"]]
+
         required_cols = [
             "symbol",
             "trade_date",
@@ -40,6 +45,7 @@ class PricesRepository:
             "low",
             "close",
             "volume",
+            "sector",
             "exchange",
         ]
 
@@ -66,9 +72,10 @@ class PricesRepository:
                 low,
                 close,
                 volume,
+                sector,
                 exchange
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             rows,
         )
@@ -91,6 +98,7 @@ class PricesRepository:
                 low,
                 close,
                 volume,
+                sector,
                 exchange
             FROM daily_prices
             WHERE trade_date = ?
@@ -108,7 +116,18 @@ class PricesRepository:
             "low",
             "close",
             "volume",
+            "sector",
             "exchange",
         ]
 
         return pd.DataFrame(rows, columns=columns)
+
+
+def _normalize_optional_text(value: object) -> str | None:
+    if value is None:
+        return None
+
+    normalized = str(value).strip().upper()
+    if normalized in {"", "NAN", "NONE", "<NA>", "NAT"}:
+        return None
+    return normalized

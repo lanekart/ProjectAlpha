@@ -36,6 +36,7 @@ def test_intelligence_export_writes_json_and_text(tmp_path) -> None:
     assert "Project Alpha Recommendation Report" in text
     assert "Observed On      : 2026-01-30" in text
     assert "HAL" in text
+    assert "Raw Allocation Hint :" in text
 
 
 def test_intelligence_export_rejects_invalid_suffixes(tmp_path) -> None:

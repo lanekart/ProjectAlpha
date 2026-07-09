@@ -32,6 +32,27 @@ def test_normalizer_supports_legacy_bhavcopy_schema() -> None:
     assert normalized.loc[0, "trade_date"] == pd.Timestamp("2024-01-15")
 
 
+def test_normalizer_canonicalizes_optional_sector_metadata() -> None:
+    raw = pd.DataFrame(
+        [
+            {
+                "SYMBOL": "ABC",
+                "Sector Name": " banks ",
+                "OPEN": 100,
+                "HIGH": 110,
+                "LOW": 95,
+                "CLOSE": 108,
+                "TOTTRDQTY": 1000,
+                "TIMESTAMP": "15-JAN-2024",
+            }
+        ]
+    )
+
+    normalized = Normalizer().transform(raw)
+
+    assert normalized.loc[0, "sector"] == "BANKS"
+
+
 def test_normalizer_supports_udiff_common_bhavcopy_schema() -> None:
     raw = pd.DataFrame(
         [

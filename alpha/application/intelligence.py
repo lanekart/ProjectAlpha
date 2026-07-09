@@ -1,43 +1,41 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from typing import Protocol
 
+import pandas as pd
+
+from alpha.application.intelligence_inputs import (
+    DemoIntelligenceInputBuilder,
+    IntelligenceInputBuilder,
+    IntelligenceInputSet,
+)
+from alpha.explainability import (
+    ExplainabilityReport,
+    IntelligenceExplainabilityEngine,
+)
 from alpha.market_intelligence import (
-    CorrelationInput,
     IntelligenceBias,
-    MarketBreadthInput,
     MarketIntelligenceCompositeEngine,
     MarketIntelligenceReport,
-    SectorPerformanceInput,
-    StockIntelligenceInput,
 )
 from alpha.portfolio_intelligence import (
-    AllocationCandidate,
     CapitalAllocationEngine,
     CapitalAllocationPlan,
     PortfolioConstructionEngine,
-    RiskBudget,
-    SectorExposure,
-)
-from alpha.portfolio_intelligence import (
-    PortfolioContext as AllocationPortfolioContext,
 )
 from alpha.recommendation_intelligence import (
-    PortfolioContext as RecommendationPortfolioContext,
-)
-from alpha.recommendation_intelligence import (
-    RecommendationAction,
-    RecommendationCandidate,
     RecommendationEngine,
-    RecommendationEvidence,
     RecommendationReport,
-    RecommendationRisk,
 )
 
-_ZERO = Decimal("0")
+
+class IntelligenceInputProvider(Protocol):
+    def build(self, *, observed_on: date) -> IntelligenceInputSet:
+        """Build engine-ready deterministic intelligence inputs."""
+        ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +47,7 @@ class IntelligenceRun:
     recommendations: tuple[RecommendationReport, ...]
     allocation_plan: CapitalAllocationPlan
     summary_lines: tuple[str, ...]
+    explainability_report: ExplainabilityReport
 
     def as_dict(self) -> dict[str, object]:
         """Return a deterministic machine-readable intelligence payload."""
@@ -115,6 +114,7 @@ class IntelligenceRun:
                     for allocation_report in self.allocation_plan.reports
                 ],
             },
+            "explainability": self.explainability_report.as_dict(),
         }
 
 
@@ -124,38 +124,64 @@ class IntelligenceApplicationService:
     def __init__(
         self,
         *,
+        input_provider: IntelligenceInputProvider | None = None,
         market_engine: MarketIntelligenceCompositeEngine | None = None,
         recommendation_engine: RecommendationEngine | None = None,
         allocation_engine: CapitalAllocationEngine | None = None,
         construction_engine: PortfolioConstructionEngine | None = None,
+        explainability_engine: IntelligenceExplainabilityEngine | None = None,
     ) -> None:
+        self._input_provider = input_provider or DemoIntelligenceInputBuilder()
         self._market_engine = market_engine or MarketIntelligenceCompositeEngine()
         self._recommendation_engine = recommendation_engine or RecommendationEngine()
         self._allocation_engine = allocation_engine or CapitalAllocationEngine()
         self._construction_engine = construction_engine or PortfolioConstructionEngine(
             self._allocation_engine
         )
+        self._explainability_engine = (
+            explainability_engine or IntelligenceExplainabilityEngine()
+        )
+
+    @classmethod
+    def from_analysis(cls, *, analysis: pd.DataFrame) -> IntelligenceApplicationService:
+        """
+        Build a production-style service backed by analyzed market data.
+
+        This preserves the deterministic default demo path while exposing a
+        clean seam for live wiring.
+        """
+
+        return cls(
+            input_provider=_AnalysisIntelligenceInputProvider(
+                analysis=analysis,
+                builder=IntelligenceInputBuilder(),
+            )
+        )
 
     def run(self, *, observed_on: date) -> IntelligenceRun:
         """Run a deterministic product-facing intelligence workflow."""
 
+        inputs = self._input_provider.build(observed_on=observed_on)
+
         market_report = self._market_engine.assess(
-            stock=self._stock_input(observed_on),
-            breadth=self._breadth_input(observed_on),
-            sectors=self._sector_inputs(),
-            correlation=self._correlation_input(),
-        )
-        recommendation_candidates = self._recommendation_candidates(
-            observed_on=observed_on,
-            market_report=market_report,
+            stock=inputs.stock,
+            breadth=inputs.breadth,
+            sectors=inputs.sectors,
+            correlation=inputs.correlation,
         )
         recommendations = self._recommendation_engine.build(
-            recommendation_candidates,
-            portfolio=self._recommendation_portfolio_context(),
+            inputs.recommendation_candidates,
+            portfolio=inputs.recommendation_portfolio_context,
         )
         allocation_plan = self._construction_engine.construct(
-            self._allocation_candidates(recommendations),
-            self._allocation_portfolio_context(),
+            inputs.allocation_candidates(recommendations),
+            inputs.allocation_portfolio_context,
+        )
+        explainability_report = self._explainability_engine.explain(
+            observed_on=observed_on.isoformat(),
+            market_report=market_report,
+            recommendations=recommendations,
+            allocation_plan=allocation_plan,
         )
 
         return IntelligenceRun(
@@ -169,249 +195,7 @@ class IntelligenceApplicationService:
                 recommendations=recommendations,
                 allocation_plan=allocation_plan,
             ),
-        )
-
-    def _stock_input(self, observed_on: date) -> StockIntelligenceInput:
-        return StockIntelligenceInput(
-            symbol="HAL",
-            observed_on=observed_on,
-            price_change_percent=Decimal("4.20"),
-            delivery_percent=Decimal("68.00"),
-            delivery_change_percent=Decimal("14.00"),
-            volume_change_percent=Decimal("22.00"),
-            turnover_value=Decimal("850000000"),
-            average_turnover_value=Decimal("500000000"),
-            spread_percent=Decimal("0.18"),
-            volatility_percent=Decimal("3.20"),
-        )
-
-    def _breadth_input(self, observed_on: date) -> MarketBreadthInput:
-        return MarketBreadthInput(
-            observed_on=observed_on,
-            advances=1220,
-            declines=760,
-            unchanged=120,
-        )
-
-    def _sector_inputs(self) -> tuple[SectorPerformanceInput, ...]:
-        return (
-            SectorPerformanceInput(
-                sector="defence",
-                return_percent=Decimal("3.80"),
-                breadth_percent=Decimal("72.00"),
-                turnover_change_percent=Decimal("18.00"),
-            ),
-            SectorPerformanceInput(
-                sector="capital goods",
-                return_percent=Decimal("2.10"),
-                breadth_percent=Decimal("64.00"),
-                turnover_change_percent=Decimal("11.00"),
-            ),
-            SectorPerformanceInput(
-                sector="banks",
-                return_percent=Decimal("0.80"),
-                breadth_percent=Decimal("51.00"),
-                turnover_change_percent=Decimal("4.00"),
-            ),
-        )
-
-    def _correlation_input(self) -> CorrelationInput:
-        return CorrelationInput(
-            symbol="HAL",
-            correlation_to_index=Decimal("0.42"),
-            correlation_to_sector=Decimal("0.55"),
-        )
-
-    def _recommendation_candidates(
-        self,
-        *,
-        observed_on: date,
-        market_report: MarketIntelligenceReport,
-    ) -> tuple[RecommendationCandidate, ...]:
-        market_score = market_report.composite_score
-        liquidity_score = market_report.liquidity.score
-        risk_score = market_report.correlation.score
-
-        return (
-            RecommendationCandidate(
-                symbol="HAL",
-                observed_on=observed_on,
-                action=RecommendationAction.BUY,
-                strategy_score=Decimal("0.88"),
-                probability_score=Decimal("0.74"),
-                market_intelligence_score=market_score,
-                liquidity_score=liquidity_score,
-                risk_score=risk_score,
-                expected_return=Decimal("0.14"),
-                expected_drawdown=Decimal("0.045"),
-                expected_holding_period_days=Decimal("45"),
-                evidence=(
-                    RecommendationEvidence(
-                        label="Market Intelligence",
-                        score_points=market_score * Decimal("25"),
-                        max_points=Decimal("25"),
-                        rationale=(
-                            "constructive accumulation, liquidity, breadth, "
-                            "sector leadership, and correlation profile"
-                        ),
-                    ),
-                    RecommendationEvidence(
-                        label="Strategy Strength",
-                        score_points=Decimal("22"),
-                        max_points=Decimal("25"),
-                        rationale="momentum setup remains strong",
-                    ),
-                ),
-                risks=(
-                    RecommendationRisk(
-                        label="Drawdown",
-                        penalty_points=Decimal("2"),
-                        rationale="expected drawdown remains controlled",
-                    ),
-                ),
-                metadata={"source": "pat-005-orchestration"},
-            ),
-            RecommendationCandidate(
-                symbol="BEL",
-                observed_on=observed_on,
-                action=RecommendationAction.ACCUMULATE,
-                strategy_score=Decimal("0.81"),
-                probability_score=Decimal("0.70"),
-                market_intelligence_score=max(market_score - Decimal("0.04"), _ZERO),
-                liquidity_score=Decimal("0.82"),
-                risk_score=Decimal("0.63"),
-                expected_return=Decimal("0.11"),
-                expected_drawdown=Decimal("0.040"),
-                expected_holding_period_days=Decimal("40"),
-                evidence=(
-                    RecommendationEvidence(
-                        label="Sector Leadership",
-                        score_points=Decimal("18"),
-                        max_points=Decimal("25"),
-                        rationale="defence sector remains a top leadership pocket",
-                    ),
-                ),
-                risks=(
-                    RecommendationRisk(
-                        label="Correlation",
-                        penalty_points=Decimal("3"),
-                        rationale="sector overlap with the top-ranked candidate",
-                    ),
-                ),
-                metadata={"source": "pat-005-orchestration"},
-            ),
-            RecommendationCandidate(
-                symbol="LT",
-                observed_on=observed_on,
-                action=RecommendationAction.ACCUMULATE,
-                strategy_score=Decimal("0.76"),
-                probability_score=Decimal("0.66"),
-                market_intelligence_score=Decimal("0.62"),
-                liquidity_score=Decimal("0.90"),
-                risk_score=Decimal("0.72"),
-                expected_return=Decimal("0.095"),
-                expected_drawdown=Decimal("0.035"),
-                expected_holding_period_days=Decimal("50"),
-                evidence=(
-                    RecommendationEvidence(
-                        label="Liquidity",
-                        score_points=Decimal("13.50"),
-                        max_points=Decimal("15"),
-                        rationale="high liquidity supports institutional sizing",
-                    ),
-                ),
-                risks=(
-                    RecommendationRisk(
-                        label="Opportunity Cost",
-                        penalty_points=Decimal("2"),
-                        rationale="higher-ranked opportunities are available",
-                    ),
-                ),
-                metadata={"source": "pat-005-orchestration"},
-            ),
-        )
-
-    def _recommendation_portfolio_context(self) -> RecommendationPortfolioContext:
-        return RecommendationPortfolioContext(
-            existing_symbols=("LT",),
-            sector_exposure={
-                "DEFENCE": Decimal("12"),
-                "CAPITAL GOODS": Decimal("8"),
-            },
-            symbol_sector={
-                "HAL": "DEFENCE",
-                "BEL": "DEFENCE",
-                "LT": "CAPITAL GOODS",
-            },
-            max_single_position_percent=Decimal("10"),
-            max_sector_exposure_percent=Decimal("25"),
-        )
-
-    def _allocation_candidates(
-        self,
-        recommendations: Iterable[RecommendationReport],
-    ) -> tuple[AllocationCandidate, ...]:
-        sector_by_symbol = {
-            "HAL": "defence",
-            "BEL": "defence",
-            "LT": "capital goods",
-        }
-        correlation_by_symbol = {
-            "HAL": Decimal("0.42"),
-            "BEL": Decimal("0.68"),
-            "LT": Decimal("0.48"),
-        }
-        liquidity_by_symbol = {
-            "HAL": Decimal("0.90"),
-            "BEL": Decimal("0.82"),
-            "LT": Decimal("0.90"),
-        }
-
-        return tuple(
-            AllocationCandidate(
-                symbol=recommendation.symbol,
-                sector=sector_by_symbol.get(recommendation.symbol, "unknown"),
-                observed_on=recommendation.observed_on,
-                recommendation_score=recommendation.score,
-                success_probability=recommendation.expected_value.score,
-                expected_return=recommendation.expected_value.expected_return,
-                expected_drawdown=recommendation.expected_value.expected_drawdown,
-                correlation_to_portfolio=correlation_by_symbol.get(
-                    recommendation.symbol,
-                    Decimal("0.50"),
-                ),
-                liquidity_score=liquidity_by_symbol.get(
-                    recommendation.symbol,
-                    Decimal("0.60"),
-                ),
-                conviction_score=recommendation.score / Decimal("100"),
-                metadata={"source": "recommendation_intelligence"},
-            )
-            for recommendation in recommendations
-        )
-
-    def _allocation_portfolio_context(self) -> AllocationPortfolioContext:
-        return AllocationPortfolioContext(
-            total_capital=Decimal("1000000"),
-            available_cash=Decimal("300000"),
-            current_positions={"LT": Decimal("0.08")},
-            sector_exposures=(
-                SectorExposure(
-                    sector="defence",
-                    current_weight=Decimal("0.12"),
-                ),
-                SectorExposure(
-                    sector="capital goods",
-                    current_weight=Decimal("0.08"),
-                ),
-            ),
-            risk_budget=RiskBudget(
-                max_position_weight=Decimal("0.10"),
-                max_sector_weight=Decimal("0.25"),
-                max_correlation=Decimal("0.75"),
-                max_portfolio_risk_weight=Decimal("0.35"),
-                min_recommendation_score=Decimal("60"),
-            ),
+            explainability_report=explainability_report,
         )
 
     def _summary_lines(
@@ -422,6 +206,10 @@ class IntelligenceApplicationService:
         recommendations: tuple[RecommendationReport, ...],
         allocation_plan: CapitalAllocationPlan,
     ) -> tuple[str, ...]:
+        recommendation_by_symbol = {
+            recommendation.symbol: recommendation for recommendation in recommendations
+        }
+        top_sector = market_report.sector_rotation.top_sector.sector
         lines = [
             "Project Alpha Intelligence Report",
             "",
@@ -434,11 +222,18 @@ class IntelligenceApplicationService:
             f"Liquidity        : {market_report.liquidity.classification}",
             f"Breadth          : {market_report.breadth.classification}",
             f"Sector Rotation  : {market_report.sector_rotation.phase.value}",
-            f"Top Sector       : {market_report.sector_rotation.top_sector.sector}",
-            f"Correlation Risk : {market_report.correlation.classification}",
-            "",
-            "Market Intelligence Reasons:",
+            f"Top Sector       : {top_sector}",
         ]
+        metadata_notice = _sector_metadata_notice(top_sector)
+        if metadata_notice is not None:
+            lines.append(metadata_notice)
+        lines.extend(
+            (
+                f"Correlation Risk : {market_report.correlation.classification}",
+                "",
+                "Market Intelligence Reasons:",
+            )
+        )
         lines.extend(f"- {reason}" for reason in market_report.reasons)
 
         lines.extend(
@@ -450,9 +245,14 @@ class IntelligenceApplicationService:
         for index, recommendation in enumerate(recommendations, start=1):
             lines.append(
                 f"{index}. {recommendation.symbol}: {recommendation.decision.value} "
-                f"score={recommendation.score} allocation="
+                f"score={recommendation.score} action="
+                f"{recommendation.action.value} raw_allocation_hint="
                 f"{recommendation.allocation.adjusted_allocation_percent}%"
             )
+            driver_line = _recommendation_driver_line(recommendation)
+            if driver_line is not None:
+                lines.append(driver_line)
+            lines.extend(_recommendation_detail_lines(recommendation))
             for explanation in recommendation.explanation[:5]:
                 lines.append(f"   - {explanation}")
 
@@ -460,18 +260,38 @@ class IntelligenceApplicationService:
             (
                 "",
                 "Portfolio Allocation:",
-                f"Allocated Weight : {allocation_plan.total_allocated_weight}",
-                f"Allocated Amount : {allocation_plan.total_allocated_amount}",
-                f"Remaining Cash   : {allocation_plan.remaining_cash}",
+                "Approved Deployment Weight : "
+                f"{allocation_plan.total_allocated_weight}",
+                "Approved Deployment Amount : "
+                f"{allocation_plan.total_allocated_amount}",
+                f"Remaining Cash              : {allocation_plan.remaining_cash}",
+                _approved_deployment_summary(allocation_plan.reasons),
             )
         )
+        lines.extend(("", "Portfolio Summary:"))
+        lines.extend(_portfolio_summary_lines(recommendations, allocation_plan))
         for allocation_report in allocation_plan.reports:
+            allocation_recommendation = recommendation_by_symbol.get(
+                allocation_report.symbol
+            )
+            if allocation_recommendation is None:
+                recommendation_context = "recommendation=UNKNOWN"
+            else:
+                recommendation_context = (
+                    f"recommendation={allocation_recommendation.decision.value} "
+                    f"action={allocation_recommendation.action.value} "
+                    f"score={allocation_recommendation.score}"
+                )
+            capital_action = _allocation_capital_action(allocation_report.reasons)
+
             lines.append(
                 f"- {allocation_report.symbol}: {allocation_report.decision.value} "
+                f"capital_action={capital_action} "
                 f"target_weight={allocation_report.target_weight} "
-                f"target_amount={allocation_report.target_amount}"
+                f"target_amount={allocation_report.target_amount} "
+                f"{recommendation_context}"
             )
-            for reason in allocation_report.reasons[:3]:
+            for reason in allocation_report.reasons[:4]:
                 lines.append(f"  - {reason}")
 
         if market_report.bias is IntelligenceBias.NEGATIVE:
@@ -486,4 +306,194 @@ class IntelligenceApplicationService:
         return tuple(lines)
 
 
-__all__ = ["IntelligenceApplicationService", "IntelligenceRun"]
+def _allocation_capital_action(reasons: tuple[str, ...]) -> str:
+    prefix = "capital action: "
+    for reason in reasons:
+        if reason.startswith(prefix):
+            return reason.removeprefix(prefix)
+    return "unknown"
+
+
+def _approved_deployment_summary(reasons: tuple[str, ...]) -> str:
+    prefix = "approved capital deployments: "
+    for reason in reasons:
+        if reason.startswith(prefix):
+            return reason
+    return "approved capital deployments: 0"
+
+
+def _recommendation_driver_line(
+    recommendation: RecommendationReport,
+) -> str | None:
+    driver_labels = [evidence.label for evidence in recommendation.supporting_evidence]
+    driver_labels.extend(risk.label for risk in recommendation.opposing_evidence)
+    drivers = tuple(
+        dict.fromkeys(_driver_slug(label) for label in driver_labels if label.strip())
+    )
+    if not drivers:
+        return None
+    return f"   drivers: {', '.join(drivers[:4])}"
+
+
+def _recommendation_detail_lines(
+    recommendation: RecommendationReport,
+) -> tuple[str, ...]:
+    price = recommendation.price_evidence
+    volume = recommendation.volume_evidence
+    atr_value = _optional_decimal_text(recommendation.trade_plan.atr_value)
+    dma_20 = _optional_decimal_text(recommendation.trade_plan.dma_20_invalidation)
+    candle_entry = _optional_decimal_text(recommendation.candle_entry_trigger)
+    candle_stop = _optional_decimal_text(recommendation.candle_stop_level)
+    candle_invalidation = _optional_decimal_text(
+        recommendation.candle_invalidation_level
+    )
+
+    return (
+        "   Recommendation Output:",
+        f"      final_signal={recommendation.final_signal}",
+        f"      final_score={recommendation.final_score}",
+        f"      confidence={recommendation.confidence}",
+        "      Price-Volume Evidence: "
+        f"price_trend={price.trend_state}; "
+        f"structure={price.structure_state}; "
+        f"breakout={price.breakout_state}; "
+        f"retracement={price.retracement_state}; "
+        f"support_resistance={price.support_resistance_state}; "
+        f"close_strength={price.close_strength}; "
+        f"volatility={price.volatility_state}; "
+        f"price_score={price.price_score}; "
+        f"volume_vs_average={volume.volume_vs_average}; "
+        f"volume_score={volume.volume_score}; "
+        f"breakout_volume_confirmation={volume.breakout_volume_confirmation}; "
+        f"selloff_volume_penalty={volume.selloff_volume_penalty}",
+        "      Trend Evidence: "
+        f"20/50/200 trend points="
+        f"{recommendation.score_breakdown.trend_structure_points}; "
+        f"price trend={price.trend_state}",
+        "      Retracement Evidence: "
+        f"score={recommendation.retracement_score}; "
+        f"weight={recommendation.retracement_weight}; "
+        f"zone={recommendation.retracement_zone}; "
+        f"nearest_fibonacci_level={recommendation.nearest_fibonacci_level}; "
+        f"swing_high={recommendation.swing_high}; "
+        f"swing_low={recommendation.swing_low}; "
+        f"support_level_used={recommendation.support_level_used}",
+        "      Candle Pattern Evidence: "
+        f"pattern={recommendation.candle_pattern}; "
+        f"score={recommendation.candle_score}; "
+        f"weight={recommendation.candle_weight}; "
+        f"confirmation={recommendation.candle_confirmation}; "
+        f"entry_trigger={candle_entry}; "
+        f"stop_level={candle_stop}; "
+        f"invalidation_level={candle_invalidation}; "
+        f"explanation={recommendation.candle_explanation}",
+        "      Entry Zone: "
+        f"{recommendation.entry_zone_low} to {recommendation.entry_zone_high}",
+        f"      Entry Trigger: {recommendation.entry_price}",
+        f"      Initial Stop Loss: {recommendation.initial_stop_loss}",
+        "      20-DMA Invalidation: "
+        f"Trade invalid if daily close is below 20-DMA, currently {dma_20}.",
+        f"      ATR Value: {atr_value}",
+        f"      Trailing Stop: {recommendation.trailing_stop_strategy}",
+        f"      Target 1: {recommendation.target_1}",
+        f"      Target 2: {recommendation.target_2}",
+        f"      Target 3: {recommendation.target_3}",
+        f"      Risk-Reward Ratio: {recommendation.risk_reward_ratio}",
+        "      Invalidation: "
+        f"{recommendation.invalidation_level} "
+        f"({recommendation.invalidation_reason})",
+        f"      Why: {recommendation.trade_plan_explanation}",
+    )
+
+
+def _sector_metadata_notice(sector: str) -> str | None:
+    if sector.strip().upper() == "UNKNOWN":
+        return "Metadata Notice: Sector metadata unavailable from current live feed."
+    return None
+
+
+def _driver_slug(value: str) -> str:
+    normalized = []
+    previous_was_separator = False
+    for character in value.strip().lower():
+        if character.isalnum():
+            normalized.append(character)
+            previous_was_separator = False
+        elif not previous_was_separator:
+            normalized.append("_")
+            previous_was_separator = True
+    return "".join(normalized).strip("_")
+
+
+def _portfolio_summary_lines(
+    recommendations: tuple[RecommendationReport, ...],
+    allocation_plan: CapitalAllocationPlan,
+) -> tuple[str, ...]:
+    approved_reports = tuple(
+        report
+        for report in allocation_plan.reports
+        if report.target_weight > Decimal("0")
+    )
+    highest_conviction = min(
+        recommendations,
+        key=lambda recommendation: (
+            -recommendation.score,
+            recommendation.symbol,
+        ),
+        default=None,
+    )
+    largest_position = min(
+        approved_reports,
+        key=lambda report: (
+            -report.target_weight,
+            report.symbol,
+        ),
+        default=None,
+    )
+
+    highest_conviction_symbol = (
+        highest_conviction.symbol
+        if highest_conviction is not None and approved_reports
+        else "NONE"
+    )
+    largest_position_text = "NONE"
+    if largest_position is not None:
+        largest_position_text = (
+            f"{largest_position.symbol} "
+            f"{_weight_percent(largest_position.target_weight)}"
+        )
+
+    return (
+        f"Approved Deployments : {len(approved_reports)}",
+        f"Approved Capital     : {allocation_plan.total_allocated_amount}",
+        f"Cash Remaining       : {allocation_plan.remaining_cash}",
+        f"Highest Conviction   : {highest_conviction_symbol}",
+        f"Largest Position     : {largest_position_text}",
+    )
+
+
+def _weight_percent(value: Decimal) -> str:
+    return f"{(value * Decimal('100')).quantize(Decimal('0.01'))}%"
+
+
+def _optional_decimal_text(value: Decimal | None) -> str:
+    if value is None:
+        return "unavailable"
+    return str(value)
+
+
+@dataclass(frozen=True, slots=True)
+class _AnalysisIntelligenceInputProvider:
+    analysis: pd.DataFrame
+    builder: IntelligenceInputBuilder
+
+    def build(self, *, observed_on: date) -> IntelligenceInputSet:
+        return self.builder.build(observed_on=observed_on, analysis=self.analysis)
+
+
+__all__ = [
+    "IntelligenceApplicationService",
+    "IntelligenceInputProvider",
+    "IntelligenceRun",
+    "_recommendation_detail_lines",
+]

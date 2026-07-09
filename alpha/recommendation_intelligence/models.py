@@ -16,6 +16,7 @@ _TWO_PLACES = Decimal("0.01")
 
 class RecommendationAction(StrEnum):
     BUY = "BUY"
+    SELL = "SELL"
     ACCUMULATE = "ACCUMULATE"
     HOLD = "HOLD"
     REDUCE = "REDUCE"
@@ -28,6 +29,13 @@ class RecommendationDecision(StrEnum):
     WATCHLIST = "WATCHLIST"
     HOLD = "HOLD"
     AVOID = "AVOID"
+    SELL = "SELL"
+
+
+class EvidenceDirection(StrEnum):
+    BULLISH = "BULLISH"
+    BEARISH = "BEARISH"
+    NEUTRAL = "NEUTRAL"
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +111,70 @@ class RecommendationCandidate:
     evidence: tuple[RecommendationEvidence, ...]
     risks: tuple[RecommendationRisk, ...] = ()
     metadata: Mapping[str, str] = field(default_factory=dict)
+    retracement_score: Decimal = Decimal("0.50")
+    trend_structure_score: Decimal | None = None
+    relative_strength_score: Decimal | None = None
+    volume_confirmation_score: Decimal | None = None
+    breakout_setup_score: Decimal | None = None
+    market_regime_score: Decimal | None = None
+    sector_strength_score: Decimal | None = None
+    momentum_confirmation_score: Decimal | None = None
+    price_trend_score: Decimal | None = None
+    price_momentum_score: Decimal | None = None
+    price_breakout_score: Decimal | None = None
+    price_breakdown_score: Decimal | None = None
+    price_structure_score: Decimal | None = None
+    close_location_score: Decimal | None = None
+    volatility_expansion_score: Decimal | None = None
+    volume_expansion_score: Decimal | None = None
+    volume_dry_up_score: Decimal | None = None
+    accumulation_score: Decimal | None = None
+    distribution_score: Decimal | None = None
+    breakout_volume_confirmation: Decimal | None = None
+    selloff_volume_penalty: Decimal | None = None
+    dma_200: Decimal | None = None
+    ema_20: Decimal | None = None
+    ema_50: Decimal | None = None
+    ema_200: Decimal | None = None
+    benchmark_relative_strength: Decimal | None = None
+    historical_win_rate: Decimal | None = None
+    historical_average_gain: Decimal | None = None
+    historical_average_loss: Decimal | None = None
+    historical_expected_value: Decimal | None = None
+    historical_average_hold_days: Decimal | None = None
+    setup_type: str | None = None
+    higher_highs_higher_lows: bool = False
+    lower_highs_lower_lows: bool = False
+    breakout_attempt: bool = False
+    breakdown_attempt: bool = False
+    market_regime: str = "SIDEWAYS"
+    open_price: Decimal | None = None
+    high_price: Decimal | None = None
+    low_price: Decimal | None = None
+    previous_close: Decimal | None = None
+    previous_open_price: Decimal | None = None
+    previous_high_price: Decimal | None = None
+    previous_low_price: Decimal | None = None
+    two_day_prior_open_price: Decimal | None = None
+    two_day_prior_high_price: Decimal | None = None
+    two_day_prior_low_price: Decimal | None = None
+    two_day_prior_close: Decimal | None = None
+    current_price: Decimal | None = None
+    support_level: Decimal | None = None
+    resistance_level: Decimal | None = None
+    recent_high: Decimal | None = None
+    prior_day_high: Decimal | None = None
+    reversal_candle_high: Decimal | None = None
+    retracement_low: Decimal | None = None
+    dma_20: Decimal | None = None
+    dma_50: Decimal | None = None
+    atr: Decimal | None = None
+    swing_high: Decimal | None = None
+    swing_low: Decimal | None = None
+    fibonacci_382: Decimal | None = None
+    fibonacci_500: Decimal | None = None
+    fibonacci_618: Decimal | None = None
+    fibonacci_786: Decimal | None = None
 
     def __post_init__(self) -> None:
         symbol = self.symbol.strip().upper()
@@ -158,6 +230,154 @@ class RecommendationCandidate:
             _as_decimal(self.expected_holding_period_days),
         )
         object.__setattr__(self, "metadata", metadata)
+        object.__setattr__(
+            self,
+            "retracement_score",
+            _bounded_ratio(self.retracement_score, "retracement_score"),
+        )
+        object.__setattr__(
+            self,
+            "trend_structure_score",
+            _optional_bounded_ratio(
+                self.trend_structure_score,
+                "trend_structure_score",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "relative_strength_score",
+            _optional_bounded_ratio(
+                self.relative_strength_score,
+                "relative_strength_score",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "volume_confirmation_score",
+            _optional_bounded_ratio(
+                self.volume_confirmation_score,
+                "volume_confirmation_score",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "breakout_setup_score",
+            _optional_bounded_ratio(
+                self.breakout_setup_score,
+                "breakout_setup_score",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "market_regime_score",
+            _optional_bounded_ratio(
+                self.market_regime_score,
+                "market_regime_score",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "sector_strength_score",
+            _optional_bounded_ratio(
+                self.sector_strength_score,
+                "sector_strength_score",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "momentum_confirmation_score",
+            _optional_bounded_ratio(
+                self.momentum_confirmation_score,
+                "momentum_confirmation_score",
+            ),
+        )
+        for field_name in (
+            "price_trend_score",
+            "price_momentum_score",
+            "price_breakout_score",
+            "price_breakdown_score",
+            "price_structure_score",
+            "close_location_score",
+            "volatility_expansion_score",
+            "volume_expansion_score",
+            "volume_dry_up_score",
+            "accumulation_score",
+            "distribution_score",
+            "breakout_volume_confirmation",
+            "selloff_volume_penalty",
+        ):
+            object.__setattr__(
+                self,
+                field_name,
+                _optional_bounded_ratio(
+                    getattr(self, field_name),
+                    field_name,
+                ),
+            )
+        object.__setattr__(
+            self,
+            "benchmark_relative_strength",
+            _optional_bounded_ratio(
+                self.benchmark_relative_strength,
+                "benchmark_relative_strength",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "historical_win_rate",
+            _optional_bounded_ratio(
+                self.historical_win_rate,
+                "historical_win_rate",
+            ),
+        )
+        object.__setattr__(self, "market_regime", self.market_regime.strip().upper())
+        object.__setattr__(
+            self,
+            "setup_type",
+            self.setup_type.strip().upper() if self.setup_type else None,
+        )
+        for field_name in (
+            "open_price",
+            "high_price",
+            "low_price",
+            "previous_close",
+            "previous_open_price",
+            "previous_high_price",
+            "previous_low_price",
+            "two_day_prior_open_price",
+            "two_day_prior_high_price",
+            "two_day_prior_low_price",
+            "two_day_prior_close",
+            "current_price",
+            "support_level",
+            "resistance_level",
+            "recent_high",
+            "prior_day_high",
+            "reversal_candle_high",
+            "retracement_low",
+            "dma_20",
+            "dma_50",
+            "dma_200",
+            "ema_20",
+            "ema_50",
+            "ema_200",
+            "atr",
+            "swing_high",
+            "swing_low",
+            "fibonacci_382",
+            "fibonacci_500",
+            "fibonacci_618",
+            "fibonacci_786",
+            "historical_average_gain",
+            "historical_average_loss",
+            "historical_expected_value",
+            "historical_average_hold_days",
+        ):
+            object.__setattr__(
+                self,
+                field_name,
+                _optional_decimal(getattr(self, field_name)),
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,6 +389,19 @@ class RecommendationScoreBreakdown:
     risk_points: Decimal
     portfolio_adjustment_points: Decimal
     opportunity_cost_points: Decimal
+    retracement_points: Decimal = Decimal("0")
+    trend_structure_points: Decimal = Decimal("0")
+    relative_strength_points: Decimal = Decimal("0")
+    volume_confirmation_points: Decimal = Decimal("0")
+    breakout_setup_points: Decimal = Decimal("0")
+    market_regime_points: Decimal = Decimal("0")
+    sector_strength_points: Decimal = Decimal("0")
+    candle_pattern_points: Decimal = Decimal("0")
+    candle_weight: Decimal = Decimal("0")
+    retracement_weight: Decimal = Decimal("0")
+    evidence_points: Decimal = Decimal("0")
+    conflict_penalty_points: Decimal = Decimal("0")
+    regime_adjustment_points: Decimal = Decimal("0")
 
     @property
     def gross_points(self) -> Decimal:
@@ -183,9 +416,20 @@ class RecommendationScoreBreakdown:
     def total_points(self) -> Decimal:
         return _quantize(
             self.gross_points
+            + self.retracement_points
+            + self.trend_structure_points
+            + self.relative_strength_points
+            + self.volume_confirmation_points
+            + self.breakout_setup_points
+            + self.candle_pattern_points
+            + self.market_regime_points
+            + self.sector_strength_points
+            + self.evidence_points
+            + self.regime_adjustment_points
             + self.risk_points
             + self.portfolio_adjustment_points
             + self.opportunity_cost_points
+            - self.conflict_penalty_points
         )
 
 
@@ -352,6 +596,475 @@ class AllocationAdjustment:
 
 
 @dataclass(frozen=True, slots=True)
+class PriceEvidence:
+    trend_state: str
+    structure_state: str
+    breakout_state: str
+    retracement_state: str
+    support_resistance_state: str
+    close_strength: Decimal
+    volatility_state: str
+    price_score: Decimal
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "trend_state",
+            "structure_state",
+            "breakout_state",
+            "retracement_state",
+            "support_resistance_state",
+            "volatility_state",
+        ):
+            value = getattr(self, field_name).strip().upper()
+            if not value:
+                raise ValueError(f"{field_name} cannot be empty")
+            object.__setattr__(self, field_name, value)
+        object.__setattr__(
+            self,
+            "close_strength",
+            _bounded_ratio(self.close_strength, "close_strength"),
+        )
+        object.__setattr__(
+            self,
+            "price_score",
+            _bounded_ratio(self.price_score, "price_score"),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class VolumeEvidence:
+    volume_vs_average: Decimal
+    volume_expansion_score: Decimal
+    volume_dry_up_score: Decimal
+    accumulation_score: Decimal
+    distribution_score: Decimal
+    breakout_volume_confirmation: Decimal
+    selloff_volume_penalty: Decimal
+    volume_score: Decimal
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "volume_vs_average",
+            _as_decimal(self.volume_vs_average),
+        )
+        for field_name in (
+            "volume_expansion_score",
+            "volume_dry_up_score",
+            "accumulation_score",
+            "distribution_score",
+            "breakout_volume_confirmation",
+            "selloff_volume_penalty",
+            "volume_score",
+        ):
+            object.__setattr__(
+                self,
+                field_name,
+                _bounded_ratio(getattr(self, field_name), field_name),
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class PriceVolumeAssessment:
+    price_evidence: PriceEvidence
+    volume_evidence: VolumeEvidence
+    supports_buy: bool
+    supports_sell: bool
+    override_reasons: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        reasons = tuple(reason.strip() for reason in self.override_reasons)
+        if any(not reason for reason in reasons):
+            raise ValueError("price-volume override reasons cannot be empty")
+        object.__setattr__(self, "override_reasons", reasons)
+
+
+@dataclass(frozen=True, slots=True)
+class CandlePatternAssessment:
+    pattern: str
+    score: Decimal
+    weight: Decimal
+    confirmation: str
+    entry_trigger: Decimal | None
+    stop_level: Decimal | None
+    invalidation_level: Decimal | None
+    explanation: str
+    volume_confirmed: bool
+
+    def __post_init__(self) -> None:
+        pattern = self.pattern.strip().upper()
+        confirmation = self.confirmation.strip().upper()
+        explanation = self.explanation.strip()
+        if not pattern:
+            raise ValueError("candle pattern cannot be empty")
+        if not confirmation:
+            raise ValueError("candle confirmation cannot be empty")
+        if not explanation:
+            raise ValueError("candle explanation cannot be empty")
+
+        object.__setattr__(self, "pattern", pattern)
+        object.__setattr__(
+            self,
+            "score",
+            _bounded_ratio(self.score, "candle score"),
+        )
+        object.__setattr__(
+            self,
+            "weight",
+            _bounded_ratio(self.weight, "candle weight"),
+        )
+        object.__setattr__(self, "confirmation", confirmation)
+        object.__setattr__(
+            self,
+            "entry_trigger",
+            _optional_decimal(self.entry_trigger),
+        )
+        object.__setattr__(self, "stop_level", _optional_decimal(self.stop_level))
+        object.__setattr__(
+            self,
+            "invalidation_level",
+            _optional_decimal(self.invalidation_level),
+        )
+        object.__setattr__(self, "explanation", explanation)
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceSignal:
+    label: str
+    direction: EvidenceDirection
+    score: Decimal
+    weight: Decimal
+    points: Decimal
+    rationale: str
+
+    def __post_init__(self) -> None:
+        label = self.label.strip()
+        rationale = self.rationale.strip()
+        score = _bounded_ratio(self.score, "evidence score")
+        weight = _bounded_ratio(self.weight, "evidence weight")
+        points = _as_decimal(self.points)
+
+        if not label:
+            raise ValueError("evidence signal label cannot be empty")
+        if not rationale:
+            raise ValueError("evidence signal rationale cannot be empty")
+
+        object.__setattr__(self, "label", label)
+        object.__setattr__(self, "score", score)
+        object.__setattr__(self, "weight", weight)
+        object.__setattr__(self, "points", points)
+        object.__setattr__(self, "rationale", rationale)
+
+
+@dataclass(frozen=True, slots=True)
+class SetupQualityAssessment:
+    setup_type: str
+    score: Decimal
+    classification: str
+    rationale: str
+
+    def __post_init__(self) -> None:
+        setup_type = self.setup_type.strip().upper()
+        classification = self.classification.strip().upper()
+        rationale = self.rationale.strip()
+
+        if not setup_type:
+            raise ValueError("setup type cannot be empty")
+        if not classification:
+            raise ValueError("setup classification cannot be empty")
+        if not rationale:
+            raise ValueError("setup rationale cannot be empty")
+
+        object.__setattr__(self, "setup_type", setup_type)
+        object.__setattr__(
+            self,
+            "score",
+            _bounded_ratio(self.score, "setup score"),
+        )
+        object.__setattr__(self, "classification", classification)
+        object.__setattr__(self, "rationale", rationale)
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalExpectancy:
+    win_rate: Decimal | None = None
+    average_gain: Decimal | None = None
+    average_loss: Decimal | None = None
+    expected_value: Decimal | None = None
+    average_hold_period_days: Decimal | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "win_rate",
+            _optional_bounded_ratio(self.win_rate, "historical win rate"),
+        )
+        for field_name in (
+            "average_gain",
+            "average_loss",
+            "expected_value",
+            "average_hold_period_days",
+        ):
+            object.__setattr__(
+                self,
+                field_name,
+                _optional_decimal(getattr(self, field_name)),
+            )
+
+    @property
+    def is_available(self) -> bool:
+        return any(
+            value is not None
+            for value in (
+                self.win_rate,
+                self.average_gain,
+                self.average_loss,
+                self.expected_value,
+                self.average_hold_period_days,
+            )
+        )
+
+    @property
+    def status(self) -> str:
+        if self.is_available:
+            return "available"
+        return "unavailable"
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceAssessment:
+    signals: tuple[EvidenceSignal, ...]
+    score: Decimal
+    confidence_score: Decimal
+    conflict_penalty_points: Decimal
+    regime_adjustment_points: Decimal
+    regime_reason: str
+    setup_quality: SetupQualityAssessment
+    historical_expectancy: HistoricalExpectancy
+    price_volume: PriceVolumeAssessment
+    candle_pattern: CandlePatternAssessment
+
+    def __post_init__(self) -> None:
+        if len(self.signals) == 0:
+            raise ValueError("evidence assessment requires at least one signal")
+        regime_reason = self.regime_reason.strip()
+        if not regime_reason:
+            raise ValueError("regime reason cannot be empty")
+
+        object.__setattr__(
+            self,
+            "score",
+            _bounded_points(self.score, "evidence score"),
+        )
+        object.__setattr__(
+            self,
+            "confidence_score",
+            _bounded_ratio(self.confidence_score, "confidence score"),
+        )
+        object.__setattr__(
+            self,
+            "conflict_penalty_points",
+            _as_decimal(self.conflict_penalty_points),
+        )
+        object.__setattr__(
+            self,
+            "regime_adjustment_points",
+            _as_decimal(self.regime_adjustment_points),
+        )
+        object.__setattr__(self, "regime_reason", regime_reason)
+
+    @property
+    def bullish_signals(self) -> tuple[EvidenceSignal, ...]:
+        return tuple(
+            signal
+            for signal in self.signals
+            if signal.direction is EvidenceDirection.BULLISH
+        )
+
+    @property
+    def bearish_signals(self) -> tuple[EvidenceSignal, ...]:
+        return tuple(
+            signal
+            for signal in self.signals
+            if signal.direction is EvidenceDirection.BEARISH
+        )
+
+    @property
+    def top_contributors(self) -> tuple[EvidenceSignal, ...]:
+        return tuple(
+            sorted(
+                self.signals,
+                key=lambda signal: (
+                    -abs(signal.points),
+                    signal.label,
+                ),
+            )[:3]
+        )
+
+    @property
+    def price_evidence(self) -> PriceEvidence:
+        return self.price_volume.price_evidence
+
+    @property
+    def volume_evidence(self) -> VolumeEvidence:
+        return self.price_volume.volume_evidence
+
+
+@dataclass(frozen=True, slots=True)
+class RecommendationTradePlan:
+    final_signal: str
+    final_score: Decimal
+    confidence: str
+    entry_price: Decimal
+    entry_zone_low: Decimal
+    entry_zone_high: Decimal
+    initial_stop_loss: Decimal
+    trailing_stop_strategy: str
+    target_1: Decimal
+    target_2: Decimal
+    target_3: Decimal
+    risk_reward_ratio: Decimal
+    invalidation_level: Decimal
+    invalidation_reason: str
+    retracement_score: Decimal
+    retracement_weight: Decimal
+    retracement_zone: str
+    nearest_fibonacci_level: Decimal
+    swing_high: Decimal
+    swing_low: Decimal
+    support_level_used: Decimal
+    atr_value: Decimal | None
+    dma_20_invalidation: Decimal | None
+    candle_pattern: str
+    candle_score: Decimal
+    candle_weight: Decimal
+    candle_confirmation: str
+    candle_entry_trigger: Decimal | None
+    candle_stop_level: Decimal | None
+    candle_invalidation_level: Decimal | None
+    candle_explanation: str
+    trade_plan_explanation: str
+
+    def __post_init__(self) -> None:
+        final_signal = self.final_signal.strip().upper()
+        confidence = self.confidence.strip().upper()
+        invalidation_reason = self.invalidation_reason.strip()
+        retracement_zone = self.retracement_zone.strip()
+        trailing_stop_strategy = self.trailing_stop_strategy.strip()
+        trade_plan_explanation = self.trade_plan_explanation.strip()
+
+        if not final_signal:
+            raise ValueError("final signal cannot be empty")
+        if not confidence:
+            raise ValueError("confidence cannot be empty")
+        if not invalidation_reason:
+            raise ValueError("invalidation reason cannot be empty")
+        if not retracement_zone:
+            raise ValueError("retracement zone cannot be empty")
+        if not trailing_stop_strategy:
+            raise ValueError("trailing stop strategy cannot be empty")
+        if not trade_plan_explanation:
+            raise ValueError("trade plan explanation cannot be empty")
+
+        object.__setattr__(self, "final_signal", final_signal)
+        object.__setattr__(
+            self,
+            "final_score",
+            _bounded_points(self.final_score, "final_score"),
+        )
+        object.__setattr__(self, "confidence", confidence)
+        object.__setattr__(self, "entry_price", _as_decimal(self.entry_price))
+        object.__setattr__(self, "entry_zone_low", _as_decimal(self.entry_zone_low))
+        object.__setattr__(self, "entry_zone_high", _as_decimal(self.entry_zone_high))
+        object.__setattr__(
+            self,
+            "initial_stop_loss",
+            _as_decimal(self.initial_stop_loss),
+        )
+        object.__setattr__(self, "target_1", _as_decimal(self.target_1))
+        object.__setattr__(self, "target_2", _as_decimal(self.target_2))
+        object.__setattr__(self, "target_3", _as_decimal(self.target_3))
+        object.__setattr__(
+            self,
+            "risk_reward_ratio",
+            _as_decimal(self.risk_reward_ratio),
+        )
+        object.__setattr__(
+            self,
+            "invalidation_level",
+            _as_decimal(self.invalidation_level),
+        )
+        object.__setattr__(
+            self,
+            "retracement_score",
+            _bounded_ratio(self.retracement_score, "retracement_score"),
+        )
+        object.__setattr__(
+            self,
+            "retracement_weight",
+            _bounded_ratio(self.retracement_weight, "retracement_weight"),
+        )
+        object.__setattr__(
+            self,
+            "nearest_fibonacci_level",
+            _as_decimal(self.nearest_fibonacci_level),
+        )
+        object.__setattr__(self, "swing_high", _as_decimal(self.swing_high))
+        object.__setattr__(self, "swing_low", _as_decimal(self.swing_low))
+        object.__setattr__(
+            self,
+            "support_level_used",
+            _as_decimal(self.support_level_used),
+        )
+        object.__setattr__(self, "atr_value", _optional_decimal(self.atr_value))
+        object.__setattr__(
+            self,
+            "dma_20_invalidation",
+            _optional_decimal(self.dma_20_invalidation),
+        )
+        object.__setattr__(self, "candle_pattern", self.candle_pattern.strip().upper())
+        object.__setattr__(
+            self,
+            "candle_score",
+            _bounded_ratio(self.candle_score, "candle_score"),
+        )
+        object.__setattr__(
+            self,
+            "candle_weight",
+            _bounded_ratio(self.candle_weight, "candle_weight"),
+        )
+        object.__setattr__(
+            self,
+            "candle_confirmation",
+            self.candle_confirmation.strip().upper(),
+        )
+        object.__setattr__(
+            self,
+            "candle_entry_trigger",
+            _optional_decimal(self.candle_entry_trigger),
+        )
+        object.__setattr__(
+            self,
+            "candle_stop_level",
+            _optional_decimal(self.candle_stop_level),
+        )
+        object.__setattr__(
+            self,
+            "candle_invalidation_level",
+            _optional_decimal(self.candle_invalidation_level),
+        )
+        object.__setattr__(
+            self,
+            "candle_explanation",
+            self.candle_explanation.strip(),
+        )
+        object.__setattr__(self, "invalidation_reason", invalidation_reason)
+        object.__setattr__(self, "retracement_zone", retracement_zone)
+        object.__setattr__(self, "trailing_stop_strategy", trailing_stop_strategy)
+        object.__setattr__(self, "trade_plan_explanation", trade_plan_explanation)
+
+
+@dataclass(frozen=True, slots=True)
 class PortfolioContext:
     existing_symbols: tuple[str, ...] = ()
     sector_exposure: Mapping[str, Decimal] = field(default_factory=dict)
@@ -417,6 +1130,8 @@ class RecommendationReport:
     supporting_evidence: tuple[RecommendationEvidence, ...]
     opposing_evidence: tuple[RecommendationRisk, ...]
     explanation: tuple[str, ...]
+    trade_plan: RecommendationTradePlan
+    evidence_assessment: EvidenceAssessment
     metadata: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -433,6 +1148,158 @@ class RecommendationReport:
         object.__setattr__(self, "score", _bounded_points(self.score, "score"))
         object.__setattr__(self, "explanation", explanation)
         object.__setattr__(self, "metadata", metadata)
+
+    @property
+    def final_signal(self) -> str:
+        return self.trade_plan.final_signal
+
+    @property
+    def final_score(self) -> Decimal:
+        return self.trade_plan.final_score
+
+    @property
+    def confidence(self) -> str:
+        return self.trade_plan.confidence
+
+    @property
+    def confidence_score(self) -> Decimal:
+        return self.evidence_assessment.confidence_score
+
+    @property
+    def evidence_score(self) -> Decimal:
+        return self.evidence_assessment.score
+
+    @property
+    def setup_quality(self) -> SetupQualityAssessment:
+        return self.evidence_assessment.setup_quality
+
+    @property
+    def historical_expectancy(self) -> HistoricalExpectancy:
+        return self.evidence_assessment.historical_expectancy
+
+    @property
+    def bullish_evidence(self) -> tuple[EvidenceSignal, ...]:
+        return self.evidence_assessment.bullish_signals
+
+    @property
+    def bearish_evidence(self) -> tuple[EvidenceSignal, ...]:
+        return self.evidence_assessment.bearish_signals
+
+    @property
+    def price_evidence(self) -> PriceEvidence:
+        return self.evidence_assessment.price_evidence
+
+    @property
+    def volume_evidence(self) -> VolumeEvidence:
+        return self.evidence_assessment.volume_evidence
+
+    @property
+    def candle_pattern(self) -> str:
+        return self.trade_plan.candle_pattern
+
+    @property
+    def candle_score(self) -> Decimal:
+        return self.trade_plan.candle_score
+
+    @property
+    def candle_weight(self) -> Decimal:
+        return self.trade_plan.candle_weight
+
+    @property
+    def candle_confirmation(self) -> str:
+        return self.trade_plan.candle_confirmation
+
+    @property
+    def candle_entry_trigger(self) -> Decimal | None:
+        return self.trade_plan.candle_entry_trigger
+
+    @property
+    def candle_stop_level(self) -> Decimal | None:
+        return self.trade_plan.candle_stop_level
+
+    @property
+    def candle_invalidation_level(self) -> Decimal | None:
+        return self.trade_plan.candle_invalidation_level
+
+    @property
+    def candle_explanation(self) -> str:
+        return self.trade_plan.candle_explanation
+
+    @property
+    def entry_price(self) -> Decimal:
+        return self.trade_plan.entry_price
+
+    @property
+    def entry_zone_low(self) -> Decimal:
+        return self.trade_plan.entry_zone_low
+
+    @property
+    def entry_zone_high(self) -> Decimal:
+        return self.trade_plan.entry_zone_high
+
+    @property
+    def initial_stop_loss(self) -> Decimal:
+        return self.trade_plan.initial_stop_loss
+
+    @property
+    def trailing_stop_strategy(self) -> str:
+        return self.trade_plan.trailing_stop_strategy
+
+    @property
+    def target_1(self) -> Decimal:
+        return self.trade_plan.target_1
+
+    @property
+    def target_2(self) -> Decimal:
+        return self.trade_plan.target_2
+
+    @property
+    def target_3(self) -> Decimal:
+        return self.trade_plan.target_3
+
+    @property
+    def risk_reward_ratio(self) -> Decimal:
+        return self.trade_plan.risk_reward_ratio
+
+    @property
+    def invalidation_level(self) -> Decimal:
+        return self.trade_plan.invalidation_level
+
+    @property
+    def invalidation_reason(self) -> str:
+        return self.trade_plan.invalidation_reason
+
+    @property
+    def retracement_score(self) -> Decimal:
+        return self.trade_plan.retracement_score
+
+    @property
+    def retracement_weight(self) -> Decimal:
+        return self.trade_plan.retracement_weight
+
+    @property
+    def retracement_zone(self) -> str:
+        return self.trade_plan.retracement_zone
+
+    @property
+    def nearest_fibonacci_level(self) -> Decimal:
+        return self.trade_plan.nearest_fibonacci_level
+
+    @property
+    def swing_high(self) -> Decimal:
+        return self.trade_plan.swing_high
+
+    @property
+    def swing_low(self) -> Decimal:
+        return self.trade_plan.swing_low
+
+    @property
+    def support_level_used(self) -> Decimal:
+        return self.trade_plan.support_level_used
+
+    @property
+    def trade_plan_explanation(self) -> str:
+        return self.trade_plan.trade_plan_explanation
 
 
 def _normalize_metadata(metadata: Mapping[str, str]) -> Mapping[str, str]:
@@ -453,6 +1320,18 @@ def _bounded_ratio(value: Decimal, field_name: str) -> Decimal:
     if score < _ZERO or score > _ONE:
         raise ValueError(f"{field_name} must be between 0 and 1")
     return _quantize(score)
+
+
+def _optional_bounded_ratio(value: Decimal | None, field_name: str) -> Decimal | None:
+    if value is None:
+        return None
+    return _bounded_ratio(value, field_name)
+
+
+def _optional_decimal(value: Decimal | None) -> Decimal | None:
+    if value is None:
+        return None
+    return _as_decimal(value)
 
 
 def _bounded_points(value: Decimal, field_name: str) -> Decimal:
