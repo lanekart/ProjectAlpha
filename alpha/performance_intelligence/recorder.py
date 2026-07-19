@@ -3,11 +3,14 @@ from __future__ import annotations
 from datetime import UTC, datetime, time
 from decimal import Decimal
 from hashlib import sha256
+from typing import TYPE_CHECKING
 
-from alpha.application.runtime_models import RuntimeResult
 from alpha.performance_intelligence.ledger import RecommendationLedgerRepository
 from alpha.performance_intelligence.models import RecommendationLedgerEntry
 from alpha.recommendation_intelligence.models import RecommendationReport
+
+if TYPE_CHECKING:
+    from alpha.application.runtime_models import RuntimeResult
 
 
 class RecommendationPerformanceRecorder:
@@ -23,12 +26,17 @@ class RecommendationPerformanceRecorder:
             time.min,
             tzinfo=UTC,
         )
+        allocation_by_symbol = {
+            report.symbol: report
+            for report in runtime_result.intelligence_run.allocation_plan.reports
+        }
         entries = tuple(
             recommendation_to_ledger_entry(
                 recommendation=recommendation,
                 generated_at=generated_at,
                 source_run_id=run_id,
                 market_regime=runtime_result.intelligence_run.market_report.bias.value,
+                allocation_report=allocation_by_symbol.get(recommendation.symbol),
             )
             for recommendation in runtime_result.intelligence_run.recommendations
         )
@@ -54,6 +62,7 @@ def recommendation_to_ledger_entry(
     generated_at: datetime,
     source_run_id: str,
     market_regime: str | None,
+    allocation_report: object | None = None,
 ) -> RecommendationLedgerEntry:
     recommendation_id = _recommendation_id(
         source_run_id=source_run_id,
@@ -65,6 +74,9 @@ def recommendation_to_ledger_entry(
         None,
     )
     edge_stats = strategy.edge_stats if strategy is not None else None
+    approved_deployment = _allocation_amount(allocation_report)
+    entry_price = recommendation.entry_price or recommendation.entry_zone_high
+    quantity = _quantity(amount=approved_deployment, price=entry_price)
 
     return RecommendationLedgerEntry(
         recommendation_id=recommendation_id,
@@ -127,6 +139,15 @@ def recommendation_to_ledger_entry(
             "unavailable_reasons": "; ".join(recommendation.unavailable_reasons),
         },
         source_run_id=source_run_id,
+        company_name=recommendation.metadata.get("company_name"),
+        recommended_position_size_rs=approved_deployment,
+        recommended_quantity=quantity,
+        approved_deployment_rs=approved_deployment,
+        candle_pattern=recommendation.candle_pattern,
+        reward_risk=recommendation.risk_reward_ratio,
+        expected_value=edge_stats.expectancy if edge_stats is not None else None,
+        explanation=recommendation.trade_plan_explanation,
+        status="OPEN",
     )
 
 
@@ -146,6 +167,21 @@ def _decimal_text(value: Decimal) -> str:
 
 def _optional_decimal_text(value: Decimal | None) -> str:
     return "unavailable" if value is None else str(value)
+
+
+def _allocation_amount(allocation_report: object | None) -> Decimal | None:
+    if allocation_report is None:
+        return None
+    amount = getattr(allocation_report, "target_amount", None)
+    if amount is None or amount <= Decimal("0"):
+        return None
+    return Decimal(str(amount))
+
+
+def _quantity(*, amount: Decimal | None, price: Decimal | None) -> Decimal | None:
+    if amount is None or price is None or price <= Decimal("0"):
+        return None
+    return (amount / price).quantize(Decimal("0.01"))
 
 
 __all__ = [

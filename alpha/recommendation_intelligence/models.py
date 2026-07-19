@@ -1866,6 +1866,33 @@ class RecommendationReport:
         return self.trade_plan.risk_reward_ratio
 
     @property
+    def current_market_price(self) -> Decimal | None:
+        value = self.metadata.get("current_price") or self.metadata.get("price")
+        if value is None:
+            return None
+        try:
+            return _as_decimal(Decimal(str(value)))
+        except Exception:
+            return None
+
+    @property
+    def current_market_risk_reward_ratio(self) -> Decimal | None:
+        if self.final_signal not in {"BUY", "STRONG_BUY", "WATCHLIST", "HOLD"}:
+            return None
+        current = self.current_market_price
+        stop = self.initial_stop_loss
+        target = self.target_1
+        if current is None or stop is None or target is None:
+            return None
+        if current <= _ZERO or stop >= current or target <= current:
+            return None
+        risk = current - stop
+        reward = target - current
+        if risk <= _ZERO or reward <= _ZERO:
+            return None
+        return (reward / risk).quantize(_FOUR_PLACES, rounding=ROUND_HALF_UP)
+
+    @property
     def invalidation_level(self) -> Decimal | None:
         return self.trade_plan.invalidation_level
 

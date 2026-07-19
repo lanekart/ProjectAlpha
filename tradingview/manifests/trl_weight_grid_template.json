@@ -1,0 +1,20 @@
+{
+  "configuration": null,
+  "maximum_variants": 5000,
+  "partition": "DEVELOPMENT",
+  "production_influence": false,
+  "ranges": [
+    {
+      "component": "price_structure",
+      "maximum": "25",
+      "minimum": "15",
+      "step": "5"
+    },
+    {
+      "component": "volume",
+      "maximum": "22",
+      "minimum": "12",
+      "step": "5"
+    }
+  ]
+}

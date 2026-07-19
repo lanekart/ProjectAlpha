@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package com.upstox.marketdatafeederv3.rpc.proto;
+
+// Source: Upstox Market Data Feed V3 API documentation.
+// URL: https://upstox.com/developer/api-documentation/v3/get-market-data-feed/
+// Retrieved: 2026-07-17.
+// This provider-local schema models the documented V3 fields Alpha currently
+// consumes: market_info, live_feed, currentTs, feeds, ltpc, and marketOHLC.
+
+message LTPC {
+  double ltp = 1;
+  string ltt = 2;
+  string ltq = 3;
+  double cp = 4;
+}
+
+message OHLC {
+  string interval = 1;
+  double open = 2;
+  double high = 3;
+  double low = 4;
+  double close = 5;
+  string ts = 6;
+  int64 vol = 7;
+}
+
+message MarketOHLC {
+  repeated OHLC ohlc = 1;
+}
+
+message FullFeed {
+  LTPC ltpc = 1;
+  MarketOHLC marketOHLC = 2;
+}
+
+message Feed {
+  LTPC ltpc = 1;
+  FullFeed fullFeed = 2;
+}
+
+message MarketInfo {
+  map<string, string> segmentStatus = 1;
+}
+
+message FeedResponse {
+  string type = 1;
+  string currentTs = 2;
+  MarketInfo marketInfo = 3;
+  map<string, Feed> feeds = 4;
+}

@@ -1,0 +1,38 @@
+//@version=6
+library("AlphaVolume", overlay=false)
+
+clamp(float value) => math.max(0.0, math.min(1.0, value))
+safeDivide(float numerator, float denominator, float fallback) => denominator == 0.0 or na(denominator) ? fallback : numerator / denominator
+
+export ratio(float volumeValue, int lookback) =>
+    safeDivide(volumeValue, ta.sma(volumeValue, lookback), 1.0)
+
+export expansionScore(float volumeRatio) =>
+    clamp(volumeRatio / 1.50)
+
+export dryUpScore(float volumeRatio) =>
+    clamp(1.0 - volumeRatio)
+
+export accumulationScore(float closeLocation, float volumeRatio) =>
+    closeLocation >= 0.70 and volumeRatio >= 1.20 ? 0.85 : closeLocation >= 0.55 ? 0.60 : 0.35
+
+export distributionScore(float closeLocation, float volumeRatio) =>
+    closeLocation <= 0.30 and volumeRatio >= 1.20 ? 0.85 : closeLocation <= 0.45 ? 0.55 : 0.25
+
+export breakoutConfirmation(float volumeRatio) =>
+    clamp(volumeRatio / 1.50)
+
+export selloffPenalty(bool breakdown, bool downDay, float volumeRatio) =>
+    breakdown and volumeRatio >= 1.30 ? 0.90 : downDay and volumeRatio >= 1.50 ? 0.75 : 0.20
+
+export score(float closeLocation, float volumeRatio, bool breakout, bool breakdown, bool downDay) =>
+    float expansion = expansionScore(volumeRatio)
+    float dryUp = dryUpScore(volumeRatio)
+    float accumulation = accumulationScore(closeLocation, volumeRatio)
+    float distribution = distributionScore(closeLocation, volumeRatio)
+    float breakoutVolume = breakout ? breakoutConfirmation(volumeRatio) : 0.50
+    float selloff = selloffPenalty(breakdown, downDay, volumeRatio)
+    clamp(expansion * 0.20 + dryUp * 0.12 + accumulation * 0.24 + (1.0 - distribution) * 0.16 + breakoutVolume * 0.20 + (1.0 - selloff) * 0.08)
+
+export state(float scoreValue) =>
+    scoreValue >= 0.70 ? "CONFIRMING" : scoreValue <= 0.35 ? "WARNING" : "NEUTRAL"

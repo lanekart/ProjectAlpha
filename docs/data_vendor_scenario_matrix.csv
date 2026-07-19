@@ -1,0 +1,7 @@
+scenario,published_annual_cost,warehouse_quality,replay_quality,corporate_action_quality,legal_confidence,operational_complexity,decision
+"A. Legacy + broker live","₹0–₹6,000 incremental",2,2,1,1,2,"Cheapest; not institutionally defensible"
+"B. Official NSE only","₹8.15L + tax + backfill quote",5,4,5,4,3,"Strong single-venue core"
+"C. Official NSE + BSE","≥₹8.15L + BSE quote + tax/backfills",5,5,5,4,4,"Best India authority; premature for MVP"
+"D. Official EOD + broker live","₹8.15L + ₹0–₹6,000 + tax/backfill",5,4,5,4,3,"Best value complete baseline"
+"E. Licensed vendor + broker live","Vendor quote + ₹0–₹6,000",4,4,4,4,2,"Potentially cheaper; must prove authority/backfill"
+"F. Premium institutional stack","Entirely quote required",5,5,5,5,5,"Best capability; unjustified before scale"

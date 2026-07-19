@@ -1,0 +1,6 @@
+//@version=6
+strategy("Detached comparison regression")
+aggressiveAccumulationSignal =
+    strategyType == "AGGRESSIVE_ACCUMULATION" and closeStrength
+    >=
+    0.60

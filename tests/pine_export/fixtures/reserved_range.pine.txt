@@ -1,0 +1,5 @@
+//@version=6
+indicator("Reserved range regression")
+range = high - low
+normalized = range == 0.0 ? 0.0 : (close - low) / range
+plot(normalized)

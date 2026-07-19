@@ -136,12 +136,13 @@ def test_daily_run_default_is_concise_and_verbose_shows_details() -> None:
     )
 
     assert concise.exit_code == 0
-    assert "Top Recommendations" in concise.stdout
-    assert "Use --verbose for full strategy options and evidence." in concise.stdout
+    assert "Institutional Opportunities" in concise.stdout
+    assert "Use --verbose for rejected candidates and full evidence." in concise.stdout
     assert "Strategy Scorecard:" not in concise.stdout
     assert verbose.exit_code == 0
     assert "Strategy Scorecard:" in verbose.stdout
     assert "Trade Strategies:" in verbose.stdout
+    assert "Institutional Decision Layer" in verbose.stdout
 
 
 def test_intelligence_summary_prints_none_without_approved_deployments() -> None:

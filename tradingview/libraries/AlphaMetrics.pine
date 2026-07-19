@@ -1,0 +1,17 @@
+//@version=6
+library("AlphaMetrics", overlay=false)
+
+export winRate(int winners, int totalTrades) =>
+    totalTrades == 0 ? na : float(winners) / float(totalTrades) * 100.0
+
+export profitFactor(float grossProfit, float grossLoss) =>
+    grossLoss == 0.0 ? na : grossProfit / math.abs(grossLoss)
+
+export expectancyR(float averageWinnerR, float averageLoserR, float winRateRatio) =>
+    averageWinnerR * winRateRatio + averageLoserR * (1.0 - winRateRatio)
+
+export realizedR(float entry, float stop, float exitPrice) =>
+    entry <= stop ? na : (exitPrice - entry) / (entry - stop)
+
+export metricAvailability() =>
+    "Strategy Tester owns fill and account metrics; cross-sectional attribution is unavailable."

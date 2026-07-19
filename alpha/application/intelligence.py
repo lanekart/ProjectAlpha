@@ -17,6 +17,7 @@ from alpha.explainability import (
     ExplainabilityReport,
     IntelligenceExplainabilityEngine,
 )
+from alpha.learning_intelligence import concise_adaptive_line
 from alpha.market_intelligence import (
     IntelligenceBias,
     MarketIntelligenceCompositeEngine,
@@ -33,6 +34,7 @@ from alpha.recommendation_intelligence import (
     EdgeConfidence,
     EntryTriggerStyle,
     EntryZoneBasis,
+    RecommendationCandidate,
     RecommendationEngine,
     RecommendationReport,
     StrategyEdgeStats,
@@ -58,6 +60,7 @@ class IntelligenceRun:
     allocation_plan: CapitalAllocationPlan
     summary_lines: tuple[str, ...]
     explainability_report: ExplainabilityReport
+    raw_candidates: tuple[RecommendationCandidate, ...] = ()
 
     def as_dict(self) -> dict[str, object]:
         """Return a deterministic machine-readable intelligence payload."""
@@ -215,6 +218,7 @@ class IntelligenceApplicationService:
                 allocation_plan=allocation_plan,
             ),
             explainability_report=explainability_report,
+            raw_candidates=inputs.recommendation_candidates,
         )
 
     def _summary_lines(
@@ -493,6 +497,14 @@ def _recommendation_detail_lines(
         f"   - Actionable Strategy: {_actionable_strategy_text(recommendation)}",
         f"   - Entry: {_action_now_entry_text(recommendation)}",
         f"   - Risk Stop: {_action_now_stop_text(recommendation)}",
+        (
+            "   - Current Market Price: "
+            f"{_money_text(recommendation.current_market_price)}"
+        ),
+        (
+            "   - Current Market R/R to Target 1: "
+            f"{_reward_risk_text(recommendation.current_market_risk_reward_ratio)}"
+        ),
     ]
     reentry_watch = _reentry_watch_level(recommendation)
     if reentry_watch is not None:
@@ -527,8 +539,15 @@ def _recommendation_detail_lines(
             f"   - Candle: {_candle_sentence(recommendation)}",
             "   - Relative Volume: "
             f"{_relative_volume_text(recommendation.relative_volume)}",
+            _adaptive_learning_line(recommendation),
         )
     )
+    lines.extend(("", "   Why It May Work:"))
+    lines.extend(
+        f"   - {reason}" for reason in _supporting_trade_reasons(recommendation)
+    )
+    lines.extend(("", "   Why It May Fail:"))
+    lines.extend(f"   - {reason}" for reason in _against_trade_reasons(recommendation))
     if unavailable_lines:
         lines.extend(("", "   Data Completion:"))
         lines.extend(unavailable_lines)
@@ -969,6 +988,10 @@ def _trade_plan_lines(recommendation: RecommendationReport) -> list[str]:
         f"   - Target 2: {_money_text(recommendation.target_2)}",
         f"   - Target 3: {_money_text(recommendation.target_3)}",
         f"   - Risk/Reward: {_plain_text(recommendation.risk_reward_ratio)}",
+        (
+            "   - Current Market Risk/Reward: "
+            f"{_reward_risk_text(recommendation.current_market_risk_reward_ratio)}"
+        ),
     ]
 
 
@@ -1207,6 +1230,165 @@ def _candle_sentence(recommendation: RecommendationReport) -> str:
     )
 
 
+def _supporting_trade_reasons(
+    recommendation: RecommendationReport,
+) -> tuple[str, ...]:
+    reasons: list[str] = []
+    price = recommendation.price_evidence
+    volume = recommendation.volume_evidence
+    current = recommendation.current_market_price
+    dma_20 = recommendation.trade_plan.dma_20_invalidation
+    dma_50 = recommendation.dma_50
+    dma_200 = recommendation.dma_200
+    moving_average_reason = _moving_average_reason(
+        current=current,
+        dma_20=dma_20,
+        dma_50=dma_50,
+        dma_200=dma_200,
+    )
+    if moving_average_reason is not None:
+        reasons.append(moving_average_reason)
+    if price.structure_state in {"CONSTRUCTIVE", "HIGHER_HIGH_HIGHER_LOW"}:
+        reasons.append(
+            "Recent price structure is not showing lower-high/lower-low damage; "
+            "buyers are still defending pullbacks."
+        )
+    if recommendation.entry_price is not None and recommendation.setup_entry_ready:
+        reasons.append(
+            f"The entry trigger at {_money_text(recommendation.entry_price)} is "
+            "already confirmed, so Alpha is not asking the user to wait for a "
+            "fresh breakout."
+        )
+    elif recommendation.entry_price is not None:
+        reasons.append(
+            f"The next bullish confirmation level is "
+            f"{_money_text(recommendation.entry_price)}."
+        )
+    if volume.breakout_volume_confirmation >= Decimal("0.60"):
+        reasons.append(
+            "Volume is supporting the setup; relative volume is "
+            f"{_relative_volume_text(recommendation.relative_volume)} versus "
+            "its recent average."
+        )
+    current_rr = recommendation.current_market_risk_reward_ratio
+    if current_rr is not None and current_rr >= Decimal("2"):
+        reasons.append(
+            f"From the current price {_money_text(current)}, Target 1 at "
+            f"{_money_text(recommendation.target_1)} versus stop "
+            f"{_money_text(recommendation.initial_stop_loss)} offers "
+            f"{_reward_risk_text(current_rr)}."
+        )
+    if "CONFIRM" in recommendation.candle_confirmation.upper():
+        reasons.append(
+            f"Candle evidence supports the setup: "
+            f"{_sentence_label(recommendation.candle_pattern)}"
+            f"{_candle_level_suffix(recommendation)}."
+        )
+    if not reasons:
+        reasons.append("No strong bullish technical support is available yet.")
+    return tuple(reasons[:4])
+
+
+def _against_trade_reasons(
+    recommendation: RecommendationReport,
+) -> tuple[str, ...]:
+    reasons: list[str] = []
+    volume = recommendation.volume_evidence
+    if recommendation.final_signal in {"AVOID", "REJECT", "SELL", "STRONG_SELL"}:
+        reasons.append("Alpha does not classify this as an actionable long trade.")
+    if not recommendation.setup_entry_ready:
+        if recommendation.entry_price is not None:
+            reasons.append(
+                f"Entry is not ready; Alpha requires confirmation above "
+                f"{_money_text(recommendation.entry_price)} before a long trade."
+            )
+        else:
+            reasons.append("Entry is not ready; confirmation is still pending.")
+    if volume.breakout_volume_confirmation < Decimal("0.45"):
+        reasons.append(
+            "Volume confirmation is weak; relative volume is "
+            f"{_relative_volume_text(recommendation.relative_volume)}, so the "
+            "move does not yet show strong participation."
+        )
+    if volume.selloff_volume_penalty >= Decimal("0.70"):
+        reasons.append("Heavy selloff volume is present.")
+    current_rr = recommendation.current_market_risk_reward_ratio
+    if (
+        recommendation.final_signal in {"BUY", "STRONG_BUY", "WATCHLIST", "HOLD"}
+        and current_rr is None
+    ):
+        reasons.append(
+            "Current market risk/reward is unavailable or invalid because Alpha "
+            "does not have a complete current price, stop, and Target 1."
+        )
+    elif current_rr is not None and current_rr < Decimal("2"):
+        reasons.append(
+            f"Current market risk/reward is only {_reward_risk_text(current_rr)}, "
+            "below Alpha's preferred 2R threshold."
+        )
+    adaptive = recommendation.metadata.get("adaptive_evidence_strength", "")
+    if adaptive.lower() in {"", "insufficient", "insufficient_sample"}:
+        reasons.append("Adaptive historical evidence is still insufficient.")
+    if recommendation.unavailable_reasons:
+        reasons.append(
+            "Some indicator history is incomplete: "
+            f"{recommendation.unavailable_reasons[0]}."
+        )
+    for risk in recommendation.opposing_evidence[:2]:
+        label = getattr(risk, "label", "Risk")
+        rationale = getattr(risk, "rationale", "")
+        text = f"{label}: {rationale}".strip()
+        if text not in reasons:
+            reasons.append(text)
+    if not reasons:
+        reasons.append(
+            "Primary risk is normal execution risk: gap, slippage, or failed "
+            "follow-through."
+        )
+    return tuple(reasons[:5])
+
+
+def _moving_average_reason(
+    *,
+    current: Decimal | None,
+    dma_20: Decimal | None,
+    dma_50: Decimal | None,
+    dma_200: Decimal | None,
+) -> str | None:
+    if current is None:
+        return None
+    comparisons: list[str] = []
+    if dma_20 is not None:
+        relation = "above" if current >= dma_20 else "below"
+        comparisons.append(f"{relation} 20-DMA {_money_text(dma_20)}")
+    if dma_50 is not None:
+        relation = "above" if current >= dma_50 else "below"
+        comparisons.append(f"{relation} 50-DMA {_money_text(dma_50)}")
+    if dma_200 is not None:
+        relation = "above" if current >= dma_200 else "below"
+        comparisons.append(f"{relation} 200-DMA {_money_text(dma_200)}")
+    if not comparisons:
+        return None
+    return (
+        f"Current market price {_money_text(current)} is "
+        + ", ".join(comparisons)
+        + "."
+    )
+
+
+def _candle_level_suffix(recommendation: RecommendationReport) -> str:
+    parts: list[str] = []
+    if recommendation.candle_entry_trigger is not None:
+        parts.append(
+            f"entry trigger {_money_text(recommendation.candle_entry_trigger)}"
+        )
+    if recommendation.candle_stop_level is not None:
+        parts.append(f"candle stop {_money_text(recommendation.candle_stop_level)}")
+    if not parts:
+        return "."
+    return " using " + " and ".join(parts) + "."
+
+
 def _decision_reason(recommendation: RecommendationReport) -> str:
     holding_period = (
         f" Expected holding period is "
@@ -1421,6 +1603,23 @@ def _relative_volume_text(value: Decimal | None) -> str:
     if value is None:
         return "unavailable"
     return f"{value}x"
+
+
+def _adaptive_learning_line(recommendation: RecommendationReport) -> str:
+    metadata = recommendation.metadata
+    evidence_strength = metadata.get("adaptive_evidence_strength", "insufficient")
+    base_confidence = metadata.get(
+        "adaptive_base_confidence",
+        recommendation.confidence,
+    )
+    adjusted_confidence = metadata.get("adaptive_adjusted_confidence", base_confidence)
+    sample_count = int(metadata.get("adaptive_sample_count", "0"))
+    return concise_adaptive_line(
+        evidence_strength=evidence_strength,
+        adjusted_confidence=adjusted_confidence,
+        base_confidence=base_confidence,
+        sample_count=sample_count,
+    )
 
 
 def _dma_20_invalidation_text(level: Decimal | None) -> str:

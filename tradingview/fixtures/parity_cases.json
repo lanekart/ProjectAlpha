@@ -1,0 +1,168 @@
+{
+  "fixture_version": "1.0",
+  "dataset_semantics": "synthetic unadjusted OHLCV",
+  "cases": [
+    {
+      "id": "rising_trend",
+      "bars": [[100, 103, 99, 102, 1000], [102, 106, 101, 105, 1150], [105, 109, 104, 108, 1300]],
+      "alpha_expected": {"structure_state": "HIGHER_HIGHS_HIGHER_LOWS", "structure_score": 0.9},
+      "pine_expected": {"structure_state": "HIGHER_HIGHS_HIGHER_LOWS", "structure_score": 0.9},
+      "parity_class": "SEMANTICALLY_EQUIVALENT",
+      "tolerance": 0.0001,
+      "reason": "Pine reconstructs structure from chart bars."
+    },
+    {
+      "id": "falling_trend",
+      "bars": [[109, 110, 106, 107, 1000], [107, 108, 103, 104, 1300], [104, 105, 100, 101, 1600]],
+      "alpha_expected": {"structure_state": "LOWER_HIGHS_LOWER_LOWS", "buy_blocked": true},
+      "pine_expected": {"structure_state": "LOWER_HIGHS_LOWER_LOWS", "buy_blocked": true},
+      "parity_class": "SEMANTICALLY_EQUIVALENT",
+      "tolerance": 0.0001,
+      "reason": "Both implementations apply the lower-structure hard block."
+    },
+    {
+      "id": "sideways_range",
+      "bars": [[100, 103, 99, 101, 1000], [101, 103, 99, 100, 980], [100, 102, 99, 101, 970]],
+      "alpha_expected": {"structure_score": 0.5},
+      "pine_expected": {"structure_score": 0.5},
+      "parity_class": "SEMANTICALLY_EQUIVALENT",
+      "tolerance": 0.0001,
+      "reason": "Mixed one-bar structure is neutral."
+    },
+    {
+      "id": "valid_breakout",
+      "bars": [[98, 100, 97, 99, 900], [99, 101, 98, 100, 950], [100, 105, 100, 104, 1600]],
+      "alpha_expected": {"breakout_score": 0.9, "volume_confirmed": true},
+      "pine_expected": {"breakout_score": 0.9, "volume_confirmed": true},
+      "parity_class": "EXACT",
+      "tolerance": 0.01,
+      "reason": "Breakout and 1.5x-volume formulas are directly reproducible."
+    },
+    {
+      "id": "failed_breakout",
+      "bars": [[98, 100, 97, 99, 900], [99, 101, 98, 100, 950], [100, 104, 98, 99, 1400]],
+      "alpha_expected": {"setup": "FAILED BREAKOUT", "actionable_long": false},
+      "pine_expected": {"setup": "FAILED BREAKOUT", "actionable_long": false},
+      "parity_class": "SEMANTICALLY_EQUIVALENT",
+      "tolerance": 0.01,
+      "reason": "Chart resistance replaces Alpha's supplied resistance."
+    },
+    {
+      "id": "ema_pullback",
+      "bars": [[100, 104, 99, 103, 1500], [103, 105, 101, 102, 1000], [102, 104, 101, 103, 800]],
+      "alpha_expected": {"setup": "EMA PULLBACK", "volume_dry_up": true},
+      "pine_expected": {"setup": "EMA PULLBACK", "volume_dry_up": true},
+      "parity_class": "SEMANTICALLY_EQUIVALENT",
+      "tolerance": 0.02,
+      "reason": "Requires warmup history supplied by the verification chart."
+    },
+    {
+      "id": "vcp_contraction",
+      "bars": [[100, 108, 96, 104, 1600], [104, 108, 100, 105, 1200], [105, 108, 103, 106, 700]],
+      "alpha_expected": {"setup": "VOLATILITY CONTRACTION PATTERN"},
+      "pine_expected": {"setup": "VCP"},
+      "parity_class": "SEMANTICALLY_EQUIVALENT",
+      "tolerance": 0.02,
+      "reason": "Names differ; contraction and dry-up semantics are aligned."
+    },
+    {
+      "id": "bull_flag",
+      "bars": [[100, 110, 99, 109, 1700], [109, 110, 105, 107, 1000], [107, 109, 106, 108, 700]],
+      "alpha_expected": {"setup": "BULL FLAG"},
+      "pine_expected": {"setup": "BULL FLAG"},
+      "parity_class": "SEMANTICALLY_EQUIVALENT",
+      "tolerance": 0.02,
+      "reason": "Full trend and retracement warmup is required."
+    },
+    {
+      "id": "flat_base",
+      "bars": [[100, 104, 99, 103, 1000], [103, 104, 100, 102, 850], [102, 104, 101, 103, 700]],
+      "alpha_expected": {"setup": "UNAVAILABLE_WITHOUT_HINT"},
+      "pine_expected": {"setup": "FLAT BASE"},
+      "parity_class": "APPROXIMATED",
+      "tolerance": null,
+      "reason": "Current Alpha accepts a Flat Base hint but does not independently detect it."
+    },
+    {
+      "id": "gap",
+      "bars": [[100, 102, 99, 101, 1000], [108, 111, 107, 110, 1800]],
+      "alpha_expected": {"gap_present": true},
+      "pine_expected": {"gap_present": true},
+      "parity_class": "EXACT",
+      "tolerance": 0.0001,
+      "reason": "Raw bar gap is directly observable."
+    },
+    {
+      "id": "split_like_discontinuity",
+      "bars": [[200, 205, 198, 202, 1000], [101, 103, 99, 102, 2100]],
+      "alpha_expected": {"classification": "WAREHOUSE_DEPENDENT"},
+      "pine_expected": {"classification": "CHART_SETTING_DEPENDENT"},
+      "parity_class": "UNAVAILABLE_IN_TRADINGVIEW",
+      "tolerance": null,
+      "reason": "TradingView adjustment and Alpha corporate-action lineage can differ."
+    },
+    {
+      "id": "volume_breakout",
+      "bars": [[100, 101, 99, 100, 1000], [100, 103, 100, 102, 1600]],
+      "alpha_expected": {"volume_ratio": 1.6, "confirmed": true},
+      "pine_expected": {"volume_ratio": 1.6, "confirmed": true},
+      "parity_class": "EXACT",
+      "tolerance": 0.01,
+      "reason": "Fixture supplies its reference average explicitly during manual verification."
+    },
+    {
+      "id": "low_volume_breakout",
+      "bars": [[100, 101, 99, 100, 1000], [100, 103, 100, 102, 800]],
+      "alpha_expected": {"confirmed": false, "buy_blocked": true},
+      "pine_expected": {"confirmed": false, "buy_blocked": true},
+      "parity_class": "EXACT",
+      "tolerance": 0.01,
+      "reason": "Weak breakout volume is a hard long-entry warning."
+    },
+    {
+      "id": "support_stop",
+      "bars": [[100, 105, 98, 104, 1000], [104, 106, 101, 105, 1100]],
+      "alpha_expected": {"support": 98, "stop_below_support": true},
+      "pine_expected": {"support": 98, "stop_below_support": true},
+      "parity_class": "SEMANTICALLY_EQUIVALENT",
+      "tolerance": 0.01,
+      "reason": "Tick rounding may differ by symbol."
+    },
+    {
+      "id": "atr_stop",
+      "bars": [[100, 104, 98, 102, 1000], [102, 106, 100, 105, 1100]],
+      "alpha_expected": {"atr_method": "SIMPLE_TRUE_RANGE_MEAN", "buffer_multiple": 0.5},
+      "pine_expected": {"atr_method": "SIMPLE_TRUE_RANGE_MEAN", "buffer_multiple": 0.5},
+      "parity_class": "EXACT",
+      "tolerance": 0.0001,
+      "reason": "Pine deliberately avoids Wilder ATR for Alpha parity."
+    },
+    {
+      "id": "same_bar_stop_target",
+      "bars": [[100, 101, 99, 100, 1000], [100, 110, 94, 105, 1500]],
+      "alpha_expected": {"first_event": "STOP", "policy": "STOP_FIRST_CONSERVATIVE"},
+      "pine_expected": {"first_event": "ENGINE_DEPENDENT", "policy_disclosed": "STOP_FIRST_CONSERVATIVE"},
+      "parity_class": "SEMANTICALLY_EQUIVALENT",
+      "tolerance": null,
+      "reason": "TradingView's bar fill engine remains authoritative for Pine results."
+    },
+    {
+      "id": "higher_timeframe_confirmation",
+      "bars": [[100, 103, 99, 102, 1000], [102, 105, 101, 104, 1100]],
+      "alpha_expected": {"source_bar": "LAST_COMPLETED_HIGHER_TIMEFRAME"},
+      "pine_expected": {"source_bar": "LAST_COMPLETED_HIGHER_TIMEFRAME"},
+      "parity_class": "SEMANTICALLY_EQUIVALENT",
+      "tolerance": 0.0001,
+      "reason": "Pine uses the previous completed higher-timeframe expression."
+    },
+    {
+      "id": "incomplete_higher_timeframe_bar",
+      "bars": [[100, 105, 99, 104, 1200]],
+      "alpha_expected": {"entry_uses_incomplete_bar": false},
+      "pine_expected": {"entry_uses_incomplete_bar": false},
+      "parity_class": "EXACT",
+      "tolerance": 0.0001,
+      "reason": "The multi-timeframe strategy blocks unconfirmed higher-timeframe inputs."
+    }
+  ]
+}

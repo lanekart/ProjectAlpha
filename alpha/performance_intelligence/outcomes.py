@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
 from alpha.performance_intelligence.models import (
+    NextDayOutcomeLabel,
     RecommendationExitReason,
     RecommendationLedgerEntry,
     RecommendationOutcome,
@@ -35,6 +37,17 @@ class RecommendationOutcomeEvaluator:
                 key=lambda bar: bar.observed_on,
             )
         )
+        return _with_next_day_snapshot(
+            entry=entry,
+            outcome=self._evaluate_ordered(entry, ordered_bars),
+            ordered_bars=ordered_bars,
+        )
+
+    def _evaluate_ordered(
+        self,
+        entry: RecommendationLedgerEntry,
+        ordered_bars: tuple[OHLCVBar, ...],
+    ) -> RecommendationOutcome:
         if not ordered_bars:
             return RecommendationOutcome(
                 recommendation_id=entry.recommendation_id,
@@ -305,6 +318,96 @@ def _entry_trigger_price(entry: RecommendationLedgerEntry) -> Decimal | None:
     if entry.entry_zone_high is not None:
         return entry.entry_zone_high
     return entry.entry_zone_low
+
+
+def _with_next_day_snapshot(
+    *,
+    entry: RecommendationLedgerEntry,
+    outcome: RecommendationOutcome,
+    ordered_bars: tuple[OHLCVBar, ...],
+) -> RecommendationOutcome:
+    realized_pnl = _pnl_from_return(
+        entry=entry,
+        percent_return=outcome.realized_percent_return,
+    )
+    if not ordered_bars:
+        return replace(outcome, realized_pnl_rs=realized_pnl)
+
+    next_day = ordered_bars[0]
+    trigger_price = _entry_trigger_price(entry)
+    return_from_entry = (
+        None
+        if trigger_price is None
+        else _percent_return(trigger_price, next_day.close_price)
+    )
+    return_from_confirmation = (
+        None
+        if entry.confirmation_entry is None
+        else _percent_return(entry.confirmation_entry, next_day.close_price)
+    )
+    target_touched = (
+        entry.target_1 is not None and next_day.high_price >= entry.target_1
+    )
+    stop_touched = entry.stop_loss is not None and next_day.low_price <= entry.stop_loss
+    close_above_entry = (
+        None if trigger_price is None else next_day.close_price >= trigger_price
+    )
+    label = _next_day_label(
+        trigger_price=trigger_price,
+        bar=next_day,
+        target_touched=target_touched,
+        stop_touched=stop_touched,
+    )
+    return replace(
+        outcome,
+        realized_pnl_rs=realized_pnl,
+        next_day_open=next_day.open_price,
+        next_day_high=next_day.high_price,
+        next_day_low=next_day.low_price,
+        next_day_close=next_day.close_price,
+        next_day_return_from_entry=return_from_entry,
+        next_day_return_from_confirmation_entry=return_from_confirmation,
+        next_day_target_1_touched=target_touched,
+        next_day_stop_touched=stop_touched,
+        next_day_close_above_entry=close_above_entry,
+        next_day_outcome_label=label,
+        next_day_pnl_rs=_pnl_from_return(entry=entry, percent_return=return_from_entry),
+        next_day_pnl_pct=return_from_entry,
+    )
+
+
+def _next_day_label(
+    *,
+    trigger_price: Decimal | None,
+    bar: OHLCVBar,
+    target_touched: bool,
+    stop_touched: bool,
+) -> NextDayOutcomeLabel:
+    if trigger_price is None or bar.high_price < trigger_price:
+        return NextDayOutcomeLabel.OPEN
+    if stop_touched:
+        return NextDayOutcomeLabel.LOSS
+    if target_touched:
+        return NextDayOutcomeLabel.WIN
+    if bar.close_price > trigger_price:
+        return NextDayOutcomeLabel.WIN
+    if bar.close_price < trigger_price:
+        return NextDayOutcomeLabel.LOSS
+    return NextDayOutcomeLabel.NEUTRAL
+
+
+def _pnl_from_return(
+    *,
+    entry: RecommendationLedgerEntry,
+    percent_return: Decimal | None,
+) -> Decimal | None:
+    position_size = entry.recommended_position_size_rs or entry.approved_deployment_rs
+    if position_size is None or percent_return is None:
+        return None
+    return (position_size * percent_return / _ONE_HUNDRED).quantize(
+        _TWO_PLACES,
+        rounding=ROUND_HALF_UP,
+    )
 
 
 def _trailing_stop(

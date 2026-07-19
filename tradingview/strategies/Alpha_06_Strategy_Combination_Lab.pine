@@ -1,0 +1,169 @@
+//@version=6
+strategy("Alpha 06 Strategy Combination Lab v1.0.1", overlay=true, initial_capital=1000000, default_qty_type=strategy.percent_of_equity, default_qty_value=10, commission_type=strategy.commission.percent, commission_value=0.10, slippage=1, pyramiding=0, process_orders_on_close=true)
+
+// ALPHA_DEFAULT_CHART_TIMEFRAME=D
+// ALPHA_DEFAULT_CONFIRMATION_TIMEFRAME=240
+// ALPHA_DEFAULT_SETUP=ANY_SETUP
+// ALPHA_DEFAULT_STOP_MODEL=ATR_BUFFERED_SUPPORT
+// ALPHA_DEFAULT_TARGET_MODEL=PARTIAL_2R_3R_4R
+// ALPHA_DEFAULT_ENTRY_THRESHOLD=75
+// DATA SOURCE: TRADINGVIEW
+// NOT ALPHA MARKET TRUTH ENGINE
+// CORPORATE-ACTION AND SYMBOL-HISTORY SEMANTICS MAY DIFFER
+// RESULTS ARE INDEPENDENT VALIDATION, NOT AUTHORITATIVE ALPHA REPLAY
+
+startDate = input.time(timestamp("01 Jan 2015 00:00 +0000"), "Start date", group="Backtest Controls")
+endDate = input.time(timestamp("31 Dec 2035 23:59 +0000"), "End date", group="Backtest Controls")
+researchInitialCapital = input.float(1000000, "Initial capital (declaration fixed)", minval=1, group="Backtest Controls")
+orderSize = input.float(10.0, "Order size (% of equity)", minval=0.1, maxval=100, group="Backtest Controls")
+sizingMode = input.string("PERCENT_OF_EQUITY", "Percentage-of-equity sizing", options=["PERCENT_OF_EQUITY"], group="Backtest Controls")
+commission = input.float(0.10, "Commission (%) (declaration fixed)", minval=0, group="Backtest Controls")
+slippage = input.int(1, "Slippage (ticks) (declaration fixed)", minval=0, group="Backtest Controls")
+pyramiding = input.int(0, "Pyramiding (declaration fixed)", minval=0, maxval=0, group="Backtest Controls")
+longOnly = input.bool(true, "Long only", group="Backtest Controls")
+barCloseExecution = input.bool(true, "Bar-close execution", group="Backtest Controls")
+nextBarExecution = input.bool(true, "Next-bar execution", group="Backtest Controls")
+stopFill = input.string("TOUCH", "Stop fill assumption", options=["TOUCH"], group="Backtest Controls")
+targetFill = input.string("TOUCH", "Target fill assumption", options=["TOUCH"], group="Backtest Controls")
+conflictPolicy = input.string("STOP_FIRST_CONSERVATIVE", "Same-bar conflict policy", options=["STOP_FIRST_CONSERVATIVE"], group="Backtest Controls")
+maxPositions = input.int(1, "Maximum concurrent positions", minval=1, maxval=1, group="Backtest Controls")
+tradingSession = input.session("0915-1530", "Trading session", group="Backtest Controls")
+
+combinationLogic = input.string("WEIGHTED_SCORE", "Combination logic", options=["ALL_ENABLED", "MINIMUM_COMPONENT_COUNT", "MINIMUM_COMPOSITE_SCORE", "ANY_SETUP", "SPECIFIC_SETUP", "WEIGHTED_SCORE"], group="Combination")
+minimumCount = input.int(5, "Minimum component count", minval=1, maxval=10, group="Combination")
+entryThreshold = input.float(75.0, "Entry score threshold", minval=0, maxval=100, group="Combination")
+specificSetup = input.string("BULL FLAG", "Specific setup", options=["BULL FLAG", "EMA PULLBACK", "VCP", "MOMENTUM BREAKOUT"], group="Combination")
+enablePrice = input.bool(true, "Price structure", group="Components")
+enableVolume = input.bool(true, "Volume confirmation", group="Components")
+enableTrend = input.bool(true, "Trend", group="Components")
+enableRelativeStrength = input.bool(true, "Relative-strength filter", group="Components")
+enableRetracement = input.bool(true, "Retracement", group="Components")
+enableCandle = input.bool(true, "Candle", group="Components")
+enableBreakout = input.bool(true, "Breakout/setup", group="Components")
+enableMarket = input.bool(false, "Market filter (benchmark proxy)", group="Components")
+enableRisk = input.bool(true, "Risk/volatility", group="Components")
+enableTiming = input.bool(true, "Timing state", group="Components")
+enableMtf = input.bool(false, "Multi-timeframe confirmation", group="Components")
+enableBullFlag = input.bool(true, "Bull Flag setup", group="Setups")
+enableEmaPullback = input.bool(true, "EMA Pullback setup", group="Setups")
+enableVcp = input.bool(true, "VCP setup", group="Setups")
+enableMomentum = input.bool(true, "Momentum Breakout strategy", group="Setups")
+stopModel = input.string("ATR_BUFFERED_SUPPORT", "Stop model", options=["ATR_BUFFERED_SUPPORT", "SUPPORT_BASED", "SWING_LOW"], group="Trade Plan")
+targetModel = input.string("PARTIAL_2R_3R_4R", "Target model", options=["2R", "3R", "PARTIAL_2R_3R_4R"], group="Trade Plan")
+requireApprovalFilters = input.bool(true, "Approval-compatible filters", group="Trade Plan")
+
+clamp(float value) => math.max(0.0, math.min(1.0, value))
+safeDiv(float numerator, float denominator, float fallback) => denominator == 0.0 or na(denominator) ? fallback : numerator / denominator
+dma20 = ta.sma(close, 20)
+dma50 = ta.sma(close, 50)
+dma200 = ta.sma(close, 200)
+ema20 = ta.ema(close, 20)
+ema50 = ta.ema(close, 50)
+support = ta.lowest(low[1], 60)
+swingLow = ta.lowest(low, 20)
+resistance = ta.highest(high[1], 60)
+previousClose = close[1]
+trueRange = math.max(high - low, math.max(math.abs(high - previousClose), math.abs(low - previousClose)))
+alphaAtr = ta.sma(trueRange, 14)
+volumeRatio = safeDiv(volume, ta.sma(volume, 20), 1.0)
+closeStrength = high == low ? 0.50 : clamp((close - low) / (high - low))
+higherStructure = high > high[1] and low > low[1]
+lowerStructure = high < high[1] and low < low[1]
+pricePass = higherStructure and close >= support
+volumePass = volumeRatio >= 1.20 and closeStrength >= 0.55
+trendPass = close > dma20 and dma20 > dma50 and (na(dma200) or dma50 > dma200)
+relativeStrengthPass = close / close[63] > request.security("NSE:NIFTY", timeframe.period, close / close[63], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+retracementRatio = safeDiv(ta.highest(high, 60) - close, ta.highest(high, 60) - ta.lowest(low, 60), 0.50)
+retracementPass = retracementRatio <= 0.50 and close >= dma50
+bullCandle = close > open and closeStrength >= 0.70
+breakoutPass = close > resistance and volumeRatio >= 1.20
+marketPass = request.security("NSE:NIFTY", "D", close[1] > ta.sma(close, 50)[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+riskPass = safeDiv(high - low, alphaAtr, 1.0) <= 2.50
+timingPass = barstate.isconfirmed and close >= math.max(resistance, high[1])
+mtfPass = request.security(syminfo.tickerid, "W", close[1] > ta.sma(close, 20)[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+volumeDryUp = clamp(1.0 - volumeRatio)
+bullFlag = enableBullFlag and higherStructure and trendPass and retracementPass and volumeDryUp >= 0.55
+emaPullback = enableEmaPullback and (math.abs(close - ema20) <= alphaAtr * 1.50 or math.abs(close - ema50) <= alphaAtr * 1.50) and trendPass and retracementPass
+vcp = enableVcp and close <= resistance and safeDiv(high - low, alphaAtr, 1.0) <= 1.50 and volumeDryUp >= 0.60
+momentumBreakout = enableMomentum and breakoutPass and trendPass
+setupName = bullFlag ? "BULL FLAG" : emaPullback ? "EMA PULLBACK" : vcp ? "VCP" : momentumBreakout ? "MOMENTUM BREAKOUT" : "NO VALID SETUP"
+anySetup = setupName != "NO VALID SETUP"
+specificSetupPass = setupName == specificSetup
+enabledCount = (enablePrice ? 1 : 0) + (enableVolume ? 1 : 0) + (enableTrend ? 1 : 0) + (enableRelativeStrength ? 1 : 0) + (enableRetracement ? 1 : 0) + (enableCandle ? 1 : 0) + (enableBreakout ? 1 : 0) + (enableMarket ? 1 : 0) + (enableRisk ? 1 : 0) + (enableTiming ? 1 : 0) + (enableMtf ? 1 : 0)
+satisfiedCount = (enablePrice and pricePass ? 1 : 0) + (enableVolume and volumePass ? 1 : 0) + (enableTrend and trendPass ? 1 : 0) + (enableRelativeStrength and relativeStrengthPass ? 1 : 0) + (enableRetracement and retracementPass ? 1 : 0) + (enableCandle and bullCandle ? 1 : 0) + (enableBreakout and breakoutPass ? 1 : 0) + (enableMarket and marketPass ? 1 : 0) + (enableRisk and riskPass ? 1 : 0) + (enableTiming and timingPass ? 1 : 0) + (enableMtf and mtfPass ? 1 : 0)
+weightedScore = (enablePrice ? (pricePass ? 20.0 : 0.0) : 0.0) + (enableVolume ? (volumePass ? 17.0 : 0.0) : 0.0) + (enableTrend ? (trendPass ? 15.0 : 0.0) : 0.0) + (enableRelativeStrength ? (relativeStrengthPass ? 13.0 : 0.0) : 0.0) + (enableRetracement ? (retracementPass ? 10.0 : 0.0) : 0.0) + (enableCandle ? (bullCandle ? 8.0 : 0.0) : 0.0) + (enableBreakout ? (breakoutPass ? 7.0 : 0.0) : 0.0) + (enableMarket ? (marketPass ? 5.0 : 0.0) : 0.0) + (enableRisk ? (riskPass ? 2.0 : 0.0) : 0.0)
+enabledWeight = (enablePrice ? 20.0 : 0.0) + (enableVolume ? 17.0 : 0.0) + (enableTrend ? 15.0 : 0.0) + (enableRelativeStrength ? 13.0 : 0.0) + (enableRetracement ? 10.0 : 0.0) + (enableCandle ? 8.0 : 0.0) + (enableBreakout ? 7.0 : 0.0) + (enableMarket ? 5.0 : 0.0) + (enableRisk ? 2.0 : 0.0)
+normalizedScore = enabledWeight == 0.0 ? 0.0 : weightedScore / enabledWeight * 100.0
+allEnabledPass = satisfiedCount == enabledCount
+logicPass = combinationLogic == "ALL_ENABLED" ? allEnabledPass : combinationLogic == "MINIMUM_COMPONENT_COUNT" ? satisfiedCount >= minimumCount : combinationLogic == "MINIMUM_COMPOSITE_SCORE" or combinationLogic == "WEIGHTED_SCORE" ? normalizedScore >= entryThreshold : combinationLogic == "ANY_SETUP" ? anySetup : specificSetupPass
+entryTrigger = math.max(resistance, high[1])
+supportStop = support - syminfo.mintick
+swingStop = swingLow - syminfo.mintick
+atrStop = math.max(support, dma50) - alphaAtr * 0.50
+selectedStop = math.min(entryTrigger - syminfo.mintick, math.max(syminfo.mintick, stopModel == "SUPPORT_BASED" ? supportStop : stopModel == "SWING_LOW" ? swingStop : atrStop))
+risk = entryTrigger - selectedStop
+target1 = entryTrigger + risk * 2.0
+target2 = entryTrigger + risk * 3.0
+target3 = math.max(entryTrigger + risk * 4.0, entryTrigger + alphaAtr * 3.0)
+selectedTarget = targetModel == "2R" ? target1 : targetModel == "3R" ? target2 : target3
+rewardRisk = risk <= 0.0 ? na : (selectedTarget - entryTrigger) / risk
+approvalPass = not requireApprovalFilters or normalizedScore >= 85.0 and rewardRisk >= 2.0 and risk / entryTrigger * 100.0 <= 10.0
+blockedBy = not anySetup ? "NO VALID SETUP" : not logicPass ? "COMBINATION LOGIC" : not approvalPass ? "APPROVAL-COMPATIBLE FILTER" : not timingPass ? "ENTRY TIMING" : "NONE"
+entryReadyNow = anySetup and logicPass and approvalPass and timingPass and not lowerStructure
+entryReady = nextBarExecution ? entryReadyNow[1] : entryReadyNow
+inRange = time >= startDate and time <= endDate
+inSession = not na(time(timeframe.period, tradingSession))
+calculatedQuantity = strategy.equity * orderSize / 100.0 / close
+
+if inRange and inSession and longOnly and barCloseExecution and entryReady and strategy.position_size == 0
+    strategy.entry("Alpha Combination Long", strategy.long, qty=calculatedQuantity, comment=setupName)
+if strategy.position_size > 0
+    if targetModel == "PARTIAL_2R_3R_4R"
+        strategy.exit("Partial", "Alpha Combination Long", stop=selectedStop, limit=target1, qty_percent=50)
+        strategy.exit("Runner", "Alpha Combination Long", stop=selectedStop, limit=target3, qty_percent=50)
+    else
+        strategy.exit("Combination Exit", "Alpha Combination Long", stop=selectedStop, limit=selectedTarget)
+    if high >= target3
+        strategy.close("Alpha Combination Long", qty_percent=100, comment="FINAL_REMAINING_EXIT")
+if strategy.position_size > 0 and time >= endDate
+    strategy.close("Alpha Combination Long", qty_percent=100, comment="FORCED_BOUNDARY_EXIT")
+
+plot(dma20, "20-DMA", color=color.new(color.blue, 0))
+plot(dma50, "50-DMA", color=color.new(color.orange, 0))
+plot(entryTrigger, "Entry", color=color.new(color.green, 0), style=plot.style_linebr)
+plot(selectedStop, "Stop", color=color.new(color.red, 0), style=plot.style_linebr)
+
+var table panel = table.new(position.top_right, 2, 16, border_width=1)
+if barstate.islast
+    table.cell(panel, 0, 0, "Combination logic")
+    table.cell(panel, 1, 0, combinationLogic)
+    table.cell(panel, 0, 1, "Setup")
+    table.cell(panel, 1, 1, setupName)
+    table.cell(panel, 0, 2, "Satisfied / enabled")
+    table.cell(panel, 1, 2, str.tostring(satisfiedCount) + " / " + str.tostring(enabledCount))
+    table.cell(panel, 0, 3, "Normalized score")
+    table.cell(panel, 1, 3, str.tostring(normalizedScore, "#.0"))
+    table.cell(panel, 0, 4, "Blocked by")
+    table.cell(panel, 1, 4, blockedBy)
+    table.cell(panel, 0, 5, "Entry / stop")
+    table.cell(panel, 1, 5, str.tostring(entryTrigger, format.mintick) + " / " + str.tostring(selectedStop, format.mintick))
+    table.cell(panel, 0, 6, "Targets")
+    table.cell(panel, 1, 6, str.tostring(target1, format.mintick) + " / " + str.tostring(target2, format.mintick) + " / " + str.tostring(target3, format.mintick))
+    table.cell(panel, 0, 7, "Reward/risk")
+    table.cell(panel, 1, 7, str.tostring(rewardRisk, "#.00"))
+    table.cell(panel, 0, 8, "Trades / wins / losses")
+    table.cell(panel, 1, 8, str.tostring(strategy.closedtrades) + " / " + str.tostring(strategy.wintrades) + " / " + str.tostring(strategy.losstrades))
+    table.cell(panel, 0, 9, "Win rate")
+    table.cell(panel, 1, 9, strategy.closedtrades == 0 ? "unavailable" : str.tostring(strategy.wintrades / strategy.closedtrades * 100.0, "#.0") + "%")
+    table.cell(panel, 0, 10, "Profit factor")
+    table.cell(panel, 1, 10, strategy.grossloss == 0 ? "unavailable" : str.tostring(strategy.grossprofit / math.abs(strategy.grossloss), "#.00"))
+    table.cell(panel, 0, 11, "Rejected entries")
+    table.cell(panel, 1, 11, blockedBy == "NONE" ? "0 current bar" : "1 current bar")
+    table.cell(panel, 0, 12, "DATA SOURCE: TRADINGVIEW", text_color=color.yellow)
+    table.cell(panel, 1, 12, "NOT ALPHA MARKET TRUTH ENGINE", text_color=color.yellow)
+    table.cell(panel, 0, 13, "Corporate actions/history may differ", text_color=color.orange)
+    table.cell(panel, 1, 13, "Independent validation only", text_color=color.orange)
+    table.cell(panel, 0, 14, "Optimization")
+    table.cell(panel, 1, 14, "Manual inputs only")
+    table.cell(panel, 0, 15, "Parity")
+    table.cell(panel, 1, 15, "MIXED; NEVER ALPHA_EXACT")

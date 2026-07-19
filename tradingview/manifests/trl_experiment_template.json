@@ -1,0 +1,343 @@
+{
+  "baseline": {
+    "combination_mode": "ANY",
+    "entry_timeframe": "4H",
+    "exit_model": "PARTIAL_2R_3R_4R",
+    "indicators": [
+      {
+        "enabled": false,
+        "indicator": "ADX"
+      },
+      {
+        "enabled": true,
+        "indicator": "ATR"
+      },
+      {
+        "enabled": true,
+        "indicator": "BREAKOUT"
+      },
+      {
+        "enabled": true,
+        "indicator": "CANDLESTICK"
+      },
+      {
+        "enabled": true,
+        "indicator": "EMA_TREND"
+      },
+      {
+        "enabled": false,
+        "indicator": "MACD"
+      },
+      {
+        "enabled": true,
+        "indicator": "PRICE_STRUCTURE"
+      },
+      {
+        "enabled": true,
+        "indicator": "RELATIVE_STRENGTH"
+      },
+      {
+        "enabled": true,
+        "indicator": "RELATIVE_VOLUME"
+      },
+      {
+        "enabled": true,
+        "indicator": "RESISTANCE"
+      },
+      {
+        "enabled": true,
+        "indicator": "RETRACEMENT"
+      },
+      {
+        "enabled": false,
+        "indicator": "RSI"
+      },
+      {
+        "enabled": true,
+        "indicator": "SMA_TREND"
+      },
+      {
+        "enabled": true,
+        "indicator": "SUPPORT"
+      },
+      {
+        "enabled": true,
+        "indicator": "VOLUME_MA"
+      },
+      {
+        "enabled": false,
+        "indicator": "VWAP"
+      }
+    ],
+    "minimum_strategies": 1,
+    "name": "ALPHA_CANONICAL_BASELINE",
+    "sector_scope": "ALL_AVAILABLE_SECTORS",
+    "setup_timeframe": "1D",
+    "stop_model": "ATR_BUFFERED_SUPPORT",
+    "strategies": [
+      {
+        "enabled": true,
+        "strategy": "AGGRESSIVE_ACCUMULATION",
+        "weight": "1"
+      },
+      {
+        "enabled": true,
+        "strategy": "BULL_FLAG",
+        "weight": "1"
+      },
+      {
+        "enabled": true,
+        "strategy": "CUP_AND_HANDLE",
+        "weight": "1"
+      },
+      {
+        "enabled": true,
+        "strategy": "FAILED_BREAKOUT",
+        "weight": "1"
+      },
+      {
+        "enabled": true,
+        "strategy": "FLAT_BASE",
+        "weight": "1"
+      },
+      {
+        "enabled": true,
+        "strategy": "MOMENTUM_BREAKOUT",
+        "weight": "1"
+      },
+      {
+        "enabled": true,
+        "strategy": "PULLBACK_ENTRY",
+        "weight": "1"
+      },
+      {
+        "enabled": true,
+        "strategy": "RETEST_HOLD",
+        "weight": "1"
+      },
+      {
+        "enabled": true,
+        "strategy": "VCP",
+        "weight": "1"
+      }
+    ],
+    "trend_timeframe": "1W",
+    "universe": "POINT_IN_TIME_ALPHA_UNIVERSE",
+    "weights": [
+      {
+        "component": "breakout",
+        "weight": "7.00"
+      },
+      {
+        "component": "candle",
+        "weight": "8.00"
+      },
+      {
+        "component": "market_regime",
+        "weight": "5.00"
+      },
+      {
+        "component": "price_structure",
+        "weight": "20.00"
+      },
+      {
+        "component": "relative_strength",
+        "weight": "13.00"
+      },
+      {
+        "component": "retracement",
+        "weight": "10.00"
+      },
+      {
+        "component": "risk",
+        "weight": "2.00"
+      },
+      {
+        "component": "sector",
+        "weight": "3.00"
+      },
+      {
+        "component": "trend",
+        "weight": "15.00"
+      },
+      {
+        "component": "volume",
+        "weight": "17.00"
+      }
+    ]
+  },
+  "experiment_date": "YYYY-MM-DD",
+  "experiment_id": "REPLACE_WITH_STABLE_EXPERIMENT_ID",
+  "observations": [],
+  "production_influence": false,
+  "purpose": "State the hypothesis being tested against Alpha baseline.",
+  "schema_version": "tradingview-research-laboratory-v2",
+  "title": "TradingView research experiment",
+  "treatment": {
+    "combination_mode": "ANY",
+    "entry_timeframe": "4H",
+    "exit_model": "PARTIAL_2R_3R_4R",
+    "indicators": [
+      {
+        "enabled": false,
+        "indicator": "ADX"
+      },
+      {
+        "enabled": true,
+        "indicator": "ATR"
+      },
+      {
+        "enabled": true,
+        "indicator": "BREAKOUT"
+      },
+      {
+        "enabled": true,
+        "indicator": "CANDLESTICK"
+      },
+      {
+        "enabled": true,
+        "indicator": "EMA_TREND"
+      },
+      {
+        "enabled": false,
+        "indicator": "MACD"
+      },
+      {
+        "enabled": true,
+        "indicator": "PRICE_STRUCTURE"
+      },
+      {
+        "enabled": true,
+        "indicator": "RELATIVE_STRENGTH"
+      },
+      {
+        "enabled": true,
+        "indicator": "RELATIVE_VOLUME"
+      },
+      {
+        "enabled": true,
+        "indicator": "RESISTANCE"
+      },
+      {
+        "enabled": true,
+        "indicator": "RETRACEMENT"
+      },
+      {
+        "enabled": false,
+        "indicator": "RSI"
+      },
+      {
+        "enabled": true,
+        "indicator": "SMA_TREND"
+      },
+      {
+        "enabled": true,
+        "indicator": "SUPPORT"
+      },
+      {
+        "enabled": true,
+        "indicator": "VOLUME_MA"
+      },
+      {
+        "enabled": false,
+        "indicator": "VWAP"
+      }
+    ],
+    "minimum_strategies": 1,
+    "name": "ALPHA_CANONICAL_BASELINE",
+    "sector_scope": "ALL_AVAILABLE_SECTORS",
+    "setup_timeframe": "1D",
+    "stop_model": "ATR_BUFFERED_SUPPORT",
+    "strategies": [
+      {
+        "enabled": true,
+        "strategy": "AGGRESSIVE_ACCUMULATION",
+        "weight": "1"
+      },
+      {
+        "enabled": true,
+        "strategy": "BULL_FLAG",
+        "weight": "1"
+      },
+      {
+        "enabled": true,
+        "strategy": "CUP_AND_HANDLE",
+        "weight": "1"
+      },
+      {
+        "enabled": true,
+        "strategy": "FAILED_BREAKOUT",
+        "weight": "1"
+      },
+      {
+        "enabled": true,
+        "strategy": "FLAT_BASE",
+        "weight": "1"
+      },
+      {
+        "enabled": true,
+        "strategy": "MOMENTUM_BREAKOUT",
+        "weight": "1"
+      },
+      {
+        "enabled": true,
+        "strategy": "PULLBACK_ENTRY",
+        "weight": "1"
+      },
+      {
+        "enabled": true,
+        "strategy": "RETEST_HOLD",
+        "weight": "1"
+      },
+      {
+        "enabled": true,
+        "strategy": "VCP",
+        "weight": "1"
+      }
+    ],
+    "trend_timeframe": "1W",
+    "universe": "POINT_IN_TIME_ALPHA_UNIVERSE",
+    "weights": [
+      {
+        "component": "breakout",
+        "weight": "7.00"
+      },
+      {
+        "component": "candle",
+        "weight": "8.00"
+      },
+      {
+        "component": "market_regime",
+        "weight": "5.00"
+      },
+      {
+        "component": "price_structure",
+        "weight": "20.00"
+      },
+      {
+        "component": "relative_strength",
+        "weight": "13.00"
+      },
+      {
+        "component": "retracement",
+        "weight": "10.00"
+      },
+      {
+        "component": "risk",
+        "weight": "2.00"
+      },
+      {
+        "component": "sector",
+        "weight": "3.00"
+      },
+      {
+        "component": "trend",
+        "weight": "15.00"
+      },
+      {
+        "component": "volume",
+        "weight": "17.00"
+      }
+    ]
+  }
+}

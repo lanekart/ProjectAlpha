@@ -1,0 +1,75 @@
+//@version=6
+indicator("Alpha Trade Plan Overlay v1.0.1", overlay=true)
+
+// DATA SOURCE: TRADINGVIEW
+// NOT ALPHA MARKET TRUTH ENGINE
+// CORPORATE-ACTION AND SYMBOL-HISTORY SEMANTICS MAY DIFFER
+// RESULTS ARE INDEPENDENT VALIDATION, NOT AUTHORITATIVE ALPHA REPLAY
+
+lookback = input.int(60, "Support/resistance lookback", minval=5)
+atrLookback = input.int(14, "Alpha simple ATR lookback", minval=2)
+atrBuffer = input.float(0.50, "Support ATR buffer", minval=0)
+requireVolume = input.bool(true, "Require at least 1.2x average volume")
+
+safeDiv(float numerator, float denominator, float fallback) => denominator == 0.0 or na(denominator) ? fallback : numerator / denominator
+ema20 = ta.ema(close, 20)
+ema50 = ta.ema(close, 50)
+ema200 = ta.ema(close, 200)
+support = ta.lowest(low[1], lookback)
+resistance = ta.highest(high[1], lookback)
+swingLow = ta.lowest(low, 20)
+previousClose = close[1]
+trueRange = math.max(high - low, math.max(math.abs(high - previousClose), math.abs(low - previousClose)))
+alphaAtr = ta.sma(trueRange, atrLookback)
+volumeRatio = safeDiv(volume, ta.sma(volume, 20), 1.0)
+entryTrigger = math.max(resistance, high[1])
+entryZoneLow = math.max(support, ema20)
+entryZoneHigh = math.max(entryZoneLow, math.min(entryTrigger, entryZoneLow + alphaAtr * 0.50))
+anchor = math.max(support, math.max(swingLow, math.max(ema20 < entryTrigger ? ema20 : support, ema50 < entryTrigger ? ema50 : support)))
+initialStop = math.min(entryTrigger - syminfo.mintick, math.max(syminfo.mintick, anchor - alphaAtr * atrBuffer))
+risk = entryTrigger - initialStop
+target1 = entryTrigger + risk * 2.0
+target2 = entryTrigger + risk * 3.0
+target3 = math.max(entryTrigger + risk * 4.0, entryTrigger + alphaAtr * 3.0)
+entryConfirmed = close > entryTrigger and (not requireVolume or volumeRatio >= 1.20)
+invalidation = ema50
+
+plot(ema20, "EMA20 trend reference", color=color.new(color.blue, 0))
+plot(ema50, "EMA50 invalidation", color=color.new(color.orange, 0))
+plot(ema200, "EMA200 primary trend reference", color=color.new(color.gray, 0))
+zoneLowPlot = plot(entryZoneLow, "Entry zone low", color=color.new(color.green, 40), style=plot.style_linebr)
+zoneHighPlot = plot(entryZoneHigh, "Entry zone high", color=color.new(color.green, 40), style=plot.style_linebr)
+fill(zoneLowPlot, zoneHighPlot, color=color.new(color.green, 88), title="Entry zone")
+plot(entryTrigger, "Daily-close entry trigger", color=color.new(color.lime, 0), linewidth=2, style=plot.style_linebr)
+plot(initialStop, "Initial risk stop", color=color.new(color.red, 0), linewidth=2, style=plot.style_linebr)
+plot(target1, "Target 1: 2R", color=color.new(color.teal, 0), style=plot.style_linebr)
+plot(target2, "Target 2: 3R", color=color.new(color.aqua, 0), style=plot.style_linebr)
+plot(target3, "Target 3: 4R/ATR extension", color=color.new(color.purple, 0), style=plot.style_linebr)
+bgcolor(entryConfirmed ? color.new(color.green, 90) : na, title="Entry confirmed")
+
+var table panel = table.new(position.top_right, 2, 12, border_width=1)
+if barstate.islast
+    table.cell(panel, 0, 0, "Entry zone")
+    table.cell(panel, 1, 0, str.tostring(entryZoneLow, format.mintick) + " - " + str.tostring(entryZoneHigh, format.mintick))
+    table.cell(panel, 0, 1, "Entry trigger")
+    table.cell(panel, 1, 1, "Daily close above " + str.tostring(entryTrigger, format.mintick))
+    table.cell(panel, 0, 2, "Volume condition")
+    table.cell(panel, 1, 2, requireVolume ? ">=1.2x 20-bar average" : "disabled")
+    table.cell(panel, 0, 3, "Initial risk stop")
+    table.cell(panel, 1, 3, str.tostring(initialStop, format.mintick))
+    table.cell(panel, 0, 4, "Trend invalidation")
+    table.cell(panel, 1, 4, "Close below 50-DMA " + str.tostring(invalidation, format.mintick))
+    table.cell(panel, 0, 5, "EMA20")
+    table.cell(panel, 1, 5, str.tostring(ema20, format.mintick) + " (reference, not active stop)")
+    table.cell(panel, 0, 6, "Targets")
+    table.cell(panel, 1, 6, str.tostring(target1, format.mintick) + " / " + str.tostring(target2, format.mintick) + " / " + str.tostring(target3, format.mintick))
+    table.cell(panel, 0, 7, "Trailing rule")
+    table.cell(panel, 1, 7, "2x ATR below highest close after entry")
+    table.cell(panel, 0, 8, "Entry status")
+    table.cell(panel, 1, 8, entryConfirmed ? "CONFIRMED" : "WAITING")
+    table.cell(panel, 0, 9, "DATA SOURCE: TRADINGVIEW", text_color=color.yellow)
+    table.cell(panel, 1, 9, "NOT ALPHA MARKET TRUTH ENGINE", text_color=color.yellow)
+    table.cell(panel, 0, 10, "Corporate actions/history may differ", text_color=color.orange)
+    table.cell(panel, 1, 10, "Independent validation only", text_color=color.orange)
+    table.cell(panel, 0, 11, "Parity")
+    table.cell(panel, 1, 11, "SEMANTICALLY_EQUIVALENT")

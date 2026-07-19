@@ -1,0 +1,189 @@
+{
+  "approval_filters": {
+    "maximum_stop_distance_percent": "10",
+    "minimum_deployment_score": "85",
+    "minimum_expectancy_r": "0.10",
+    "minimum_historical_sample_count": 60,
+    "minimum_posterior_probability": "0.52",
+    "pine_boundary": "Only score, stop-distance, reward/risk and setup-state filters are Pine-compatible."
+  },
+  "components": {
+    "breakout": "0.07",
+    "candle": "0.08",
+    "market_regime": "0.05",
+    "price_structure": "0.20",
+    "relative_strength": "0.13",
+    "retracement": "0.10",
+    "risk": "0.02",
+    "sector": "0.03",
+    "trend": "0.15",
+    "volume": "0.17"
+  },
+  "dataset_semantics": "TradingView chart data",
+  "framework_version": "1.3.0-dev",
+  "guardrails": {
+    "ALPHA_SOURCE_OF_TRUTH": true,
+    "AUTONOMOUS_DEPLOYMENT": false,
+    "BROKER_ORDERING": false,
+    "NO_LOOKAHEAD": true,
+    "NO_MANUAL_POST_GENERATION_PATCHING": true,
+    "NO_NEW_STRATEGY_LOGIC": true,
+    "NO_REPAINTING": true,
+    "PRODUCTION_INFLUENCE": false,
+    "TRADINGVIEW_EXECUTION": false,
+    "TRADINGVIEW_IS_SECONDARY_VALIDATOR": true
+  },
+  "holding_periods": {
+    "BULL FLAG": "5-12 trading days",
+    "CUP & HANDLE": "20-60 trading days",
+    "EMA PULLBACK": "7-20 trading days",
+    "FAILED BREAKOUT": "exit / avoid immediately",
+    "FLAT BASE": "15-45 trading days",
+    "MOMENTUM CONTINUATION": "5-15 trading days",
+    "TREND FAILURE": "exit / avoid immediately",
+    "VOLATILITY CONTRACTION PATTERN": "10-30 trading days"
+  },
+  "parity_limitations": [
+    "Trend alignment",
+    "Relative strength",
+    "Market regime",
+    "Sector context",
+    "Institutional approval",
+    "Cross-sectional and learned systems"
+  ],
+  "production_influence": false,
+  "setups": {
+    "aliases": {
+      "52_WEEK_HIGH": "52 WEEK HIGH BREAKOUT",
+      "52_WEEK_HIGH_BREAKOUT": "52 WEEK HIGH BREAKOUT",
+      "ASCENDING_TRIANGLE": "ASCENDING TRIANGLE",
+      "BULL_FLAG": "BULL FLAG",
+      "CUP_AND_HANDLE": "CUP & HANDLE",
+      "CUP_HANDLE": "CUP & HANDLE",
+      "DARVAS_BOX": "DARVAS BOX",
+      "DESCENDING_TRIANGLE": "DESCENDING TRIANGLE",
+      "DISTRIBUTION": "DISTRIBUTION",
+      "DOUBLE_BOTTOM": "DOUBLE BOTTOM",
+      "EMA_PULLBACK": "EMA PULLBACK",
+      "FAILED_BREAKOUT": "FAILED BREAKOUT",
+      "FIRST_PULLBACK": "FIRST PULLBACK AFTER BREAKOUT",
+      "FIRST_PULLBACK_AFTER_BREAKOUT": "FIRST PULLBACK AFTER BREAKOUT",
+      "FLAT_BASE": "FLAT BASE",
+      "HIGH_TIGHT_FLAG": "HIGH TIGHT FLAG",
+      "INVERSE_HEAD_SHOULDERS": "INVERSE HEAD & SHOULDERS",
+      "LOWER_HIGH_BREAKDOWN": "LOWER HIGH BREAKDOWN",
+      "MOMENTUM_CONTINUATION": "MOMENTUM CONTINUATION",
+      "NO_SETUP": "NO VALID SETUP",
+      "PULLBACK": "EMA PULLBACK",
+      "RANDOM": "NO VALID SETUP",
+      "RECTANGLE_BREAKOUT": "RECTANGLE BREAKOUT",
+      "ROUNDED_BOTTOM": "ROUNDED BOTTOM",
+      "TREND_FAILURE": "TREND FAILURE",
+      "VCP": "VOLATILITY CONTRACTION PATTERN",
+      "VOLATILITY_CONTRACTION_PATTERN": "VOLATILITY CONTRACTION PATTERN",
+      "WEAK": "NO VALID SETUP",
+      "WEAK_RANDOM": "NO VALID SETUP"
+    },
+    "categories": {
+      "52 WEEK HIGH BREAKOUT": "BREAKOUT",
+      "ASCENDING TRIANGLE": "BREAKOUT",
+      "BULL FLAG": "TREND CONTINUATION",
+      "CUP & HANDLE": "BREAKOUT",
+      "DARVAS BOX": "BREAKOUT",
+      "DESCENDING TRIANGLE": "BEARISH",
+      "DISTRIBUTION": "BEARISH",
+      "DOUBLE BOTTOM": "REVERSAL",
+      "EMA PULLBACK": "TREND CONTINUATION",
+      "FAILED BREAKOUT": "BEARISH",
+      "FIRST PULLBACK AFTER BREAKOUT": "TREND CONTINUATION",
+      "FLAT BASE": "BREAKOUT",
+      "HIGH TIGHT FLAG": "TREND CONTINUATION",
+      "INVERSE HEAD & SHOULDERS": "REVERSAL",
+      "LOWER HIGH BREAKDOWN": "BEARISH",
+      "MOMENTUM CONTINUATION": "TREND CONTINUATION",
+      "NO VALID SETUP": "NEUTRAL",
+      "RECTANGLE BREAKOUT": "BREAKOUT",
+      "ROUNDED BOTTOM": "REVERSAL",
+      "TREND FAILURE": "BEARISH",
+      "VOLATILITY CONTRACTION PATTERN": "BREAKOUT"
+    },
+    "pine_auto_detection": {
+      "BULL FLAG": "SEMANTICALLY_EQUIVALENT",
+      "CUP & HANDLE": "APPROXIMATED",
+      "EMA PULLBACK": "SEMANTICALLY_EQUIVALENT",
+      "FAILED BREAKOUT": "SEMANTICALLY_EQUIVALENT",
+      "FLAT BASE": "APPROXIMATED",
+      "TREND FAILURE": "SEMANTICALLY_EQUIVALENT",
+      "VOLATILITY CONTRACTION PATTERN": "SEMANTICALLY_EQUIVALENT"
+    }
+  },
+  "source_commit": "0520504e8879ae6aabdc8d1d1d32424aff17bb74",
+  "strategy_id": "alpha_current_framework",
+  "timeframes": {
+    "positional": {
+      "chart": "D",
+      "structural": "M",
+      "trend": "W"
+    },
+    "short_swing": {
+      "chart": "60 or 240",
+      "confirmation": "60",
+      "trend": "D"
+    },
+    "swing": {
+      "chart": "240 or D",
+      "confirmation": "240",
+      "trend": "D or W"
+    }
+  },
+  "trade_plan": {
+    "atr": "14-bar simple mean of true range",
+    "same_bar_policy": "STOP_FIRST_CONSERVATIVE",
+    "stop_models": [
+      "SUPPORT_BASED",
+      "SWING_LOW",
+      "ATR_BUFFERED_SUPPORT",
+      "MOVING_AVERAGE_INVALIDATION",
+      "SETUP_INVALIDATION",
+      "FIXED_PERCENT_COMPARATOR"
+    ],
+    "support_lookback_bars": 60,
+    "target_models": [
+      "2R",
+      "3R",
+      "4R_ATR_EXTENSION",
+      "PARTIAL_2R_3R_4R"
+    ],
+    "trailing_stop": "2 x ATR below highest close after entry",
+    "trend_reference": "20-DMA is not an active stop by default"
+  },
+  "trade_strategies": [
+    "MOMENTUM_BREAKOUT",
+    "PULLBACK_ENTRY",
+    "AGGRESSIVE_ACCUMULATION",
+    "RETEST_HOLD",
+    "NO_TRADE"
+  ],
+  "verdict_mapping": [
+    {
+      "decision": "SELL",
+      "minimum_score": "0"
+    },
+    {
+      "decision": "AVOID",
+      "minimum_score": "40"
+    },
+    {
+      "decision": "WATCHLIST",
+      "minimum_score": "60"
+    },
+    {
+      "decision": "BUY",
+      "minimum_score": "75"
+    },
+    {
+      "decision": "STRONG_BUY",
+      "minimum_score": "90"
+    }
+  ]
+}

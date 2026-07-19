@@ -1,0 +1,123 @@
+//@version=6
+strategy("Alpha 02 Setup Comparator v1.0.1", overlay=true, initial_capital=1000000, default_qty_type=strategy.percent_of_equity, default_qty_value=10, commission_type=strategy.commission.percent, commission_value=0.10, slippage=1, pyramiding=0, process_orders_on_close=true)
+
+// ALPHA_DEFAULT_CHART_TIMEFRAME=D
+// ALPHA_DEFAULT_CONFIRMATION_TIMEFRAME=240
+// ALPHA_DEFAULT_SETUP=ANY_SETUP
+// ALPHA_DEFAULT_STOP_MODEL=ATR_BUFFERED_SUPPORT
+// ALPHA_DEFAULT_TARGET_MODEL=PARTIAL_2R_3R_4R
+// ALPHA_DEFAULT_ENTRY_THRESHOLD=75
+// DATA SOURCE: TRADINGVIEW
+// NOT ALPHA MARKET TRUTH ENGINE
+// CORPORATE-ACTION AND SYMBOL-HISTORY SEMANTICS MAY DIFFER
+// RESULTS ARE INDEPENDENT VALIDATION, NOT AUTHORITATIVE ALPHA REPLAY
+
+startDate = input.time(timestamp("01 Jan 2015 00:00 +0000"), "Start date", group="Backtest Controls")
+endDate = input.time(timestamp("31 Dec 2035 23:59 +0000"), "End date", group="Backtest Controls")
+researchInitialCapital = input.float(1000000, "Initial capital (declaration fixed)", minval=1, group="Backtest Controls")
+orderSize = input.float(10.0, "Order size (% of equity)", minval=0.1, maxval=100, group="Backtest Controls")
+sizingMode = input.string("PERCENT_OF_EQUITY", "Percentage-of-equity sizing", options=["PERCENT_OF_EQUITY"], group="Backtest Controls")
+commission = input.float(0.10, "Commission (%) (declaration fixed)", minval=0, group="Backtest Controls")
+slippage = input.int(1, "Slippage (ticks) (declaration fixed)", minval=0, group="Backtest Controls")
+pyramiding = input.int(0, "Pyramiding (declaration fixed)", minval=0, maxval=0, group="Backtest Controls")
+longOnly = input.bool(true, "Long only", group="Backtest Controls")
+barCloseExecution = input.bool(true, "Bar-close execution", group="Backtest Controls")
+nextBarExecution = input.bool(true, "Next-bar execution", group="Backtest Controls")
+stopFill = input.string("TOUCH", "Stop fill assumption", options=["TOUCH"], group="Backtest Controls")
+targetFill = input.string("TOUCH", "Target fill assumption", options=["TOUCH"], group="Backtest Controls")
+conflictPolicy = input.string("STOP_FIRST_CONSERVATIVE", "Same-bar conflict policy", options=["STOP_FIRST_CONSERVATIVE"], group="Backtest Controls")
+maxPositions = input.int(1, "Maximum concurrent positions", minval=1, maxval=1, group="Backtest Controls")
+tradingSession = input.session("0915-1530", "Trading session", group="Backtest Controls")
+
+enableBullFlag = input.bool(true, "Bull Flag", group="Setups")
+enableEmaPullback = input.bool(true, "EMA Pullback", group="Setups")
+enableVcp = input.bool(true, "VCP", group="Setups")
+enableCupHandle = input.bool(false, "Cup and Handle (approximated)", group="Setups")
+enableFlatBase = input.bool(false, "Flat Base (approximated)", group="Setups")
+enableFailed = input.bool(true, "Failed Breakout", group="Setups")
+enableTrendFailure = input.bool(true, "Trend Failure", group="Setups")
+
+clamp(float value) => math.max(0.0, math.min(1.0, value))
+safeDiv(float numerator, float denominator, float fallback) => denominator == 0.0 or na(denominator) ? fallback : numerator / denominator
+inRange = time >= startDate and time <= endDate
+inSession = not na(time(timeframe.period, tradingSession))
+dma20 = ta.sma(close, 20)
+dma50 = ta.sma(close, 50)
+dma200 = ta.sma(close, 200)
+ema20 = ta.ema(close, 20)
+ema50 = ta.ema(close, 50)
+resistance = ta.highest(high[1], 60)
+support = ta.lowest(low[1], 60)
+previousClose = close[1]
+trueRange = math.max(high - low, math.max(math.abs(high - previousClose), math.abs(low - previousClose)))
+alphaAtr = ta.sma(trueRange, 14)
+volumeRatio = safeDiv(volume, ta.sma(volume, 20), 1.0)
+volumeDryUp = clamp(1.0 - volumeRatio)
+higherStructure = high > high[1] and low > low[1]
+lowerStructure = high < high[1] and low < low[1]
+uptrend = close > dma20 and dma20 > dma50 and (na(dma200) or dma50 > dma200)
+retracementRatio = safeDiv(ta.highest(high, 60) - close, ta.highest(high, 60) - ta.lowest(low, 60), 0.50)
+healthyRetracement = retracementRatio <= 0.50 and close >= dma50
+controlledVolatility = safeDiv(high - low, alphaAtr, 1.0) <= 1.50
+nearEma = math.abs(close - ema20) <= alphaAtr * 1.50 or math.abs(close - ema50) <= alphaAtr * 1.50
+breakout = close > resistance
+failedBreakout = high > resistance and close < resistance and volumeRatio >= 1.20
+trendFailure = close < dma50 and lowerStructure and volumeRatio >= 1.30
+bullFlag = higherStructure and uptrend and healthyRetracement and volumeDryUp >= 0.55
+emaPullback = nearEma and uptrend and healthyRetracement
+vcp = close <= resistance and controlledVolatility and volumeDryUp >= 0.60 and close >= dma50
+flatBase = ta.highest(high, 30) / ta.lowest(low, 30) - 1.0 <= 0.12 and volumeDryUp >= 0.45
+cupHandle = close >= ta.highest(high, 60) * 0.95 and ta.lowest(low, 60) < ta.sma(close, 60) and volumeDryUp >= 0.40
+setupName = enableFailed and failedBreakout ? "FAILED BREAKOUT" : enableTrendFailure and trendFailure ? "TREND FAILURE" : enableBullFlag and bullFlag ? "BULL FLAG" : enableEmaPullback and emaPullback ? "EMA PULLBACK" : enableVcp and vcp ? "VCP" : enableFlatBase and flatBase ? "FLAT BASE" : enableCupHandle and cupHandle ? "CUP & HANDLE" : "NO VALID SETUP"
+isBearishSetup = setupName == "FAILED BREAKOUT" or setupName == "TREND FAILURE"
+setupConfidence = clamp((uptrend ? 0.85 : 0.35) * 0.17 + (higherStructure ? 0.90 : lowerStructure ? 0.10 : 0.50) * 0.18 + clamp(volumeRatio / 1.50) * 0.16 + (healthyRetracement ? 0.80 : 0.30) * 0.11 + 0.50 * 0.18 + (breakout ? 0.85 : 0.50) * 0.10 + 0.50 * 0.06 + (controlledVolatility ? 0.80 : 0.25) * 0.04)
+extended = close > resistance + alphaAtr
+late = close > resistance + alphaAtr * 2.0
+setupState = isBearishSetup ? "INVALID" : late ? "LATE" : extended ? "EXTENDED" : breakout and volumeRatio >= 1.50 ? "CONFIRMATION" : emaPullback ? "PREFERRED" : setupName != "NO VALID SETUP" and setupConfidence >= 0.68 ? "AGGRESSIVE" : setupName != "NO VALID SETUP" ? "EARLY" : not na(dma200) ? "SETUP_FORMING" : "UNAVAILABLE"
+holdingPeriod = setupName == "BULL FLAG" ? "5-12 days" : setupName == "EMA PULLBACK" ? "7-20 days" : setupName == "VCP" ? "10-30 days" : setupName == "FLAT BASE" ? "15-45 days" : setupName == "CUP & HANDLE" ? "20-60 days" : isBearishSetup ? "exit immediately" : "unavailable"
+entryTrigger = math.max(resistance, high[1])
+stopLevel = math.min(entryTrigger - syminfo.mintick, math.max(syminfo.mintick, math.max(support, math.max(dma20, dma50)) - alphaAtr * 0.50))
+risk = entryTrigger - stopLevel
+targetTwoR = entryTrigger + risk * 2.0
+entrySignalNow = setupState == "CONFIRMATION" and not isBearishSetup and setupConfidence >= 0.68 and volumeRatio >= 1.20
+entrySignal = nextBarExecution ? entrySignalNow[1] : entrySignalNow
+calculatedQuantity = strategy.equity * orderSize / 100.0 / close
+
+if inRange and inSession and longOnly and barCloseExecution and entrySignal and strategy.position_size == 0
+    strategy.entry("Alpha Setup Long", strategy.long, qty=calculatedQuantity, comment=setupName)
+if strategy.position_size > 0
+    strategy.exit("Setup Exit", "Alpha Setup Long", stop=stopLevel, limit=targetTwoR)
+if isBearishSetup and strategy.position_size > 0
+    strategy.close_all(comment=setupName)
+
+plot(dma20, "20-DMA", color=color.new(color.blue, 0))
+plot(dma50, "50-DMA", color=color.new(color.orange, 0))
+plot(entryTrigger, "Entry trigger", color=color.new(color.green, 0), style=plot.style_linebr)
+plot(stopLevel, "Invalidation", color=color.new(color.red, 0), style=plot.style_linebr)
+
+var table panel = table.new(position.top_right, 2, 12, border_width=1)
+if barstate.islast
+    table.cell(panel, 0, 0, "Setup")
+    table.cell(panel, 1, 0, setupName)
+    table.cell(panel, 0, 1, "State")
+    table.cell(panel, 1, 1, setupState)
+    table.cell(panel, 0, 2, "Confidence")
+    table.cell(panel, 1, 2, str.tostring(setupConfidence * 100.0, "#.0"))
+    table.cell(panel, 0, 3, "Entry trigger")
+    table.cell(panel, 1, 3, str.tostring(entryTrigger, format.mintick))
+    table.cell(panel, 0, 4, "Invalidation")
+    table.cell(panel, 1, 4, str.tostring(stopLevel, format.mintick))
+    table.cell(panel, 0, 5, "Holding period")
+    table.cell(panel, 1, 5, holdingPeriod)
+    table.cell(panel, 0, 6, "Trades / wins / losses")
+    table.cell(panel, 1, 6, str.tostring(strategy.closedtrades) + " / " + str.tostring(strategy.wintrades) + " / " + str.tostring(strategy.losstrades))
+    table.cell(panel, 0, 7, "Win rate")
+    table.cell(panel, 1, 7, strategy.closedtrades == 0 ? "unavailable" : str.tostring(strategy.wintrades / strategy.closedtrades * 100.0, "#.0") + "%")
+    table.cell(panel, 0, 8, "Profit factor")
+    table.cell(panel, 1, 8, strategy.grossloss == 0 ? "unavailable" : str.tostring(strategy.grossprofit / math.abs(strategy.grossloss), "#.00"))
+    table.cell(panel, 0, 9, "Parity")
+    table.cell(panel, 1, 9, setupName == "FLAT BASE" or setupName == "CUP & HANDLE" ? "APPROXIMATED" : "SEMANTICALLY_EQUIVALENT")
+    table.cell(panel, 0, 10, "DATA SOURCE: TRADINGVIEW", text_color=color.yellow)
+    table.cell(panel, 1, 10, "NOT ALPHA MARKET TRUTH ENGINE", text_color=color.yellow)
+    table.cell(panel, 0, 11, "Independent validation", text_color=color.orange)
+    table.cell(panel, 1, 11, "No production influence", text_color=color.orange)

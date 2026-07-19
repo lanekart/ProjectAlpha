@@ -1,0 +1,1 @@
+{"currentTs":"1740729567039","feeds":{"NSE_EQ|INE303R01014":{"fullFeed":{"ltpc":{"cp":460.0,"ltp":466.0,"ltq":"120","ltt":"1740729566039"},"marketOHLC":{"ohlc":[{"close":466.0,"high":467.0,"interval":"I1","low":464.0,"open":465.0,"ts":"1740729540000","vol":220}]}}},"NSE_EQ|INE785M01013":{"ltpc":{"cp":18.0,"ltp":18.5,"ltq":"200","ltt":"1740729566039"}}},"type":"live_feed"}

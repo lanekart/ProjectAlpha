@@ -1,0 +1,8 @@
+{
+  "confirmation_timeframe": "240",
+  "entry_threshold": "85",
+  "setup": "ANY_SETUP",
+  "stop_model": "ATR_BUFFERED_SUPPORT",
+  "target_model": "PARTIAL_2R_3R_4R",
+  "timeframe": "240"
+}

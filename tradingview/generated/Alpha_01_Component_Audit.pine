@@ -1,0 +1,131 @@
+//@version=6
+indicator("Alpha 01 Component Audit v1.0.1", overlay=false, max_labels_count=100)
+
+// ALPHA_DEFAULT_CHART_TIMEFRAME=D
+// ALPHA_DEFAULT_CONFIRMATION_TIMEFRAME=240
+// ALPHA_DEFAULT_SETUP=ANY_SETUP
+// ALPHA_DEFAULT_STOP_MODEL=ATR_BUFFERED_SUPPORT
+// ALPHA_DEFAULT_TARGET_MODEL=PARTIAL_2R_3R_4R
+// ALPHA_DEFAULT_ENTRY_THRESHOLD=85
+// DATA SOURCE: TRADINGVIEW
+// NOT ALPHA MARKET TRUTH ENGINE
+// CORPORATE-ACTION AND SYMBOL-HISTORY SEMANTICS MAY DIFFER
+// RESULTS ARE INDEPENDENT VALIDATION, NOT AUTHORITATIVE ALPHA REPLAY
+
+benchmark = input.symbol("NSE:NIFTY", "Benchmark symbol")
+rsLookback = input.int(63, "Relative-strength lookback", minval=2)
+sectorScore = input.float(0.50, "Manual sector score (unavailable by default)", minval=0.0, maxval=1.0)
+regimeMode = input.string("UNAVAILABLE", "Market regime", options=["UNAVAILABLE", "BULL", "SIDEWAYS", "BEAR", "BENCHMARK_PROXY"])
+
+clamp(float value) => math.max(0.0, math.min(1.0, value))
+safeDiv(float numerator, float denominator, float fallback) => denominator == 0.0 or na(denominator) ? fallback : numerator / denominator
+closeStrength = high == low ? 0.50 : clamp((close - low) / (high - low))
+dma20 = ta.sma(close, 20)
+dma50 = ta.sma(close, 50)
+dma200 = ta.sma(close, 200)
+ema20 = ta.ema(close, 20)
+ema50 = ta.ema(close, 50)
+ema200 = ta.ema(close, 200)
+availableDma = (na(dma20) ? 0.0 : 1.0) + (na(dma50) ? 0.0 : 1.0) + (na(dma200) ? 0.0 : 1.0)
+availableEma = (na(ema20) ? 0.0 : 1.0) + (na(ema50) ? 0.0 : 1.0) + (na(ema200) ? 0.0 : 1.0)
+dmaScore = availableDma == 0.0 ? 0.50 : ((na(dma20) ? 0.0 : close >= dma20 ? 1.0 : 0.0) + (na(dma50) ? 0.0 : close >= dma50 ? 1.0 : 0.0) + (na(dma200) ? 0.0 : close >= dma200 ? 1.0 : 0.0)) / availableDma
+emaScore = availableEma == 0.0 ? 0.50 : ((na(ema20) ? 0.0 : close >= ema20 ? 1.0 : 0.0) + (na(ema50) ? 0.0 : close >= ema50 ? 1.0 : 0.0) + (na(ema200) ? 0.0 : close >= ema200 ? 1.0 : 0.0)) / availableEma
+trendScore = dmaScore * 0.70 + emaScore * 0.30
+
+support = ta.lowest(low[1], 60)
+resistance = ta.highest(high[1], 60)
+higherStructure = high > high[1] and low > low[1]
+lowerStructure = high < high[1] and low < low[1]
+structureRaw = higherStructure ? 0.90 : lowerStructure ? 0.10 : 0.50
+breakout = close > resistance
+breakdown = close < support
+breakoutScore = breakout ? 0.90 : close == resistance ? 0.65 : 0.35
+breakdownScore = breakdown ? 0.90 : 0.20
+momentumScore = clamp(0.50 + safeDiv(close - close[1], close[1], 0.0) * 5.0)
+previousClose = close[1]
+trueRange = math.max(high - low, math.max(math.abs(high - previousClose), math.abs(low - previousClose)))
+alphaAtr = ta.sma(trueRange, 14)
+rangeAtr = safeDiv(high - low, alphaAtr, 1.0)
+volatilityScore = rangeAtr > 2.50 ? 0.25 : rangeAtr < 0.80 ? 0.80 : 0.60
+supportScore = close < support ? 0.15 : close > resistance ? 0.85 : 0.60
+priceScore = clamp(structureRaw * 0.28 + trendScore * 0.20 + momentumScore * 0.15 + math.max(breakoutScore, 1.0 - breakdownScore) * 0.12 + supportScore * 0.10 + closeStrength * 0.08 + volatilityScore * 0.07)
+
+averageVolume = ta.sma(volume, 20)
+volumeRatio = safeDiv(volume, averageVolume, 1.0)
+volumeExpansion = clamp(volumeRatio / 1.50)
+volumeDryUp = clamp(1.0 - volumeRatio)
+accumulation = closeStrength >= 0.70 and volumeRatio >= 1.20 ? 0.85 : closeStrength >= 0.55 ? 0.60 : 0.35
+distribution = closeStrength <= 0.30 and volumeRatio >= 1.20 ? 0.85 : closeStrength <= 0.45 ? 0.55 : 0.25
+breakoutVolume = breakout ? clamp(volumeRatio / 1.50) : 0.50
+selloff = breakdown and volumeRatio >= 1.30 ? 0.90 : close < close[1] and volumeRatio >= 1.50 ? 0.75 : 0.20
+volumeScore = clamp(volumeExpansion * 0.20 + volumeDryUp * 0.12 + accumulation * 0.24 + (1.0 - distribution) * 0.16 + breakoutVolume * 0.20 + (1.0 - selloff) * 0.08)
+
+swingHigh = ta.highest(high, 60)
+swingLow = ta.lowest(low, 60)
+priceRange = swingHigh - swingLow
+retracementRatio = priceRange <= 0.0 ? 0.50 : (swingHigh - close) / priceRange
+retracementRaw = retracementRatio <= 0.382 ? 0.70 : retracementRatio <= 0.50 ? 0.85 : retracementRatio <= 0.618 ? 0.55 : retracementRatio <= 0.786 ? 0.25 : 0.10
+retracementScore = clamp(retracementRaw + (retracementRatio <= 0.50 ? 0.10 : 0.0) + (retracementRatio > 0.618 ? -0.25 : 0.0) + (volumeDryUp >= 0.60 ? 0.10 : 0.0) + (selloff >= 0.70 ? -0.30 : 0.0))
+
+body = math.abs(close - open)
+bodyRange = high - low
+lowerWick = math.min(open, close) - low
+upperWick = high - math.max(open, close)
+bullEngulf = close > open and close[1] < open[1] and close >= open[1] and open <= close[1]
+bearEngulf = close < open and close[1] > open[1] and open >= close[1] and close <= open[1]
+hammer = lowerWick >= body * 2.0 and upperWick <= body
+shootingStar = upperWick >= body * 2.0 and lowerWick <= body
+doji = bodyRange > 0.0 and body <= bodyRange * 0.10
+candleScore = bullEngulf ? 0.74 : hammer ? 0.68 : bearEngulf ? 0.26 : shootingStar ? 0.30 : doji ? 0.50 : closeStrength >= 0.80 ? 0.68 : closeStrength <= 0.20 ? 0.30 : 0.50
+candleName = bullEngulf ? "BULLISH ENGULFING" : hammer ? "HAMMER" : bearEngulf ? "BEARISH ENGULFING" : shootingStar ? "SHOOTING STAR" : doji ? "DOJI" : closeStrength >= 0.80 ? "STRONG BULLISH CLOSE" : closeStrength <= 0.20 ? "STRONG BEARISH CLOSE" : "NONE"
+
+benchmarkClose = request.security(benchmark, timeframe.period, close, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+assetReturn = safeDiv(close, close[rsLookback], 1.0) - 1.0
+benchmarkReturn = safeDiv(benchmarkClose, benchmarkClose[rsLookback], 1.0) - 1.0
+relativeStrengthScore = clamp(0.50 + (assetReturn - benchmarkReturn) * 2.0)
+benchmark20Return = safeDiv(benchmarkClose, benchmarkClose[20], 1.0) - 1.0
+regimeProxy = benchmark20Return > 0.03 ? 0.75 : benchmark20Return < -0.03 ? 0.25 : 0.50
+regimeScore = regimeMode == "BULL" ? 0.75 : regimeMode == "BEAR" ? 0.25 : regimeMode == "SIDEWAYS" ? 0.50 : regimeMode == "BENCHMARK_PROXY" ? regimeProxy : 0.50
+setupScore = clamp(breakoutScore * 0.70 + breakoutVolume * 0.30)
+riskScore = volatilityScore
+composite = priceScore * 20.0 + volumeScore * 17.0 + trendScore * 15.0 + relativeStrengthScore * 13.0 + retracementScore * 10.0 + candleScore * 8.0 + setupScore * 7.0 + regimeScore * 5.0 + sectorScore * 3.0 + riskScore * 2.0
+verdict = composite >= 90.0 ? "STRONG_BUY" : composite >= 75.0 ? "BUY" : composite >= 60.0 ? "HOLD" : composite >= 40.0 ? "SELL" : "STRONG_SELL"
+
+plot(composite, "Composite score", color=color.new(color.teal, 0), linewidth=2)
+hline(75.0, "BUY", color=color.new(color.green, 40))
+hline(60.0, "HOLD", color=color.new(color.orange, 40))
+hline(40.0, "SELL", color=color.new(color.red, 40))
+
+var table dashboard = table.new(position.top_right, 6, 14, border_width=1)
+row(int index, string name, float raw, float weight, string availability, string parity) =>
+    table.cell(dashboard, 0, index, name)
+    table.cell(dashboard, 1, index, str.tostring(raw, "#.000"))
+    table.cell(dashboard, 2, index, str.tostring(raw * 100.0, "#.0"))
+    table.cell(dashboard, 3, index, str.tostring(raw * weight, "#.00"))
+    table.cell(dashboard, 4, index, availability)
+    table.cell(dashboard, 5, index, parity)
+
+if barstate.islast
+    table.cell(dashboard, 0, 0, "Component")
+    table.cell(dashboard, 1, 0, "Raw")
+    table.cell(dashboard, 2, 0, "Score")
+    table.cell(dashboard, 3, 0, "Points")
+    table.cell(dashboard, 4, 0, "Availability")
+    table.cell(dashboard, 5, 0, "Parity")
+    row(1, "Price structure", priceScore, 20.0, "CHART", "SEMANTIC")
+    row(2, "Volume", volumeScore, 17.0, "CHART", "EXACT FORMULA")
+    row(3, "Trend", trendScore, 15.0, "PROXY", "APPROXIMATED")
+    row(4, "Relative strength", relativeStrengthScore, 13.0, "BENCHMARK", "APPROXIMATED")
+    row(5, "Retracement", retracementScore, 10.0, "CHART", "SEMANTIC")
+    row(6, "Candle: " + candleName, candleScore, 8.0, "CHART", "EXACT FORMULA")
+    row(7, "Breakout/setup", setupScore, 7.0, "CHART", "SEMANTIC")
+    row(8, "Market regime", regimeScore, 5.0, regimeMode, regimeMode == "UNAVAILABLE" ? "UNAVAILABLE" : "APPROXIMATED")
+    row(9, "Sector", sectorScore, 3.0, "MANUAL", "UNAVAILABLE")
+    row(10, "Risk/volatility", riskScore, 2.0, "CHART", "SEMANTIC")
+    table.cell(dashboard, 0, 11, "Composite")
+    table.cell(dashboard, 1, 11, str.tostring(composite, "#.00"))
+    table.cell(dashboard, 2, 11, verdict)
+    table.cell(dashboard, 0, 12, "DATA SOURCE: TRADINGVIEW", text_color=color.yellow)
+    table.cell(dashboard, 1, 12, "NOT ALPHA MARKET TRUTH ENGINE", text_color=color.yellow)
+    table.cell(dashboard, 0, 13, "Independent validation only", text_color=color.orange)
+    table.cell(dashboard, 1, 13, "ALPHA_EXACT prohibited", text_color=color.orange)

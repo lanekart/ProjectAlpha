@@ -68,6 +68,18 @@ def test_intelligence_input_builder_uses_persisted_price_history() -> None:
     assert "average_volume" in candidate_by_symbol["AAA"].metadata
 
 
+def test_intelligence_input_builder_defaults_to_five_year_history() -> None:
+    repository = _FakePriceRepository(_history_frame("AAA", bars=1260))
+
+    inputs = IntelligenceInputBuilder(price_repository=repository).build(
+        observed_on=date(2026, 7, 7),
+        analysis=_analysis_frame(),
+    )
+
+    assert repository.calls == [("AAA", "BBB", "CCC", date(2026, 7, 7), 1260)]
+    assert inputs.recommendation_candidates[0].metadata["historical_bars"] == "1260"
+
+
 def test_intelligence_input_set_builds_allocation_candidates() -> None:
     inputs = DemoIntelligenceInputBuilder().build(observed_on=date(2026, 1, 30))
 

@@ -1,0 +1,144 @@
+{
+  "fixture_id": "upstox_recorded_contract_v1",
+  "description": "Sanitized Upstox-style contract fixture derived from the implemented decoder schema. This is not a captured production payload.",
+  "recorded_simulation": true,
+  "subscriptions": [
+    {
+      "symbol": "KALYANKJIL",
+      "instrument_key": "NSE_EQ|INE303R01014",
+      "exchange": "NSE"
+    },
+    {
+      "symbol": "PCJEWELLER",
+      "instrument_key": "NSE_EQ|INE785M01013",
+      "exchange": "NSE"
+    }
+  ],
+  "events": [
+    {
+      "event_id": "market-open",
+      "kind": "market_status",
+      "instrument_key": "NSE_EQ|INE303R01014",
+      "exchange_timestamp": "2026-07-17T09:15:00+05:30",
+      "market_session": "OPEN"
+    },
+    {
+      "event_id": "valid-quote-tick",
+      "kind": "quote",
+      "instrument_key": "NSE_EQ|INE303R01014",
+      "exchange_timestamp": "2026-07-17T09:15:02+05:30",
+      "last_price": "465.00",
+      "bid": "464.90",
+      "ask": "465.10",
+      "volume": "100"
+    },
+    {
+      "event_id": "multi-instrument-1",
+      "kind": "quote",
+      "instrument_key": "NSE_EQ|INE785M01013",
+      "exchange_timestamp": "2026-07-17T09:15:05+05:30",
+      "last_price": "18.50",
+      "bid": "18.45",
+      "ask": "18.55",
+      "volume": "200"
+    },
+    {
+      "event_id": "volume-update",
+      "kind": "quote",
+      "instrument_key": "NSE_EQ|INE303R01014",
+      "exchange_timestamp": "2026-07-17T09:15:30+05:30",
+      "last_price": "466.00",
+      "volume": "150"
+    },
+    {
+      "event_id": "ohlc-update",
+      "kind": "quote",
+      "instrument_key": "NSE_EQ|INE303R01014",
+      "exchange_timestamp": "2026-07-17T09:16:02+05:30",
+      "last_price": "467.00",
+      "open": "465.00",
+      "high": "467.50",
+      "low": "464.80",
+      "close": "467.00",
+      "volume": "120"
+    },
+    {
+      "event_id": "duplicate-event",
+      "kind": "quote",
+      "instrument_key": "NSE_EQ|INE303R01014",
+      "exchange_timestamp": "2026-07-17T09:16:02+05:30",
+      "last_price": "467.00",
+      "volume": "120"
+    },
+    {
+      "event_id": "out-of-order-event",
+      "kind": "quote",
+      "instrument_key": "NSE_EQ|INE303R01014",
+      "exchange_timestamp": "2026-07-17T09:15:45+05:30",
+      "last_price": "466.50",
+      "volume": "90"
+    },
+    {
+      "event_id": "missing-optional-field",
+      "kind": "quote",
+      "instrument_key": "NSE_EQ|INE785M01013",
+      "exchange_timestamp": "2026-07-17T09:16:15+05:30",
+      "last_price": "18.70",
+      "volume": "160"
+    },
+    {
+      "event_id": "unknown-instrument",
+      "kind": "quote",
+      "instrument_key": "NSE_EQ|UNKNOWN",
+      "exchange_timestamp": "2026-07-17T09:16:30+05:30",
+      "last_price": "100.00",
+      "volume": "10"
+    },
+    {
+      "event_id": "malformed-payload",
+      "kind": "quote",
+      "instrument_key": "NSE_EQ|INE303R01014",
+      "exchange_timestamp": "2026-07-17T09:16:45+05:30",
+      "volume": "10"
+    },
+    {
+      "event_id": "last-traded-price-update",
+      "kind": "ltp",
+      "instrument_key": "NSE_EQ|INE303R01014",
+      "exchange_timestamp": "2026-07-17T09:17:02+05:30",
+      "ltp": "468.00",
+      "volume": "180"
+    },
+    {
+      "event_id": "stale-event",
+      "kind": "quote",
+      "instrument_key": "NSE_EQ|INE303R01014",
+      "exchange_timestamp": "2026-07-17T09:17:30+05:30",
+      "received_at": "2026-07-17T09:18:10+05:30",
+      "last_price": "467.80",
+      "volume": "80"
+    },
+    {
+      "event_id": "reconnect-boundary",
+      "kind": "reconnect",
+      "instrument_key": "NSE_EQ|INE303R01014",
+      "exchange_timestamp": "2026-07-17T09:18:00+05:30",
+      "resubscribe": true
+    },
+    {
+      "event_id": "post-reconnect-update",
+      "kind": "quote",
+      "instrument_key": "NSE_EQ|INE303R01014",
+      "exchange_timestamp": "2026-07-17T09:18:05+05:30",
+      "last_price": "469.00",
+      "volume": "140"
+    },
+    {
+      "event_id": "market-closed",
+      "kind": "market_status",
+      "instrument_key": "NSE_EQ|INE303R01014",
+      "exchange_timestamp": "2026-07-17T15:30:00+05:30",
+      "market_session": "POST_CLOSE"
+    }
+  ]
+}

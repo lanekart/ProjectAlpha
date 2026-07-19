@@ -1,0 +1,21 @@
+//@version=6
+library("AlphaCore", overlay=false)
+
+// Canonical helpers used by the modular Alpha Pine research sources.
+export clamp(float value) =>
+    math.max(0.0, math.min(1.0, value))
+
+export safeDivide(float numerator, float denominator, float fallback) =>
+    na(denominator) or denominator == 0.0 ? fallback : numerator / denominator
+
+export direction(float score) =>
+    score >= 0.60 ? "BULLISH" : score <= 0.40 ? "BEARISH" : "NEUTRAL"
+
+export recommendationVerdict(float score) =>
+    score >= 90.0 ? "STRONG_BUY" : score >= 75.0 ? "BUY" : score >= 60.0 ? "HOLD" : score >= 40.0 ? "SELL" : "STRONG_SELL"
+
+export sourceWarning() =>
+    "DATA SOURCE: TRADINGVIEW\nNOT ALPHA MARKET TRUTH ENGINE\nCORPORATE-ACTION AND SYMBOL-HISTORY SEMANTICS MAY DIFFER\nRESULTS ARE INDEPENDENT VALIDATION, NOT AUTHORITATIVE ALPHA REPLAY"
+
+export parityLabel(string component) =>
+    component == "VOLUME" or component == "CANDLE" or component == "VERDICT" ? "EXACT" : component == "PRICE" or component == "RETRACEMENT" or component == "TRADE_PLAN" ? "SEMANTICALLY_EQUIVALENT" : component == "TREND" or component == "RELATIVE_STRENGTH" ? "APPROXIMATED" : "UNAVAILABLE_IN_TRADINGVIEW"

@@ -9,8 +9,14 @@ import pandas as pd
 
 from alpha.analysis.signals.daily_report import DailyMarketReport, DailyReport
 from alpha.application.ingestion import IngestionService
-from alpha.data.downloader.bhavcopy import BhavcopyDownloader, DownloadedArchive
+from alpha.exceptions import BhavcopyNotFoundError
 from alpha.market.resolver import TradingDateResolver
+from alpha.market_truth.historical_service import (
+    DownloadedArchive,
+)
+from alpha.market_truth.historical_service import (
+    MarketTruthArchiveDownloader as BhavcopyDownloader,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,6 +33,16 @@ class MarketAnalysisResult:
     requested_on: date
     analysis: pd.DataFrame
     report: DailyReport
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalBackfillResult:
+    requested_start: date
+    requested_end: date
+    attempted_days: int
+    processed_archives: int
+    skipped_non_trading_days: int
+    failed_dates: tuple[str, ...]
 
 
 class HistoricalIngestionService:
@@ -60,6 +76,54 @@ class HistoricalIngestionService:
             current += timedelta(days=1)
 
         return processed
+
+    def backfill_legacy_archive(
+        self,
+        start: date,
+        end: date,
+    ) -> HistoricalBackfillResult:
+        """
+        Backfill older NSE bhavcopy archives directly from the historical archive.
+
+        Daily/live ingestion keeps the live-first provider chain. Multi-year history
+        needs a faster archive-only path so Alpha can build long local evidence
+        windows without first probing same-day UDiFF endpoints for every date.
+        """
+
+        if end < start:
+            raise ValueError("end must be on or after start")
+
+        downloader = BhavcopyDownloader(provider_mode="NSE_OFFICIAL_ARCHIVE")
+        attempted = 0
+        processed = 0
+        skipped = 0
+        failed: list[str] = []
+        current = start
+
+        while current <= end:
+            if current.weekday() >= 5:
+                skipped += 1
+                current += timedelta(days=1)
+                continue
+
+            attempted += 1
+            try:
+                archive = downloader.download_archive(current)
+                self.ingestion.ingest(archive.path)
+                processed += 1
+            except BhavcopyNotFoundError as exc:
+                failed.append(f"{current.isoformat()}: {exc}")
+
+            current += timedelta(days=1)
+
+        return HistoricalBackfillResult(
+            requested_start=start,
+            requested_end=end,
+            attempted_days=attempted,
+            processed_archives=processed,
+            skipped_non_trading_days=skipped,
+            failed_dates=tuple(failed),
+        )
 
     def download_only(self, date_str: str) -> int:
         target = self._parse(date_str)
@@ -167,4 +231,8 @@ class HistoricalIngestionService:
             return fallback
 
 
-__all__ = ["HistoricalIngestionService", "MarketAnalysisResult"]
+__all__ = [
+    "HistoricalBackfillResult",
+    "HistoricalIngestionService",
+    "MarketAnalysisResult",
+]

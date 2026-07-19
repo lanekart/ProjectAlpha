@@ -25,10 +25,55 @@ from alpha.live.models import (
 from alpha.live.monitor import LiveMonitorSnapshot, run_live_monitor
 from alpha.live.providers import LiveMarketDataProvider
 from alpha.live.quality import TickQualityEngine
+from alpha.live.recorded_simulation import (
+    RECORDED_UPSTOX_FIXTURE_NAME,
+    RECORDED_UPSTOX_FIXTURE_PATH,
+    RecordedProviderMode,
+    RecordedSimulationRun,
+    RecordedUpstoxMarketDataProvider,
+    RecordedUpstoxReadinessAuditEngine,
+    UpstoxReadinessAuditReport,
+    UpstoxReadinessClassification,
+    export_upstox_readiness_audit_json,
+    load_recorded_upstox_fixture,
+    render_upstox_readiness_audit,
+    run_recorded_upstox_simulation,
+)
 from alpha.live.registry import InstrumentState, LiveInstrumentRegistry
 from alpha.live.risk import LiveRiskContext, LiveRiskEngine
 from alpha.live.session import MarketSessionEngine
 from alpha.live.upstox import UpstoxLiveMarketDataProvider
+from alpha.live.upstox_acceptance import (
+    UpstoxAcceptanceProviderMode,
+    UpstoxLiveAcceptanceClassification,
+    UpstoxLiveAcceptanceHarness,
+    UpstoxLiveAcceptancePreflight,
+    UpstoxLiveAcceptanceReport,
+    UpstoxLiveEventEvidence,
+    UpstoxLiveProtocolEvidence,
+    export_upstox_live_acceptance_json,
+    render_upstox_live_acceptance,
+)
+from alpha.live.upstox_auth import (
+    UPSTOX_MARKET_DATA_FEED_VERSION,
+    InstrumentResolutionStatus,
+    UpstoxAuthConfig,
+    UpstoxAuthService,
+    UpstoxProviderPreflight,
+    UpstoxReadinessStatus,
+    UpstoxTokenStatus,
+    prompt_authorization_code,
+    render_upstox_status,
+)
+from alpha.live.upstox_protocol import (
+    UpstoxFeedMessageCategory,
+    UpstoxProtocolAuditClassification,
+    UpstoxProtocolAuditReport,
+    build_protocol_audit_report,
+    export_protocol_audit_json,
+    render_protocol_audit,
+    schema_hash,
+)
 
 __all__ = [
     "FeedHealthEngine",
@@ -53,10 +98,47 @@ __all__ = [
     "LiveTick",
     "MarketSessionEngine",
     "MarketSessionState",
+    "RECORDED_UPSTOX_FIXTURE_NAME",
+    "RECORDED_UPSTOX_FIXTURE_PATH",
+    "RecordedProviderMode",
+    "RecordedSimulationRun",
+    "RecordedUpstoxMarketDataProvider",
+    "RecordedUpstoxReadinessAuditEngine",
     "TickQualityAssessment",
     "TickQualityEngine",
     "TickQualityStatistics",
     "TickQualityStatus",
+    "UpstoxReadinessAuditReport",
+    "UpstoxReadinessClassification",
+    "InstrumentResolutionStatus",
+    "UPSTOX_MARKET_DATA_FEED_VERSION",
+    "UpstoxAuthConfig",
+    "UpstoxAuthService",
+    "UpstoxFeedMessageCategory",
+    "UpstoxAcceptanceProviderMode",
+    "UpstoxLiveAcceptanceClassification",
+    "UpstoxLiveAcceptanceHarness",
+    "UpstoxLiveAcceptancePreflight",
+    "UpstoxLiveAcceptanceReport",
+    "UpstoxLiveEventEvidence",
     "UpstoxLiveMarketDataProvider",
+    "UpstoxLiveProtocolEvidence",
+    "UpstoxProviderPreflight",
+    "UpstoxProtocolAuditClassification",
+    "UpstoxProtocolAuditReport",
+    "UpstoxReadinessStatus",
+    "UpstoxTokenStatus",
+    "build_protocol_audit_report",
+    "export_protocol_audit_json",
+    "export_upstox_live_acceptance_json",
+    "export_upstox_readiness_audit_json",
+    "load_recorded_upstox_fixture",
+    "prompt_authorization_code",
+    "render_protocol_audit",
+    "render_upstox_live_acceptance",
+    "render_upstox_readiness_audit",
+    "render_upstox_status",
     "run_live_monitor",
+    "run_recorded_upstox_simulation",
+    "schema_hash",
 ]

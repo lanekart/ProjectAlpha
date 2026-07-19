@@ -1,0 +1,17 @@
+//@version=6
+library("AlphaMomentum", overlay=false)
+
+clamp(float value) => math.max(0.0, math.min(1.0, value))
+safeDivide(float numerator, float denominator, float fallback) => denominator == 0.0 or na(denominator) ? fallback : numerator / denominator
+
+export oneBarScore(float closeValue) =>
+    float change = safeDivide(closeValue - closeValue[1], closeValue[1], 0.0)
+    clamp(0.50 + change * 5.0)
+
+export relativeStrengthProxy(float assetClose, float benchmarkClose, int lookback) =>
+    float assetReturn = safeDivide(assetClose, assetClose[lookback], 1.0) - 1.0
+    float benchmarkReturn = safeDivide(benchmarkClose, benchmarkClose[lookback], 1.0) - 1.0
+    clamp(0.50 + (assetReturn - benchmarkReturn) * 2.0)
+
+export state(float scoreValue) =>
+    scoreValue >= 0.60 ? "OUTPERFORMING" : scoreValue <= 0.40 ? "UNDERPERFORMING" : "IN_LINE"

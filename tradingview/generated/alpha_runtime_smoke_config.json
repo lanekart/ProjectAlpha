@@ -1,0 +1,14 @@
+{
+  "chart_timeframe": "1D",
+  "confirmed_bars_only": true,
+  "end_date": "2021-12-31",
+  "long_only": true,
+  "market_regime_proxy": false,
+  "pyramiding": 0,
+  "script": "Alpha_03_Institutional_Composite.pine",
+  "sector_proxy": false,
+  "start_date": "2017-01-01",
+  "structural_timeframe": "1M",
+  "symbol": "NSE:RELIANCE",
+  "trend_timeframe": "1W"
+}

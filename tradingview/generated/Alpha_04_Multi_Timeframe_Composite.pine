@@ -1,0 +1,128 @@
+//@version=6
+strategy("Alpha 04 Multi-Timeframe Composite v1.0.1", overlay=true, initial_capital=1000000, default_qty_type=strategy.percent_of_equity, default_qty_value=10, commission_type=strategy.commission.percent, commission_value=0.10, slippage=1, pyramiding=0, process_orders_on_close=true)
+
+// ALPHA_DEFAULT_CHART_TIMEFRAME=D
+// ALPHA_DEFAULT_CONFIRMATION_TIMEFRAME=240
+// ALPHA_DEFAULT_SETUP=ANY_SETUP
+// ALPHA_DEFAULT_STOP_MODEL=ATR_BUFFERED_SUPPORT
+// ALPHA_DEFAULT_TARGET_MODEL=PARTIAL_2R_3R_4R
+// ALPHA_DEFAULT_ENTRY_THRESHOLD=85
+// DATA SOURCE: TRADINGVIEW
+// NOT ALPHA MARKET TRUTH ENGINE
+// CORPORATE-ACTION AND SYMBOL-HISTORY SEMANTICS MAY DIFFER
+// RESULTS ARE INDEPENDENT VALIDATION, NOT AUTHORITATIVE ALPHA REPLAY
+
+startDate = input.time(timestamp("01 Jan 2015 00:00 +0000"), "Start date", group="Backtest Controls")
+endDate = input.time(timestamp("31 Dec 2035 23:59 +0000"), "End date", group="Backtest Controls")
+researchInitialCapital = input.float(1000000, "Initial capital (declaration fixed)", minval=1, group="Backtest Controls")
+orderSize = input.float(10.0, "Order size (% of equity)", minval=0.1, maxval=100, group="Backtest Controls")
+sizingMode = input.string("PERCENT_OF_EQUITY", "Percentage-of-equity sizing", options=["PERCENT_OF_EQUITY"], group="Backtest Controls")
+commission = input.float(0.10, "Commission (%) (declaration fixed)", minval=0, group="Backtest Controls")
+slippage = input.int(1, "Slippage (ticks) (declaration fixed)", minval=0, group="Backtest Controls")
+pyramiding = input.int(0, "Pyramiding (declaration fixed)", minval=0, maxval=0, group="Backtest Controls")
+longOnly = input.bool(true, "Long only", group="Backtest Controls")
+barCloseExecution = input.bool(true, "Bar-close execution", group="Backtest Controls")
+nextBarExecution = input.bool(true, "Next-bar execution", group="Backtest Controls")
+stopFill = input.string("TOUCH", "Stop fill assumption", options=["TOUCH"], group="Backtest Controls")
+targetFill = input.string("TOUCH", "Target fill assumption", options=["TOUCH"], group="Backtest Controls")
+conflictPolicy = input.string("STOP_FIRST_CONSERVATIVE", "Same-bar conflict policy", options=["STOP_FIRST_CONSERVATIVE"], group="Backtest Controls")
+maxPositions = input.int(1, "Maximum concurrent positions", minval=1, maxval=1, group="Backtest Controls")
+tradingSession = input.session("0915-1530", "Trading session", group="Backtest Controls")
+
+structuralTimeframe = input.timeframe("M", "Structural trend timeframe", group="Timeframes")
+trendTimeframe = input.timeframe("W", "Intermediate trend timeframe", group="Timeframes")
+setupTimeframe = input.timeframe("D", "Primary setup timeframe", group="Timeframes")
+confirmationTimeframe = input.timeframe("240", "Confirmation timeframe", group="Timeframes")
+executionTimeframe = input.timeframe("60", "Optional execution refinement", group="Timeframes")
+marketFilterTimeframe = input.timeframe("D", "Market filter timeframe", group="Timeframes")
+confirmedBarsOnly = input.bool(true, "Confirmed higher-timeframe bars only", group="Timeframes")
+entryThreshold = input.float(85, "Entry score threshold", minval=0, maxval=100, group="Alpha Inputs")
+benchmark = input.symbol("NSE:NIFTY", "Market-filter benchmark", group="Alpha Inputs")
+
+clamp(float value) => math.max(0.0, math.min(1.0, value))
+safeDiv(float numerator, float denominator, float fallback) => denominator == 0.0 or na(denominator) ? fallback : numerator / denominator
+monthlyClose = request.security(syminfo.tickerid, structuralTimeframe, close[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+monthly20 = request.security(syminfo.tickerid, structuralTimeframe, ta.sma(close, 20)[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+weeklyClose = request.security(syminfo.tickerid, trendTimeframe, close[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+weekly20 = request.security(syminfo.tickerid, trendTimeframe, ta.sma(close, 20)[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+weekly50 = request.security(syminfo.tickerid, trendTimeframe, ta.sma(close, 50)[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+dailyClose = request.security(syminfo.tickerid, setupTimeframe, close[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+daily20 = request.security(syminfo.tickerid, setupTimeframe, ta.sma(close, 20)[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+daily50 = request.security(syminfo.tickerid, setupTimeframe, ta.sma(close, 50)[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+dailyResistance = request.security(syminfo.tickerid, setupTimeframe, ta.highest(high[1], 60)[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+dailySupport = request.security(syminfo.tickerid, setupTimeframe, ta.lowest(low[1], 60)[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+dailyVolumeRatio = request.security(syminfo.tickerid, setupTimeframe, (volume / ta.sma(volume, 20))[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+confirmationClose = request.security(syminfo.tickerid, confirmationTimeframe, close[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+confirmationHigh = request.security(syminfo.tickerid, confirmationTimeframe, high[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+executionClose = request.security(syminfo.tickerid, executionTimeframe, close[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+marketClose = request.security(benchmark, marketFilterTimeframe, close[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+market50 = request.security(benchmark, marketFilterTimeframe, ta.sma(close, 50)[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+
+previousClose = close[1]
+trueRange = math.max(high - low, math.max(math.abs(high - previousClose), math.abs(low - previousClose)))
+alphaAtr = ta.sma(trueRange, 14)
+structuralTrend = monthlyClose > monthly20
+intermediateTrend = weeklyClose > weekly20 and weekly20 > weekly50
+primaryTrend = dailyClose > daily20 and daily20 > daily50
+setupBreakout = dailyClose > dailyResistance and dailyVolumeRatio >= 1.20
+confirmation = confirmationClose > dailyResistance and confirmationClose >= confirmationHigh
+executionAligned = executionClose >= daily20
+marketFilter = marketClose > market50
+componentCount = (structuralTrend ? 1 : 0) + (intermediateTrend ? 1 : 0) + (primaryTrend ? 1 : 0) + (setupBreakout ? 1 : 0) + (confirmation ? 1 : 0) + (executionAligned ? 1 : 0) + (marketFilter ? 1 : 0)
+compositeScore = float(componentCount) / 7.0 * 100.0
+entryTrigger = math.max(dailyResistance, confirmationHigh)
+initialStop = math.min(entryTrigger - syminfo.mintick, math.max(syminfo.mintick, math.max(dailySupport, daily50) - alphaAtr * 0.50))
+risk = entryTrigger - initialStop
+target1 = entryTrigger + risk * 2.0
+target2 = entryTrigger + risk * 3.0
+target3 = math.max(entryTrigger + risk * 4.0, entryTrigger + alphaAtr * 3.0)
+rewardRisk = risk <= 0.0 ? na : (target1 - entryTrigger) / risk
+confirmedPolicy = confirmedBarsOnly and barstate.isconfirmed
+entryReady = confirmedPolicy and compositeScore >= entryThreshold and structuralTrend and intermediateTrend and primaryTrend and setupBreakout and confirmation and marketFilter and rewardRisk >= 2.0
+entrySignal = nextBarExecution ? entryReady[1] : entryReady
+inRange = time >= startDate and time <= endDate
+inSession = not na(time(timeframe.period, tradingSession))
+calculatedQuantity = strategy.equity * orderSize / 100.0 / close
+
+if inRange and inSession and longOnly and barCloseExecution and entrySignal and strategy.position_size == 0
+    strategy.entry("MTF Alpha Long", strategy.long, qty=calculatedQuantity)
+if strategy.position_size > 0
+    strategy.exit("MTF Exit", "MTF Alpha Long", stop=initialStop, limit=target2)
+
+plot(daily20, "Daily 20-DMA", color=color.new(color.blue, 0))
+plot(daily50, "Daily 50-DMA", color=color.new(color.orange, 0))
+plot(entryTrigger, "Entry trigger", color=color.new(color.green, 0), style=plot.style_linebr)
+plot(initialStop, "Initial stop", color=color.new(color.red, 0), style=plot.style_linebr)
+
+var table panel = table.new(position.top_right, 2, 15, border_width=1)
+if barstate.islast
+    table.cell(panel, 0, 0, "Confirmed-bars policy")
+    table.cell(panel, 1, 0, confirmedBarsOnly ? "ENFORCED" : "DISABLED; ENTRY BLOCKED")
+    table.cell(panel, 0, 1, "Structural / trend")
+    table.cell(panel, 1, 1, (structuralTrend ? "PASS" : "FAIL") + " / " + (intermediateTrend ? "PASS" : "FAIL"))
+    table.cell(panel, 0, 2, "Primary setup")
+    table.cell(panel, 1, 2, setupBreakout ? "BREAKOUT CONFIRMED" : "WAITING")
+    table.cell(panel, 0, 3, "4H confirmation")
+    table.cell(panel, 1, 3, confirmation ? "CONFIRMED" : "WAITING")
+    table.cell(panel, 0, 4, "Conditions satisfied")
+    table.cell(panel, 1, 4, str.tostring(componentCount) + " / 7")
+    table.cell(panel, 0, 5, "Score")
+    table.cell(panel, 1, 5, str.tostring(compositeScore, "#.0"))
+    table.cell(panel, 0, 6, "Entry / stop")
+    table.cell(panel, 1, 6, str.tostring(entryTrigger, format.mintick) + " / " + str.tostring(initialStop, format.mintick))
+    table.cell(panel, 0, 7, "Targets")
+    table.cell(panel, 1, 7, str.tostring(target1, format.mintick) + " / " + str.tostring(target2, format.mintick) + " / " + str.tostring(target3, format.mintick))
+    table.cell(panel, 0, 8, "Reward/risk")
+    table.cell(panel, 1, 8, str.tostring(rewardRisk, "#.00"))
+    table.cell(panel, 0, 9, "Trades / win rate")
+    table.cell(panel, 1, 9, str.tostring(strategy.closedtrades) + " / " + (strategy.closedtrades == 0 ? "unavailable" : str.tostring(strategy.wintrades / strategy.closedtrades * 100.0, "#.0") + "%"))
+    table.cell(panel, 0, 10, "Market filter / HTF rule")
+    table.cell(panel, 1, 10, (marketFilter ? "PASS" : "FAIL") + " / completed bar [1]")
+    table.cell(panel, 0, 11, "Merge rule")
+    table.cell(panel, 1, 11, "gaps_off; future access disabled")
+    table.cell(panel, 0, 12, "DATA SOURCE: TRADINGVIEW", text_color=color.yellow)
+    table.cell(panel, 1, 12, "NOT ALPHA MARKET TRUTH ENGINE", text_color=color.yellow)
+    table.cell(panel, 0, 13, "Corporate actions/history may differ", text_color=color.orange)
+    table.cell(panel, 1, 13, "Independent validation only", text_color=color.orange)
+    table.cell(panel, 0, 14, "Parity")
+    table.cell(panel, 1, 14, "SEMANTICALLY_EQUIVALENT")

@@ -14,7 +14,17 @@ class Database:
 
     def __init__(self, db_path: str) -> None:
         self.db_path = db_path
-        self.connection = duckdb.connect(db_path)
+        try:
+            self.connection = duckdb.connect(db_path)
+        except duckdb.IOException as error:
+            message = str(error)
+            if "Could not set lock" in message or "Conflicting lock" in message:
+                raise RuntimeError(
+                    "Project Alpha could not open the local DuckDB database "
+                    "because another Alpha command is already using it. Run "
+                    "database-backed CLI commands serially, then retry."
+                ) from error
+            raise
         self._init_schema()
 
     def _init_schema(self) -> None:

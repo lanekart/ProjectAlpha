@@ -1,0 +1,27 @@
+//@version=6
+library("AlphaRisk", overlay=false)
+
+export simpleAtr(int lookback) =>
+    float previousClose = close[1]
+    float trueRange = math.max(high - low, math.max(math.abs(high - previousClose), math.abs(low - previousClose)))
+    ta.sma(trueRange, lookback)
+
+export structuralStop(float entry, float support, float swingLow, float dma20, float dma50, float atrValue) =>
+    float anchor = math.max(math.max(support, swingLow), math.max(dma20 < entry ? dma20 : support, dma50 < entry ? dma50 : support))
+    float buffered = anchor - atrValue * 0.50
+    math.min(entry - syminfo.mintick, math.max(syminfo.mintick, buffered))
+
+export target(float entry, float stop, float rewardMultiple) =>
+    entry + math.max(0.0, entry - stop) * rewardMultiple
+
+export extensionTarget(float entry, float stop, float atrValue) =>
+    math.max(target(entry, stop, 4.0), entry + atrValue * 3.0)
+
+export trailingStop(float highestClose, float atrValue) =>
+    highestClose - atrValue * 2.0
+
+export stopDistancePercent(float entry, float stop) =>
+    entry <= 0.0 ? na : math.max(0.0, (entry - stop) / entry * 100.0)
+
+export rewardRisk(float entry, float stop, float targetValue) =>
+    entry <= stop ? na : (targetValue - entry) / (entry - stop)

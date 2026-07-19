@@ -6,7 +6,10 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from alpha.application.historical_ingestion import HistoricalIngestionService
+from alpha.application.historical_ingestion import (
+    HistoricalBackfillResult,
+    HistoricalIngestionService,
+)
 from alpha.data.downloader.bhavcopy import DownloadedArchive
 
 
@@ -97,6 +100,62 @@ def test_backfill_service_can_be_created() -> None:
 
     assert service is not None
     assert callable(service.backfill)
+
+
+def test_historical_backfill_result_is_typed() -> None:
+    result = HistoricalBackfillResult(
+        requested_start=date(2026, 1, 1),
+        requested_end=date(2026, 1, 2),
+        attempted_days=2,
+        processed_archives=1,
+        skipped_non_trading_days=0,
+        failed_dates=("2026-01-02: missing",),
+    )
+
+    assert result.processed_archives == 1
+    assert result.failed_dates == ("2026-01-02: missing",)
+
+
+def test_archive_backfill_skips_weekends_and_ingests_archives(monkeypatch) -> None:
+    class FakeArchiveDownloader:
+        downloaded: list[date] = []
+
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            del args, kwargs
+
+        def download_archive(self, trading_day: date) -> DownloadedArchive:
+            self.downloaded.append(trading_day)
+            return DownloadedArchive(
+                path=Path(f"data/raw/bhavcopy_{trading_day.isoformat()}.zip"),
+                requested_date=trading_day,
+                trade_date=trading_day,
+                cached=False,
+            )
+
+    monkeypatch.setattr(
+        "alpha.application.historical_ingestion.BhavcopyDownloader",
+        FakeArchiveDownloader,
+    )
+    ingestion = FakeIngestion(ingested=_market_frame(date(2026, 1, 2)))
+    service = HistoricalIngestionService(
+        resolver=FakeResolver(),  # type: ignore[arg-type]
+        downloader=FakeDownloader(),  # type: ignore[arg-type]
+        ingestion=ingestion,  # type: ignore[arg-type]
+    )
+
+    result = service.backfill_legacy_archive(
+        start=date(2026, 1, 2),
+        end=date(2026, 1, 5),
+    )
+
+    assert result.attempted_days == 2
+    assert result.processed_archives == 2
+    assert result.skipped_non_trading_days == 2
+    assert FakeArchiveDownloader.downloaded == [
+        date(2026, 1, 2),
+        date(2026, 1, 5),
+    ]
+    assert len(ingestion.archives) == 2
 
 
 def test_generate_report_uses_newly_ingested_prices() -> None:

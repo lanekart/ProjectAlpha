@@ -31,8 +31,10 @@ from alpha.backtest.strategy_statistics_export import (
     StrategyStatisticsReport,
     StrategyStatisticsReportBuilder,
 )
-from alpha.data.downloader.bhavcopy import BhavcopyDownloader
 from alpha.market.resolver import TradingDateResolver
+from alpha.market_truth.historical_service import (
+    MarketTruthArchiveDownloader as BhavcopyDownloader,
+)
 
 _ZERO = Decimal("0")
 

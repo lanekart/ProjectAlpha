@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TRL Comparison Reference</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; letter-spacing: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: #121412; color: #eef1ec; display: grid; place-items: center; }
+    main { width: min(1160px, calc(100vw - 48px)); }
+    header { display: flex; justify-content: space-between; gap: 24px; align-items: end; margin-bottom: 20px; }
+    h1 { margin: 0; font-size: 27px; }
+    p { margin: 6px 0 0; color: #9fa59b; font-size: 13px; }
+    .decision { color: #ef7d72; border: 1px solid #754039; background: #2b1917; border-radius: 4px; padding: 9px 12px; font-size: 13px; }
+    .band { border: 1px solid #3c4039; background: #1a1d19; border-radius: 6px; overflow: hidden; }
+    .summary { display: grid; grid-template-columns: repeat(5, 1fr); border-bottom: 1px solid #3c4039; }
+    .metric { padding: 16px; border-right: 1px solid #33372f; }
+    .metric:last-child { border-right: 0; }
+    .label { color: #9fa59b; font-size: 12px; }
+    .value { margin-top: 7px; font-size: 22px; font-variant-numeric: tabular-nums; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; color: #aeb3aa; font-weight: 550; padding: 12px 15px; border-bottom: 1px solid #3c4039; }
+    td { padding: 13px 15px; border-bottom: 1px solid #2d302b; }
+    tbody tr:last-child td { border-bottom: 0; }
+    .green { color: #75d69d; }
+    .red { color: #ef7d72; }
+    .yellow { color: #f0ca5a; }
+    footer { margin-top: 14px; display: flex; justify-content: space-between; color: #858b82; font-size: 12px; }
+    @media (max-width: 850px) { .summary { grid-template-columns: 1fr 1fr; } .metric { border-bottom: 1px solid #33372f; } .band { overflow-x: auto; } table { min-width: 760px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div><h1>Candidate Comparison</h1><p>Exact-cohort Alpha baseline comparison • structural example only</p></div>
+      <div class="decision">REJECT • HOLDOUT MISSING</div>
+    </header>
+    <section class="band">
+      <div class="summary">
+        <div class="metric"><div class="label">Matched Cohorts</div><div class="value">4</div></div>
+        <div class="metric"><div class="label">Improved</div><div class="value green">3</div></div>
+        <div class="metric"><div class="label">Unchanged</div><div class="value yellow">0</div></div>
+        <div class="metric"><div class="label">Worse</div><div class="value red">1</div></div>
+        <div class="metric"><div class="label">Promote</div><div class="value red">NO</div></div>
+      </div>
+      <table>
+        <thead><tr><th>Partition</th><th>Symbol</th><th>Sector</th><th>Trades</th><th>Expectancy Delta</th><th>Drawdown Improvement</th><th>Outcome</th></tr></thead>
+        <tbody>
+          <tr><td>DEVELOPMENT</td><td>EXAMPLE_A</td><td>BANKING</td><td>30 → 31</td><td class="green">+0.08</td><td class="green">+0.6%</td><td class="green">IMPROVED</td></tr>
+          <tr><td>DEVELOPMENT</td><td>EXAMPLE_B</td><td>IT</td><td>28 → 29</td><td class="green">+0.04</td><td class="green">+0.2%</td><td class="green">IMPROVED</td></tr>
+          <tr><td>VALIDATION</td><td>EXAMPLE_A</td><td>BANKING</td><td>19 → 20</td><td class="green">+0.03</td><td class="green">+0.1%</td><td class="green">IMPROVED</td></tr>
+          <tr><td>VALIDATION</td><td>EXAMPLE_B</td><td>IT</td><td>17 → 18</td><td class="red">−0.02</td><td class="red">−0.4%</td><td class="red">WORSE</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <footer><span>DEMO VALUES • NOT REGISTERED EVIDENCE</span><span>PRODUCTION_INFLUENCE=false</span></footer>
+  </main>
+</body>
+</html>

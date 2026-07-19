@@ -19,6 +19,7 @@ class RecommendationOutcomeStatus(StrEnum):
     EXITED = "exited"
     EXPIRED = "expired"
     NOT_TRIGGERED = "not_triggered"
+    DATA_MISSING = "data_missing"
 
 
 class RecommendationExitReason(StrEnum):
@@ -30,6 +31,14 @@ class RecommendationExitReason(StrEnum):
     TRAILING_STOP = "trailing_stop"
     EXPIRED = "expired"
     NOT_TRIGGERED = "not_triggered"
+    DATA_MISSING = "data_missing"
+
+
+class NextDayOutcomeLabel(StrEnum):
+    WIN = "WIN"
+    LOSS = "LOSS"
+    NEUTRAL = "NEUTRAL"
+    OPEN = "OPEN"
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +66,15 @@ class RecommendationLedgerEntry:
     statistical_edge_snapshot: MappingProxyType[str, str] | dict[str, str]
     data_completeness_snapshot: MappingProxyType[str, str] | dict[str, str]
     source_run_id: str
+    company_name: str | None = None
+    recommended_position_size_rs: Decimal | None = None
+    recommended_quantity: Decimal | None = None
+    approved_deployment_rs: Decimal | None = None
+    candle_pattern: str | None = None
+    reward_risk: Decimal | None = None
+    expected_value: Decimal | None = None
+    explanation: str | None = None
+    status: str = "OPEN"
 
     def __post_init__(self) -> None:
         recommendation_id = self.recommendation_id.strip()
@@ -111,6 +129,31 @@ class RecommendationLedgerEntry:
         object.__setattr__(self, "holding_period", _optional_text(self.holding_period))
         object.__setattr__(self, "market_regime", _optional_text(self.market_regime))
         object.__setattr__(self, "sector", _optional_text(self.sector))
+        object.__setattr__(self, "company_name", _optional_text(self.company_name))
+        object.__setattr__(
+            self,
+            "recommended_position_size_rs",
+            _optional_decimal(self.recommended_position_size_rs),
+        )
+        object.__setattr__(
+            self,
+            "recommended_quantity",
+            _optional_decimal(self.recommended_quantity),
+        )
+        object.__setattr__(
+            self,
+            "approved_deployment_rs",
+            _optional_decimal(self.approved_deployment_rs),
+        )
+        object.__setattr__(self, "candle_pattern", _optional_text(self.candle_pattern))
+        object.__setattr__(self, "reward_risk", _optional_decimal(self.reward_risk))
+        object.__setattr__(
+            self,
+            "expected_value",
+            _optional_decimal(self.expected_value),
+        )
+        object.__setattr__(self, "explanation", _optional_text(self.explanation))
+        object.__setattr__(self, "status", self.status.strip().upper() or "OPEN")
         object.__setattr__(
             self,
             "key_indicator_snapshot",
@@ -149,6 +192,17 @@ class RecommendationLedgerEntry:
             "holding_period": self.holding_period,
             "market_regime": self.market_regime,
             "sector": self.sector,
+            "company_name": self.company_name,
+            "recommended_position_size_rs": _decimal_text(
+                self.recommended_position_size_rs
+            ),
+            "recommended_quantity": _decimal_text(self.recommended_quantity),
+            "approved_deployment_rs": _decimal_text(self.approved_deployment_rs),
+            "candle_pattern": self.candle_pattern,
+            "reward_risk": _decimal_text(self.reward_risk),
+            "expected_value": _decimal_text(self.expected_value),
+            "explanation": self.explanation,
+            "status": self.status,
             "key_indicator_snapshot": dict(self.key_indicator_snapshot),
             "statistical_edge_snapshot": dict(self.statistical_edge_snapshot),
             "data_completeness_snapshot": dict(self.data_completeness_snapshot),
@@ -179,6 +233,19 @@ class RecommendationLedgerEntry:
             holding_period=_payload_optional_text(payload.get("holding_period")),
             market_regime=_payload_optional_text(payload.get("market_regime")),
             sector=_payload_optional_text(payload.get("sector")),
+            company_name=_payload_optional_text(payload.get("company_name")),
+            recommended_position_size_rs=_payload_decimal(
+                payload.get("recommended_position_size_rs")
+            ),
+            recommended_quantity=_payload_decimal(payload.get("recommended_quantity")),
+            approved_deployment_rs=_payload_decimal(
+                payload.get("approved_deployment_rs")
+            ),
+            candle_pattern=_payload_optional_text(payload.get("candle_pattern")),
+            reward_risk=_payload_decimal(payload.get("reward_risk")),
+            expected_value=_payload_decimal(payload.get("expected_value")),
+            explanation=_payload_optional_text(payload.get("explanation")),
+            status=str(payload.get("status", "OPEN")),
             key_indicator_snapshot=_payload_snapshot(
                 payload.get("key_indicator_snapshot")
             ),
@@ -212,6 +279,20 @@ class RecommendationOutcome:
     maximum_adverse_excursion: Decimal | None = None
     realized_r_multiple: Decimal | None = None
     realized_percent_return: Decimal | None = None
+    realized_pnl_rs: Decimal | None = None
+    unrealized_pnl_rs: Decimal | None = None
+    next_day_open: Decimal | None = None
+    next_day_high: Decimal | None = None
+    next_day_low: Decimal | None = None
+    next_day_close: Decimal | None = None
+    next_day_return_from_entry: Decimal | None = None
+    next_day_return_from_confirmation_entry: Decimal | None = None
+    next_day_target_1_touched: bool = False
+    next_day_stop_touched: bool = False
+    next_day_close_above_entry: bool | None = None
+    next_day_outcome_label: NextDayOutcomeLabel = NextDayOutcomeLabel.OPEN
+    next_day_pnl_rs: Decimal | None = None
+    next_day_pnl_pct: Decimal | None = None
     holding_period_bars: int = 0
     holding_period_days: int = 0
     explanation: tuple[str, ...] = field(default_factory=tuple)
@@ -240,6 +321,11 @@ class RecommendationOutcome:
             "exit_reason",
             RecommendationExitReason(self.exit_reason),
         )
+        object.__setattr__(
+            self,
+            "next_day_outcome_label",
+            NextDayOutcomeLabel(self.next_day_outcome_label),
+        )
         for field_name in (
             "entry_price",
             "exit_price",
@@ -247,6 +333,16 @@ class RecommendationOutcome:
             "maximum_adverse_excursion",
             "realized_r_multiple",
             "realized_percent_return",
+            "realized_pnl_rs",
+            "unrealized_pnl_rs",
+            "next_day_open",
+            "next_day_high",
+            "next_day_low",
+            "next_day_close",
+            "next_day_return_from_entry",
+            "next_day_return_from_confirmation_entry",
+            "next_day_pnl_rs",
+            "next_day_pnl_pct",
         ):
             object.__setattr__(
                 self,
@@ -278,6 +374,24 @@ class RecommendationOutcome:
             "maximum_adverse_excursion": _decimal_text(self.maximum_adverse_excursion),
             "realized_r_multiple": _decimal_text(self.realized_r_multiple),
             "realized_percent_return": _decimal_text(self.realized_percent_return),
+            "realized_pnl_rs": _decimal_text(self.realized_pnl_rs),
+            "unrealized_pnl_rs": _decimal_text(self.unrealized_pnl_rs),
+            "next_day_open": _decimal_text(self.next_day_open),
+            "next_day_high": _decimal_text(self.next_day_high),
+            "next_day_low": _decimal_text(self.next_day_low),
+            "next_day_close": _decimal_text(self.next_day_close),
+            "next_day_return_from_entry": _decimal_text(
+                self.next_day_return_from_entry
+            ),
+            "next_day_return_from_confirmation_entry": _decimal_text(
+                self.next_day_return_from_confirmation_entry
+            ),
+            "next_day_target_1_touched": self.next_day_target_1_touched,
+            "next_day_stop_touched": self.next_day_stop_touched,
+            "next_day_close_above_entry": self.next_day_close_above_entry,
+            "next_day_outcome_label": self.next_day_outcome_label.value,
+            "next_day_pnl_rs": _decimal_text(self.next_day_pnl_rs),
+            "next_day_pnl_pct": _decimal_text(self.next_day_pnl_pct),
             "holding_period_bars": self.holding_period_bars,
             "holding_period_days": self.holding_period_days,
             "explanation": list(self.explanation),
@@ -312,6 +426,28 @@ class RecommendationOutcome:
             realized_percent_return=_payload_decimal(
                 payload.get("realized_percent_return")
             ),
+            realized_pnl_rs=_payload_decimal(payload.get("realized_pnl_rs")),
+            unrealized_pnl_rs=_payload_decimal(payload.get("unrealized_pnl_rs")),
+            next_day_open=_payload_decimal(payload.get("next_day_open")),
+            next_day_high=_payload_decimal(payload.get("next_day_high")),
+            next_day_low=_payload_decimal(payload.get("next_day_low")),
+            next_day_close=_payload_decimal(payload.get("next_day_close")),
+            next_day_return_from_entry=_payload_decimal(
+                payload.get("next_day_return_from_entry")
+            ),
+            next_day_return_from_confirmation_entry=_payload_decimal(
+                payload.get("next_day_return_from_confirmation_entry")
+            ),
+            next_day_target_1_touched=bool(
+                payload.get("next_day_target_1_touched", False)
+            ),
+            next_day_stop_touched=bool(payload.get("next_day_stop_touched", False)),
+            next_day_close_above_entry=payload.get("next_day_close_above_entry"),
+            next_day_outcome_label=NextDayOutcomeLabel(
+                str(payload.get("next_day_outcome_label", NextDayOutcomeLabel.OPEN))
+            ),
+            next_day_pnl_rs=_payload_decimal(payload.get("next_day_pnl_rs")),
+            next_day_pnl_pct=_payload_decimal(payload.get("next_day_pnl_pct")),
             holding_period_bars=int(payload.get("holding_period_bars", 0)),
             holding_period_days=int(payload.get("holding_period_days", 0)),
             explanation=tuple(str(line) for line in payload.get("explanation", ())),
@@ -349,6 +485,43 @@ class PerformanceMetrics:
     active_count: int
     sample_count: int
     sufficient_sample: bool
+    average_gain_rs: Decimal | None = None
+    average_loss_rs: Decimal | None = None
+    total_realized_pnl_rs: Decimal | None = None
+    total_unrealized_pnl_rs: Decimal | None = None
+    cumulative_pnl_rs: Decimal | None = None
+    expectancy_pct: Decimal | None = None
+    expectancy_rs: Decimal | None = None
+    best_trade_rs: Decimal | None = None
+    worst_trade_rs: Decimal | None = None
+    best_trade_pct: Decimal | None = None
+    worst_trade_pct: Decimal | None = None
+    median_holding_period: Decimal | None = None
+    breakeven_trades: int = 0
+    winning_trades: int = 0
+    losing_trades: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalEdge:
+    dimension: str
+    key: str
+    sample_count: int
+    win_rate: Decimal | None
+    expected_value_rs: Decimal | None
+    average_holding_period: Decimal | None
+
+    @property
+    def available(self) -> bool:
+        return self.win_rate is not None and self.expected_value_rs is not None
+
+    def as_text(self) -> str:
+        if not self.available:
+            return "Not yet computed"
+        return (
+            f"sample_count={self.sample_count}, win_rate={self.win_rate}, "
+            f"expected_value_rs={self.expected_value_rs}"
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -437,6 +610,8 @@ def ratio(numerator: Decimal, denominator: Decimal) -> Decimal | None:
 
 
 __all__ = [
+    "HistoricalEdge",
+    "NextDayOutcomeLabel",
     "PerformanceMetrics",
     "PerformanceReport",
     "PerformanceUpdateSummary",

@@ -54,8 +54,9 @@ _STRONG_MOMENTUM_REFERENCE = Decimal("0.10")
 _ACCEPTABLE_VOLATILITY_REFERENCE = Decimal("0.08")
 _EXPECTED_RETURN_FLOOR = Decimal("0.01")
 _EXPECTED_DRAWDOWN_FLOOR = Decimal("0.01")
-_DEFAULT_HISTORY_WINDOW = 250
-_SUPPORTED_HISTORY_WINDOWS = frozenset({60, 120, 250})
+_FIVE_YEAR_HISTORY_BARS = 1260
+_DEFAULT_HISTORY_WINDOW = _FIVE_YEAR_HISTORY_BARS
+_SUPPORTED_HISTORY_WINDOWS = frozenset({60, 120, 250, _FIVE_YEAR_HISTORY_BARS})
 
 
 class HistoricalPriceRepository(Protocol):
@@ -183,7 +184,7 @@ class IntelligenceInputBuilder:
         history_window: int = _DEFAULT_HISTORY_WINDOW,
     ) -> None:
         if history_window not in _SUPPORTED_HISTORY_WINDOWS:
-            raise ValueError("history window must be one of 60, 120, or 250 bars")
+            raise ValueError("history window must be one of 60, 120, 250, or 1260 bars")
         self._price_repository = price_repository
         self._history_window = history_window
 

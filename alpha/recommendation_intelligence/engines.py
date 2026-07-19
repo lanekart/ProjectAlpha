@@ -40,6 +40,7 @@ from alpha.recommendation_intelligence.models import (
     TriggerStatus,
     VolumeEvidence,
 )
+from alpha.strategy_regime import recommendation_historical_edge_metadata
 
 _ZERO = Decimal("0")
 _ONE = Decimal("1")
@@ -2974,6 +2975,24 @@ class RecommendationEngine:
             trade_setup=trade_setup,
             price_history=candidate.price_history,
         )
+        metadata = dict(candidate.metadata)
+        metadata.update(
+            recommendation_historical_edge_metadata(
+                setup_name=trade_setup.setup_name,
+                market_regime=candidate.market_regime,
+            )
+        )
+        if metadata.get("historical_setup_edge") == "computed":
+            score = _apply_historical_edge_adjustment(score, metadata)
+            trade_plan = self._trade_plan(
+                candidate=candidate,
+                score=score,
+                evidence_assessment=evidence_assessment,
+                trade_setup=trade_setup,
+            )
+        if candidate.current_price is not None:
+            metadata["current_price"] = str(_money(candidate.current_price))
+            metadata["price"] = str(_money(candidate.current_price))
 
         return RecommendationReport(
             symbol=candidate.symbol,
@@ -3002,7 +3021,7 @@ class RecommendationEngine:
             evidence_assessment=evidence_assessment,
             trade_setup=trade_setup,
             trade_strategies=trade_strategies,
-            metadata=candidate.metadata,
+            metadata=metadata,
         )
 
     def _action_for(
@@ -4397,6 +4416,25 @@ def _confidence(score: Decimal) -> str:
     return "REJECT"
 
 
+def _apply_historical_edge_adjustment(
+    score: RecommendationScore,
+    metadata: Mapping[str, str],
+) -> RecommendationScore:
+    raw_ev = metadata.get("historical_setup_ev_pct")
+    if raw_ev is None or raw_ev == "unavailable":
+        return score
+    try:
+        ev = Decimal(raw_ev)
+    except Exception:
+        return score
+    adjustment = max(Decimal("-5"), min(Decimal("5"), ev))
+    adjusted_score = max(
+        Decimal("0"),
+        min(Decimal("100"), score.score + adjustment),
+    ).quantize(_TWO_PLACES, rounding=ROUND_HALF_UP)
+    return replace(score, score=adjusted_score)
+
+
 def _has_minimum_trade_plan_context(candidate: RecommendationCandidate) -> bool:
     return (
         candidate.current_price is not None
@@ -4499,6 +4537,9 @@ def _candidate_with_latest_ohlcv(
     metadata = dict(candidate.metadata)
     metadata["historical_bars"] = str(market_levels.historical_bar_count)
     metadata["volume"] = str(latest.volume)
+    current_price = candidate.current_price or latest.close_price
+    metadata["current_price"] = str(_money(current_price))
+    metadata["price"] = str(_money(current_price))
     if len(candidate.price_history) >= 20:
         lookback = (
             candidate.price_history[-21:-1]
@@ -4515,7 +4556,7 @@ def _candidate_with_latest_ohlcv(
         open_price=candidate.open_price or latest.open_price,
         high_price=candidate.high_price or latest.high_price,
         low_price=candidate.low_price or latest.low_price,
-        current_price=candidate.current_price or latest.close_price,
+        current_price=current_price,
         dma_20=candidate.dma_20 or market_levels.dma_20,
         dma_50=candidate.dma_50 or market_levels.dma_50,
         dma_200=candidate.dma_200 or market_levels.dma_200,

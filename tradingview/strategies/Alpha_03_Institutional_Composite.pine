@@ -1,0 +1,203 @@
+//@version=6
+strategy("Alpha 03 Institutional Composite v1.0.1", overlay=true, initial_capital=1000000, default_qty_type=strategy.percent_of_equity, default_qty_value=10, commission_type=strategy.commission.percent, commission_value=0.10, slippage=1, pyramiding=0, process_orders_on_close=true)
+
+// ALPHA_DEFAULT_CHART_TIMEFRAME=D
+// ALPHA_DEFAULT_CONFIRMATION_TIMEFRAME=240
+// ALPHA_DEFAULT_SETUP=ANY_SETUP
+// ALPHA_DEFAULT_STOP_MODEL=ATR_BUFFERED_SUPPORT
+// ALPHA_DEFAULT_TARGET_MODEL=PARTIAL_2R_3R_4R
+// ALPHA_DEFAULT_ENTRY_THRESHOLD=75
+// DATA SOURCE: TRADINGVIEW
+// NOT ALPHA MARKET TRUTH ENGINE
+// CORPORATE-ACTION AND SYMBOL-HISTORY SEMANTICS MAY DIFFER
+// RESULTS ARE INDEPENDENT VALIDATION, NOT AUTHORITATIVE ALPHA REPLAY
+
+startDate = input.time(timestamp("01 Jan 2017 00:00 +0000"), "Start date", group="Backtest Controls")
+endDate = input.time(timestamp("31 Dec 2021 23:59 +0000"), "End date", group="Backtest Controls")
+researchInitialCapital = input.float(1000000, "Initial capital (declaration fixed)", minval=1, group="Backtest Controls")
+orderSize = input.float(10.0, "Order size (% of equity)", minval=0.1, maxval=100, group="Backtest Controls")
+sizingMode = input.string("PERCENT_OF_EQUITY", "Percentage-of-equity sizing", options=["PERCENT_OF_EQUITY"], group="Backtest Controls")
+commission = input.float(0.10, "Commission (%) (declaration fixed)", minval=0, group="Backtest Controls")
+slippage = input.int(1, "Slippage (ticks) (declaration fixed)", minval=0, group="Backtest Controls")
+pyramiding = input.int(0, "Pyramiding (declaration fixed)", minval=0, maxval=0, group="Backtest Controls")
+longOnly = input.bool(true, "Long only", group="Backtest Controls")
+barCloseExecution = input.bool(true, "Bar-close execution", group="Backtest Controls")
+nextBarExecution = input.bool(true, "Next-bar execution", group="Backtest Controls")
+stopFill = input.string("TOUCH", "Stop fill assumption", options=["TOUCH"], group="Backtest Controls")
+targetFill = input.string("TOUCH", "Target fill assumption", options=["TOUCH"], group="Backtest Controls")
+conflictPolicy = input.string("STOP_FIRST_CONSERVATIVE", "Same-bar conflict policy", options=["STOP_FIRST_CONSERVATIVE"], group="Backtest Controls")
+maxPositions = input.int(1, "Maximum concurrent positions", minval=1, maxval=1, group="Backtest Controls")
+tradingSession = input.session("0915-1530", "Trading session", group="Backtest Controls")
+
+benchmark = input.symbol("NSE:NIFTY", "Benchmark symbol", group="Alpha Inputs")
+entryThreshold = input.float(85.0, "Entry score threshold", minval=0, maxval=100, group="Alpha Inputs")
+minimumRewardRisk = input.float(2.0, "Minimum reward/risk", minval=0, group="Alpha Inputs")
+maximumStopDistance = input.float(10.0, "Maximum stop distance (%)", minval=0, group="Alpha Inputs")
+marketRegime = input.string("UNAVAILABLE", "Market regime", options=["UNAVAILABLE", "BULL", "SIDEWAYS", "BEAR", "BENCHMARK_PROXY"], group="Alpha Inputs")
+sectorScore = input.float(0.50, "Sector score (manual/unavailable)", minval=0, maxval=1, group="Alpha Inputs")
+requireBreakoutVolume = input.bool(true, "Require breakout volume", group="Alpha Inputs")
+setupSelection = input.string("ANY_SETUP", "Setup selection", options=["ANY_SETUP", "BULL FLAG", "EMA PULLBACK", "VCP", "MOMENTUM CONTINUATION"], group="Alpha Inputs")
+strategyType = input.string("MOMENTUM_BREAKOUT", "Trade strategy", options=["MOMENTUM_BREAKOUT", "PULLBACK_ENTRY", "AGGRESSIVE_ACCUMULATION", "RETEST_HOLD", "NO_TRADE"], group="Alpha Inputs")
+
+clamp(float value) => math.max(0.0, math.min(1.0, value))
+safeDiv(float numerator, float denominator, float fallback) => denominator == 0.0 or na(denominator) ? fallback : numerator / denominator
+inDateRange = time >= startDate and time <= endDate
+inSession = not na(time(timeframe.period, tradingSession))
+closeStrength = high == low ? 0.50 : clamp((close - low) / (high - low))
+dma20 = ta.sma(close, 20)
+dma50 = ta.sma(close, 50)
+dma200 = ta.sma(close, 200)
+ema20 = ta.ema(close, 20)
+ema50 = ta.ema(close, 50)
+ema200 = ta.ema(close, 200)
+availableDma = (na(dma20) ? 0.0 : 1.0) + (na(dma50) ? 0.0 : 1.0) + (na(dma200) ? 0.0 : 1.0)
+availableEma = (na(ema20) ? 0.0 : 1.0) + (na(ema50) ? 0.0 : 1.0) + (na(ema200) ? 0.0 : 1.0)
+dmaScore = availableDma == 0.0 ? 0.50 : ((na(dma20) ? 0.0 : close >= dma20 ? 1.0 : 0.0) + (na(dma50) ? 0.0 : close >= dma50 ? 1.0 : 0.0) + (na(dma200) ? 0.0 : close >= dma200 ? 1.0 : 0.0)) / availableDma
+emaScore = availableEma == 0.0 ? 0.50 : ((na(ema20) ? 0.0 : close >= ema20 ? 1.0 : 0.0) + (na(ema50) ? 0.0 : close >= ema50 ? 1.0 : 0.0) + (na(ema200) ? 0.0 : close >= ema200 ? 1.0 : 0.0)) / availableEma
+trendScore = dmaScore * 0.70 + emaScore * 0.30
+resistance = ta.highest(high[1], 60)
+support = ta.lowest(low[1], 60)
+higherStructure = high > high[1] and low > low[1]
+lowerStructure = high < high[1] and low < low[1]
+structureScore = higherStructure ? 0.90 : lowerStructure ? 0.10 : 0.50
+breakout = close > resistance
+breakdown = close < support
+breakoutScore = breakout ? 0.90 : close == resistance ? 0.65 : 0.35
+breakdownScore = breakdown ? 0.90 : 0.20
+momentumScore = clamp(0.50 + safeDiv(close - close[1], close[1], 0.0) * 5.0)
+previousClose = close[1]
+trueRange = math.max(high - low, math.max(math.abs(high - previousClose), math.abs(low - previousClose)))
+alphaAtr = ta.sma(trueRange, 14)
+rangeAtr = safeDiv(high - low, alphaAtr, 1.0)
+volatilityScore = rangeAtr > 2.50 ? 0.25 : rangeAtr < 0.80 ? 0.80 : 0.60
+supportScore = close < support ? 0.15 : close > resistance ? 0.85 : 0.60
+priceScore = clamp(structureScore * 0.28 + trendScore * 0.20 + momentumScore * 0.15 + math.max(breakoutScore, 1.0 - breakdownScore) * 0.12 + supportScore * 0.10 + closeStrength * 0.08 + volatilityScore * 0.07)
+
+averageVolume = ta.sma(volume, 20)
+volumeRatio = safeDiv(volume, averageVolume, 1.0)
+volumeExpansion = clamp(volumeRatio / 1.50)
+volumeDryUp = clamp(1.0 - volumeRatio)
+accumulation = closeStrength >= 0.70 and volumeRatio >= 1.20 ? 0.85 : closeStrength >= 0.55 ? 0.60 : 0.35
+distribution = closeStrength <= 0.30 and volumeRatio >= 1.20 ? 0.85 : closeStrength <= 0.45 ? 0.55 : 0.25
+breakoutVolume = breakout ? clamp(volumeRatio / 1.50) : 0.50
+selloff = breakdown and volumeRatio >= 1.30 ? 0.90 : close < close[1] and volumeRatio >= 1.50 ? 0.75 : 0.20
+volumeScore = clamp(volumeExpansion * 0.20 + volumeDryUp * 0.12 + accumulation * 0.24 + (1.0 - distribution) * 0.16 + breakoutVolume * 0.20 + (1.0 - selloff) * 0.08)
+
+swingHigh = ta.highest(high, 60)
+swingLow = ta.lowest(low, 60)
+priceRange = swingHigh - swingLow
+retracementRatio = safeDiv(swingHigh - close, priceRange, 0.50)
+retracementBase = retracementRatio <= 0.382 ? 0.70 : retracementRatio <= 0.50 ? 0.85 : retracementRatio <= 0.618 ? 0.55 : retracementRatio <= 0.786 ? 0.25 : 0.10
+retracementScore = clamp(retracementBase + (retracementRatio <= 0.50 ? 0.10 : 0.0) + (retracementRatio > 0.618 ? -0.25 : 0.0) + (volumeDryUp >= 0.60 ? 0.10 : 0.0) + (selloff >= 0.70 ? -0.30 : 0.0))
+body = math.abs(close - open)
+lowerWick = math.min(open, close) - low
+upperWick = high - math.max(open, close)
+bullEngulf = close > open and close[1] < open[1] and close >= open[1] and open <= close[1]
+bearEngulf = close < open and close[1] > open[1] and open >= close[1] and close <= open[1]
+hammer = lowerWick >= body * 2.0 and upperWick <= body
+shootingStar = upperWick >= body * 2.0 and lowerWick <= body
+candleScore = bullEngulf ? 0.74 : hammer ? 0.68 : bearEngulf ? 0.26 : shootingStar ? 0.30 : closeStrength >= 0.80 ? 0.68 : closeStrength <= 0.20 ? 0.30 : 0.50
+benchmarkClose = request.security(benchmark, timeframe.period, close, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+assetReturn = safeDiv(close, close[63], 1.0) - 1.0
+benchmarkReturn = safeDiv(benchmarkClose, benchmarkClose[63], 1.0) - 1.0
+relativeStrengthScore = clamp(0.50 + (assetReturn - benchmarkReturn) * 2.0)
+benchmark20Return = safeDiv(benchmarkClose, benchmarkClose[20], 1.0) - 1.0
+regimeProxy = benchmark20Return > 0.03 ? 0.75 : benchmark20Return < -0.03 ? 0.25 : 0.50
+regimeScore = marketRegime == "BULL" ? 0.75 : marketRegime == "BEAR" ? 0.25 : marketRegime == "SIDEWAYS" ? 0.50 : marketRegime == "BENCHMARK_PROXY" ? regimeProxy : 0.50
+setupScore = clamp(breakoutScore * 0.70 + breakoutVolume * 0.30)
+riskScore = volatilityScore
+
+rawScore = priceScore * 20.0 + volumeScore * 17.0 + trendScore * 15.0 + relativeStrengthScore * 13.0 + retracementScore * 10.0 + candleScore * 8.0 + setupScore * 7.0 + regimeScore * 5.0 + sectorScore * 3.0 + riskScore * 2.0
+bearishCount = (priceScore <= 0.40 ? 1.0 : 0.0) + (volumeScore <= 0.40 ? 1.0 : 0.0) + (trendScore <= 0.40 ? 1.0 : 0.0) + (retracementScore <= 0.40 ? 1.0 : 0.0) + (candleScore <= 0.40 ? 1.0 : 0.0)
+regimeAdjustment = marketRegime == "BULL" ? (breakout ? 4.0 : 2.0) : marketRegime == "BEAR" ? -8.0 - bearishCount : marketRegime == "SIDEWAYS" ? (breakout ? -4.0 : -2.0) : 0.0
+compositeScore = clamp((rawScore + regimeAdjustment) / 100.0) * 100.0
+priceVolumeBlock = close < dma50 and volumeRatio >= 1.50 or lowerStructure or breakdown and selloff >= 0.70 or breakout and breakoutVolume < 0.45
+compositeScore := priceVolumeBlock ? math.min(compositeScore, breakdown and selloff >= 0.70 or lowerStructure ? 39.0 : 59.0) : compositeScore
+compositeScore := retracementRatio > 0.786 ? math.min(compositeScore, 35.0) : retracementRatio > 0.618 ? math.min(compositeScore, 59.0) : compositeScore
+
+healthyPullback = close >= dma50 and retracementRatio <= 0.50 and volumeDryUp >= 0.40
+bullFlag = higherStructure and trendScore >= 0.60 and healthyPullback and volumeDryUp >= 0.55 and retracementScore >= 0.60
+emaPullback = (math.abs(close - ema20) <= alphaAtr * 1.50 or math.abs(close - ema50) <= alphaAtr * 1.50) and trendScore >= 0.60 and healthyPullback
+vcp = close <= resistance and rangeAtr <= 1.50 and volumeDryUp >= 0.60 and priceScore >= 0.55
+failedBreakout = high > resistance and close < resistance and volumeRatio >= 1.20
+trendFailure = close < dma50 and lowerStructure and volumeRatio >= 1.30
+setupName = failedBreakout ? "FAILED BREAKOUT" : trendFailure ? "TREND FAILURE" : bullFlag ? "BULL FLAG" : emaPullback ? "EMA PULLBACK" : vcp ? "VCP" : breakout ? "MOMENTUM CONTINUATION" : "NO VALID SETUP"
+setupAllowed = setupSelection == "ANY_SETUP" or setupName == setupSelection
+entryTrigger = math.max(high[1], resistance)
+structuralAnchor = math.max(support, math.max(swingLow, math.max(dma20 < entryTrigger ? dma20 : support, dma50 < entryTrigger ? dma50 : support)))
+initialStop = math.min(entryTrigger - syminfo.mintick, math.max(syminfo.mintick, structuralAnchor - alphaAtr * 0.50))
+risk = entryTrigger - initialStop
+target1 = entryTrigger + risk * 2.0
+target2 = entryTrigger + risk * 3.0
+target3 = math.max(entryTrigger + risk * 4.0, entryTrigger + alphaAtr * 3.0)
+rewardRisk = risk <= 0.0 ? na : (target1 - entryTrigger) / risk
+stopDistance = entryTrigger <= 0.0 ? na : risk / entryTrigger * 100.0
+staticApproval = compositeScore >= entryThreshold and rewardRisk >= minimumRewardRisk and stopDistance <= maximumStopDistance and setupAllowed and setupName != "NO VALID SETUP" and setupName != "FAILED BREAKOUT" and setupName != "TREND FAILURE"
+volumeApproval = not requireBreakoutVolume or breakoutVolume >= 0.60
+momentumStrategy = strategyType == "MOMENTUM_BREAKOUT" and breakout
+pullbackStrategy = strategyType == "PULLBACK_ENTRY" and (emaPullback or bullFlag) and close > high[1]
+aggressiveAccumulationSignal = strategyType == "AGGRESSIVE_ACCUMULATION" and healthyPullback and closeStrength >= 0.60 and volumeRatio <= 1.20
+retestStrategy = strategyType == "RETEST_HOLD" and close >= resistance and low <= resistance + alphaAtr * 0.25 and volumeRatio >= 1.00
+strategySignal = momentumStrategy or pullbackStrategy or aggressiveAccumulationSignal or retestStrategy
+entryReady = staticApproval and volumeApproval and strategySignal and strategyType != "NO_TRADE" and not priceVolumeBlock and barstate.isconfirmed
+verdict = strategyType == "NO_TRADE" ? "NO_TRADE" : compositeScore >= 90.0 and entryReady ? "STRONG_BUY" : compositeScore >= 75.0 and entryReady ? "BUY" : compositeScore >= 60.0 ? "HOLD" : compositeScore >= 40.0 ? "SELL" : "STRONG_SELL"
+entrySignal = nextBarExecution ? entryReady[1] : entryReady
+calculatedQuantity = strategy.equity * orderSize / 100.0 / close
+var int marketFilterRejections = 0
+var int approvalFilterRejections = 0
+if strategySignal and not strategySignal[1] and marketRegime == "BEAR"
+    marketFilterRejections += 1
+if strategySignal and not strategySignal[1] and not staticApproval
+    approvalFilterRejections += 1
+
+var float activeStop = na
+var float activeTarget1 = na
+var float activeTarget2 = na
+var float activeTarget3 = na
+var float highestClose = na
+if inDateRange and inSession and longOnly and barCloseExecution and entrySignal and strategy.position_size == 0
+    activeStop := initialStop
+    activeTarget1 := target1
+    activeTarget2 := target2
+    activeTarget3 := target3
+    highestClose := close
+    strategy.entry("Alpha Long", strategy.long, qty=calculatedQuantity)
+if strategy.position_size > 0
+    highestClose := math.max(nz(highestClose, close), close)
+    float atrTrail = highestClose - alphaAtr * 2.0
+    float effectiveStop = high >= activeTarget1 ? math.max(strategy.position_avg_price, atrTrail) : activeStop
+    strategy.exit("Target 1", "Alpha Long", stop=effectiveStop, limit=activeTarget1, qty_percent=50)
+    strategy.exit("Runner", "Alpha Long", stop=effectiveStop, limit=activeTarget3, qty_percent=50)
+    if high >= activeTarget3
+        strategy.close("Alpha Long", qty_percent=100, comment="FINAL_REMAINING_EXIT")
+if strategy.position_size > 0 and time >= endDate
+    strategy.close("Alpha Long", qty_percent=100, comment="FORCED_BOUNDARY_EXIT")
+if strategy.position_size == 0
+    highestClose := na
+
+plot(ema20, "EMA20 trend reference", color=color.new(color.blue, 0))
+plot(ema50, "EMA50 invalidation reference", color=color.new(color.orange, 0))
+plot(ema200, "EMA200 primary trend reference", color=color.new(color.gray, 0))
+plot(entryTrigger, "Entry trigger", color=color.new(color.green, 0), style=plot.style_linebr)
+plot(strategy.position_size > 0 ? activeStop : initialStop, "Initial stop", color=color.new(color.red, 0), style=plot.style_linebr)
+plot(strategy.position_size > 0 ? activeTarget1 : target1, "Target 1", color=color.new(color.teal, 0), style=plot.style_linebr)
+plot(strategy.position_size > 0 ? activeTarget2 : target2, "Target 2", color=color.new(color.aqua, 0), style=plot.style_linebr)
+plot(strategy.position_size > 0 ? activeTarget3 : target3, "Target 3", color=color.new(color.purple, 0), style=plot.style_linebr)
+
+primaryBlocker = priceVolumeBlock ? "PRICE_VOLUME_BLOCK" : not setupAllowed or setupName == "NO VALID SETUP" ? "SETUP_NOT_ELIGIBLE" : not volumeApproval ? "VOLUME_CONFIRMATION" : not staticApproval ? "STATIC_APPROVAL" : not strategySignal ? "ENTRY_TIMING" : "NONE"
+var table dashboard = table.new(position.top_right, 2, 7, border_width=1)
+if barstate.islast
+    table.cell(dashboard, 0, 0, "Score / verdict")
+    table.cell(dashboard, 1, 0, str.tostring(compositeScore, "#.00") + " / " + verdict, text_color=verdict == "BUY" or verdict == "STRONG_BUY" ? color.lime : color.orange)
+    table.cell(dashboard, 0, 1, "Setup")
+    table.cell(dashboard, 1, 1, setupName)
+    table.cell(dashboard, 0, 2, "Entry")
+    table.cell(dashboard, 1, 2, str.tostring(entryTrigger, format.mintick))
+    table.cell(dashboard, 0, 3, "Stop")
+    table.cell(dashboard, 1, 3, str.tostring(initialStop, format.mintick))
+    table.cell(dashboard, 0, 4, "Targets")
+    table.cell(dashboard, 1, 4, str.tostring(target1, format.mintick) + " / " + str.tostring(target2, format.mintick) + " / " + str.tostring(target3, format.mintick))
+    table.cell(dashboard, 0, 5, "Primary blocker")
+    table.cell(dashboard, 1, 5, primaryBlocker)
+    table.cell(dashboard, 0, 6, "Evidence source", text_color=color.yellow)
+    table.cell(dashboard, 1, 6, "TRADINGVIEW / SECONDARY", text_color=color.yellow)

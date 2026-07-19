@@ -1,0 +1,361 @@
+{
+  "components": [
+    {
+      "component_name": "Price structure",
+      "formula_or_semantics": "Weighted price score: structure 28%, trend 20%, momentum 15%, breakout defence 12%, support 10%, close strength 8%, volatility 7%.",
+      "input_data": [
+        "OHLCV",
+        "support",
+        "resistance",
+        "DMA/EMA levels"
+      ],
+      "known_difference": "Alpha receives some levels from its data pipeline; Pine reconstructs levels from the chart symbol.",
+      "lookback": "1-200 bars depending on available moving averages",
+      "missing_data_behavior": "Unavailable evidence remains visible and is not silently imputed.",
+      "parity_class": "SEMANTICALLY_EQUIVALENT",
+      "pine_reproducibility": "Reproduced in Pine with the disclosed chart-data and execution boundary.",
+      "python_source_file": "alpha/recommendation_intelligence/engines.py",
+      "python_symbol_or_class": "PriceVolumeSignalEngine",
+      "test_method": "Python manifest/static checks plus documented TradingView fixture run.",
+      "thresholds": [
+        "HH/HL=0.90",
+        "LH/LL=0.10",
+        "below support=0.15"
+      ],
+      "warmup_requirement": "At least two bars; 200 bars for complete long-term trend",
+      "weight": "0.20"
+    },
+    {
+      "component_name": "Volume confirmation",
+      "formula_or_semantics": "Volume score: expansion 20%, dry-up 12%, accumulation 24%, inverse distribution 16%, breakout confirmation 20%, inverse selloff 8%.",
+      "input_data": [
+        "OHLCV",
+        "average volume"
+      ],
+      "known_difference": "Chart volume may differ from Alpha warehouse volume or series history.",
+      "lookback": "20 bars by default",
+      "missing_data_behavior": "Unavailable evidence remains visible and is not silently imputed.",
+      "parity_class": "EXACT",
+      "pine_reproducibility": "Reproduced in Pine with the disclosed chart-data and execution boundary.",
+      "python_source_file": "alpha/recommendation_intelligence/engines.py",
+      "python_symbol_or_class": "PriceVolumeSignalEngine",
+      "test_method": "Python manifest/static checks plus documented TradingView fixture run.",
+      "thresholds": [
+        "strong breakout volume >=1.5x",
+        "selloff penalty >=0.70"
+      ],
+      "warmup_requirement": "20 bars for full average-volume context",
+      "weight": "0.17"
+    },
+    {
+      "component_name": "Trend alignment",
+      "formula_or_semantics": "70% price-derived trend score plus 30% supplied indicator trend score.",
+      "input_data": [
+        "price trend score",
+        "indicator score",
+        "DMA/EMA 20/50/200"
+      ],
+      "known_difference": "The externally supplied Alpha indicator score is unavailable; Pine uses the chart-derived DMA/EMA alignment score for both terms.",
+      "lookback": "20, 50 and 200 bars",
+      "missing_data_behavior": "Unavailable evidence remains visible and is not silently imputed.",
+      "parity_class": "APPROXIMATED",
+      "pine_reproducibility": "Not fully reproducible in an ordinary single-symbol Pine strategy.",
+      "python_source_file": "alpha/recommendation_intelligence/engines.py",
+      "python_symbol_or_class": "EvidenceScoringEngine._trend_alignment_score",
+      "test_method": "Python manifest/static checks plus documented TradingView fixture run.",
+      "thresholds": [
+        "bullish >=0.60",
+        "bearish <=0.40"
+      ],
+      "warmup_requirement": "200 bars for complete alignment",
+      "weight": "0.15"
+    },
+    {
+      "component_name": "Relative strength",
+      "formula_or_semantics": "Alpha consumes a normalized benchmark-relative-strength input.",
+      "input_data": [
+        "candidate benchmark_relative_strength",
+        "optional benchmark symbol"
+      ],
+      "known_difference": "Pine uses a configurable symbol-return minus benchmark-return proxy; Alpha's upstream normalization is not reproduced.",
+      "lookback": "Provider-defined",
+      "missing_data_behavior": "Unavailable evidence remains visible and is not silently imputed.",
+      "parity_class": "APPROXIMATED",
+      "pine_reproducibility": "Not fully reproducible in an ordinary single-symbol Pine strategy.",
+      "python_source_file": "alpha/recommendation_intelligence/engines.py",
+      "python_symbol_or_class": "EvidenceScoringEngine.assess",
+      "test_method": "Python manifest/static checks plus documented TradingView fixture run.",
+      "thresholds": [
+        "bullish >=0.60",
+        "bearish <=0.40"
+      ],
+      "warmup_requirement": "Unavailable without benchmark history",
+      "weight": "0.13"
+    },
+    {
+      "component_name": "Retracement quality",
+      "formula_or_semantics": "Base retracement score receives +0.10 healthy, -0.25 bad, +0.10 volume dry-up and -0.30 heavy-selloff adjustments.",
+      "input_data": [
+        "swing range",
+        "DMA support",
+        "Fibonacci",
+        "volume evidence"
+      ],
+      "known_difference": "Confirmed chart swings replace Alpha's supplied point-in-time swing levels.",
+      "lookback": "Up to 60 bars for swings",
+      "missing_data_behavior": "Unavailable evidence remains visible and is not silently imputed.",
+      "parity_class": "SEMANTICALLY_EQUIVALENT",
+      "pine_reproducibility": "Reproduced in Pine with the disclosed chart-data and execution boundary.",
+      "python_source_file": "alpha/recommendation_intelligence/engines.py",
+      "python_symbol_or_class": "EvidenceScoringEngine._price_volume_retracement_score",
+      "test_method": "Python manifest/static checks plus documented TradingView fixture run.",
+      "thresholds": [
+        "38.2-50%=healthy",
+        "below 61.8%=avoid cap",
+        "below 78.6%=sell cap"
+      ],
+      "warmup_requirement": "20 bars for volume context",
+      "weight": "0.10"
+    },
+    {
+      "component_name": "Candlestick confirmation",
+      "formula_or_semantics": "Context-aware engulfing, hammer, shooting-star, star, doji, inside/outside, pin and strong-close scoring.",
+      "input_data": [
+        "OHLCV",
+        "support/resistance",
+        "retracement",
+        "volume evidence"
+      ],
+      "known_difference": "Pattern formulas are reproducible; source candle adjustments can differ.",
+      "lookback": "1-3 bars plus support context",
+      "missing_data_behavior": "Unavailable evidence remains visible and is not silently imputed.",
+      "parity_class": "EXACT",
+      "pine_reproducibility": "Reproduced in Pine with the disclosed chart-data and execution boundary.",
+      "python_source_file": "alpha/recommendation_intelligence/engines.py",
+      "python_symbol_or_class": "CandlePatternEngine",
+      "test_method": "Python manifest/static checks plus documented TradingView fixture run.",
+      "thresholds": [
+        "doji body <=10% range",
+        "volume confirmed >=1.2x"
+      ],
+      "warmup_requirement": "3 bars for star patterns",
+      "weight": "0.08"
+    },
+    {
+      "component_name": "Breakout and setup",
+      "formula_or_semantics": "Detect Bull Flag, EMA Pullback, VCP, Momentum Continuation and hard bearish failures; hinted setup names are separately accepted upstream.",
+      "input_data": [
+        "price-volume assessment",
+        "levels",
+        "candle assessment"
+      ],
+      "known_difference": "Cup & Handle and Flat Base are Pine research approximations because the current Python engine does not independently detect them.",
+      "lookback": "20-60 bars",
+      "missing_data_behavior": "Unavailable evidence remains visible and is not silently imputed.",
+      "parity_class": "SEMANTICALLY_EQUIVALENT",
+      "pine_reproducibility": "Reproduced in Pine with the disclosed chart-data and execution boundary.",
+      "python_source_file": "alpha/recommendation_intelligence/engines.py",
+      "python_symbol_or_class": "TradeSetupEngine",
+      "test_method": "Python manifest/static checks plus documented TradingView fixture run.",
+      "thresholds": [
+        "breakout volume >=0.60",
+        "VCP dry-up >=0.60"
+      ],
+      "warmup_requirement": "60 bars for full level context",
+      "weight": "0.07"
+    },
+    {
+      "component_name": "Market regime",
+      "formula_or_semantics": "Bull +2 or breakout +4; sideways -2 or breakout -4; bear -8 minus bearish evidence count.",
+      "input_data": [
+        "point-in-time market regime",
+        "setup category",
+        "bearish evidence"
+      ],
+      "known_difference": "An optional benchmark-only proxy is visibly labelled APPROXIMATED and is not Alpha's point-in-time market-state system.",
+      "lookback": "Externally supplied point-in-time state",
+      "missing_data_behavior": "Unavailable evidence remains visible and is not silently imputed.",
+      "parity_class": "UNAVAILABLE_IN_TRADINGVIEW",
+      "pine_reproducibility": "Not fully reproducible in an ordinary single-symbol Pine strategy.",
+      "python_source_file": "alpha/recommendation_intelligence/engines.py",
+      "python_symbol_or_class": "EvidenceScoringEngine._regime_adjustment",
+      "test_method": "Python manifest/static checks plus documented TradingView fixture run.",
+      "thresholds": [
+        "BULL",
+        "SIDEWAYS",
+        "BEAR"
+      ],
+      "warmup_requirement": "Unavailable in a single-symbol chart",
+      "weight": "0.05"
+    },
+    {
+      "component_name": "Sector context",
+      "formula_or_semantics": "Consumes Alpha's normalized sector-strength evidence.",
+      "input_data": [
+        "sector strength score",
+        "point-in-time sector membership"
+      ],
+      "known_difference": "No hidden sector proxy is substituted. A manual neutral input is explicit.",
+      "lookback": "Cross-sectional",
+      "missing_data_behavior": "Unavailable evidence remains visible and is not silently imputed.",
+      "parity_class": "UNAVAILABLE_IN_TRADINGVIEW",
+      "pine_reproducibility": "Not fully reproducible in an ordinary single-symbol Pine strategy.",
+      "python_source_file": "alpha/recommendation_intelligence/engines.py",
+      "python_symbol_or_class": "EvidenceScoringEngine.assess",
+      "test_method": "Python manifest/static checks plus documented TradingView fixture run.",
+      "thresholds": [
+        "bullish >=0.60",
+        "bearish <=0.40"
+      ],
+      "warmup_requirement": "Unavailable in a single-symbol strategy",
+      "weight": "0.03"
+    },
+    {
+      "component_name": "Risk and volatility",
+      "formula_or_semantics": "Average candidate risk quality and volatility quality; expanding=0.25, controlled=0.80, normal=0.60.",
+      "input_data": [
+        "OHLCV",
+        "14-bar simple ATR",
+        "candidate risk score"
+      ],
+      "known_difference": "Candidate-level risk quality is unavailable; Pine uses chart stop quality.",
+      "lookback": "15 bars",
+      "missing_data_behavior": "Unavailable evidence remains visible and is not silently imputed.",
+      "parity_class": "SEMANTICALLY_EQUIVALENT",
+      "pine_reproducibility": "Reproduced in Pine with the disclosed chart-data and execution boundary.",
+      "python_source_file": "alpha/recommendation_intelligence/engines.py",
+      "python_symbol_or_class": "EvidenceScoringEngine._volatility_quality_score",
+      "test_method": "Python manifest/static checks plus documented TradingView fixture run.",
+      "thresholds": [
+        "range/ATR >2.5 expanding",
+        "range/ATR <0.8 controlled"
+      ],
+      "warmup_requirement": "15 bars for Alpha-compatible simple ATR",
+      "weight": "0.02"
+    },
+    {
+      "component_name": "Recommendation verdict",
+      "formula_or_semantics": "STRONG_BUY >=90, BUY >=75, WATCHLIST >=60, AVOID >=40, SELL below 40.",
+      "input_data": [
+        "final score"
+      ],
+      "known_difference": "Pine renders HOLD for WATCHLIST and STRONG_SELL for scores below 40 only when the requested single-verdict display vocabulary requires it.",
+      "lookback": "Current bar after component warmup",
+      "missing_data_behavior": "Unavailable evidence remains visible and is not silently imputed.",
+      "parity_class": "EXACT",
+      "pine_reproducibility": "Reproduced in Pine with the disclosed chart-data and execution boundary.",
+      "python_source_file": "alpha/recommendation_intelligence/engines.py",
+      "python_symbol_or_class": "RecommendationScoringEngine._decision",
+      "test_method": "Python manifest/static checks plus documented TradingView fixture run.",
+      "thresholds": [
+        ">=90 STRONG_BUY",
+        ">=75 BUY",
+        ">=60 WATCHLIST",
+        ">=40 AVOID"
+      ],
+      "warmup_requirement": "Maximum enabled component warmup",
+      "weight": null
+    },
+    {
+      "component_name": "Trade-plan construction",
+      "formula_or_semantics": "Support/swing/DMA anchors, ATR-buffered stop, 2R, 3R and max(4R, 3ATR) targets; 2x ATR close-watermark trail.",
+      "input_data": [
+        "support",
+        "swing low",
+        "DMA",
+        "ATR",
+        "entry"
+      ],
+      "known_difference": "TradingView's order simulator and chart precision can produce different fills.",
+      "lookback": "14-60 bars",
+      "missing_data_behavior": "Unavailable evidence remains visible and is not silently imputed.",
+      "parity_class": "SEMANTICALLY_EQUIVALENT",
+      "pine_reproducibility": "Reproduced in Pine with the disclosed chart-data and execution boundary.",
+      "python_source_file": "alpha/recommendation_intelligence/engines.py",
+      "python_symbol_or_class": "TradePlanIntelligenceEngine and TradeSetupEngine",
+      "test_method": "Python manifest/static checks plus documented TradingView fixture run.",
+      "thresholds": [
+        "stop below entry",
+        "target 1=2R",
+        "target 2=3R"
+      ],
+      "warmup_requirement": "60 bars for full swing context",
+      "weight": null
+    },
+    {
+      "component_name": "Institutional approval",
+      "formula_or_semantics": "Requires quality verdict, confidence, historical edge, complete trade plan, reward/risk, capacity, live health and portfolio suitability.",
+      "input_data": [
+        "adaptive evidence",
+        "capacity",
+        "portfolio",
+        "live health",
+        "trade plan"
+      ],
+      "known_difference": "Only Pine-compatible static score, reward/risk, stop and setup filters are applied; adaptive, capacity, live and portfolio gates remain unavailable.",
+      "lookback": "Cross-sectional and historical",
+      "missing_data_behavior": "Unavailable evidence remains visible and is not silently imputed.",
+      "parity_class": "UNAVAILABLE_IN_TRADINGVIEW",
+      "pine_reproducibility": "Not fully reproducible in an ordinary single-symbol Pine strategy.",
+      "python_source_file": "alpha/decision_intelligence/engine.py",
+      "python_symbol_or_class": "InstitutionalDecisionEngine",
+      "test_method": "Python manifest/static checks plus documented TradingView fixture run.",
+      "thresholds": [
+        "minimum score 85",
+        "minimum reward/risk 2",
+        "maximum stop distance 10%"
+      ],
+      "warmup_requirement": "Requires Alpha ledgers and portfolio state",
+      "weight": null
+    },
+    {
+      "component_name": "Forward outcome ordering",
+      "formula_or_semantics": "Trigger on bar high; stop wins same-bar stop/target conflict; then trail, highest target and 20-bar expiry.",
+      "input_data": [
+        "future OHLCV",
+        "frozen entry",
+        "stop",
+        "targets",
+        "ATR trail"
+      ],
+      "known_difference": "Pine bar execution timing differs from Alpha's frozen next-session evaluator.",
+      "lookback": "20 future bars by default",
+      "missing_data_behavior": "Unavailable evidence remains visible and is not silently imputed.",
+      "parity_class": "SEMANTICALLY_EQUIVALENT",
+      "pine_reproducibility": "Reproduced in Pine with the disclosed chart-data and execution boundary.",
+      "python_source_file": "alpha/performance_intelligence/outcomes.py",
+      "python_symbol_or_class": "RecommendationOutcomeEvaluator",
+      "test_method": "Python manifest/static checks plus documented TradingView fixture run.",
+      "thresholds": [
+        "stop-first same bar",
+        "2x ATR below highest close"
+      ],
+      "warmup_requirement": "Begins strictly after recommendation date",
+      "weight": null
+    },
+    {
+      "component_name": "Cross-sectional and learned systems",
+      "formula_or_semantics": "Candidate ranking, posterior learning, portfolio constraints and evidence lineage.",
+      "input_data": [
+        "universe",
+        "ledger",
+        "portfolio",
+        "warehouse lineage"
+      ],
+      "known_difference": "Explicitly excluded: no proxy is used and no ALPHA_EXACT label is permitted.",
+      "lookback": "Multi-symbol and longitudinal",
+      "missing_data_behavior": "Unavailable evidence remains visible and is not silently imputed.",
+      "parity_class": "EXCLUDED",
+      "pine_reproducibility": "Not fully reproducible in an ordinary single-symbol Pine strategy.",
+      "python_source_file": "alpha/recommendation_intelligence/engines.py",
+      "python_symbol_or_class": "Alpha decision, learning, Market DNA and allocation packages",
+      "test_method": "Python manifest/static checks plus documented TradingView fixture run.",
+      "thresholds": [],
+      "warmup_requirement": "Not available to ordinary Pine strategies",
+      "weight": null
+    }
+  ],
+  "framework_version": "1.3.0-dev",
+  "source_commit": "0520504e8879ae6aabdc8d1d1d32424aff17bb74",
+  "tradingview_compilation": "MANUAL_VERIFICATION_REQUIRED"
+}

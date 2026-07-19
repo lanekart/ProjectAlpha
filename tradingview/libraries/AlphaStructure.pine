@@ -1,0 +1,25 @@
+//@version=6
+library("AlphaStructure", overlay=false)
+
+export closeStrength(float highValue, float lowValue, float closeValue) =>
+    highValue == lowValue ? 0.50 : math.max(0.0, math.min(1.0, (closeValue - lowValue) / (highValue - lowValue)))
+
+export structureScore(float highValue, float lowValue) =>
+    bool higher = highValue > highValue[1] and lowValue > lowValue[1]
+    bool lower = highValue < highValue[1] and lowValue < lowValue[1]
+    higher ? 0.90 : lower ? 0.10 : 0.50
+
+export support(float lowValue, int lookback) =>
+    ta.lowest(lowValue[1], lookback)
+
+export resistance(float highValue, int lookback) =>
+    ta.highest(highValue[1], lookback)
+
+export breakoutScore(float closeValue, float resistanceValue) =>
+    na(resistanceValue) ? 0.35 : closeValue > resistanceValue ? 0.90 : closeValue == resistanceValue ? 0.65 : 0.35
+
+export breakdownScore(float closeValue, float supportValue) =>
+    na(supportValue) ? 0.20 : closeValue < supportValue ? 0.90 : 0.20
+
+export state(float score) =>
+    score >= 0.75 ? "HIGHER_HIGHS_HIGHER_LOWS" : score <= 0.25 ? "LOWER_HIGHS_LOWER_LOWS" : "MIXED_STRUCTURE"

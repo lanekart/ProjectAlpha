@@ -1,0 +1,65 @@
+//@version=6
+indicator("Alpha Component Dashboard v1.0.1", overlay=true)
+
+// DATA SOURCE: TRADINGVIEW
+// NOT ALPHA MARKET TRUTH ENGINE
+// CORPORATE-ACTION AND SYMBOL-HISTORY SEMANTICS MAY DIFFER
+// RESULTS ARE INDEPENDENT VALIDATION, NOT AUTHORITATIVE ALPHA REPLAY
+
+benchmark = input.symbol("NSE:NIFTY", "Benchmark symbol")
+clamp(float value) => math.max(0.0, math.min(1.0, value))
+safeDiv(float numerator, float denominator, float fallback) => denominator == 0.0 or na(denominator) ? fallback : numerator / denominator
+dma20 = ta.sma(close, 20)
+dma50 = ta.sma(close, 50)
+dma200 = ta.sma(close, 200)
+trendScore = ((close >= dma20 ? 1.0 : 0.0) + (close >= dma50 ? 1.0 : 0.0) + (na(dma200) ? 0.0 : close >= dma200 ? 1.0 : 0.0)) / (na(dma200) ? 2.0 : 3.0)
+support = ta.lowest(low[1], 60)
+resistance = ta.highest(high[1], 60)
+higherStructure = high > high[1] and low > low[1]
+lowerStructure = high < high[1] and low < low[1]
+priceScore = higherStructure ? 0.90 : lowerStructure ? 0.10 : 0.50
+volumeRatio = safeDiv(volume, ta.sma(volume, 20), 1.0)
+volumeScore = clamp(volumeRatio / 1.50)
+breakoutScore = close > resistance ? clamp(0.70 + volumeScore * 0.30) : 0.35
+retracementRatio = safeDiv(ta.highest(high, 60) - close, ta.highest(high, 60) - ta.lowest(low, 60), 0.50)
+retracementScore = retracementRatio <= 0.50 and close >= dma50 ? 0.85 : retracementRatio <= 0.618 ? 0.55 : 0.25
+closeStrength = high == low ? 0.50 : clamp((close - low) / (high - low))
+candleScore = closeStrength >= 0.80 ? 0.68 : closeStrength <= 0.20 ? 0.30 : 0.50
+benchmarkClose = request.security(benchmark, timeframe.period, close, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+rsScore = clamp(0.50 + ((safeDiv(close, close[63], 1.0) - 1.0) - (safeDiv(benchmarkClose, benchmarkClose[63], 1.0) - 1.0)) * 2.0)
+previousClose = close[1]
+trueRange = math.max(high - low, math.max(math.abs(high - previousClose), math.abs(low - previousClose)))
+alphaAtr = ta.sma(trueRange, 14)
+riskScore = safeDiv(high - low, alphaAtr, 1.0) > 2.50 ? 0.25 : 0.60
+composite = priceScore * 20.0 + volumeScore * 17.0 + trendScore * 15.0 + rsScore * 13.0 + retracementScore * 10.0 + candleScore * 8.0 + breakoutScore * 7.0 + 0.50 * 5.0 + 0.50 * 3.0 + riskScore * 2.0
+verdict = composite >= 90.0 ? "STRONG_BUY" : composite >= 75.0 ? "BUY" : composite >= 60.0 ? "HOLD" : composite >= 40.0 ? "SELL" : "STRONG_SELL"
+
+plot(dma20, "20-DMA", color=color.new(color.blue, 0))
+plot(dma50, "50-DMA", color=color.new(color.orange, 0))
+plot(dma200, "200-DMA", color=color.new(color.gray, 0))
+plot(support, "Support", color=color.new(color.red, 50), style=plot.style_linebr)
+plot(resistance, "Resistance", color=color.new(color.green, 50), style=plot.style_linebr)
+
+var table dashboard = table.new(position.top_right, 3, 11, border_width=1)
+component(int row, string name, float score, string parity) =>
+    table.cell(dashboard, 0, row, name)
+    table.cell(dashboard, 1, row, str.tostring(score * 100.0, "#.0"))
+    table.cell(dashboard, 2, row, parity)
+if barstate.islast
+    table.cell(dashboard, 0, 0, "Component")
+    table.cell(dashboard, 1, 0, "Score")
+    table.cell(dashboard, 2, 0, "Parity")
+    component(1, "Price", priceScore, "SEMANTIC")
+    component(2, "Volume", volumeScore, "EXACT FORMULA")
+    component(3, "Trend", trendScore, "APPROXIMATED")
+    component(4, "Relative strength", rsScore, "APPROXIMATED")
+    component(5, "Retracement", retracementScore, "SEMANTIC")
+    component(6, "Candle", candleScore, "EXACT FORMULA")
+    component(7, "Breakout", breakoutScore, "SEMANTIC")
+    table.cell(dashboard, 0, 8, "Final")
+    table.cell(dashboard, 1, 8, str.tostring(composite, "#.0"))
+    table.cell(dashboard, 2, 8, verdict)
+    table.cell(dashboard, 0, 9, "DATA SOURCE: TRADINGVIEW", text_color=color.yellow)
+    table.cell(dashboard, 1, 9, "NOT ALPHA MARKET TRUTH ENGINE", text_color=color.yellow)
+    table.cell(dashboard, 0, 10, "Independent validation", text_color=color.orange)
+    table.cell(dashboard, 1, 10, "Never ALPHA_EXACT", text_color=color.orange)

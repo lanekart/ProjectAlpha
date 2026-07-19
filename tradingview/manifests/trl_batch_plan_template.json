@@ -1,0 +1,16 @@
+{
+  "configuration": null,
+  "members": [
+    {
+      "sector": "REPLACE_WITH_POINT_IN_TIME_SECTOR",
+      "symbol": "REPLACE_WITH_POINT_IN_TIME_SYMBOL"
+    }
+  ],
+  "partitions": [
+    "DEVELOPMENT",
+    "VALIDATION",
+    "HOLDOUT"
+  ],
+  "production_influence": false,
+  "universe": "NIFTY50_OR_NIFTY100_OR_NIFTY200_OR_CUSTOM"
+}

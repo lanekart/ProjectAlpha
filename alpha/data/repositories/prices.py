@@ -187,6 +187,62 @@ class PricesRepository:
 
         return pd.DataFrame(result.fetchall(), columns=_PRICE_COLUMNS)
 
+    def find_trade_dates(self, *, start: date, end: date) -> tuple[date, ...]:
+        """
+        Return persisted trading dates inside a calendar window.
+        """
+
+        result = self.db.execute(
+            """
+            SELECT DISTINCT trade_date
+            FROM daily_prices
+            WHERE trade_date BETWEEN ? AND ?
+            ORDER BY trade_date
+            """,
+            (start, end),
+        )
+        return tuple(row[0] for row in result.fetchall())
+
+    def find_range_by_symbols(
+        self,
+        *,
+        symbols: tuple[str, ...],
+        start_date: date,
+        end_date: date,
+    ) -> pd.DataFrame:
+        """
+        Load chronological prices for symbols between two dates.
+        """
+
+        normalized_symbols = tuple(
+            dict.fromkeys(
+                symbol.strip().upper() for symbol in symbols if symbol.strip()
+            )
+        )
+        if not normalized_symbols:
+            return pd.DataFrame(columns=_PRICE_COLUMNS)
+        placeholders = ", ".join("?" for _ in normalized_symbols)
+        result = self.db.execute(
+            f"""
+            SELECT
+                symbol,
+                trade_date,
+                open,
+                high,
+                low,
+                close,
+                volume,
+                sector,
+                exchange
+            FROM daily_prices
+            WHERE UPPER(symbol) IN ({placeholders})
+              AND trade_date BETWEEN ? AND ?
+            ORDER BY symbol, trade_date
+            """,
+            (*normalized_symbols, start_date, end_date),
+        )
+        return pd.DataFrame(result.fetchall(), columns=_PRICE_COLUMNS)
+
 
 def _normalize_optional_text(value: object) -> str | None:
     if value is None:

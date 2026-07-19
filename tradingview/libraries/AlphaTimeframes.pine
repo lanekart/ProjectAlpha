@@ -1,0 +1,15 @@
+//@version=6
+library("AlphaTimeframes", overlay=false)
+
+// The [1] expression intentionally requests the last completed higher-timeframe bar.
+export confirmedClose(simple string symbol, simple string timeframe) =>
+    request.security(symbol, timeframe, close[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+
+export confirmedSma(simple string symbol, simple string timeframe, simple int lookback) =>
+    request.security(symbol, timeframe, ta.sma(close, lookback)[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+
+export confirmedTrend(simple string symbol, simple string timeframe) =>
+    request.security(symbol, timeframe, (close > ta.sma(close, 20) and ta.sma(close, 20) > ta.sma(close, 50))[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+
+export confirmedBreakout(simple string symbol, simple string timeframe, simple int lookback) =>
+    request.security(symbol, timeframe, (close > ta.highest(high[1], lookback))[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)

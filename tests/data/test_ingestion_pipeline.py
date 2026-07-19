@@ -129,3 +129,42 @@ def test_prices_repository_loads_rolling_history_by_symbol(tmp_path: Path) -> No
         date(2026, 7, 4),
         date(2026, 7, 5),
     ]
+
+
+def test_prices_repository_loads_trade_dates_and_symbol_range(tmp_path: Path) -> None:
+    db = Database(str(tmp_path / "test_price_ranges.duckdb"))
+    repo = PricesRepository(db)
+    repo.insert(
+        df=pd.DataFrame(
+            {
+                "symbol": ["abc", "abc", "xyz", "abc"],
+                "trade_date": [
+                    date(2026, 7, 1),
+                    date(2026, 7, 2),
+                    date(2026, 7, 2),
+                    date(2026, 7, 4),
+                ],
+                "open": [100, 101, 200, 103],
+                "high": [101, 102, 201, 104],
+                "low": [99, 100, 199, 102],
+                "close": [100, 101, 200, 103],
+                "volume": [1000, 1100, 2000, 1300],
+                "sector": ["BANKS", "BANKS", "IT", "BANKS"],
+                "exchange": ["NSE"] * 4,
+            }
+        )
+    )
+
+    trade_dates = repo.find_trade_dates(
+        start=date(2026, 7, 2),
+        end=date(2026, 7, 4),
+    )
+    prices = repo.find_range_by_symbols(
+        symbols=("ABC",),
+        start_date=date(2026, 7, 2),
+        end_date=date(2026, 7, 4),
+    )
+
+    assert trade_dates == (date(2026, 7, 2), date(2026, 7, 4))
+    assert list(prices["symbol"]) == ["abc", "abc"]
+    assert list(prices["trade_date"]) == [date(2026, 7, 2), date(2026, 7, 4)]

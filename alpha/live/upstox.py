@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from collections.abc import AsyncIterator, Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -11,12 +10,17 @@ from alpha.live.models import (
     LiveTick,
     MarketSessionState,
 )
+from alpha.live.upstox_auth import (
+    UpstoxAuthConfig,
+    UpstoxAuthService,
+    UpstoxTokenStatus,
+)
 
 
 @dataclass(slots=True)
 class UpstoxLiveMarketDataProvider:
     access_token: str | None = None
-    websocket_url: str = "wss://api.upstox.com/v2/feed/market-data-feed"
+    websocket_url: str = "wss://api.upstox.com/v3/feed/market-data-feed"
     stale_after_seconds: int = 15
     _status: LiveFeedStatus = LiveFeedStatus.DISCONNECTED
     _subscriptions: tuple[InstrumentSubscription, ...] = ()
@@ -25,12 +29,10 @@ class UpstoxLiveMarketDataProvider:
 
     @classmethod
     def from_environment(cls) -> UpstoxLiveMarketDataProvider:
+        config = UpstoxAuthConfig.from_environment()
         return cls(
-            access_token=os.environ.get("UPSTOX_ACCESS_TOKEN"),
-            websocket_url=os.environ.get(
-                "UPSTOX_WEBSOCKET_URL",
-                "wss://api.upstox.com/v2/feed/market-data-feed",
-            ),
+            access_token=config.access_token,
+            websocket_url=config.websocket_url,
         )
 
     @property
@@ -55,6 +57,12 @@ class UpstoxLiveMarketDataProvider:
             raise RuntimeError(
                 "Upstox live provider is not configured. Set UPSTOX_ACCESS_TOKEN."
             )
+        validation = UpstoxAuthService(
+            config=UpstoxAuthConfig.from_environment()
+        ).validate_token(remote=False)
+        if validation.status is UpstoxTokenStatus.TOKEN_EXPIRED:
+            self._status = LiveFeedStatus.ERROR
+            raise RuntimeError("Upstox access token is expired.")
         self._status = LiveFeedStatus.CONNECTING
         self._status = LiveFeedStatus.CONNECTED
 

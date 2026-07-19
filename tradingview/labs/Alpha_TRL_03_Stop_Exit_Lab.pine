@@ -1,0 +1,172 @@
+//@version=6
+strategy("Alpha TRL 03 Stop and Exit Lab v2.0", overlay=true, initial_capital=1000000, default_qty_type=strategy.percent_of_equity, default_qty_value=10, commission_type=strategy.commission.percent, commission_value=0.10, slippage=1, pyramiding=0, process_orders_on_close=true)
+
+// DATA SOURCE: TRADINGVIEW
+// NOT ALPHA MARKET TRUTH ENGINE
+// CORPORATE-ACTION AND SYMBOL-HISTORY SEMANTICS MAY DIFFER
+// RESULTS ARE INDEPENDENT VALIDATION, NOT AUTHORITATIVE ALPHA REPLAY
+// RESEARCH PURPOSE ONLY. THIS SCRIPT COMPARES RISK MODELS, NOT TRADE ADVICE.
+
+startDate = input.time(timestamp("01 Jan 2015 00:00 +0000"), "Start date", group="Research Window")
+endDate = input.time(timestamp("31 Dec 2035 23:59 +0000"), "End date", group="Research Window")
+researchPartition = input.string("DEVELOPMENT", "Research partition", options=["DEVELOPMENT", "VALIDATION", "HOLDOUT"], group="Research Window")
+orderSize = input.float(10.0, "Order size (% of equity)", minval=0.1, maxval=100.0, group="Backtest Controls")
+commission = input.float(0.10, "Commission (%) (declaration fixed)", minval=0.0, group="Backtest Controls")
+slippage = input.int(1, "Slippage (ticks) (declaration fixed)", minval=0, group="Backtest Controls")
+longOnly = input.bool(true, "Long only", group="Backtest Controls")
+nextBarExecution = input.bool(true, "Next-bar execution", group="Backtest Controls")
+conflictPolicy = input.string("STOP_FIRST_CONSERVATIVE", "Same-bar conflict policy", options=["STOP_FIRST_CONSERVATIVE"], group="Backtest Controls")
+tradingSession = input.session("0915-1530", "Trading session", group="Backtest Controls")
+
+stopModel = input.string("ATR", "Stop model", options=["ATR", "SWING_LOW", "SUPPORT", "EMA", "STRUCTURE", "FIXED_PERCENT"], group="Stop Laboratory")
+atrStopMultiple = input.float(2.0, "ATR stop multiple", minval=0.1, group="Stop Laboratory")
+fixedStopPercent = input.float(5.0, "Fixed stop (%)", minval=0.1, maxval=50.0, group="Stop Laboratory")
+exitModel = input.string("PARTIAL", "Exit model", options=["2R", "3R", "4R", "PARTIAL", "ATR_TRAIL", "EMA_TRAIL", "STRUCTURE_EXIT", "TIME_EXIT", "BREAK_EVEN"], group="Exit Laboratory")
+partialPercent = input.float(50.0, "Target 1 partial exit (%)", minval=1.0, maxval=99.0, group="Exit Laboratory")
+maximumHoldingBars = input.int(20, "Time exit bars", minval=1, group="Exit Laboratory")
+
+baselineAvailable = input.bool(false, "Alpha baseline metrics available", group="Baseline Comparison")
+baselineProfitFactor = input.float(1.0, "Alpha baseline profit factor", minval=0.0, group="Baseline Comparison")
+baselineExpectancy = input.float(0.0, "Alpha baseline expectancy", group="Baseline Comparison")
+baselineDrawdown = input.float(0.0, "Alpha baseline max drawdown (%)", minval=0.0, group="Baseline Comparison")
+
+safeDiv(float numerator, float denominator, float fallback) => denominator == 0.0 or na(denominator) ? fallback : numerator / denominator
+inWindow = time >= startDate and time <= endDate
+inSession = not na(time(timeframe.period, tradingSession))
+ema20 = ta.ema(close, 20)
+ema50 = ta.ema(close, 50)
+atrValue = ta.atr(14)
+volumeAverage = ta.sma(volume, 20)
+relativeVolume = safeDiv(volume, volumeAverage, 1.0)
+resistanceValue = ta.highest(high[1], 50)
+supportValue = ta.lowest(low[1], 50)
+swingLow = ta.lowest(low[1], 10)
+structureLow = math.min(low[1], low[2])
+entrySignalNow = close > resistanceValue and relativeVolume >= 1.50 and close > ema20 and ema20 > ema50
+entrySignal = nextBarExecution ? entrySignalNow[1] : entrySignalNow
+atrStop = close - atrValue * atrStopMultiple
+swingStop = swingLow - syminfo.mintick
+supportStop = supportValue - syminfo.mintick
+emaStop = ema50 - syminfo.mintick
+structureStop = structureLow - syminfo.mintick
+fixedStop = close * (1.0 - fixedStopPercent / 100.0)
+selectedStopRaw = stopModel == "ATR" ? atrStop : stopModel == "SWING_LOW" ? swingStop : stopModel == "SUPPORT" ? supportStop : stopModel == "EMA" ? emaStop : stopModel == "STRUCTURE" ? structureStop : fixedStop
+selectedStop = math.min(close - syminfo.mintick, math.max(syminfo.mintick, selectedStopRaw))
+riskPerShare = close - selectedStop
+target2R = close + riskPerShare * 2.0
+target3R = close + riskPerShare * 3.0
+target4R = close + riskPerShare * 4.0
+calculatedQuantity = strategy.equity * orderSize / 100.0 / close
+
+var int entryBar = na
+var float frozenStop = na
+var float frozenTarget1 = na
+var float frozenTarget2 = na
+var float frozenTarget3 = na
+var float highestClose = na
+var float openRiskCurrency = na
+var float closedRiskCurrency = 0.0
+var int stopExitCount = 0
+var int holdingBarsTotal = 0
+if inWindow and inSession and longOnly and entrySignal and riskPerShare > 0.0 and strategy.position_size == 0
+    entryBar := bar_index
+    frozenStop := selectedStop
+    frozenTarget1 := target2R
+    frozenTarget2 := target3R
+    frozenTarget3 := target4R
+    highestClose := close
+    openRiskCurrency := riskPerShare * calculatedQuantity
+    strategy.entry("TRL Risk Long", strategy.long, qty=calculatedQuantity)
+if strategy.position_size > 0
+    highestClose := math.max(nz(highestClose, close), close)
+    targetOneTouched = high >= frozenTarget1
+    breakEvenStop = targetOneTouched ? strategy.position_avg_price : frozenStop
+    atrTrailStop = highestClose - atrValue * 2.0
+    emaTrailStop = math.max(ema20, frozenStop)
+    activeStop = exitModel == "ATR_TRAIL" ? math.max(frozenStop, atrTrailStop) : exitModel == "EMA_TRAIL" ? emaTrailStop : exitModel == "BREAK_EVEN" ? math.max(frozenStop, breakEvenStop) : frozenStop
+    selectedFixedTarget = exitModel == "2R" ? frozenTarget1 : exitModel == "3R" ? frozenTarget2 : frozenTarget3
+    if exitModel == "PARTIAL"
+        strategy.exit("TRL Partial", "TRL Risk Long", stop=activeStop, limit=frozenTarget1, qty_percent=partialPercent)
+        strategy.exit("TRL Runner", "TRL Risk Long", stop=activeStop, limit=frozenTarget3, qty_percent=100.0 - partialPercent)
+    else
+        strategy.exit("TRL Risk Exit", "TRL Risk Long", stop=activeStop, limit=selectedFixedTarget)
+    if exitModel == "STRUCTURE_EXIT" and close < supportValue
+        strategy.close("TRL Risk Long", comment="STRUCTURE_EXIT")
+    if exitModel == "TIME_EXIT" and bar_index - entryBar >= maximumHoldingBars
+        strategy.close("TRL Risk Long", comment="TIME_EXIT")
+closedNow = strategy.position_size == 0 and strategy.position_size[1] > 0
+if closedNow
+    closedRiskCurrency += nz(openRiskCurrency, 0.0)
+    stopExitCount += low <= nz(frozenStop, low - syminfo.mintick) ? 1 : 0
+    holdingBarsTotal += bar_index - nz(entryBar, bar_index)
+    entryBar := na
+    highestClose := na
+    openRiskCurrency := na
+
+var float equityPeak = 1000000.0
+var float maximumDrawdown = 0.0
+equityPeak := math.max(equityPeak, strategy.equity)
+currentDrawdown = equityPeak <= 0.0 ? 0.0 : (equityPeak - strategy.equity) / equityPeak * 100.0
+maximumDrawdown := math.max(maximumDrawdown, currentDrawdown)
+closedTrades = strategy.closedtrades
+winRate = closedTrades == 0 ? na : strategy.wintrades / closedTrades * 100.0
+profitFactor = strategy.grossloss == 0.0 ? na : strategy.grossprofit / math.abs(strategy.grossloss)
+averageWinner = strategy.wintrades == 0 ? na : strategy.grossprofit / strategy.wintrades
+averageLoser = strategy.losstrades == 0 ? na : math.abs(strategy.grossloss) / strategy.losstrades
+expectancy = na(winRate) or na(averageWinner) or na(averageLoser) ? na : winRate / 100.0 * averageWinner - (1.0 - winRate / 100.0) * averageLoser
+stopOutRate = closedTrades == 0 ? na : stopExitCount / closedTrades * 100.0
+averageR = closedRiskCurrency <= 0.0 ? na : strategy.netprofit / closedRiskCurrency
+averageHoldingPeriod = closedTrades == 0 ? na : holdingBarsTotal / closedTrades
+expectancyDelta = baselineAvailable and not na(expectancy) ? expectancy - baselineExpectancy : na
+profitFactorDelta = baselineAvailable and not na(profitFactor) ? profitFactor - baselineProfitFactor : na
+drawdownImprovement = baselineAvailable ? baselineDrawdown - maximumDrawdown : na
+comparisonState = not baselineAvailable or na(expectancyDelta) ? "INSUFFICIENT" : expectancyDelta > 0.0 and drawdownImprovement >= 0.0 ? "IMPROVED" : expectancyDelta == 0.0 and drawdownImprovement == 0.0 ? "UNCHANGED" : "WORSE"
+promotionState = comparisonState == "IMPROVED" and researchPartition == "HOLDOUT" ? "ALPHA REPLAY CANDIDATE" : "DO NOT PROMOTE"
+
+plot(ema20, "20 EMA", color=color.new(color.blue, 0))
+plot(ema50, "50 EMA", color=color.new(color.orange, 0))
+plot(selectedStop, "Selected Stop", color=color.new(color.red, 0), style=plot.style_linebr)
+plot(target2R, "Target 2R", color=color.new(color.teal, 45), style=plot.style_linebr)
+plot(target3R, "Target 3R", color=color.new(color.aqua, 45), style=plot.style_linebr)
+plot(target4R, "Target 4R", color=color.new(color.purple, 45), style=plot.style_linebr)
+
+var table statePanel = table.new(position.top_right, 2, 4, border_width=1)
+var table metricPanel = table.new(position.middle_right, 2, 8, border_width=1)
+var table comparisonPanel = table.new(position.bottom_right, 2, 6, border_width=1)
+if barstate.islast
+    table.cell(statePanel, 0, 0, "Composite Score")
+    table.cell(statePanel, 1, 0, "RISK COMPARATOR")
+    table.cell(statePanel, 0, 1, "Current Verdict")
+    table.cell(statePanel, 1, 1, entrySignalNow ? "RESEARCH ENTRY" : "NO RESEARCH ENTRY")
+    table.cell(statePanel, 0, 2, "Setup")
+    table.cell(statePanel, 1, 2, stopModel + " / " + exitModel)
+    table.cell(statePanel, 0, 3, "Entry State")
+    table.cell(statePanel, 1, 3, strategy.position_size > 0 ? "ACTIVE" : "FLAT")
+    table.cell(metricPanel, 0, 0, "Trades")
+    table.cell(metricPanel, 1, 0, str.tostring(closedTrades))
+    table.cell(metricPanel, 0, 1, "Win Rate")
+    table.cell(metricPanel, 1, 1, na(winRate) ? "unavailable" : str.tostring(winRate, "#.0") + "%")
+    table.cell(metricPanel, 0, 2, "Profit Factor")
+    table.cell(metricPanel, 1, 2, na(profitFactor) ? "unavailable" : str.tostring(profitFactor, "#.00"))
+    table.cell(metricPanel, 0, 3, "Expectancy")
+    table.cell(metricPanel, 1, 3, na(expectancy) ? "unavailable" : str.tostring(expectancy, "#.00"))
+    table.cell(metricPanel, 0, 4, "Max Drawdown")
+    table.cell(metricPanel, 1, 4, str.tostring(maximumDrawdown, "#.00") + "%")
+    table.cell(metricPanel, 0, 5, "Stop-out Rate")
+    table.cell(metricPanel, 1, 5, na(stopOutRate) ? "unavailable" : str.tostring(stopOutRate, "#.0") + "%")
+    table.cell(metricPanel, 0, 6, "Average R")
+    table.cell(metricPanel, 1, 6, na(averageR) ? "unavailable" : str.tostring(averageR, "#.00"))
+    table.cell(metricPanel, 0, 7, "Average Holding")
+    table.cell(metricPanel, 1, 7, na(averageHoldingPeriod) ? "unavailable" : str.tostring(averageHoldingPeriod, "#.0") + " bars")
+    table.cell(comparisonPanel, 0, 0, "Compared to Alpha")
+    table.cell(comparisonPanel, 1, 0, comparisonState)
+    table.cell(comparisonPanel, 0, 1, "PF Delta")
+    table.cell(comparisonPanel, 1, 1, na(profitFactorDelta) ? "unavailable" : str.tostring(profitFactorDelta, "#.00"))
+    table.cell(comparisonPanel, 0, 2, "Expectancy Delta")
+    table.cell(comparisonPanel, 1, 2, na(expectancyDelta) ? "unavailable" : str.tostring(expectancyDelta, "#.00"))
+    table.cell(comparisonPanel, 0, 3, "Drawdown Improvement")
+    table.cell(comparisonPanel, 1, 3, na(drawdownImprovement) ? "unavailable" : str.tostring(drawdownImprovement, "#.00"))
+    table.cell(comparisonPanel, 0, 4, "Partition")
+    table.cell(comparisonPanel, 1, 4, researchPartition)
+    table.cell(comparisonPanel, 0, 5, "Recommendation")
+    table.cell(comparisonPanel, 1, 5, promotionState)

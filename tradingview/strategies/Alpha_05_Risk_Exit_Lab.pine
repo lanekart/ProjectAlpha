@@ -1,0 +1,152 @@
+//@version=6
+strategy("Alpha 05 Risk and Exit Lab v1.0.1", overlay=true, initial_capital=1000000, default_qty_type=strategy.percent_of_equity, default_qty_value=10, commission_type=strategy.commission.percent, commission_value=0.10, slippage=1, pyramiding=0, process_orders_on_close=true)
+
+// ALPHA_DEFAULT_CHART_TIMEFRAME=D
+// ALPHA_DEFAULT_CONFIRMATION_TIMEFRAME=240
+// ALPHA_DEFAULT_SETUP=ANY_SETUP
+// ALPHA_DEFAULT_STOP_MODEL=ATR_BUFFERED_SUPPORT
+// ALPHA_DEFAULT_TARGET_MODEL=PARTIAL_2R_3R_4R
+// ALPHA_DEFAULT_ENTRY_THRESHOLD=75
+// DATA SOURCE: TRADINGVIEW
+// NOT ALPHA MARKET TRUTH ENGINE
+// CORPORATE-ACTION AND SYMBOL-HISTORY SEMANTICS MAY DIFFER
+// RESULTS ARE INDEPENDENT VALIDATION, NOT AUTHORITATIVE ALPHA REPLAY
+
+startDate = input.time(timestamp("01 Jan 2015 00:00 +0000"), "Start date", group="Backtest Controls")
+endDate = input.time(timestamp("31 Dec 2035 23:59 +0000"), "End date", group="Backtest Controls")
+researchInitialCapital = input.float(1000000, "Initial capital (declaration fixed)", minval=1, group="Backtest Controls")
+orderSize = input.float(10.0, "Order size (% of equity)", minval=0.1, maxval=100, group="Backtest Controls")
+sizingMode = input.string("PERCENT_OF_EQUITY", "Percentage-of-equity sizing", options=["PERCENT_OF_EQUITY"], group="Backtest Controls")
+commission = input.float(0.10, "Commission (%) (declaration fixed)", minval=0, group="Backtest Controls")
+slippage = input.int(1, "Slippage (ticks) (declaration fixed)", minval=0, group="Backtest Controls")
+pyramiding = input.int(0, "Pyramiding (declaration fixed)", minval=0, maxval=0, group="Backtest Controls")
+longOnly = input.bool(true, "Long only", group="Backtest Controls")
+barCloseExecution = input.bool(true, "Bar-close execution", group="Backtest Controls")
+nextBarExecution = input.bool(true, "Next-bar execution", group="Backtest Controls")
+stopFill = input.string("TOUCH", "Stop fill assumption", options=["TOUCH"], group="Backtest Controls")
+targetFill = input.string("TOUCH", "Target fill assumption", options=["TOUCH"], group="Backtest Controls")
+conflictPolicy = input.string("STOP_FIRST_CONSERVATIVE", "Same-bar conflict policy", options=["STOP_FIRST_CONSERVATIVE"], group="Backtest Controls")
+maxPositions = input.int(1, "Maximum concurrent positions", minval=1, maxval=1, group="Backtest Controls")
+tradingSession = input.session("0915-1530", "Trading session", group="Backtest Controls")
+
+stopModel = input.string("ATR_BUFFERED_SUPPORT", "Stop model", options=["SUPPORT_BASED", "SWING_LOW", "ATR_BUFFERED_SUPPORT", "MOVING_AVERAGE_INVALIDATION", "SETUP_INVALIDATION", "FIXED_PERCENT_COMPARATOR"], group="Risk Models")
+fixedStopPercent = input.float(5.0, "Fixed stop comparator (%)", minval=0.1, group="Risk Models")
+targetModel = input.string("PARTIAL_2R_3R_4R", "Target model", options=["2R", "3R", "4R_ATR_EXTENSION", "PARTIAL_2R_3R_4R"], group="Exit Models")
+exitModel = input.string("PARTIAL_PLUS_TRAIL", "Exit strategy", options=["FIXED_TARGET", "PARTIAL_PLUS_RUNNER", "PARTIAL_PLUS_TRAIL", "TIME_BASED", "MOVING_AVERAGE_TRAIL", "STRUCTURE_EXIT", "SETUP_FAILURE"], group="Exit Models")
+partialPercent = input.float(50.0, "Target 1 partial exit (%)", minval=1, maxval=99, group="Exit Models")
+maximumHoldingBars = input.int(20, "Time-based exit bars", minval=1, group="Exit Models")
+
+safeDiv(float numerator, float denominator, float fallback) => denominator == 0.0 or na(denominator) ? fallback : numerator / denominator
+inRange = time >= startDate and time <= endDate
+inSession = not na(time(timeframe.period, tradingSession))
+dma20 = ta.sma(close, 20)
+dma50 = ta.sma(close, 50)
+support = ta.lowest(low[1], 60)
+swingLow = ta.lowest(low, 20)
+resistance = ta.highest(high[1], 60)
+previousClose = close[1]
+trueRange = math.max(high - low, math.max(math.abs(high - previousClose), math.abs(low - previousClose)))
+alphaAtr = ta.sma(trueRange, 14)
+volumeRatio = safeDiv(volume, ta.sma(volume, 20), 1.0)
+entryTrigger = math.max(resistance, high[1])
+supportStop = support - syminfo.mintick
+swingStop = swingLow - syminfo.mintick
+atrSupportStop = math.max(support, math.max(dma20 < entryTrigger ? dma20 : support, dma50 < entryTrigger ? dma50 : support)) - alphaAtr * 0.50
+movingAverageStop = dma50 - syminfo.mintick
+setupInvalidationStop = math.min(low, dma50) - syminfo.mintick
+fixedStop = entryTrigger * (1.0 - fixedStopPercent / 100.0)
+selectedStopRaw = stopModel == "SUPPORT_BASED" ? supportStop : stopModel == "SWING_LOW" ? swingStop : stopModel == "ATR_BUFFERED_SUPPORT" ? atrSupportStop : stopModel == "MOVING_AVERAGE_INVALIDATION" ? movingAverageStop : stopModel == "SETUP_INVALIDATION" ? setupInvalidationStop : fixedStop
+selectedStop = math.min(entryTrigger - syminfo.mintick, math.max(syminfo.mintick, selectedStopRaw))
+risk = entryTrigger - selectedStop
+target1 = entryTrigger + risk * 2.0
+target2 = entryTrigger + risk * 3.0
+target3 = math.max(entryTrigger + risk * 4.0, entryTrigger + alphaAtr * 3.0)
+selectedFinalTarget = targetModel == "2R" ? target1 : targetModel == "3R" ? target2 : target3
+rewardRisk = risk <= 0.0 ? na : (selectedFinalTarget - entryTrigger) / risk
+breakoutSignalNow = close > resistance and volumeRatio >= 1.20 and close > dma20 and dma20 > dma50 and risk > 0.0
+breakoutSignal = nextBarExecution ? breakoutSignalNow[1] : breakoutSignalNow
+setupFailure = close < dma50 and volumeRatio >= 1.30
+calculatedQuantity = strategy.equity * orderSize / 100.0 / close
+
+var int entryBar = na
+var float frozenStop = na
+var float frozenTarget1 = na
+var float frozenTarget2 = na
+var float frozenTarget3 = na
+var float highestClose = na
+if inRange and inSession and longOnly and barCloseExecution and breakoutSignal and strategy.position_size == 0
+    entryBar := bar_index
+    frozenStop := selectedStop
+    frozenTarget1 := target1
+    frozenTarget2 := target2
+    frozenTarget3 := selectedFinalTarget
+    highestClose := close
+    strategy.entry("Risk Lab Long", strategy.long, qty=calculatedQuantity)
+if strategy.position_size > 0
+    highestClose := math.max(nz(highestClose, close), close)
+    bool targetOneTouched = high >= frozenTarget1
+    float breakEvenStop = targetOneTouched ? strategy.position_avg_price : frozenStop
+    float atrTrail = highestClose - alphaAtr * 2.0
+    float movingTrail = math.max(dma20, atrTrail)
+    float activeStop = exitModel == "PARTIAL_PLUS_TRAIL" and targetOneTouched ? math.max(breakEvenStop, atrTrail) : exitModel == "MOVING_AVERAGE_TRAIL" ? math.max(frozenStop, movingTrail) : frozenStop
+    if exitModel == "PARTIAL_PLUS_RUNNER" or exitModel == "PARTIAL_PLUS_TRAIL"
+        strategy.exit("Partial T1", "Risk Lab Long", stop=activeStop, limit=frozenTarget1, qty_percent=partialPercent)
+        strategy.exit("Runner", "Risk Lab Long", stop=activeStop, limit=frozenTarget3, qty_percent=100.0 - partialPercent)
+    else
+        strategy.exit("Fixed Exit", "Risk Lab Long", stop=activeStop, limit=frozenTarget3)
+    if exitModel == "TIME_BASED" and bar_index - entryBar >= maximumHoldingBars
+        strategy.close("Risk Lab Long", comment="TIME_EXIT")
+    if exitModel == "STRUCTURE_EXIT" and close < support
+        strategy.close("Risk Lab Long", comment="STRUCTURE_EXIT")
+    if exitModel == "SETUP_FAILURE" and setupFailure
+        strategy.close("Risk Lab Long", comment="SETUP_FAILURE")
+    if high >= frozenTarget3
+        strategy.close("Risk Lab Long", qty_percent=100, comment="FINAL_REMAINING_EXIT")
+if strategy.position_size > 0 and time >= endDate
+    strategy.close("Risk Lab Long", qty_percent=100, comment="FORCED_BOUNDARY_EXIT")
+if strategy.position_size == 0
+    entryBar := na
+    highestClose := na
+
+plot(dma20, "20-DMA trend reference", color=color.new(color.blue, 0))
+plot(dma50, "50-DMA invalidation", color=color.new(color.orange, 0))
+plot(entryTrigger, "Entry trigger", color=color.new(color.green, 0), style=plot.style_linebr)
+plot(selectedStop, "Selected risk stop", color=color.new(color.red, 0), style=plot.style_linebr)
+plot(target1, "Target 1", color=color.new(color.teal, 0), style=plot.style_linebr)
+plot(target2, "Target 2", color=color.new(color.aqua, 0), style=plot.style_linebr)
+plot(target3, "Target 3", color=color.new(color.purple, 0), style=plot.style_linebr)
+
+var table panel = table.new(position.top_right, 2, 16, border_width=1)
+if barstate.islast
+    table.cell(panel, 0, 0, "Stop model")
+    table.cell(panel, 1, 0, stopModel)
+    table.cell(panel, 0, 1, "Selected stop")
+    table.cell(panel, 1, 1, str.tostring(selectedStop, format.mintick))
+    table.cell(panel, 0, 2, "20-DMA reference")
+    table.cell(panel, 1, 2, str.tostring(dma20, format.mintick) + " (not active unless selected)")
+    table.cell(panel, 0, 3, "Target model")
+    table.cell(panel, 1, 3, targetModel)
+    table.cell(panel, 0, 4, "Targets")
+    table.cell(panel, 1, 4, str.tostring(target1, format.mintick) + " / " + str.tostring(target2, format.mintick) + " / " + str.tostring(target3, format.mintick))
+    table.cell(panel, 0, 5, "Exit strategy")
+    table.cell(panel, 1, 5, exitModel)
+    table.cell(panel, 0, 6, "Reward/risk")
+    table.cell(panel, 1, 6, str.tostring(rewardRisk, "#.00"))
+    table.cell(panel, 0, 7, "Conflict policy")
+    table.cell(panel, 1, 7, conflictPolicy)
+    table.cell(panel, 0, 8, "Trades / wins / losses")
+    table.cell(panel, 1, 8, str.tostring(strategy.closedtrades) + " / " + str.tostring(strategy.wintrades) + " / " + str.tostring(strategy.losstrades))
+    table.cell(panel, 0, 9, "Win rate")
+    table.cell(panel, 1, 9, strategy.closedtrades == 0 ? "unavailable" : str.tostring(strategy.wintrades / strategy.closedtrades * 100.0, "#.0") + "%")
+    table.cell(panel, 0, 10, "Profit factor")
+    table.cell(panel, 1, 10, strategy.grossloss == 0 ? "unavailable" : str.tostring(strategy.grossprofit / math.abs(strategy.grossloss), "#.00"))
+    table.cell(panel, 0, 11, "Max drawdown")
+    table.cell(panel, 1, 11, str.tostring(strategy.max_drawdown, "#.00"))
+    table.cell(panel, 0, 12, "DATA SOURCE: TRADINGVIEW", text_color=color.yellow)
+    table.cell(panel, 1, 12, "NOT ALPHA MARKET TRUTH ENGINE", text_color=color.yellow)
+    table.cell(panel, 0, 13, "Corporate actions/history may differ", text_color=color.orange)
+    table.cell(panel, 1, 13, "Independent validation only", text_color=color.orange)
+    table.cell(panel, 0, 14, "Fill engine")
+    table.cell(panel, 1, 14, "TradingView Strategy Tester")
+    table.cell(panel, 0, 15, "Parity")
+    table.cell(panel, 1, 15, "SEMANTICALLY_EQUIVALENT")

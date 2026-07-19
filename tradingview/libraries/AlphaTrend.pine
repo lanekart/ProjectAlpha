@@ -1,0 +1,24 @@
+//@version=6
+library("AlphaTrend", overlay=false)
+
+export smaAlignmentScore(float source) =>
+    float dma20 = ta.sma(source, 20)
+    float dma50 = ta.sma(source, 50)
+    float dma200 = ta.sma(source, 200)
+    float available = (na(dma20) ? 0.0 : 1.0) + (na(dma50) ? 0.0 : 1.0) + (na(dma200) ? 0.0 : 1.0)
+    float aligned = (na(dma20) ? 0.0 : source >= dma20 ? 1.0 : 0.0) + (na(dma50) ? 0.0 : source >= dma50 ? 1.0 : 0.0) + (na(dma200) ? 0.0 : source >= dma200 ? 1.0 : 0.0)
+    available == 0.0 ? 0.50 : aligned / available
+
+export emaAlignmentScore(float source) =>
+    float ema20 = ta.ema(source, 20)
+    float ema50 = ta.ema(source, 50)
+    float ema200 = ta.ema(source, 200)
+    float available = (na(ema20) ? 0.0 : 1.0) + (na(ema50) ? 0.0 : 1.0) + (na(ema200) ? 0.0 : 1.0)
+    float aligned = (na(ema20) ? 0.0 : source >= ema20 ? 1.0 : 0.0) + (na(ema50) ? 0.0 : source >= ema50 ? 1.0 : 0.0) + (na(ema200) ? 0.0 : source >= ema200 ? 1.0 : 0.0)
+    available == 0.0 ? 0.50 : aligned / available
+
+export alignmentScore(float source) =>
+    smaAlignmentScore(source) * 0.70 + emaAlignmentScore(source) * 0.30
+
+export state(float score) =>
+    score >= 0.85 ? "STRONG_UPTREND" : score >= 0.60 ? "UPTREND" : score <= 0.25 ? "DOWNTREND" : "MIXED"

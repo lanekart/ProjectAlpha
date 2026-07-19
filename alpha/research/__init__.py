@@ -5,6 +5,29 @@ from alpha.research.comparison import (
     StrategyComparisonReport,
     StrategyComparisonResult,
 )
+from alpha.research.diagnostic_registry import (
+    DiagnosticRegistry,
+    ExistingReplayEvidence,
+    ResearchDiagnosticPlugin,
+    default_diagnostic_registry,
+)
+from alpha.research.institutional_research_director import (
+    InstitutionalResearchDirector,
+)
+from alpha.research.metric_truth_audit import (
+    MetricTruthAuditEngine,
+    MetricTruthAuditReport,
+)
+from alpha.research.models import (
+    DiagnosticEvidence,
+    EngineeringRoiReport,
+    ExecutiveResearchBrief,
+    MetricAvailability,
+    RankedBottleneck,
+    RegisteredResearchExperiment,
+    ResearchMetric,
+    ResearchRoadmap,
+)
 from alpha.research.parameter_sweep import (
     ParameterCombination,
     ParameterDefinition,
@@ -30,6 +53,7 @@ from alpha.research.reporting import (
     ResearchReportSection,
     TextResearchReportFormatter,
 )
+from alpha.research.research_registry import ResearchExperimentRegistry
 from alpha.research.session import (
     ResearchSession,
     ResearchSessionBuilder,
@@ -48,6 +72,15 @@ from alpha.research.walk_forward import (
 
 __all__ = [
     "InMemoryResearchExperimentRepository",
+    "DiagnosticEvidence",
+    "DiagnosticRegistry",
+    "EngineeringRoiReport",
+    "ExecutiveResearchBrief",
+    "ExistingReplayEvidence",
+    "InstitutionalResearchDirector",
+    "MetricAvailability",
+    "MetricTruthAuditEngine",
+    "MetricTruthAuditReport",
     "MarkdownResearchReportFormatter",
     "ParameterCombination",
     "ParameterDefinition",
@@ -58,6 +91,7 @@ __all__ = [
     "ParameterSweepResult",
     "ReportMetadataValue",
     "ResearchExperimentManifest",
+    "ResearchExperimentRegistry",
     "ResearchExperimentPersistenceService",
     "ResearchExperimentRecord",
     "ResearchExperimentRepository",
@@ -65,6 +99,9 @@ __all__ = [
     "ResearchReportBuilder",
     "ResearchReportFormatter",
     "ResearchReportSection",
+    "ResearchDiagnosticPlugin",
+    "ResearchMetric",
+    "ResearchRoadmap",
     "ResearchSession",
     "ResearchSessionBuilder",
     "ResearchSessionEntry",
@@ -80,4 +117,7 @@ __all__ = [
     "WalkForwardResult",
     "WalkForwardWindow",
     "WalkForwardWindowGenerator",
+    "RankedBottleneck",
+    "RegisteredResearchExperiment",
+    "default_diagnostic_registry",
 ]

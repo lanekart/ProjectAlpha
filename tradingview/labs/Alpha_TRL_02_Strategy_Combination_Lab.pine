@@ -1,0 +1,148 @@
+//@version=6
+strategy("Alpha TRL 02 Strategy Combination Lab v2.0", overlay=true, initial_capital=1000000, default_qty_type=strategy.percent_of_equity, default_qty_value=10, commission_type=strategy.commission.percent, commission_value=0.10, slippage=1, pyramiding=0, process_orders_on_close=true)
+
+// DATA SOURCE: TRADINGVIEW
+// NOT ALPHA MARKET TRUTH ENGINE
+// CORPORATE-ACTION AND SYMBOL-HISTORY SEMANTICS MAY DIFFER
+// RESULTS ARE INDEPENDENT VALIDATION, NOT AUTHORITATIVE ALPHA REPLAY
+// RESEARCH PURPOSE ONLY. THIS SCRIPT TESTS STRATEGY COMBINATIONS, NOT STOCK ADVICE.
+
+startDate = input.time(timestamp("01 Jan 2015 00:00 +0000"), "Start date", group="Research Window")
+endDate = input.time(timestamp("31 Dec 2035 23:59 +0000"), "End date", group="Research Window")
+researchPartition = input.string("DEVELOPMENT", "Research partition", options=["DEVELOPMENT", "VALIDATION", "HOLDOUT"], group="Research Window")
+orderSize = input.float(10.0, "Order size (% of equity)", minval=0.1, maxval=100.0, group="Backtest Controls")
+commission = input.float(0.10, "Commission (%) (declaration fixed)", minval=0.0, group="Backtest Controls")
+slippage = input.int(1, "Slippage (ticks) (declaration fixed)", minval=0, group="Backtest Controls")
+longOnly = input.bool(true, "Long only", group="Backtest Controls")
+nextBarExecution = input.bool(true, "Next-bar execution", group="Backtest Controls")
+conflictPolicy = input.string("STOP_FIRST_CONSERVATIVE", "Same-bar conflict policy", options=["STOP_FIRST_CONSERVATIVE"], group="Backtest Controls")
+tradingSession = input.session("0915-1530", "Trading session", group="Backtest Controls")
+
+enableMomentumBreakout = input.bool(true, "Momentum Breakout", group="Strategy Selection")
+enablePullbackEntry = input.bool(true, "Pullback Entry", group="Strategy Selection")
+enableAggressiveAccumulation = input.bool(true, "Aggressive Accumulation", group="Strategy Selection")
+enableRetestHold = input.bool(true, "Retest Hold", group="Strategy Selection")
+enableBullFlag = input.bool(true, "Bull Flag", group="Strategy Selection")
+enableFlatBase = input.bool(true, "Flat Base", group="Strategy Selection")
+enableCupAndHandle = input.bool(true, "Cup & Handle", group="Strategy Selection")
+enableVcp = input.bool(true, "VCP", group="Strategy Selection")
+enableFailedBreakout = input.bool(true, "Failed Breakout veto", group="Strategy Selection")
+combinationMode = input.string("ANY", "Combination mode", options=["ANY", "ALL", "MINIMUM_N", "WEIGHTED"], group="Strategy Selection")
+minimumStrategies = input.int(2, "Minimum N strategies", minval=1, maxval=8, group="Strategy Selection")
+weightedThreshold = input.float(3.0, "Weighted threshold", minval=0.0, group="Strategy Selection")
+
+momentumWeight = input.float(1.0, "Momentum Breakout weight", minval=0.0, group="Strategy Weights")
+pullbackWeight = input.float(1.0, "Pullback Entry weight", minval=0.0, group="Strategy Weights")
+accumulationWeight = input.float(1.0, "Aggressive Accumulation weight", minval=0.0, group="Strategy Weights")
+retestWeight = input.float(1.0, "Retest Hold weight", minval=0.0, group="Strategy Weights")
+bullFlagWeight = input.float(1.0, "Bull Flag weight", minval=0.0, group="Strategy Weights")
+flatBaseWeight = input.float(1.0, "Flat Base weight", minval=0.0, group="Strategy Weights")
+cupHandleWeight = input.float(1.0, "Cup & Handle weight", minval=0.0, group="Strategy Weights")
+vcpWeight = input.float(1.0, "VCP weight", minval=0.0, group="Strategy Weights")
+
+baselineAvailable = input.bool(false, "Alpha baseline metrics available", group="Baseline Comparison")
+baselineProfitFactor = input.float(1.0, "Alpha baseline profit factor", minval=0.0, group="Baseline Comparison")
+baselineExpectancy = input.float(0.0, "Alpha baseline expectancy", group="Baseline Comparison")
+baselineDrawdown = input.float(0.0, "Alpha baseline max drawdown (%)", minval=0.0, group="Baseline Comparison")
+
+safeDiv(float numerator, float denominator, float fallback) => denominator == 0.0 or na(denominator) ? fallback : numerator / denominator
+inWindow = time >= startDate and time <= endDate
+inSession = not na(time(timeframe.period, tradingSession))
+ema20 = ta.ema(close, 20)
+ema50 = ta.ema(close, 50)
+atrValue = ta.atr(14)
+volumeAverage = ta.sma(volume, 20)
+relativeVolume = safeDiv(volume, volumeAverage, 1.0)
+resistanceValue = ta.highest(high[1], 50)
+supportValue = ta.lowest(low[1], 30)
+baseHigh = ta.highest(high[1], 20)
+baseLow = ta.lowest(low[1], 20)
+baseWidthPct = safeDiv(baseHigh - baseLow, baseLow, 1.0) * 100.0
+recentWidth = ta.highest(high, 10) - ta.lowest(low, 10)
+priorWidth = ta.highest(high[10], 10) - ta.lowest(low[10], 10)
+closeStrength = safeDiv(close - low, high - low, 0.5)
+trendAligned = close > ema20 and ema20 > ema50
+momentumBreakout = trendAligned and close > resistanceValue and relativeVolume >= 1.50 and closeStrength >= 0.65
+pullbackEntry = trendAligned and low <= ema20 and close > ema20 and relativeVolume <= 1.0 and close > open
+aggressiveAccumulation = trendAligned and close > open and closeStrength >= 0.75 and relativeVolume >= 1.20
+priorBreakoutSeen = ta.highest(close[1], 10) > resistanceValue[10]
+retestHold = trendAligned and priorBreakoutSeen and low <= resistanceValue and close > resistanceValue and relativeVolume <= 1.20
+bullFlag = trendAligned and close > ta.highest(high[1], 10) and recentWidth < priorWidth and relativeVolume >= 1.20
+flatBase = trendAligned and baseWidthPct <= 8.0 and close > baseHigh and relativeVolume >= 1.20
+cupAndHandle = trendAligned and ta.lowest(low, 40) < ta.lowest(low[40], 40) and close > ta.highest(high[1], 15) and relativeVolume >= 1.20
+vcp = trendAligned and priorWidth > 0.0 and recentWidth <= priorWidth * 0.70 and close > ta.highest(high[1], 10) and relativeVolume >= 1.20
+failedBreakout = high > resistanceValue and close < resistanceValue and relativeVolume >= 1.30
+enabledCount = (enableMomentumBreakout ? 1 : 0) + (enablePullbackEntry ? 1 : 0) + (enableAggressiveAccumulation ? 1 : 0) + (enableRetestHold ? 1 : 0) + (enableBullFlag ? 1 : 0) + (enableFlatBase ? 1 : 0) + (enableCupAndHandle ? 1 : 0) + (enableVcp ? 1 : 0)
+matchedCount = (enableMomentumBreakout and momentumBreakout ? 1 : 0) + (enablePullbackEntry and pullbackEntry ? 1 : 0) + (enableAggressiveAccumulation and aggressiveAccumulation ? 1 : 0) + (enableRetestHold and retestHold ? 1 : 0) + (enableBullFlag and bullFlag ? 1 : 0) + (enableFlatBase and flatBase ? 1 : 0) + (enableCupAndHandle and cupAndHandle ? 1 : 0) + (enableVcp and vcp ? 1 : 0)
+matchedWeight = (enableMomentumBreakout and momentumBreakout ? momentumWeight : 0.0) + (enablePullbackEntry and pullbackEntry ? pullbackWeight : 0.0) + (enableAggressiveAccumulation and aggressiveAccumulation ? accumulationWeight : 0.0) + (enableRetestHold and retestHold ? retestWeight : 0.0) + (enableBullFlag and bullFlag ? bullFlagWeight : 0.0) + (enableFlatBase and flatBase ? flatBaseWeight : 0.0) + (enableCupAndHandle and cupAndHandle ? cupHandleWeight : 0.0) + (enableVcp and vcp ? vcpWeight : 0.0)
+combinationPass = combinationMode == "ANY" ? matchedCount >= 1 : combinationMode == "ALL" ? enabledCount > 0 and matchedCount == enabledCount : combinationMode == "MINIMUM_N" ? matchedCount >= minimumStrategies : matchedWeight >= weightedThreshold
+failedBreakoutVeto = enableFailedBreakout and failedBreakout
+entrySignalNow = enabledCount > 0 and combinationPass and not failedBreakoutVeto
+entrySignal = nextBarExecution ? entrySignalNow[1] : entrySignalNow
+selectedStop = math.min(close - syminfo.mintick, math.max(syminfo.mintick, math.max(supportValue, ema50) - atrValue * 0.50))
+riskPerShare = close - selectedStop
+selectedTarget = close + riskPerShare * 3.0
+calculatedQuantity = strategy.equity * orderSize / 100.0 / close
+if inWindow and inSession and longOnly and entrySignal and riskPerShare > 0.0 and strategy.position_size == 0
+    strategy.entry("TRL Combination Long", strategy.long, qty=calculatedQuantity)
+if strategy.position_size > 0
+    strategy.exit("TRL Combination Exit", "TRL Combination Long", stop=selectedStop, limit=selectedTarget)
+
+var float equityPeak = 1000000.0
+var float maximumDrawdown = 0.0
+equityPeak := math.max(equityPeak, strategy.equity)
+currentDrawdown = equityPeak <= 0.0 ? 0.0 : (equityPeak - strategy.equity) / equityPeak * 100.0
+maximumDrawdown := math.max(maximumDrawdown, currentDrawdown)
+closedTrades = strategy.closedtrades
+winRate = closedTrades == 0 ? na : strategy.wintrades / closedTrades * 100.0
+profitFactor = strategy.grossloss == 0.0 ? na : strategy.grossprofit / math.abs(strategy.grossloss)
+averageWinner = strategy.wintrades == 0 ? na : strategy.grossprofit / strategy.wintrades
+averageLoser = strategy.losstrades == 0 ? na : math.abs(strategy.grossloss) / strategy.losstrades
+expectancy = na(winRate) or na(averageWinner) or na(averageLoser) ? na : winRate / 100.0 * averageWinner - (1.0 - winRate / 100.0) * averageLoser
+expectancyDelta = baselineAvailable and not na(expectancy) ? expectancy - baselineExpectancy : na
+profitFactorDelta = baselineAvailable and not na(profitFactor) ? profitFactor - baselineProfitFactor : na
+drawdownImprovement = baselineAvailable ? baselineDrawdown - maximumDrawdown : na
+comparisonState = not baselineAvailable or na(expectancyDelta) ? "INSUFFICIENT" : expectancyDelta > 0.0 and drawdownImprovement >= 0.0 ? "IMPROVED" : expectancyDelta == 0.0 and drawdownImprovement == 0.0 ? "UNCHANGED" : "WORSE"
+promotionState = comparisonState == "IMPROVED" and researchPartition == "HOLDOUT" ? "ALPHA REPLAY CANDIDATE" : "DO NOT PROMOTE"
+
+plot(ema20, "20 EMA", color=color.new(color.blue, 0))
+plot(ema50, "50 EMA", color=color.new(color.orange, 0))
+plot(resistanceValue, "Resistance", color=color.new(color.red, 55), style=plot.style_linebr)
+plot(supportValue, "Support", color=color.new(color.green, 55), style=plot.style_linebr)
+
+var table statePanel = table.new(position.top_right, 2, 4, border_width=1)
+var table metricPanel = table.new(position.middle_right, 2, 6, border_width=1)
+var table comparisonPanel = table.new(position.bottom_right, 2, 6, border_width=1)
+if barstate.islast
+    table.cell(statePanel, 0, 0, "Composite Score")
+    table.cell(statePanel, 1, 0, str.tostring(matchedCount) + "/" + str.tostring(enabledCount))
+    table.cell(statePanel, 0, 1, "Current Verdict")
+    table.cell(statePanel, 1, 1, failedBreakoutVeto ? "VETOED" : combinationPass ? "RESEARCH ENTRY" : "NO RESEARCH ENTRY")
+    table.cell(statePanel, 0, 2, "Setup")
+    table.cell(statePanel, 1, 2, combinationMode)
+    table.cell(statePanel, 0, 3, "Entry State")
+    table.cell(statePanel, 1, 3, strategy.position_size > 0 ? "ACTIVE" : "FLAT")
+    table.cell(metricPanel, 0, 0, "Trades")
+    table.cell(metricPanel, 1, 0, str.tostring(closedTrades))
+    table.cell(metricPanel, 0, 1, "Win Rate")
+    table.cell(metricPanel, 1, 1, na(winRate) ? "unavailable" : str.tostring(winRate, "#.0") + "%")
+    table.cell(metricPanel, 0, 2, "Profit Factor")
+    table.cell(metricPanel, 1, 2, na(profitFactor) ? "unavailable" : str.tostring(profitFactor, "#.00"))
+    table.cell(metricPanel, 0, 3, "Expectancy")
+    table.cell(metricPanel, 1, 3, na(expectancy) ? "unavailable" : str.tostring(expectancy, "#.00"))
+    table.cell(metricPanel, 0, 4, "Max Drawdown")
+    table.cell(metricPanel, 1, 4, str.tostring(maximumDrawdown, "#.00") + "%")
+    table.cell(metricPanel, 0, 5, "Failed Breakout")
+    table.cell(metricPanel, 1, 5, failedBreakout ? "DETECTED" : "clear")
+    table.cell(comparisonPanel, 0, 0, "Compared to Alpha")
+    table.cell(comparisonPanel, 1, 0, comparisonState)
+    table.cell(comparisonPanel, 0, 1, "PF Delta")
+    table.cell(comparisonPanel, 1, 1, na(profitFactorDelta) ? "unavailable" : str.tostring(profitFactorDelta, "#.00"))
+    table.cell(comparisonPanel, 0, 2, "Expectancy Delta")
+    table.cell(comparisonPanel, 1, 2, na(expectancyDelta) ? "unavailable" : str.tostring(expectancyDelta, "#.00"))
+    table.cell(comparisonPanel, 0, 3, "Drawdown Improvement")
+    table.cell(comparisonPanel, 1, 3, na(drawdownImprovement) ? "unavailable" : str.tostring(drawdownImprovement, "#.00"))
+    table.cell(comparisonPanel, 0, 4, "Partition")
+    table.cell(comparisonPanel, 1, 4, researchPartition)
+    table.cell(comparisonPanel, 0, 5, "Recommendation")
+    table.cell(comparisonPanel, 1, 5, promotionState)

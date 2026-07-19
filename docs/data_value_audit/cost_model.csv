@@ -1,0 +1,35 @@
+dataset_id,status,initial_cost_inr,annual_cost_inr,engineering_cost,maintenance_cost,licensing_risk,legal_risk,source,notes
+bonuses,BUNDLED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,No standalone price is assigned; evaluate within package corporate_actions.
+corporate_actions,PUBLISHED,UNKNOWN,500000,HIGH,HIGH,MEDIUM,LOW,docs/hmdpca/cost_matrix.csv,"Published reference price; scope, history and permitted use require contract confirmation."
+delisting_history,BUNDLED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,No standalone price is assigned; evaluate within package security_master.
+delivery_data,QUOTE_REQUIRED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,Supplier quote and rights schedule required; DVRA does not invent a price.
+delivery_percentage,BUNDLED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,No standalone price is assigned; evaluate within package delivery_data.
+delivery_quantity,BUNDLED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,No standalone price is assigned; evaluate within package delivery_data.
+demergers,BUNDLED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,No standalone price is assigned; evaluate within package corporate_actions.
+dii_holdings,BUNDLED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,No standalone price is assigned; evaluate within package ownership_data.
+dividends,BUNDLED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,No standalone price is assigned; evaluate within package corporate_actions.
+earnings_data,QUOTE_REQUIRED,UNKNOWN,UNKNOWN,HIGH,HIGH,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,Supplier quote and rights schedule required; DVRA does not invent a price.
+earnings_dates,BUNDLED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,No standalone price is assigned; evaluate within package earnings_data.
+earnings_revisions,BUNDLED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,No standalone price is assigned; evaluate within package earnings_data.
+earnings_surprises,BUNDLED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,No standalone price is assigned; evaluate within package earnings_data.
+fii_holdings,BUNDLED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,No standalone price is assigned; evaluate within package ownership_data.
+historical_index_membership,QUOTE_REQUIRED,UNKNOWN,UNKNOWN,HIGH,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,Supplier quote and rights schedule required; DVRA does not invent a price.
+historical_index_ohlc,QUOTE_REQUIRED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,Supplier quote and rights schedule required; DVRA does not invent a price.
+historical_sector_membership,QUOTE_REQUIRED,UNKNOWN,UNKNOWN,HIGH,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,Supplier quote and rights schedule required; DVRA does not invent a price.
+india_vix,NO_LICENSE_FEE_IDENTIFIED,0,0,LOW,LOW,MEDIUM,MEDIUM,docs/hmdpca/cost_matrix.csv,No license fee identified in the audit; retention and non-display rights remain to be confirmed.
+isin_history,BUNDLED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,No standalone price is assigned; evaluate within package security_master.
+listing_history,BUNDLED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,No standalone price is assigned; evaluate within package security_master.
+market_breadth,NO_LICENSE_FEE_IDENTIFIED,0,0,MEDIUM,MEDIUM,MEDIUM,MEDIUM,docs/hmdpca/cost_matrix.csv,No license fee identified in the audit; retention and non-display rights remain to be confirmed.
+mergers,BUNDLED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,No standalone price is assigned; evaluate within package corporate_actions.
+mutual_fund_holdings,BUNDLED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,No standalone price is assigned; evaluate within package ownership_data.
+official_bse_daily_history,PUBLISHED,UNKNOWN,120000,MEDIUM,MEDIUM,MEDIUM,LOW,docs/hmdpca/cost_matrix.csv,"Published reference price; scope, history and permitted use require contract confirmation."
+official_nse_daily_history,PUBLISHED,UNKNOWN,100000,MEDIUM,MEDIUM,MEDIUM,LOW,docs/hmdpca/cost_matrix.csv,"Published reference price; scope, history and permitted use require contract confirmation."
+ownership_data,QUOTE_REQUIRED,UNKNOWN,UNKNOWN,HIGH,HIGH,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,Supplier quote and rights schedule required; DVRA does not invent a price.
+promoter_holdings,BUNDLED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,No standalone price is assigned; evaluate within package ownership_data.
+rights,BUNDLED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,No standalone price is assigned; evaluate within package corporate_actions.
+risk_free_rate,NO_LICENSE_FEE_IDENTIFIED,0,0,LOW,LOW,MEDIUM,MEDIUM,docs/hmdpca/cost_matrix.csv,No license fee identified in the audit; retention and non-display rights remain to be confirmed.
+security_master,PUBLISHED,UNKNOWN,215000,MEDIUM,MEDIUM,MEDIUM,LOW,docs/hmdpca/cost_matrix.csv,"Published reference price; scope, history and permitted use require contract confirmation."
+splits,BUNDLED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,No standalone price is assigned; evaluate within package corporate_actions.
+symbol_history,BUNDLED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,No standalone price is assigned; evaluate within package security_master.
+trading_calendar,NO_LICENSE_FEE_IDENTIFIED,0,0,LOW,LOW,MEDIUM,MEDIUM,docs/hmdpca/cost_matrix.csv,No license fee identified in the audit; retention and non-display rights remain to be confirmed.
+turnover_trade_count,BUNDLED,UNKNOWN,UNKNOWN,MEDIUM,MEDIUM,UNKNOWN,MEDIUM,docs/hmdpca/cost_matrix.csv,Expected within an exchange market-data package; standalone price not established.

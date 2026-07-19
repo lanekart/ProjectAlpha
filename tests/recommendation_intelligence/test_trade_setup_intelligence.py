@@ -412,17 +412,55 @@ def test_cli_detail_lines_render_trade_strategy_values() -> None:
     stop = next(line for line in lines if "Risk Stop:" in line)
     targets = next(line for line in lines if "Targets:" in line)
     risk_reward = next(line for line in lines if "Risk / Reward:" in line)
+    current_rr = next(
+        line for line in lines if "Current Market R/R to Target 1:" in line
+    )
 
     assert any("Trade Strategies:" in line for line in lines)
     assert any("Momentum Breakout" in line for line in lines)
     assert any("Pullback Entry" in line for line in lines)
+    assert report.current_market_price == Decimal("106")
+    assert report.current_market_risk_reward_ratio is not None
     assert "unavailable" not in entry
     assert "unavailable" not in trigger
     assert "unavailable" not in stop
     assert "unavailable" not in targets
     assert "unavailable" not in risk_reward
+    assert "unavailable" not in current_rr
     assert any("Stage: Entry Ready" in line for line in lines)
     assert any("Entry Ready: Yes" in line for line in lines)
+
+
+def test_cli_detail_lines_render_trade_support_and_risk_reasons() -> None:
+    report = RecommendationEngine().build(
+        (_candidate(setup_type="BULL_FLAG", current_price=Decimal("106")),)
+    )[0]
+
+    lines = _recommendation_detail_lines(1, report)
+    support_index = lines.index("   Why It May Work:")
+    risk_index = lines.index("   Why It May Fail:")
+
+    assert support_index < risk_index
+    assert lines[support_index + 1].startswith("   - ")
+    assert lines[risk_index + 1].startswith("   - ")
+    assert any(
+        "Current market price" in line for line in lines[support_index:risk_index]
+    )
+    assert any("20-DMA" in line for line in lines[support_index:risk_index])
+    assert not any(
+        line.endswith("Trend is strong uptrend.")
+        for line in lines[support_index:risk_index]
+    )
+    assert any("insufficient" in line.lower() for line in lines[risk_index:])
+
+
+def test_current_market_risk_reward_is_unavailable_for_avoid() -> None:
+    report = RecommendationEngine().build(
+        (_candidate(setup_type="FAILED_BREAKOUT", current_price=Decimal("100")),)
+    )[0]
+
+    assert report.final_signal == "AVOID"
+    assert report.current_market_risk_reward_ratio is None
 
 
 def test_entry_trigger_is_never_rendered_as_only_a_number() -> None:

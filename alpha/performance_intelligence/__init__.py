@@ -1,5 +1,7 @@
 from alpha.performance_intelligence.ledger import RecommendationLedgerRepository
 from alpha.performance_intelligence.models import (
+    HistoricalEdge,
+    NextDayOutcomeLabel,
     PerformanceMetrics,
     PerformanceReport,
     PerformanceUpdateSummary,
@@ -17,12 +19,15 @@ from alpha.performance_intelligence.reporting import (
 from alpha.performance_intelligence.service import (
     DEFAULT_LEDGER_PATH,
     PerformanceIntelligenceService,
+    render_tracking_summary,
     render_update_summary,
     resolve_ledger_path,
 )
 
 __all__ = [
     "DEFAULT_LEDGER_PATH",
+    "HistoricalEdge",
+    "NextDayOutcomeLabel",
     "PerformanceIntelligenceService",
     "PerformanceMetrics",
     "PerformanceReport",
@@ -36,6 +41,7 @@ __all__ = [
     "RecommendationOutcomeStatus",
     "RecommendationPerformanceRecorder",
     "render_performance_report",
+    "render_tracking_summary",
     "render_update_summary",
     "resolve_ledger_path",
 ]

@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 
 from alpha.cli import app
 from alpha.performance_intelligence import (
+    NextDayOutcomeLabel,
     PerformanceIntelligenceService,
     PerformanceReportBuilder,
     RecommendationExitReason,
@@ -233,11 +234,172 @@ def test_service_update_uses_available_future_bars(tmp_path) -> None:
     assert outcome.status is RecommendationOutcomeStatus.EXITED
 
 
+def test_next_day_win_detection() -> None:
+    outcome = RecommendationOutcomeEvaluator(default_expiry_bars=5).evaluate(
+        _entry("AAA", position_size=Decimal("10000")),
+        (_bar(1, high="113", low="102", close="112"),),
+    )
+
+    assert outcome.next_day_outcome_label is NextDayOutcomeLabel.WIN
+    assert outcome.next_day_target_1_touched is True
+    assert outcome.next_day_pnl_rs == Decimal("1089.00")
+
+
+def test_next_day_loss_detection() -> None:
+    outcome = RecommendationOutcomeEvaluator(default_expiry_bars=5).evaluate(
+        _entry("AAA", position_size=Decimal("10000")),
+        (_bar(1, high="102", low="95", close="96"),),
+    )
+
+    assert outcome.next_day_outcome_label is NextDayOutcomeLabel.LOSS
+    assert outcome.next_day_stop_touched is True
+    assert outcome.next_day_pnl_pct == Decimal("-4.95")
+
+
+def test_same_candle_next_day_target_and_stop_is_conservative_loss() -> None:
+    outcome = RecommendationOutcomeEvaluator(default_expiry_bars=5).evaluate(
+        _entry("AAA"),
+        (_bar(1, high="113", low="95", close="110"),),
+    )
+
+    assert outcome.next_day_target_1_touched is True
+    assert outcome.next_day_stop_touched is True
+    assert outcome.next_day_outcome_label is NextDayOutcomeLabel.LOSS
+
+
+def test_missing_next_day_data_keeps_recommendation_open() -> None:
+    outcome = RecommendationOutcomeEvaluator(default_expiry_bars=5).evaluate(
+        _entry("AAA"),
+        (),
+    )
+
+    assert outcome.status is RecommendationOutcomeStatus.PENDING
+    assert outcome.next_day_outcome_label is NextDayOutcomeLabel.OPEN
+    assert "No future bars available" in outcome.explanation[0]
+
+
+def test_realized_rupee_pnl_calculation() -> None:
+    outcome = RecommendationOutcomeEvaluator(default_expiry_bars=5).evaluate(
+        _entry("AAA", position_size=Decimal("10000")),
+        (
+            _bar(1, high="101", low="99", close="100"),
+            _bar(2, high="112", low="102", close="112"),
+        ),
+    )
+
+    assert outcome.realized_percent_return == Decimal("10.89")
+    assert outcome.realized_pnl_rs == Decimal("1089.00")
+
+
+def test_period_aggregations(tmp_path) -> None:
+    repository = RecommendationLedgerRepository(tmp_path / "ledger.json")
+    repository.save_entry(_entry("AAA"))
+    repository.upsert_outcome(
+        _outcome(
+            "rec-AAA",
+            "AAA",
+            Decimal("1.00"),
+            target_1=True,
+            pnl=Decimal("500"),
+        )
+    )
+    service = PerformanceIntelligenceService(repository=repository)
+
+    assert "Performance Period Summary: daily" in "\n".join(
+        service.report_lines(period="daily")
+    )
+    assert "Performance Period Summary: weekly" in "\n".join(
+        service.report_lines(period="weekly")
+    )
+    assert "Performance Period Summary: monthly" in "\n".join(
+        service.report_lines(period="monthly")
+    )
+    assert "Performance Period Summary: yearly" in "\n".join(
+        service.report_lines(period="yearly")
+    )
+
+
+def test_expected_value_calculation_with_rupee_metrics() -> None:
+    report = PerformanceReportBuilder(minimum_sample_size=1).build(
+        entries=(_entry("AAA"), _entry("BBB")),
+        outcomes=(
+            _outcome("rec-AAA", "AAA", Decimal("1.00"), pnl=Decimal("1000")),
+            _outcome("rec-BBB", "BBB", Decimal("-1.00"), pnl=Decimal("-500")),
+        ),
+    )
+
+    assert report.metrics.expectancy_rs == Decimal("250.00")
+    assert report.metrics.cumulative_pnl_rs == Decimal("500.00")
+
+
+def test_historical_edge_insufficient_sample_returns_not_yet_computed(tmp_path) -> None:
+    repository = RecommendationLedgerRepository(tmp_path / "ledger.json")
+    repository.save_entry(_entry("AAA"))
+    service = PerformanceIntelligenceService(repository=repository)
+
+    edge = service.historical_edge(dimension="symbol", key="AAA")
+
+    assert edge.as_text() == "Not yet computed"
+
+
+def test_outcomes_summary_cli_prints_ledger_status(tmp_path) -> None:
+    repository = RecommendationLedgerRepository(tmp_path / "ledger.json")
+    repository.save_entry(_entry("AAA"))
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        ["outcomes", "summary", "--ledger", str(tmp_path / "ledger.json")],
+    )
+
+    assert result.exit_code == 0
+    assert "Performance Intelligence Report" in result.stdout
+    assert "Total Recommendations: 1" in result.stdout
+
+
+def test_outcomes_open_command_works(tmp_path) -> None:
+    repository = RecommendationLedgerRepository(tmp_path / "ledger.json")
+    repository.save_entry(_entry("AAA"))
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        ["outcomes", "open", "--ledger", str(tmp_path / "ledger.json")],
+    )
+
+    assert result.exit_code == 0
+    assert "Open Recommendations" in result.stdout
+    assert "AAA" in result.stdout
+
+
+def test_outcomes_symbol_history_command_works(tmp_path) -> None:
+    repository = RecommendationLedgerRepository(tmp_path / "ledger.json")
+    repository.save_entry(_entry("AAA"))
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "outcomes",
+            "symbol",
+            "--symbol",
+            "AAA",
+            "--ledger",
+            str(tmp_path / "ledger.json"),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Symbol Recommendation History: AAA" in result.stdout
+    assert "Total Recommendations: 1" in result.stdout
+
+
 def _entry(
     symbol: str,
     *,
     verdict: str = "BUY",
     sector: str = "IT",
+    position_size: Decimal | None = None,
 ) -> RecommendationLedgerEntry:
     return RecommendationLedgerEntry(
         recommendation_id=f"rec-{symbol}",
@@ -265,6 +427,11 @@ def _entry(
         statistical_edge_snapshot={"sample_size": "12"},
         data_completeness_snapshot={"data_quality": "complete"},
         source_run_id="run-1",
+        recommended_position_size_rs=position_size,
+        approved_deployment_rs=position_size,
+        reward_risk=Decimal("3"),
+        expected_value=None,
+        explanation="Deterministic test recommendation.",
     )
 
 
@@ -287,6 +454,7 @@ def _outcome(
     *,
     target_1: bool = False,
     stop: bool = False,
+    pnl: Decimal | None = None,
 ) -> RecommendationOutcome:
     return RecommendationOutcome(
         recommendation_id=recommendation_id,
@@ -304,6 +472,7 @@ def _outcome(
         target_1_hit=target_1,
         realized_r_multiple=r_multiple,
         realized_percent_return=Decimal("5") if r_multiple > 0 else Decimal("-2"),
+        realized_pnl_rs=pnl,
         holding_period_bars=2,
         holding_period_days=1,
     )

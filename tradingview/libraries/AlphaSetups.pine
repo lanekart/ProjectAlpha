@@ -1,0 +1,25 @@
+//@version=6
+library("AlphaSetups", overlay=false)
+
+export bullFlag(bool higherStructure, bool uptrend, bool healthyRetracement, float volumeDryUp, float retracementScore) =>
+    higherStructure and uptrend and healthyRetracement and volumeDryUp >= 0.55 and retracementScore >= 0.60
+
+export emaPullback(float closeValue, float ema20, float ema50, float atrValue, bool uptrend, bool healthyRetracement) =>
+    float tolerance = na(atrValue) ? math.max(closeValue * 0.02, syminfo.mintick) : atrValue * 1.50
+    bool nearAverage = math.abs(closeValue - ema20) <= tolerance or math.abs(closeValue - ema50) <= tolerance
+    nearAverage and uptrend and healthyRetracement
+
+export vcp(float closeValue, float resistance, float volumeDryUp, bool controlledVolatility, float priceScore) =>
+    not na(resistance) and closeValue <= resistance and controlledVolatility and volumeDryUp >= 0.60 and priceScore >= 0.55
+
+export failedBreakout(float highValue, float closeValue, float resistance, float volumeRatio) =>
+    closeValue < resistance and highValue > resistance and volumeRatio >= 1.20
+
+export trendFailure(float closeValue, float dma50, bool lowerStructure, float volumeRatio) =>
+    closeValue < dma50 and lowerStructure and volumeRatio >= 1.30
+
+export setupName(bool failed, bool trendFailed, bool flag, bool pullback, bool contraction) =>
+    failed ? "FAILED BREAKOUT" : trendFailed ? "TREND FAILURE" : flag ? "BULL FLAG" : pullback ? "EMA PULLBACK" : contraction ? "VOLATILITY CONTRACTION PATTERN" : "NO VALID SETUP"
+
+export holdingPeriod(string setup) =>
+    setup == "BULL FLAG" ? "5-12 trading days" : setup == "EMA PULLBACK" ? "7-20 trading days" : setup == "VOLATILITY CONTRACTION PATTERN" ? "10-30 trading days" : setup == "FAILED BREAKOUT" or setup == "TREND FAILURE" ? "exit / avoid immediately" : "unavailable"

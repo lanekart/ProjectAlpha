@@ -121,7 +121,13 @@ class PerformanceReportBuilder:
             outcome
             for outcome in completed
             if outcome.realized_r_multiple is not None
-            and outcome.realized_r_multiple <= _ZERO
+            and outcome.realized_r_multiple < _ZERO
+        )
+        breakeven = tuple(
+            outcome
+            for outcome in completed
+            if outcome.realized_r_multiple is not None
+            and outcome.realized_r_multiple == _ZERO
         )
         gains = tuple(
             outcome.realized_percent_return
@@ -132,6 +138,34 @@ class PerformanceReportBuilder:
             outcome.realized_percent_return
             for outcome in losses
             if outcome.realized_percent_return is not None
+        )
+        gain_rs = tuple(
+            outcome.realized_pnl_rs
+            for outcome in wins
+            if outcome.realized_pnl_rs is not None
+        )
+        loss_rs = tuple(
+            outcome.realized_pnl_rs
+            for outcome in losses
+            if outcome.realized_pnl_rs is not None
+        )
+        realized_pnl = tuple(
+            outcome.realized_pnl_rs
+            for outcome in completed
+            if outcome.realized_pnl_rs is not None
+        )
+        unrealized_pnl = tuple(
+            outcome.unrealized_pnl_rs
+            for outcome in outcome_tuple
+            if outcome.unrealized_pnl_rs is not None
+        )
+        percent_returns = tuple(
+            outcome.realized_percent_return
+            for outcome in completed
+            if outcome.realized_percent_return is not None
+        )
+        holding_days = tuple(
+            Decimal(outcome.holding_period_days) for outcome in completed
         )
         total_gain_r = sum(
             (
@@ -200,9 +234,7 @@ class PerformanceReportBuilder:
                 _FOUR_PLACES,
                 rounding=ROUND_HALF_UP,
             ),
-            average_holding_period=_average(
-                tuple(Decimal(outcome.holding_period_days) for outcome in completed)
-            ),
+            average_holding_period=_average(holding_days),
             target_1_hit_rate=_rate(
                 len(tuple(outcome for outcome in completed if outcome.target_1_hit)),
                 sample_count,
@@ -224,6 +256,31 @@ class PerformanceReportBuilder:
             active_count=active_count,
             sample_count=sample_count,
             sufficient_sample=sufficient,
+            average_gain_rs=_average(gain_rs),
+            average_loss_rs=_average(loss_rs),
+            total_realized_pnl_rs=_sum_or_none(realized_pnl),
+            total_unrealized_pnl_rs=_sum_or_none(unrealized_pnl),
+            cumulative_pnl_rs=_sum_or_none(realized_pnl + unrealized_pnl),
+            expectancy_pct=_expectancy(
+                win_rate=_rate(len(wins), sample_count),
+                loss_rate=_rate(len(losses), sample_count),
+                average_gain=_average(gains),
+                average_loss=_average(loss_returns),
+            ),
+            expectancy_rs=_expectancy(
+                win_rate=_rate(len(wins), sample_count),
+                loss_rate=_rate(len(losses), sample_count),
+                average_gain=_average(gain_rs),
+                average_loss=_average(loss_rs),
+            ),
+            best_trade_rs=max(realized_pnl) if realized_pnl else None,
+            worst_trade_rs=min(realized_pnl) if realized_pnl else None,
+            best_trade_pct=max(percent_returns) if percent_returns else None,
+            worst_trade_pct=min(percent_returns) if percent_returns else None,
+            median_holding_period=_median(holding_days),
+            breakeven_trades=len(breakeven),
+            winning_trades=len(wins),
+            losing_trades=len(losses),
         )
 
 
@@ -239,6 +296,13 @@ def render_performance_report(report: PerformanceReport) -> tuple[str, ...]:
         f"Expectancy: {_metric(metrics.expectancy)}",
         f"Average Gain: {_metric(metrics.average_gain)}",
         f"Average Loss: {_metric(metrics.average_loss)}",
+        f"Average Gain Rs: {_money(metrics.average_gain_rs)}",
+        f"Average Loss Rs: {_money(metrics.average_loss_rs)}",
+        f"Total Realized P&L Rs: {_money(metrics.total_realized_pnl_rs)}",
+        f"Total Unrealized P&L Rs: {_money(metrics.total_unrealized_pnl_rs)}",
+        f"Cumulative P&L Rs: {_money(metrics.cumulative_pnl_rs)}",
+        f"Expectancy Pct: {_metric(metrics.expectancy_pct)}",
+        f"Expectancy Rs: {_money(metrics.expectancy_rs)}",
         f"Profit Factor: {_metric(metrics.profit_factor)}",
         f"Average Holding Period: {_metric(metrics.average_holding_period)}",
         f"Target 1 Hit Rate: {_metric(metrics.target_1_hit_rate)}",
@@ -248,6 +312,15 @@ def render_performance_report(report: PerformanceReport) -> tuple[str, ...]:
         f"Not-Triggered Rate: {_metric(metrics.not_triggered_rate)}",
         f"Pending Count: {metrics.pending_count}",
         f"Active Count: {metrics.active_count}",
+        f"Winning Trades: {metrics.winning_trades}",
+        f"Losing Trades: {metrics.losing_trades}",
+        f"Breakeven Trades: {metrics.breakeven_trades}",
+        f"Best Trade Rs: {_money(metrics.best_trade_rs)}",
+        f"Worst Trade Rs: {_money(metrics.worst_trade_rs)}",
+        f"Best Trade Pct: {_metric(metrics.best_trade_pct)}",
+        f"Worst Trade Pct: {_metric(metrics.worst_trade_pct)}",
+        f"Median Holding Period: {_metric(metrics.median_holding_period)}",
+        "Max Drawdown: unavailable; equity curve support is not yet wired.",
     ]
     if not metrics.sufficient_sample:
         lines.append(
@@ -286,10 +359,54 @@ def _average(values: tuple[Decimal, ...]) -> Decimal | None:
     )
 
 
+def _sum_or_none(values: tuple[Decimal, ...]) -> Decimal | None:
+    if not values:
+        return None
+    return sum(values, _ZERO).quantize(_TWO_PLACES, rounding=ROUND_HALF_UP)
+
+
+def _expectancy(
+    *,
+    win_rate: Decimal | None,
+    loss_rate: Decimal | None,
+    average_gain: Decimal | None,
+    average_loss: Decimal | None,
+) -> Decimal | None:
+    if (
+        win_rate is None
+        or loss_rate is None
+        or average_gain is None
+        or average_loss is None
+    ):
+        return None
+    return ((win_rate * average_gain) - (loss_rate * abs(average_loss))).quantize(
+        _TWO_PLACES, rounding=ROUND_HALF_UP
+    )
+
+
+def _median(values: tuple[Decimal, ...]) -> Decimal | None:
+    if not values:
+        return None
+    ordered = tuple(sorted(values))
+    middle = len(ordered) // 2
+    if len(ordered) % 2:
+        return ordered[middle].quantize(_TWO_PLACES, rounding=ROUND_HALF_UP)
+    return ((ordered[middle - 1] + ordered[middle]) / Decimal("2")).quantize(
+        _TWO_PLACES,
+        rounding=ROUND_HALF_UP,
+    )
+
+
 def _metric(value: Decimal | None) -> str:
     if value is None:
         return "unavailable"
     return str(value)
+
+
+def _money(value: Decimal | None) -> str:
+    if value is None:
+        return "unavailable"
+    return f"₹{value}"
 
 
 __all__ = ["PerformanceReportBuilder", "render_performance_report"]
