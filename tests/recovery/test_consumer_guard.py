@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-
 from alpha.recovery.canonical_replay import (
     CanonicalReplayBar,
     CanonicalReplayStatus,
