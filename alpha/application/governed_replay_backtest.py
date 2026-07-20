@@ -8,6 +8,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pandas as pd
+
 from alpha.analysis.signals.daily_report import DailyMarketReport
 from alpha.application.backtest import (
     BacktestApplicationService,
@@ -25,7 +26,6 @@ from alpha.market.resolver import TradingDateResolver
 from alpha.market_truth.historical_service import (
     MarketTruthArchiveDownloader as BhavcopyDownloader,
 )
-
 from alpha.recovery.consumer_attestation import (
     CanonicalReplayConsumerAttestation,
     export_consumer_attestations,
