@@ -60,4 +60,6 @@ jobs:
       # TESTS
       # -----------------------
       - name: Pytest
+        env:
+          TERMINAL_WIDTH: "200"
         run: poetry run pytest -q
