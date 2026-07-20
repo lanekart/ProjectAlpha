@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from decimal import Decimal, ROUND_HALF_UP
-from enum import IntEnum, StrEnum
 import json
+from dataclasses import asdict, dataclass
+from decimal import ROUND_HALF_UP, Decimal
+from enum import IntEnum, StrEnum
 
 from alpha.decision_lifecycle import LifecycleState
 
@@ -83,7 +83,13 @@ class AdvisorSignal:
         reason = self.reason.strip()
         confidence = Decimal(self.confidence)
         evidence_ids = tuple(
-            sorted({item.strip().upper() for item in self.evidence_ids if item.strip()})
+            sorted(
+                {
+                    item.strip().upper()
+                    for item in self.evidence_ids
+                    if item.strip()
+                }
+            )
         )
         if not source:
             raise ValueError("advisor source cannot be empty")
@@ -94,7 +100,11 @@ class AdvisorSignal:
         if not evidence_ids:
             raise ValueError("advisor signal requires evidence ids")
         object.__setattr__(self, "source", source)
-        object.__setattr__(self, "proposed_state", LifecycleState(self.proposed_state))
+        object.__setattr__(
+            self,
+            "proposed_state",
+            LifecycleState(self.proposed_state),
+        )
         object.__setattr__(self, "authority", AdvisorAuthority(self.authority))
         object.__setattr__(self, "confidence", confidence)
         object.__setattr__(self, "reason", reason)
@@ -144,10 +154,15 @@ class OrchestratedDecision:
             raise ValueError("confidence_score must be between 0 and 100")
         if not 0 <= self.urgency_score <= 100:
             raise ValueError("urgency_score must be between 0 and 100")
-        if self.stability_score is not None and not 0 <= self.stability_score <= 100:
+        if (
+            self.stability_score is not None
+            and not 0 <= self.stability_score <= 100
+        ):
             raise ValueError("stability_score must be between 0 and 100")
         if self.production_influence:
-            raise ValueError("orchestrated decision cannot execute production orders")
+            raise ValueError(
+                "orchestrated decision cannot execute production orders"
+            )
 
     def to_dict(self) -> dict[str, object]:
         payload = asdict(self)
@@ -158,7 +173,7 @@ class OrchestratedDecision:
 
 
 class DecisionOrchestrator:
-    """Resolve governed advisor signals into one authoritative lifecycle state."""
+    """Resolve governed advisor signals into one lifecycle state."""
 
     def decide(
         self,
@@ -185,11 +200,13 @@ class DecisionOrchestrator:
         for signal in signals:
             if signal.proposed_state not in _ALLOWED_STATES[context]:
                 raise ValueError(
-                    f"{signal.proposed_state.value} is invalid for {context.value}"
+                    f"{signal.proposed_state.value} is invalid for "
+                    f"{context.value}"
                 )
             if (
                 context is DecisionContext.EXECUTION
-                and signal.authority is not AdvisorAuthority.EXECUTION_CONFIRMATION
+                and signal.authority
+                is not AdvisorAuthority.EXECUTION_CONFIRMATION
             ):
                 raise ValueError(
                     "BUY requires explicit execution-confirmation authority"
@@ -276,6 +293,8 @@ class DecisionOrchestrator:
             ),
             Decimal("0"),
         )
+        if total_weight == 0:
+            raise ValueError("at least one advisor must have positive confidence")
         supporting_weight = sum(
             (
                 signal.confidence * authority_weight[signal.authority]
@@ -302,7 +321,9 @@ def render_orchestrated_decision(
         "Supporting Sources: " + ", ".join(decision.supporting_sources),
     ]
     if decision.dissenting_sources:
-        lines.append("Dissenting Sources: " + ", ".join(decision.dissenting_sources))
+        lines.append(
+            "Dissenting Sources: " + ", ".join(decision.dissenting_sources)
+        )
     if decision.stability_score is not None:
         lines.append(f"Stability: {decision.stability_score}/100")
     lines.append("Execution Status: NON-EXECUTABLE DECISION INTELLIGENCE")
