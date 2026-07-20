@@ -7,18 +7,18 @@ from decimal import Decimal
 
 import pandas as pd
 import pytest
+
 from alpha.recovery.corporate_actions import (
     CorporateActionEvent,
     CorporateActionStatus,
     CorporateActionTimeline,
     CorporateActionType,
 )
+from alpha.recovery.replay_frame import CanonicalReplayFrameAdapter
 from alpha.recovery.security_timeline import (
     SecurityIdentityRecord,
     SecurityIdentityTimeline,
 )
-
-from alpha.recovery.replay_frame import CanonicalReplayFrameAdapter
 
 _TRADE_DATE = date(2025, 1, 10)
 _AS_OF = date(2025, 1, 15)
