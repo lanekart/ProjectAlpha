@@ -16,8 +16,11 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install dependencies
-        run: pip install ruff
+      - name: Install locked Ruff
+        run: pip install ruff==0.15.20
+
+      - name: Show Ruff version
+        run: ruff --version
 
       - name: Run Ruff check
         run: ruff check .
