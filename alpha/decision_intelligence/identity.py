@@ -168,18 +168,14 @@ class RecoveredIdentityDecisionEngine:
                     )
                 resolved.append(candidate)
                 continue
-            resolved.append(
-                replace(candidate, symbol=resolution.identity.symbol)
-            )
+            resolved.append(replace(candidate, symbol=resolution.identity.symbol))
         return tuple(resolved)
 
     def evaluate(
         self,
         candidates: tuple[InstitutionalCandidate, ...],
     ) -> InstitutionalDecisionReport:
-        return self.decision_engine.evaluate(
-            self.canonicalize_candidates(candidates)
-        )
+        return self.decision_engine.evaluate(self.canonicalize_candidates(candidates))
 
     def parity_report(
         self,
@@ -214,9 +210,11 @@ def _identity_from_mapping(
     if not symbol:
         raise ValueError(f"canonical identity {record_key!r} has no symbol")
     confidence_value = values.get("entity_confidence", 0.0)
+    if not isinstance(confidence_value, (str, int, float)):
+        raise ValueError(f"invalid identity confidence for {record_key!r}")
     try:
         confidence = float(confidence_value)
-    except (TypeError, ValueError) as exc:
+    except ValueError as exc:
         raise ValueError(
             f"invalid identity confidence for {record_key!r}"
         ) from exc
