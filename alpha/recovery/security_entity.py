@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import csv
 import json
-from collections import Counter, defaultdict
+from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from pathlib import Path
@@ -42,34 +42,28 @@ _FIELD_ALIASES: Mapping[str, tuple[str, ...]] = {
         "previous_symbols",
         "symbol_history",
     ),
-    "corporate_action_lineage": (
-        "corporate_action_lineage",
-        "lineage",
-    ),
+    "corporate_action_lineage": ("corporate_action_lineage", "lineage"),
 }
 
-_SOURCE_WEIGHT = {
-    "security_master": 1.0,
-    "listing_history": 0.95,
-}
+_SOURCE_WEIGHT = {"security_master": 1.0, "listing_history": 0.95}
 
 
 class SecurityEntityRecoveryEngine(CanonicalRecoveryEngine):
-    """Recover canonical security identity previews from verified raw evidence."""
+    """Recover canonical security identity previews from verified evidence."""
 
     engine_key = "security-entity-recovery"
     engine_version = "1.0.0"
 
     def discover(self, context: RecoveryContext) -> Mapping[str, object]:
-        security_master = _required_path(context.parameters, "security_master")
-        listing_history = _optional_path(context.parameters, "listing_history")
-        master_rows = _read_records(security_master)
-        listing_rows = _read_records(listing_history) if listing_history else ()
+        master_path = _required_path(context.parameters, "security_master")
+        listing_path = _optional_path(context.parameters, "listing_history")
         return {
-            "security_master_path": security_master,
-            "listing_history_path": listing_history,
-            "security_master_rows": master_rows,
-            "listing_history_rows": listing_rows,
+            "security_master_path": master_path,
+            "listing_history_path": listing_path,
+            "security_master_rows": _read_records(master_path),
+            "listing_history_rows": (
+                _read_records(listing_path) if listing_path is not None else ()
+            ),
         }
 
     def build_evidence_graph(
@@ -81,29 +75,28 @@ class SecurityEntityRecoveryEngine(CanonicalRecoveryEngine):
         graph = EvidenceGraph()
         master_path = cast(Path, discovery["security_master_path"])
         listing_path = cast(Path | None, discovery["listing_history_path"])
-        master_rows = _rows(discovery, "security_master_rows")
-        listing_rows = _rows(discovery, "listing_history_rows")
-
-        for index, row in enumerate(master_rows):
-            graph.add_node(
-                EvidenceNode(
-                    node_id=f"security_master:{index}",
-                    kind=EvidenceKind.RAW_FILE,
-                    source="security_master",
-                    locator=f"{master_path}#row={index}",
-                    attributes=row,
+        for source, path, rows in (
+            (
+                "security_master",
+                master_path,
+                _rows(discovery, "security_master_rows"),
+            ),
+            (
+                "listing_history",
+                listing_path,
+                _rows(discovery, "listing_history_rows"),
+            ),
+        ):
+            for index, row in enumerate(rows):
+                graph.add_node(
+                    EvidenceNode(
+                        node_id=f"{source}:{index}",
+                        kind=EvidenceKind.RAW_FILE,
+                        source=source,
+                        locator=f"{path}#row={index}",
+                        attributes=row,
+                    )
                 )
-            )
-        for index, row in enumerate(listing_rows):
-            graph.add_node(
-                EvidenceNode(
-                    node_id=f"listing_history:{index}",
-                    kind=EvidenceKind.RAW_FILE,
-                    source="listing_history",
-                    locator=f"{listing_path}#row={index}",
-                    attributes=row,
-                )
-            )
         return graph
 
     def validate(
@@ -113,21 +106,20 @@ class SecurityEntityRecoveryEngine(CanonicalRecoveryEngine):
         graph: EvidenceGraphSnapshot,
     ) -> tuple[RecoveryIssue, ...]:
         del context, graph
-        master_rows = _rows(discovery, "security_master_rows")
-        issues: list[RecoveryIssue] = []
-        if not master_rows:
-            issues.append(
+        rows = _rows(discovery, "security_master_rows")
+        if not rows:
+            return (
                 RecoveryIssue(
                     issue_key="empty-security-master",
                     severity=RecoverySeverity.CRITICAL,
                     summary="Security master contains no records.",
-                )
+                ),
             )
-            return tuple(issues)
 
+        issues: list[RecoveryIssue] = []
         seen_ids: dict[str, int] = {}
         seen_isins: dict[str, int] = {}
-        for index, row in enumerate(master_rows):
+        for index, row in enumerate(rows):
             node_id = f"security_master:{index}"
             security_id = _first_value(row, _FIELD_ALIASES["security_id"])
             isin = _first_value(row, _FIELD_ALIASES["isin"])
@@ -176,22 +168,21 @@ class SecurityEntityRecoveryEngine(CanonicalRecoveryEngine):
         validation_issues: tuple[RecoveryIssue, ...],
     ) -> tuple[Mapping[str, object], ...]:
         del context, graph, validation_issues
-        master_rows = _rows(discovery, "security_master_rows")
-        listing_rows = _rows(discovery, "listing_history_rows")
-        listing_index = _index_rows(listing_rows)
+        listing_index = _index_rows(_rows(discovery, "listing_history_rows"))
         normalized: list[Mapping[str, object]] = []
-
-        for index, master in enumerate(master_rows):
-            matches = _matching_rows(master, listing_index)
-            sources = [("security_master", f"security_master:{index}", master)]
-            sources.extend(
-                (
-                    "listing_history",
-                    f"listing_history:{listing_index[row_key][0]}",
-                    listing_index[row_key][1],
+        for index, master in enumerate(_rows(discovery, "security_master_rows")):
+            sources: list[tuple[str, str, Mapping[str, object]]] = [
+                ("security_master", f"security_master:{index}", master)
+            ]
+            for key in _matching_rows(master, listing_index):
+                listing_index_value = listing_index[key]
+                sources.append(
+                    (
+                        "listing_history",
+                        f"listing_history:{listing_index_value[0]}",
+                        listing_index_value[1],
+                    )
                 )
-                for row_key in matches
-            )
             normalized.append(_resolve_entity(sources))
         return tuple(normalized)
 
@@ -204,17 +195,14 @@ class SecurityEntityRecoveryEngine(CanonicalRecoveryEngine):
         normalized: tuple[Mapping[str, object], ...],
     ) -> tuple[CanonicalPreviewRow, ...]:
         del context, discovery, graph, validation_issues
-        preview: list[CanonicalPreviewRow] = []
-        for row in normalized:
-            record_key = str(row["record_key"])
-            evidence_ids = tuple(cast(Sequence[str], row["evidence_ids"]))
-            preview.append(
-                CanonicalPreviewRow(
-                    record_key=record_key,
-                    values=row,
-                    evidence_ids=evidence_ids,
-                )
+        preview = (
+            CanonicalPreviewRow(
+                record_key=str(row["record_key"]),
+                values=row,
+                evidence_ids=tuple(cast(Sequence[str], row["evidence_ids"])),
             )
+            for row in normalized
+        )
         return tuple(sorted(preview, key=lambda item: item.record_key))
 
     def verify(
@@ -251,8 +239,7 @@ class SecurityEntityRecoveryEngine(CanonicalRecoveryEngine):
                         evidence_ids=missing,
                     )
                 )
-            values = row.values
-            confidence = values.get("entity_confidence")
+            confidence = row.values.get("entity_confidence")
             if not isinstance(confidence, float) or not 0.0 <= confidence <= 1.0:
                 issues.append(
                     RecoveryIssue(
@@ -269,7 +256,7 @@ def export_security_entity_recovery(
     result: RecoveryResult,
     output: Path,
 ) -> tuple[Path, ...]:
-    """Export deterministic security-entity recovery preview artifacts."""
+    """Export deterministic security-entity preview artifacts."""
 
     output.mkdir(parents=True, exist_ok=True)
     preview_path = output / "canonical_preview.csv"
@@ -298,28 +285,20 @@ def export_security_entity_recovery(
         encoding="utf-8",
     )
     _write_confidence_csv(result.canonical_preview, confidence_path)
-    _write_issue_csv(
-        tuple(
-            issue
-            for issue in result.validation_issues + result.verification_issues
-            if "duplicate" in issue.issue_key
-        ),
-        duplicates_path,
+    duplicate_issues = tuple(
+        issue
+        for issue in result.validation_issues + result.verification_issues
+        if "duplicate" in issue.issue_key
     )
+    _write_issue_csv(duplicate_issues, duplicates_path)
+    verification_payload = {
+        "classification": result.classification,
+        "validation_issues": [asdict(item) for item in result.validation_issues],
+        "verification_issues": [asdict(item) for item in result.verification_issues],
+        "metadata": dict(result.metadata),
+    }
     verification_path.write_text(
-        json.dumps(
-            {
-                "classification": result.classification,
-                "validation_issues": [asdict(item) for item in result.validation_issues],
-                "verification_issues": [
-                    asdict(item) for item in result.verification_issues
-                ],
-                "metadata": dict(result.metadata),
-            },
-            indent=2,
-            sort_keys=True,
-        )
-        + "\n",
+        json.dumps(verification_payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     report_path.write_text(_render_report(result), encoding="utf-8")
@@ -340,16 +319,10 @@ def _resolve_entity(
     provenance: dict[str, tuple[str, ...]] = {}
     confidence: dict[str, float] = {}
     conflicts: dict[str, tuple[str, ...]] = {}
-    all_evidence = tuple(sorted({node_id for _, node_id, _ in sources}))
+    evidence_ids = tuple(sorted({node_id for _, node_id, _ in sources}))
 
     for canonical, aliases in _FIELD_ALIASES.items():
-        candidates: list[tuple[str, str, object, float]] = []
-        for source_name, node_id, row in sources:
-            value = _first_object(row, aliases)
-            if not _is_null(value):
-                candidates.append(
-                    (source_name, node_id, value, _SOURCE_WEIGHT[source_name])
-                )
+        candidates = _field_candidates(sources, aliases)
         if not candidates:
             resolved[canonical] = None
             provenance[canonical] = ()
@@ -365,8 +338,8 @@ def _resolve_entity(
     record_key = str(
         resolved.get("security_id") or resolved.get("isin") or resolved.get("symbol")
     )
-    field_scores = tuple(confidence.values())
-    entity_confidence = round(sum(field_scores) / len(field_scores), 4)
+    scores = tuple(confidence.values())
+    entity_confidence = round(sum(scores) / len(scores), 4)
     return {
         "record_key": record_key,
         **resolved,
@@ -374,9 +347,21 @@ def _resolve_entity(
         "field_provenance": provenance,
         "field_conflicts": conflicts,
         "entity_confidence": entity_confidence,
-        "evidence_ids": all_evidence,
+        "evidence_ids": evidence_ids,
         "recovery_version": "HTR-002-v1.0.0",
     }
+
+
+def _field_candidates(
+    sources: Sequence[tuple[str, str, Mapping[str, object]]],
+    aliases: Sequence[str],
+) -> list[tuple[str, str, object, float]]:
+    candidates: list[tuple[str, str, object, float]] = []
+    for source, node_id, row in sources:
+        value = _first_object(row, aliases)
+        if not _is_null(value):
+            candidates.append((source, node_id, value, _SOURCE_WEIGHT[source]))
+    return candidates
 
 
 def _choose_candidate(
@@ -455,18 +440,18 @@ def _append_duplicate_issue(
         return
     normalized = value.strip().upper()
     previous = seen.get(normalized)
-    if previous is not None:
-        issues.append(
-            RecoveryIssue(
-                issue_key=f"duplicate-{label}:{normalized}",
-                severity=RecoverySeverity.HIGH,
-                summary=f"Duplicate {label} detected.",
-                details=f"Rows {previous} and {index} share {normalized}.",
-                evidence_ids=(f"security_master:{previous}", node_id),
-            )
-        )
-    else:
+    if previous is None:
         seen[normalized] = index
+        return
+    issues.append(
+        RecoveryIssue(
+            issue_key=f"duplicate-{label}:{normalized}",
+            severity=RecoverySeverity.HIGH,
+            summary=f"Duplicate {label} detected.",
+            details=f"Rows {previous} and {index} share {normalized}.",
+            evidence_ids=(f"security_master:{previous}", node_id),
+        )
+    )
 
 
 def _read_records(path: Path) -> tuple[Mapping[str, object], ...]:
@@ -486,7 +471,7 @@ def _read_records(path: Path) -> tuple[Mapping[str, object], ...]:
         raise ValueError(f"unsupported security source: {path}")
 
     if isinstance(payload, Mapping):
-        records = next(
+        nested = next(
             (
                 value
                 for value in payload.values()
@@ -495,13 +480,13 @@ def _read_records(path: Path) -> tuple[Mapping[str, object], ...]:
             ),
             None,
         )
-        payload = records if records is not None else [payload]
+        payload = nested if nested is not None else [payload]
     if not isinstance(payload, list) or not all(
         isinstance(item, Mapping) for item in payload
     ):
         raise ValueError(f"security source must contain records: {path}")
-    typed_payload = cast(list[Mapping[str, object]], payload)
-    return tuple(dict(item) for item in typed_payload)
+    records = cast(list[Mapping[str, object]], payload)
+    return tuple(dict(item) for item in records)
 
 
 def _rows(
@@ -509,7 +494,9 @@ def _rows(
     key: str,
 ) -> tuple[Mapping[str, object], ...]:
     value = discovery.get(key)
-    if not isinstance(value, tuple) or not all(isinstance(row, Mapping) for row in value):
+    if not isinstance(value, tuple) or not all(
+        isinstance(row, Mapping) for row in value
+    ):
         raise TypeError(f"{key} must contain mapping records")
     return cast(tuple[Mapping[str, object], ...], value)
 
@@ -550,7 +537,9 @@ def _first_object(row: Mapping[str, object], aliases: Sequence[str]) -> object:
 
 def _normalize(value: str) -> str:
     return "_".join(
-        part for part in value.strip().lower().replace("-", "_").split("_") if part
+        part
+        for part in value.strip().lower().replace("-", "_").split("_")
+        if part
     )
 
 
@@ -591,8 +580,14 @@ def _write_preview_csv(
         writer.writeheader()
         for row in rows:
             writer.writerow(
-                {column: row.record_key if column == "record_key" else row.values.get(column)
-                 for column in columns}
+                {
+                    column: (
+                        row.record_key
+                        if column == "record_key"
+                        else row.values.get(column)
+                    )
+                    for column in columns
+                }
             )
 
 
@@ -623,7 +618,13 @@ def _write_issue_csv(issues: Sequence[RecoveryIssue], path: Path) -> None:
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(
             handle,
-            fieldnames=("issue_key", "severity", "summary", "details", "evidence_ids"),
+            fieldnames=(
+                "issue_key",
+                "severity",
+                "summary",
+                "details",
+                "evidence_ids",
+            ),
         )
         writer.writeheader()
         for issue in issues:
