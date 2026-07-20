@@ -156,7 +156,8 @@ the original final signal so the audit never reconstructs or guesses verdicts.
 Fixed 1, 5, 10, and 20-session horizons report forward close return, maximum
 favorable excursion, and maximum adverse excursion relative to the decision
 close. A horizon is observed only
-when every required symbol/session candle exists. Missing observations and the
+when every required symbol/session candle exists. Censoring counts are reported
+separately for each horizon. Missing observations and the
 right replay boundary are explicitly censored.
 
 Artifacts are deterministic:
