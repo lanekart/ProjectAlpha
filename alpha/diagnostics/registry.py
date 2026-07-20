@@ -22,7 +22,9 @@ class DiagnosticRegistry:
         if not normalized_key:
             raise ValueError("engine_key must not be empty")
         if normalized_key in self._factories:
-            raise ValueError(f"diagnostic engine {normalized_key!r} is already registered")
+            raise ValueError(
+                f"diagnostic engine {normalized_key!r} is already registered"
+            )
         self._factories[normalized_key] = factory
 
     def create(self, engine_key: str) -> DiagnosticEngine:
