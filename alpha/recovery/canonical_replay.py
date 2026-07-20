@@ -147,23 +147,15 @@ class CanonicalReplayBuilder:
     ) -> CanonicalReplayAudit:
         replay = self.build(bars, as_of=as_of)
         ready = tuple(
-            item
-            for item in replay
-            if item.status is CanonicalReplayStatus.READY
+            item for item in replay if item.status is CanonicalReplayStatus.READY
         )
         quarantined = tuple(
-            item
-            for item in replay
-            if item.status is CanonicalReplayStatus.QUARANTINED
+            item for item in replay if item.status is CanonicalReplayStatus.QUARANTINED
         )
         adjusted = tuple(item for item in replay if item.applied_event_ids)
         unresolved = tuple(
             sorted(
-                {
-                    event_id
-                    for item in replay
-                    for event_id in item.unresolved_event_ids
-                }
+                {event_id for item in replay for event_id in item.unresolved_event_ids}
             )
         )
         return CanonicalReplayAudit(
@@ -188,7 +180,5 @@ def canonical_replay_sha256(bars: Iterable[CanonicalReplayBar]) -> str:
         }
         for bar in bars
     ]
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
-        "utf-8"
-    )
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
