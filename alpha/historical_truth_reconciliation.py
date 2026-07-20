@@ -14,7 +14,17 @@ import duckdb
 DIAGNOSTIC_ONLY = True
 PRODUCTION_INFLUENCE = False
 DATE_RE = re.compile(r"(?<!\d)(20\d{2})[-_]?([01]\d)[-_]?([0-3]\d)(?!\d)")
-TEXT_SUFFIXES = {".csv", ".json", ".jsonl", ".md", ".txt", ".py", ".toml", ".yaml", ".yml"}
+TEXT_SUFFIXES = {
+    ".csv",
+    ".json",
+    ".jsonl",
+    ".md",
+    ".txt",
+    ".py",
+    ".toml",
+    ".yaml",
+    ".yml",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,14 +71,62 @@ class MissingSessionRow:
 
 
 SPECS: tuple[DatasetSpec, ...] = (
-    DatasetSpec("corporate_actions", "Corporate Actions", ("corporate_action",), ("corporate_action", "corporate-actions", "corp_action"), True),
-    DatasetSpec("security_identity", "Security Identity History", ("security_identity",), ("security_identity", "security_master", "symbol_change", "isin"), True),
-    DatasetSpec("listing_history", "Listing History", ("listing_history", "listed_security"), ("listing_history", "listing", "listed_security"), True),
-    DatasetSpec("delisting_history", "Delisting/Suspension History", ("delisting_history", "suspension_history"), ("delist", "suspension", "scheme_of_arrangement"), True),
-    DatasetSpec("trading_calendar", "Trading Calendar", ("trading_calendar", "trading_session", "exchange_holiday"), ("trading_calendar", "exchange_holiday", "holiday"), True),
-    DatasetSpec("benchmark_history", "Benchmark History", ("index_candle", "benchmark_history", "index_price"), ("benchmark", "index_candle", "nifty", "indices"), True),
-    DatasetSpec("sector_mapping", "Historical Sector Mapping", ("sector_mapping", "industry_mapping"), ("sector_mapping", "industry_mapping", "sector", "industry"), True),
-    DatasetSpec("index_constituents", "Historical Index Constituents", ("index_constituent", "index_membership"), ("index_constituent", "index_membership", "constituent"), False),
+    DatasetSpec(
+        "corporate_actions",
+        "Corporate Actions",
+        ("corporate_action",),
+        ("corporate_action", "corporate-actions", "corp_action"),
+        True,
+    ),
+    DatasetSpec(
+        "security_identity",
+        "Security Identity History",
+        ("security_identity",),
+        ("security_identity", "security_master", "symbol_change", "isin"),
+        True,
+    ),
+    DatasetSpec(
+        "listing_history",
+        "Listing History",
+        ("listing_history", "listed_security"),
+        ("listing_history", "listing", "listed_security"),
+        True,
+    ),
+    DatasetSpec(
+        "delisting_history",
+        "Delisting/Suspension History",
+        ("delisting_history", "suspension_history"),
+        ("delist", "suspension", "scheme_of_arrangement"),
+        True,
+    ),
+    DatasetSpec(
+        "trading_calendar",
+        "Trading Calendar",
+        ("trading_calendar", "trading_session", "exchange_holiday"),
+        ("trading_calendar", "exchange_holiday", "holiday"),
+        True,
+    ),
+    DatasetSpec(
+        "benchmark_history",
+        "Benchmark History",
+        ("index_candle", "benchmark_history", "index_price"),
+        ("benchmark", "index_candle", "nifty", "indices"),
+        True,
+    ),
+    DatasetSpec(
+        "sector_mapping",
+        "Historical Sector Mapping",
+        ("sector_mapping", "industry_mapping"),
+        ("sector_mapping", "industry_mapping", "sector", "industry"),
+        True,
+    ),
+    DatasetSpec(
+        "index_constituents",
+        "Historical Index Constituents",
+        ("index_constituent", "index_membership"),
+        ("index_constituent", "index_membership", "constituent"),
+        False,
+    ),
 )
 
 
@@ -183,14 +241,24 @@ def export_reconciliation(
     schema_mismatches = output / "schema_mismatches.csv"
     _write_csv(
         schema_mismatches,
-        (asdict(row) for row in rows if row.primary_classification in {"INGESTED_NONCANONICAL", "SCHEMA_NOT_RECOGNISED"}),
+        (
+            asdict(row)
+            for row in rows
+            if row.primary_classification
+            in {"INGESTED_NONCANONICAL", "SCHEMA_NOT_RECOGNISED"}
+        ),
     )
 
     recoverable = output / "recoverable_datasets.csv"
-    _write_csv(recoverable, (asdict(row) for row in rows if row.recoverable_without_download))
+    _write_csv(
+        recoverable, (asdict(row) for row in rows if row.recoverable_without_download)
+    )
 
     missing = output / "truly_missing_datasets.csv"
-    _write_csv(missing, (asdict(row) for row in rows if row.primary_classification == "TRULY_MISSING"))
+    _write_csv(
+        missing,
+        (asdict(row) for row in rows if row.primary_classification == "TRULY_MISSING"),
+    )
 
     sequence = output / "recommended_sequence.csv"
     ranked = sorted(rows, key=_sequence_key)
@@ -213,10 +281,14 @@ def export_reconciliation(
 
     summary_payload = _summary(rows, missing_sessions, period_start, period_end)
     summary = output / "summary.json"
-    summary.write_text(json.dumps(summary_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    summary.write_text(
+        json.dumps(summary_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     report = output / "report.md"
-    report.write_text(_render_report(rows, missing_sessions, summary_payload), encoding="utf-8")
+    report.write_text(
+        _render_report(rows, missing_sessions, summary_payload), encoding="utf-8"
+    )
 
     return (
         report,
@@ -245,9 +317,13 @@ def _reconcile_one(
     period_start: date,
     period_end: date,
 ) -> ReconciliationRow:
-    canonical_matches = tuple(table for table in tables if _base_name(table) in spec.canonical_tables)
+    canonical_matches = tuple(
+        table for table in tables if _base_name(table) in spec.canonical_tables
+    )
     alternate_tables = tuple(
-        table for table in tables if table not in canonical_matches and _matches(table, spec.tokens)
+        table
+        for table in tables
+        if table not in canonical_matches and _matches(table, spec.tokens)
     )
     canonical_table = canonical_matches[0] if canonical_matches else ""
     row_count, first_date, last_date = _table_stats(
@@ -257,7 +333,9 @@ def _reconcile_one(
         period_end=period_end,
     )
     matching_files = tuple(path for path in files if _matches(str(path), spec.tokens))
-    matching_snapshots = tuple(path for path in snapshot_files if _matches(str(path), spec.tokens))
+    matching_snapshots = tuple(
+        path for path in snapshot_files if _matches(str(path), spec.tokens)
+    )
     raw_files = tuple(path for path in matching_files if _is_raw_evidence(path))
     source_proof_found = any(_is_source_proof(path) for path in matching_files)
     parser_found = any(_is_parser(path) for path in matching_files)
@@ -309,7 +387,9 @@ def _reconcile_one(
         parser_found=parser_found,
         ingestion_command_found=ingestion_command_found,
         tests_found=tests_found,
-        requested_period_coverage=_coverage(first_date, last_date, period_start, period_end),
+        requested_period_coverage=_coverage(
+            first_date, last_date, period_start, period_end
+        ),
         recoverable_without_download=recoverable,
         estimated_recovery_complexity=_complexity(classification),
         certification_blocker=spec.blocking and classification != "CERTIFIED_CANONICAL",
@@ -360,7 +440,9 @@ def _reconcile_sessions(
     return tuple(
         MissingSessionRow(
             session_date=session.isoformat(),
-            classification="VERIFIED_EXCHANGE_HOLIDAY" if session in holiday_evidence else "UNRESOLVED",
+            classification="VERIFIED_EXCHANGE_HOLIDAY"
+            if session in holiday_evidence
+            else "UNRESOLVED",
             evidence=(
                 "Matched repository holiday evidence"
                 if session in holiday_evidence
@@ -374,7 +456,10 @@ def _reconcile_sessions(
 def _daily_candle_dates(database: Path, start: date, end: date) -> frozenset[date]:
     if not database.exists():
         return frozenset()
-    table = next((item for item in _table_names(database) if _base_name(item) == "daily_candle"), None)
+    table = next(
+        (item for item in _table_names(database) if _base_name(item) == "daily_candle"),
+        None,
+    )
     if table is None:
         return frozenset()
     date_column = _date_column(database, table)
@@ -385,7 +470,9 @@ def _daily_candle_dates(database: Path, start: date, end: date) -> frozenset[dat
         f'WHERE CAST("{date_column}" AS DATE) BETWEEN ? AND ? ORDER BY 1'
     )
     with duckdb.connect(str(database), read_only=True) as connection:
-        return frozenset(row[0] for row in connection.execute(query, [start, end]).fetchall())
+        return frozenset(
+            row[0] for row in connection.execute(query, [start, end]).fetchall()
+        )
 
 
 def _holiday_dates(files: tuple[Path, ...]) -> frozenset[date]:
@@ -396,7 +483,9 @@ def _holiday_dates(files: tuple[Path, ...]) -> frozenset[date]:
         dates.update(_dates_from_text(str(path)))
         if path.suffix.lower() in TEXT_SUFFIXES and path.stat().st_size <= 2_000_000:
             try:
-                dates.update(_dates_from_text(path.read_text(encoding="utf-8", errors="ignore")))
+                dates.update(
+                    _dates_from_text(path.read_text(encoding="utf-8", errors="ignore"))
+                )
             except OSError:
                 continue
     return frozenset(dates)
@@ -469,7 +558,9 @@ def _date_column(database: Path, table: str) -> str | None:
         "valid_from",
     )
     with duckdb.connect(str(database), read_only=True) as connection:
-        columns = {row[0] for row in connection.execute(query, [schema, name]).fetchall()}
+        columns = {
+            row[0] for row in connection.execute(query, [schema, name]).fetchall()
+        }
     return next((column for column in preferred if column in columns), None)
 
 
@@ -506,9 +597,13 @@ def _base_name(table: str) -> str:
 
 def _is_raw_evidence(path: Path) -> bool:
     lowered_name = path.name.lower()
-    return path.suffix.lower() in {".csv", ".json", ".jsonl", ".parquet", ".zip"} and not any(
-        token in lowered_name for token in ("test", "fixture", "report")
-    )
+    return path.suffix.lower() in {
+        ".csv",
+        ".json",
+        ".jsonl",
+        ".parquet",
+        ".zip",
+    } and not any(token in lowered_name for token in ("test", "fixture", "report"))
 
 
 def _is_source_proof(path: Path) -> bool:
@@ -518,12 +613,16 @@ def _is_source_proof(path: Path) -> bool:
 
 def _is_parser(path: Path) -> bool:
     lowered = path.name.lower()
-    return path.suffix == ".py" and any(token in lowered for token in ("parse", "parser", "adapter", "ingest"))
+    return path.suffix == ".py" and any(
+        token in lowered for token in ("parse", "parser", "adapter", "ingest")
+    )
 
 
 def _is_ingestion(path: Path) -> bool:
     lowered = str(path).lower()
-    return path.suffix == ".py" and any(token in lowered for token in ("cli", "ingest", "loader", "import"))
+    return path.suffix == ".py" and any(
+        token in lowered for token in ("cli", "ingest", "loader", "import")
+    )
 
 
 def _coverage(
@@ -546,7 +645,11 @@ def _coverage(
 def _complexity(classification: str) -> str:
     if classification in {"CERTIFIED_CANONICAL", "CERTIFICATION_LOGIC_GAP"}:
         return "LOW"
-    if classification in {"CANONICAL_TABLE_POPULATED_UNCERTIFIED", "PARSED_NOT_INGESTED", "INGESTED_NONCANONICAL"}:
+    if classification in {
+        "CANONICAL_TABLE_POPULATED_UNCERTIFIED",
+        "PARSED_NOT_INGESTED",
+        "INGESTED_NONCANONICAL",
+    }:
         return "MEDIUM"
     return "HIGH"
 
@@ -554,14 +657,28 @@ def _complexity(classification: str) -> str:
 def _recommended_action(classification: str, name: str) -> str:
     actions = {
         "CERTIFIED_CANONICAL": "No action required.",
-        "CANONICAL_TABLE_POPULATED_UNCERTIFIED": f"Validate lineage and certify {name}.",
-        "CANONICAL_TABLE_EMPTY": f"Trace ingestion inputs before acquiring new {name} data.",
-        "RAW_DATA_PRESENT": f"Implement or connect the parser and ingest existing {name} evidence.",
-        "SOURCE_PROOF_ONLY": f"Obtain usable records from the already-proven {name} source.",
+        "CANONICAL_TABLE_POPULATED_UNCERTIFIED": (
+            f"Validate lineage and certify {name}."
+        ),
+        "CANONICAL_TABLE_EMPTY": (
+            f"Trace ingestion inputs before acquiring new {name} data."
+        ),
+        "RAW_DATA_PRESENT": (
+            f"Implement or connect the parser and ingest existing {name} evidence."
+        ),
+        "SOURCE_PROOF_ONLY": (
+            f"Obtain usable records from the already-proven {name} source."
+        ),
         "PARSED_NOT_INGESTED": f"Run or repair the existing {name} ingestion path.",
-        "INGESTED_NONCANONICAL": f"Map noncanonical {name} tables into historical truth.",
-        "SCHEMA_NOT_RECOGNISED": f"Teach certification logic the existing {name} schema.",
-        "CERTIFICATION_LOGIC_GAP": f"Repair {name} certification logic without downloading data.",
+        "INGESTED_NONCANONICAL": (
+            f"Map noncanonical {name} tables into historical truth."
+        ),
+        "SCHEMA_NOT_RECOGNISED": (
+            f"Teach certification logic the existing {name} schema."
+        ),
+        "CERTIFICATION_LOGIC_GAP": (
+            f"Repair {name} certification logic without downloading data."
+        ),
         "TRULY_MISSING": f"Plan governed acquisition for {name}.",
     }
     return actions.get(classification, f"Investigate {name} evidence manually.")
@@ -590,9 +707,13 @@ def _summary(
     period_end: date,
 ) -> dict[str, object]:
     recoverable = [row.dataset_key for row in rows if row.recoverable_without_download]
-    truly_missing = [row.dataset_key for row in rows if row.primary_classification == "TRULY_MISSING"]
+    truly_missing = [
+        row.dataset_key for row in rows if row.primary_classification == "TRULY_MISSING"
+    ]
     unresolved_sessions = [
-        row.session_date for row in missing_sessions if row.classification == "UNRESOLVED"
+        row.session_date
+        for row in missing_sessions
+        if row.classification == "UNRESOLVED"
     ]
     corporate = next(row for row in rows if row.dataset_key == "corporate_actions")
     return {
@@ -621,7 +742,10 @@ def _render_report(
         "**DIAGNOSTIC_ONLY / PRODUCTION_INFLUENCE=false**",
         "",
         f"- Period: **{summary['period_start']} to {summary['period_end']}**",
-        f"- Recoverable without download: **{len(summary['recoverable_without_download'])}**",
+        (
+            "- Recoverable without download: "
+            f"**{len(summary['recoverable_without_download'])}**"
+        ),
         f"- Truly missing: **{len(summary['truly_missing'])}**",
         f"- Apparent missing sessions: **{summary['apparent_missing_sessions']}**",
         "",
@@ -632,7 +756,8 @@ def _render_report(
     ]
     for row in rows:
         lines.append(
-            f"| {row.dataset_name} | {row.inventory_status} | {row.primary_classification} | "
+            f"| {row.dataset_name} | {row.inventory_status} | "
+            f"{row.primary_classification} | "
             f"{row.canonical_row_count if row.canonical_row_count is not None else 'UNKNOWN'} | "
             f"{'YES' if row.recoverable_without_download else 'NO'} |"
         )
@@ -640,7 +765,9 @@ def _render_report(
     if missing_sessions:
         lines.extend(("| Date | Classification | Evidence |", "|---|---|---|"))
         for row in missing_sessions:
-            lines.append(f"| {row.session_date} | {row.classification} | {row.evidence} |")
+            lines.append(
+                f"| {row.session_date} | {row.classification} | {row.evidence} |"
+            )
     else:
         lines.append("No apparent missing weekday sessions were found.")
     lines.extend(
@@ -648,10 +775,19 @@ def _render_report(
             "",
             "## Required Conclusion",
             "",
-            f"- Recoverable without downloads: **{', '.join(summary['recoverable_without_download']) or 'none'}**",
+            (
+                "- Recoverable without downloads: **"
+                f"{', '.join(summary['recoverable_without_download']) or 'none'}**"
+            ),
             f"- Truly missing: **{', '.join(summary['truly_missing']) or 'none'}**",
-            f"- Unresolved OHLCV dates: **{', '.join(summary['unresolved_missing_sessions']) or 'none'}**",
-            f"- Corporate Actions remains next milestone: **{summary['corporate_actions_next_milestone']}**",
+            (
+                "- Unresolved OHLCV dates: **"
+                f"{', '.join(summary['unresolved_missing_sessions']) or 'none'}**"
+            ),
+            (
+                "- Corporate Actions remains next milestone: **"
+                f"{summary['corporate_actions_next_milestone']}**"
+            ),
             "",
             "No production signal, gate, portfolio, or risk policy was changed.",
             "",

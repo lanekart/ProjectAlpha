@@ -235,4 +235,6 @@ def test_exports_are_deterministic_and_diagnostic_only(tmp_path: Path) -> None:
     assert PRODUCTION_INFLUENCE is False
     report = (output / "report.md").read_text(encoding="utf-8")
     assert "PRODUCTION_INFLUENCE=false" in report
-    assert "No production signal, gate, portfolio, or risk policy was changed." in report
+    assert (
+        "No production signal, gate, portfolio, or risk policy was changed." in report
+    )
