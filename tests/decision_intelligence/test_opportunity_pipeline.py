@@ -48,10 +48,7 @@ def test_poor_reward_risk_waits_for_better_asymmetry() -> None:
     )
 
     decision = pipeline.watchlist_opportunities[0]
-    assert (
-        WatchlistReasonCode.UNFAVOURABLE_RISK_REWARD
-        in decision.watchlist_reasons
-    )
+    assert WatchlistReasonCode.UNFAVOURABLE_RISK_REWARD in decision.watchlist_reasons
     assert any("2R" in trigger.description for trigger in decision.promotion_triggers)
 
 
@@ -63,10 +60,7 @@ def test_weak_direction_is_not_admitted_to_watchlist() -> None:
     )
 
     assert not pipeline.watchlist_opportunities
-    assert (
-        pipeline.rejected_opportunities[0].action
-        is OpportunityPipelineAction.REJECT
-    )
+    assert pipeline.rejected_opportunities[0].action is OpportunityPipelineAction.REJECT
 
 
 def test_bad_data_is_not_admitted_to_watchlist() -> None:
