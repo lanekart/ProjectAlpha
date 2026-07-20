@@ -247,7 +247,10 @@ class HistoricalPopulationEngine:
     ) -> tuple[Path, Path, Path]:
         output_dir.mkdir(parents=True, exist_ok=True)
         summary = HistoricalPopulationEngine.summarise(records)
-        payload = [HistoricalPopulationEngine._record_payload(record) for record in records]
+        payload = [
+            HistoricalPopulationEngine._record_payload(record)
+            for record in records
+        ]
 
         json_path = output_dir / "historical_population.json"
         csv_path = output_dir / "historical_population.csv"
