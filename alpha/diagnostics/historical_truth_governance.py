@@ -64,7 +64,11 @@ class HistoricalTruthGovernanceEngine(DiagnosticEngine):
         rows = _inventory_rows(discovery)
         findings: list[Finding] = []
         for row in rows:
-            status = FindingStatus.PASS if row.certification_ready else FindingStatus.FAIL
+            status = (
+                FindingStatus.PASS
+                if row.certification_ready
+                else FindingStatus.FAIL
+            )
             if not row.required and not row.certification_ready:
                 status = FindingStatus.WARNING
             severity = _severity(row)
