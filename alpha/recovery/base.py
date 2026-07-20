@@ -132,8 +132,7 @@ class CanonicalRecoveryEngine(ABC):
         """Return a stable preview-readiness classification."""
 
         severities = {
-            issue.severity.value
-            for issue in validation_issues + verification_issues
+            issue.severity.value for issue in validation_issues + verification_issues
         }
         if "CRITICAL" in severities or "HIGH" in severities:
             return "PREVIEW_BLOCKED"
