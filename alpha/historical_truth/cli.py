@@ -110,14 +110,15 @@ def populate(
     records = engine.populate(requests, retry_failed=retry_failed)
     summary = engine.summarise(records)
     paths = engine.export(records, output_dir)
-    print(f"Population coverage: {summary.coverage_ratio:.2%}")
-    print(f"Candle snapshots ingested: {summary.candle_snapshots}")
+    print(f"Weekday request coverage: {summary.coverage_ratio:.2%}")
+    print(f"Candle snapshots available: {summary.candle_snapshots}")
     print(f"Evidence-complete snapshots: {summary.evidence_complete_snapshots}")
     print(f"Evidence-incomplete snapshots: {summary.evidence_incomplete_snapshots}")
     print(f"Failed: {summary.failed}")
     print(f"Unavailable: {summary.unavailable}")
     print(f"Skipped: {summary.skipped}")
-    print(f"Ingested rows: {summary.ingested_rows}")
+    print(f"Rows ingested this run: {summary.ingested_rows}")
+    print(f"Rows available in snapshots: {summary.available_rows}")
     for path in paths:
         print(path)
 
