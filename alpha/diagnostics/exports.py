@@ -8,7 +8,6 @@ from dataclasses import asdict
 from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any
 
 from .models import DiagnosticResult
 
