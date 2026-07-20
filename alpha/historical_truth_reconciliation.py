@@ -8,6 +8,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from typing import cast
 
 import duckdb
 
@@ -736,17 +737,31 @@ def _render_report(
     missing_sessions: tuple[MissingSessionRow, ...],
     summary: Mapping[str, object],
 ) -> str:
+    recoverable_values = cast(
+        list[str],
+        summary["recoverable_without_download"],
+    )
+    truly_missing_values = cast(
+        list[str],
+        summary["truly_missing"],
+    )
+    unresolved_session_values = cast(
+        list[str],
+        summary["unresolved_missing_sessions"],
+    )
+
+    recoverable = tuple(recoverable_values)
+    truly_missing = tuple(truly_missing_values)
+    unresolved_sessions = tuple(unresolved_session_values)
+
     lines = [
         "# Historical Truth Reconciliation v1",
         "",
         "**DIAGNOSTIC_ONLY / PRODUCTION_INFLUENCE=false**",
         "",
         f"- Period: **{summary['period_start']} to {summary['period_end']}**",
-        (
-            "- Recoverable without download: "
-            f"**{len(summary['recoverable_without_download'])}**"
-        ),
-        f"- Truly missing: **{len(summary['truly_missing'])}**",
+        (f"- Recoverable without download: **{len(recoverable)}**"),
+        f"- Truly missing: **{len(truly_missing)}**",
         f"- Apparent missing sessions: **{summary['apparent_missing_sessions']}**",
         "",
         "## Dataset Reconciliation",
@@ -755,18 +770,23 @@ def _render_report(
         "|---|---|---|---:|---:|",
     ]
     for row in rows:
+        canonical_rows = (
+            str(row.canonical_row_count)
+            if row.canonical_row_count is not None
+            else "UNKNOWN"
+        )
         lines.append(
             f"| {row.dataset_name} | {row.inventory_status} | "
-            f"{row.primary_classification} | "
-            f"{row.canonical_row_count if row.canonical_row_count is not None else 'UNKNOWN'} | "
+            f"{row.primary_classification} | {canonical_rows} | "
             f"{'YES' if row.recoverable_without_download else 'NO'} |"
         )
     lines.extend(("", "## Apparent Missing Sessions", ""))
     if missing_sessions:
         lines.extend(("| Date | Classification | Evidence |", "|---|---|---|"))
-        for row in missing_sessions:
+        for session in missing_sessions:
             lines.append(
-                f"| {row.session_date} | {row.classification} | {row.evidence} |"
+                f"| {session.session_date} | {session.classification} | "
+                f"{session.evidence} |"
             )
     else:
         lines.append("No apparent missing weekday sessions were found.")
@@ -777,12 +797,12 @@ def _render_report(
             "",
             (
                 "- Recoverable without downloads: **"
-                f"{', '.join(summary['recoverable_without_download']) or 'none'}**"
+                f"{', '.join(recoverable) or 'none'}**"
             ),
-            f"- Truly missing: **{', '.join(summary['truly_missing']) or 'none'}**",
+            f"- Truly missing: **{', '.join(truly_missing) or 'none'}**",
             (
                 "- Unresolved OHLCV dates: **"
-                f"{', '.join(summary['unresolved_missing_sessions']) or 'none'}**"
+                f"{', '.join(unresolved_sessions) or 'none'}**"
             ),
             (
                 "- Corporate Actions remains next milestone: **"
