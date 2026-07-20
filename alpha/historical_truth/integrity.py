@@ -624,11 +624,7 @@ class HistoricalTruthIntegrityAudit:
                 }
             )
         for snapshot in report.snapshot_findings:
-            if (
-                snapshot.exists
-                and snapshot.checksum_valid
-                and snapshot.metadata_valid
-            ):
+            if snapshot.exists and snapshot.checksum_valid and snapshot.metadata_valid:
                 continue
             rows.append(
                 {
