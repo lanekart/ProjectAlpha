@@ -496,8 +496,8 @@ def observed_equal_weight_comparison(
         cagr_percent=_q(cagr * 100),
         excess_cagr_percent=None,
         reason=(
-            f"Daily equal-weight return of securities observed in the {population_label}; "
-            "this is not an investable index and has no costs."
+            "Daily equal-weight return of securities observed in the "
+            f"{population_label}; this is not an investable index and has no costs."
         ),
     )
 
