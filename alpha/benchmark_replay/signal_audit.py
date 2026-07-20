@@ -305,8 +305,7 @@ def _outcomes_csv(audit: DiagnosticSignalAudit) -> str:
         tuple(dataclasses.asdict(audit.outcomes[0]))
         if audit.outcomes
         else tuple(
-            field.name
-            for field in dataclasses.fields(DiagnosticSignalOutcome)
+            field.name for field in dataclasses.fields(DiagnosticSignalOutcome)
         )
     )
     writer = csv.DictWriter(stream, fieldnames=headers, lineterminator="\\n")
