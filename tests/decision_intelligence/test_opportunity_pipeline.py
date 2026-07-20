@@ -17,7 +17,7 @@ from alpha.decision_intelligence.opportunity_pipeline import (
 )
 
 
-def test_extended_bullish_candidate_becomes_watchlist_not_generic_reject() -> None:
+def test_extended_bullish_candidate_becomes_watchlist() -> None:
     candidate = _candidate(
         "TATVA",
         stop_distance=Decimal("12"),
@@ -40,7 +40,7 @@ def test_extended_bullish_candidate_becomes_watchlist_not_generic_reject() -> No
     assert decision.promotion_triggers
 
 
-def test_poor_reward_risk_bullish_candidate_waits_for_better_asymmetry() -> None:
+def test_poor_reward_risk_waits_for_better_asymmetry() -> None:
     candidate = _candidate("ASYM", reward_risk=Decimal("1.5"))
 
     pipeline = OpportunityPipelineEngine().build(
@@ -48,7 +48,10 @@ def test_poor_reward_risk_bullish_candidate_waits_for_better_asymmetry() -> None
     )
 
     decision = pipeline.watchlist_opportunities[0]
-    assert WatchlistReasonCode.UNFAVOURABLE_RISK_REWARD in decision.watchlist_reasons
+    assert (
+        WatchlistReasonCode.UNFAVOURABLE_RISK_REWARD
+        in decision.watchlist_reasons
+    )
     assert any("2R" in trigger.description for trigger in decision.promotion_triggers)
 
 
@@ -60,7 +63,10 @@ def test_weak_direction_is_not_admitted_to_watchlist() -> None:
     )
 
     assert not pipeline.watchlist_opportunities
-    assert pipeline.rejected_opportunities[0].action is OpportunityPipelineAction.REJECT
+    assert (
+        pipeline.rejected_opportunities[0].action
+        is OpportunityPipelineAction.REJECT
+    )
 
 
 def test_bad_data_is_not_admitted_to_watchlist() -> None:
