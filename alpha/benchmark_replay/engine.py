@@ -416,9 +416,7 @@ def _benchmark_comparison(
         end_date=dates[-1] if alpha_performance_available else None,
         starting_value=starting_capital if alpha_performance_available else None,
         ending_value=alpha_ending if alpha_performance_available else None,
-        total_return_percent=(
-            _q(alpha_total) if alpha_performance_available else None
-        ),
+        total_return_percent=(_q(alpha_total) if alpha_performance_available else None),
         cagr_percent=alpha_cagr if alpha_performance_available else None,
         excess_cagr_percent=_ZERO if alpha_performance_available else None,
         reason=(
