@@ -106,7 +106,11 @@ def test_identifier_to_canonical_symbol_is_expected(tmp_path: Path) -> None:
     assert result.classification is DecisionParityClassification.EXPECTED_CHANGE
     assert tuple(difference.field for difference in result.differences) == (
         "candidate.symbol",
+        "selection_reason",
     )
+    selection_reason_difference = result.differences[1]
+    assert "INE000000001" in selection_reason_difference.legacy_value
+    assert "INFY" in selection_reason_difference.recovered_value
 
 
 def test_score_change_is_unexpected(tmp_path: Path) -> None:
