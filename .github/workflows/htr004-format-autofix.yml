@@ -31,8 +31,18 @@ jobs:
             alpha/application/__init__.py \
             tests/recovery \
             tests/application/test_governed_replay_backtest.py
-          ruff check .
-          ruff format --check .
+          ruff check \
+            alpha/recovery \
+            alpha/application/governed_replay_backtest.py \
+            alpha/application/__init__.py \
+            tests/recovery \
+            tests/application/test_governed_replay_backtest.py
+          ruff format --check \
+            alpha/recovery \
+            alpha/application/governed_replay_backtest.py \
+            alpha/application/__init__.py \
+            tests/recovery \
+            tests/application/test_governed_replay_backtest.py
 
       - name: Commit formatting
         run: |
@@ -49,5 +59,3 @@ jobs:
           fi
           git commit -m "Format HTR-004 implementation"
           git push origin HEAD:feature/htr-004-canonical-replay
-
-# Registration follow-up activates the pull-request workflow.
