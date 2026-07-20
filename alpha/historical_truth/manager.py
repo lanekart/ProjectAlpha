@@ -7,9 +7,15 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from threading import Lock
+from typing import Any
 
-from alpha.historical_truth.models import ArchiveRequest, ManifestRecord, ManifestStatus
-from alpha.historical_truth.service import HistoricalTruthWarehouse
+from alpha.historical_truth.models import (
+    ArchiveDataset,
+    ArchiveRequest,
+    ManifestRecord,
+    ManifestStatus,
+)
+from alpha.historical_truth.resumable import HistoricalTruthWarehouse
 
 
 class TaskState(StrEnum):
@@ -135,44 +141,48 @@ class HistoricalArchiveManager:
             attempts=task.attempts + 1,
             error=None,
         )
-        record = self.warehouse.fetch(task.request)
-        return self._from_manifest(running, record)
+        return self._from_manifest(running, self.warehouse.fetch(task.request))
 
     def _read_checkpoint(self) -> dict[str, ArchiveTask]:
         if not self.checkpoint_path.exists():
             return {}
-        payload = json.loads(self.checkpoint_path.read_text(encoding="utf-8"))
+        payload: list[dict[str, Any]] = json.loads(
+            self.checkpoint_path.read_text(encoding="utf-8")
+        )
         restored: dict[str, ArchiveTask] = {}
         for item in payload:
             request_data = item["request"]
             request = ArchiveRequest(
                 exchange=str(request_data["exchange"]),
-                dataset=request_data["dataset"],
+                dataset=ArchiveDataset(str(request_data["dataset"])),
                 trading_date=datetime.fromisoformat(
-                    request_data["trading_date"]
+                    str(request_data["trading_date"])
                 ).date(),
                 source_url=str(request_data["source_url"]),
-                relative_path=Path(request_data["relative_path"]),
+                relative_path=Path(str(request_data["relative_path"])),
             )
-            restored[str(item["task_id"])] = ArchiveTask(
-                task_id=str(item["task_id"]),
+            task_id = str(item["task_id"])
+            restored[task_id] = ArchiveTask(
+                task_id=task_id,
                 request=request,
-                state=TaskState(item["state"]),
+                state=TaskState(str(item["state"])),
                 attempts=int(item["attempts"]),
                 updated_at=(
-                    datetime.fromisoformat(item["updated_at"])
+                    datetime.fromisoformat(str(item["updated_at"]))
                     if item.get("updated_at")
                     else None
                 ),
-                error=item.get("error"),
+                error=str(item["error"]) if item.get("error") else None,
             )
         return restored
 
     def _write_checkpoint(self, tasks: tuple[ArchiveTask, ...]) -> None:
         self.checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-        payload = [self._serialise(task) for task in tasks]
         temporary = self.checkpoint_path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        temporary.write_text(
+            json.dumps([self._serialise(task) for task in tasks], indent=2),
+            encoding="utf-8",
+        )
         temporary.replace(self.checkpoint_path)
 
     @staticmethod
@@ -181,14 +191,10 @@ class HistoricalArchiveManager:
             return HistoricalArchiveManager._replace(task, TaskState.COMPLETE)
         if record.status is ManifestStatus.UNAVAILABLE:
             return HistoricalArchiveManager._replace(
-                task,
-                TaskState.UNAVAILABLE,
-                error=record.error,
+                task, TaskState.UNAVAILABLE, error=record.error
             )
         return HistoricalArchiveManager._replace(
-            task,
-            TaskState.FAILED,
-            error=record.error,
+            task, TaskState.FAILED, error=record.error
         )
 
     @staticmethod
