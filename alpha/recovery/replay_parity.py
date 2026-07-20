@@ -162,9 +162,7 @@ class ReplayParityAnalyzer:
             signal_changed=(raw.signal != canonical.signal) if canonical else None,
             raw_decision=raw.decision,
             canonical_decision=canonical.decision if canonical else None,
-            decision_changed=(raw.decision != canonical.decision)
-            if canonical
-            else None,
+            decision_changed=(raw.decision != canonical.decision) if canonical else None,
             replay_status=bar.status,
             applied_event_ids=bar.applied_event_ids,
             unresolved_event_ids=bar.unresolved_event_ids,
@@ -231,9 +229,7 @@ def _index_evaluations(
 def _price_change_percent(raw: Decimal, adjusted: Decimal) -> Decimal | None:
     if raw == _ZERO:
         return None
-    return ((adjusted / raw - Decimal("1")) * _HUNDRED).quantize(
-        Decimal("0.0001")
-    )
+    return ((adjusted / raw - Decimal("1")) * _HUNDRED).quantize(Decimal("0.0001"))
 
 
 def _build_audit(rows: tuple[ReplayParityRow, ...]) -> ReplayParityAudit:
