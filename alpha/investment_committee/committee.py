@@ -167,15 +167,13 @@ class InvestmentCommittee:
         )
         counter = Counter(vote.proposed_state for vote in votes)
         vote_counts = tuple(
-            (state, counter[state])
-            for state in LifecycleState
-            if counter[state] > 0
+            (state, counter[state]) for state in LifecycleState if counter[state] > 0
         )
         winning_votes = counter[decision.final_state]
         consensus = int(
-            (
-                (Decimal(winning_votes) / Decimal(len(votes))) * Decimal("100")
-            ).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+            ((Decimal(winning_votes) / Decimal(len(votes))) * Decimal("100")).quantize(
+                Decimal("1"), rounding=ROUND_HALF_UP
+            )
         )
         return CommitteeResult(
             decision=decision,

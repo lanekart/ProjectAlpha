@@ -143,9 +143,7 @@ class GovernedDecisionFlow:
         governed: AdvisorSignal | None = None
         effective_authority: AdvisorAuthority | None = None
         if included:
-            authority = (
-                AdvisorAuthority.CONTEXT if diagnostic else signal.authority
-            )
+            authority = AdvisorAuthority.CONTEXT if diagnostic else signal.authority
             effective_authority = authority
             governed = AdvisorSignal(
                 source=signal.source,

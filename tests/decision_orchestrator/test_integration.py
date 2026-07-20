@@ -78,9 +78,7 @@ def test_allowed_evidence_reaches_orchestrator() -> None:
         recommendation_id="rec-1",
         symbol="abc",
         context=DecisionContext.CANDIDATE,
-        signals=(
-            _signal("PIPELINE", LifecycleState.READY, "PIPELINE_EVIDENCE"),
-        ),
+        signals=(_signal("PIPELINE", LifecycleState.READY, "PIPELINE_EVIDENCE"),),
     )
 
     assert result.decision.final_state is LifecycleState.READY
@@ -167,9 +165,7 @@ def test_all_blocked_signals_fail_closed() -> None:
             recommendation_id="rec-4",
             symbol="abc",
             context=DecisionContext.CANDIDATE,
-            signals=(
-                _signal("PIPELINE", LifecycleState.READY, "UNKNOWN_EVIDENCE"),
-            ),
+            signals=(_signal("PIPELINE", LifecycleState.READY, "UNKNOWN_EVIDENCE"),),
         )
 
 
@@ -198,9 +194,7 @@ def test_stability_score_flows_into_authoritative_decision() -> None:
         recommendation_id="rec-5",
         symbol="abc",
         context=DecisionContext.CANDIDATE,
-        signals=(
-            _signal("PIPELINE", LifecycleState.READY, "PIPELINE_EVIDENCE"),
-        ),
+        signals=(_signal("PIPELINE", LifecycleState.READY, "PIPELINE_EVIDENCE"),),
         stability=stability,
     )
 
@@ -217,9 +211,7 @@ def test_authoritative_decision_records_legal_lifecycle_transition() -> None:
         recommendation_id="rec-6",
         symbol="abc",
         context=DecisionContext.CANDIDATE,
-        signals=(
-            _signal("PIPELINE", LifecycleState.READY, "PIPELINE_EVIDENCE"),
-        ),
+        signals=(_signal("PIPELINE", LifecycleState.READY, "PIPELINE_EVIDENCE"),),
         previous_state=LifecycleState.WATCHLIST,
         occurred_at=datetime(2026, 7, 20, 9, 15, tzinfo=UTC),
     )
@@ -240,9 +232,7 @@ def test_unchanged_state_does_not_append_transition() -> None:
         recommendation_id="rec-7",
         symbol="abc",
         context=DecisionContext.CANDIDATE,
-        signals=(
-            _signal("PIPELINE", LifecycleState.READY, "PIPELINE_EVIDENCE"),
-        ),
+        signals=(_signal("PIPELINE", LifecycleState.READY, "PIPELINE_EVIDENCE"),),
         previous_state=LifecycleState.READY,
         occurred_at=datetime(2026, 7, 20, 9, 15, tzinfo=UTC),
     )
@@ -262,8 +252,6 @@ def test_transition_timestamp_is_required_for_state_change() -> None:
             recommendation_id="rec-8",
             symbol="abc",
             context=DecisionContext.CANDIDATE,
-            signals=(
-                _signal("PIPELINE", LifecycleState.READY, "PIPELINE_EVIDENCE"),
-            ),
+            signals=(_signal("PIPELINE", LifecycleState.READY, "PIPELINE_EVIDENCE"),),
             previous_state=LifecycleState.WATCHLIST,
         )
