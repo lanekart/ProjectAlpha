@@ -140,9 +140,7 @@ class PointInTimeSnapshotEngine:
             availability=SnapshotAvailability(
                 candles=bool(availability_payload["candles"]),
                 identity=bool(availability_payload["identity"]),
-                corporate_actions=bool(
-                    availability_payload["corporate_actions"]
-                ),
+                corporate_actions=bool(availability_payload["corporate_actions"]),
                 delivery=bool(availability_payload["delivery"]),
                 indices=bool(availability_payload["indices"]),
                 vix=bool(availability_payload["vix"]),
@@ -225,8 +223,7 @@ class PointInTimeSnapshotEngine:
         payload = {
             "metadata": PointInTimeSnapshotEngine._metadata_payload(metadata),
             "candles": [
-                PointInTimeSnapshotEngine._candle_payload(candle)
-                for candle in candles
+                PointInTimeSnapshotEngine._candle_payload(candle) for candle in candles
             ],
         }
         rendered = json.dumps(payload, sort_keys=True, separators=(",", ":"))
@@ -235,9 +232,7 @@ class PointInTimeSnapshotEngine:
     @staticmethod
     def _serialise(snapshot: ImmutableMarketSnapshot) -> dict[str, object]:
         return {
-            "metadata": PointInTimeSnapshotEngine._metadata_payload(
-                snapshot.metadata
-            ),
+            "metadata": PointInTimeSnapshotEngine._metadata_payload(snapshot.metadata),
             "candles": [
                 PointInTimeSnapshotEngine._candle_payload(candle)
                 for candle in snapshot.candles

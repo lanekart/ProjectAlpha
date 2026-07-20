@@ -248,8 +248,7 @@ class HistoricalPopulationEngine:
         output_dir.mkdir(parents=True, exist_ok=True)
         summary = HistoricalPopulationEngine.summarise(records)
         payload = [
-            HistoricalPopulationEngine._record_payload(record)
-            for record in records
+            HistoricalPopulationEngine._record_payload(record) for record in records
         ]
 
         json_path = output_dir / "historical_population.json"
@@ -264,15 +263,19 @@ class HistoricalPopulationEngine:
             + "\n",
             encoding="utf-8",
         )
-        fieldnames = list(payload[0]) if payload else [
-            "trading_date",
-            "status",
-            "downloaded",
-            "validated",
-            "ingested_rows",
-            "snapshot_path",
-            "error",
-        ]
+        fieldnames = (
+            list(payload[0])
+            if payload
+            else [
+                "trading_date",
+                "status",
+                "downloaded",
+                "validated",
+                "ingested_rows",
+                "snapshot_path",
+                "error",
+            ]
+        )
         with csv_path.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=fieldnames)
             writer.writeheader()

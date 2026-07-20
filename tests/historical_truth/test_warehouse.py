@@ -50,8 +50,7 @@ def test_initialise_creates_immutable_layout(tmp_path: Path) -> None:
 def test_validate_bhavcopy_detects_impossible_ohlc(tmp_path: Path) -> None:
     csv_path = tmp_path / "bhav.csv"
     csv_path.write_text(
-        "SYMBOL,SERIES,OPEN,HIGH,LOW,CLOSE,TOTTRDQTY\n"
-        "ABC,EQ,100,99,95,98,1000\n",
+        "SYMBOL,SERIES,OPEN,HIGH,LOW,CLOSE,TOTTRDQTY\nABC,EQ,100,99,95,98,1000\n",
         encoding="utf-8",
     )
     warehouse = HistoricalTruthWarehouse(tmp_path / "warehouse")

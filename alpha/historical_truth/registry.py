@@ -31,9 +31,7 @@ class DatasetRegistry:
     def register(self, plugin: ArchiveDatasetPlugin) -> None:
         key = (plugin.exchange.lower(), plugin.dataset)
         if key in self._plugins:
-            raise ValueError(
-                f"dataset already registered: {key[0]}/{key[1].value}"
-            )
+            raise ValueError(f"dataset already registered: {key[0]}/{key[1].value}")
         self._plugins[key] = plugin
 
     def get(self, exchange: str, dataset: ArchiveDataset) -> ArchiveDatasetPlugin:

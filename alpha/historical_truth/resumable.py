@@ -149,9 +149,7 @@ class HistoricalTruthWarehouse(BaseWarehouse):
             stream=True,
         ) as response:
             if response.status_code == 404:
-                raise _ArchiveUnavailableError(
-                    "official archive returned HTTP 404"
-                )
+                raise _ArchiveUnavailableError("official archive returned HTTP 404")
             response.raise_for_status()
 
             append = offset > 0 and response.status_code == 206

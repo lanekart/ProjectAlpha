@@ -62,11 +62,7 @@ def test_fetch_resumes_part_file_with_range_header(
         retry_backoff_seconds=0,
     )
     request = _request()
-    part = (
-        tmp_path
-        / "raw"
-        / request.relative_path
-    ).with_suffix(".zip.part")
+    part = (tmp_path / "raw" / request.relative_path).with_suffix(".zip.part")
     part.parent.mkdir(parents=True, exist_ok=True)
     part.write_bytes(b"first-")
     observed_headers: dict[str, str] = {}
