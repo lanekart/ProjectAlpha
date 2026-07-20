@@ -16,6 +16,11 @@ from .models import (
 from .registry import DiagnosticRegistry, registry
 from .scoring import build_scorecard
 
+registry.register(
+    HistoricalTruthGovernanceEngine.engine_key,
+    HistoricalTruthGovernanceEngine,
+)
+
 __all__ = [
     "DiagnosticContext",
     "DiagnosticEngine",
