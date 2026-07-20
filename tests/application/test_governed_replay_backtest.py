@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -10,16 +11,20 @@ from typing import Any
 
 import pandas as pd
 import pytest
-
-from alpha.application.governed_replay_backtest import (
-    GovernedReplayBacktestService,
-)
 from alpha.backtest.engine import BacktestEngine
 from alpha.recovery.corporate_actions import CorporateActionTimeline
-from alpha.recovery.replay_frame import CanonicalReplayFrameAdapter
 from alpha.recovery.security_timeline import (
     SecurityIdentityRecord,
     SecurityIdentityTimeline,
+)
+
+from alpha.application.governed_replay_backtest import (
+    GovernedReplayBacktestService,
+    export_governed_replay_backtest_attestations,
+)
+from alpha.recovery.replay_frame import (
+    CanonicalReplayFrameAdapter,
+    CanonicalReplayFrameResult,
 )
 
 _TRADE_DATE = date(2025, 1, 10)
@@ -59,6 +64,23 @@ class CapturingReport:
         return {"signals": signals}
 
 
+class TamperingCanonicalizer(CanonicalReplayFrameAdapter):
+    def canonicalize(
+        self,
+        frame: pd.DataFrame,
+        *,
+        trade_date: date,
+        as_of: date,
+    ) -> CanonicalReplayFrameResult:
+        result = super().canonicalize(
+            frame,
+            trade_date=trade_date,
+            as_of=as_of,
+        )
+        result.frame.loc[0, "close"] = 999.0
+        return result
+
+
 def _frame(symbol: str = "ALPHA") -> pd.DataFrame:
     return pd.DataFrame(
         [
@@ -76,8 +98,8 @@ def _frame(symbol: str = "ALPHA") -> pd.DataFrame:
     )
 
 
-def _canonicalizer() -> CanonicalReplayFrameAdapter:
-    identities = SecurityIdentityTimeline(
+def _identities() -> SecurityIdentityTimeline:
+    return SecurityIdentityTimeline(
         (
             SecurityIdentityRecord(
                 security_id="SEC-1",
@@ -87,7 +109,10 @@ def _canonicalizer() -> CanonicalReplayFrameAdapter:
             ),
         )
     )
-    return CanonicalReplayFrameAdapter(identities, CorporateActionTimeline(()))
+
+
+def _canonicalizer() -> CanonicalReplayFrameAdapter:
+    return CanonicalReplayFrameAdapter(_identities(), CorporateActionTimeline(()))
 
 
 def test_governed_backtest_consumes_canonical_symbol_and_prices() -> None:
@@ -113,8 +138,13 @@ def test_governed_backtest_consumes_canonical_symbol_and_prices() -> None:
     assert report.seen_frame.iloc[0]["raw_symbol"] == "ALPHA"
     assert report.seen_frame.iloc[0]["symbol"] == "NEWALPHA"
     assert report.seen_frame.iloc[0]["replay_status"] == "READY"
+    assert report.seen_frame.iloc[0]["canonical_replay_enforced"]
     assert run.summary.positions == {"NEWALPHA": 1}
     assert run.summary.ending_cash == Decimal("99900")
+    assert len(run.replay_attestations) == 1
+    assert run.replay_attestations[0].trade_date == _TRADE_DATE
+    assert len(run.canonical_snapshot_sha256s) == 1
+    assert len(run.canonical_frame_sha256s) == 1
 
 
 def test_governed_backtest_rejects_unresolved_identity() -> None:
@@ -134,3 +164,48 @@ def test_governed_backtest_rejects_unresolved_identity() -> None:
             end=_TRADE_DATE,
             starting_cash=Decimal("100000"),
         )
+
+
+def test_governed_backtest_revalidates_frame_before_consumption() -> None:
+    canonicalizer = TamperingCanonicalizer(
+        _identities(),
+        CorporateActionTimeline(()),
+    )
+    service = GovernedReplayBacktestService(
+        canonicalizer=canonicalizer,
+        resolver=FakeResolver(),
+        downloader=FakeDownloader(),
+        ingestion=FakeIngestion(_frame()),
+        report=CapturingReport(),
+        engine=BacktestEngine(),
+    )
+
+    with pytest.raises(ValueError, match="does not match exact adjusted"):
+        service.run(
+            strategy="momentum",
+            start=_TRADE_DATE,
+            end=_TRADE_DATE,
+            starting_cash=Decimal("100000"),
+        )
+
+
+def test_governed_backtest_exports_consumed_replay_proofs(tmp_path: Path) -> None:
+    run = GovernedReplayBacktestService(
+        canonicalizer=_canonicalizer(),
+        resolver=FakeResolver(),
+        downloader=FakeDownloader(),
+        ingestion=FakeIngestion(_frame()),
+        report=CapturingReport(),
+        engine=BacktestEngine(),
+    ).run(
+        strategy="momentum",
+        start=_TRADE_DATE,
+        end=_TRADE_DATE,
+        starting_cash=Decimal("100000"),
+    )
+
+    paths = export_governed_replay_backtest_attestations(run, tmp_path)
+
+    payload = json.loads(paths[0].read_text(encoding="utf-8"))
+    assert payload[0]["canonical_replay_enforced"] is True
+    assert payload[0]["trade_date"] == _TRADE_DATE.isoformat()
