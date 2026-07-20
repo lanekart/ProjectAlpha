@@ -59,7 +59,10 @@ class OpportunityLifecycleAdapter:
         common = (
             LifecycleEvidence(
                 "PIPELINE_ACTION",
-                f"Opportunity pipeline classified the candidate as {decision.action.value}.",
+                (
+                    "Opportunity pipeline classified the candidate as "
+                    f"{decision.action.value}."
+                ),
             ),
             LifecycleEvidence(
                 "DIRECTION",
@@ -140,7 +143,12 @@ class PositionReviewDecision:
     def __post_init__(self) -> None:
         state = LifecycleState(self.state)
         reason = self.reason.strip()
-        if state not in {LifecycleState.HOLD, LifecycleState.REDUCE, LifecycleState.EXIT}:
+        allowed_states = {
+            LifecycleState.HOLD,
+            LifecycleState.REDUCE,
+            LifecycleState.EXIT,
+        }
+        if state not in allowed_states:
             raise ValueError("position review may only recommend HOLD, REDUCE, or EXIT")
         if not reason:
             raise ValueError("position review reason cannot be empty")
@@ -164,7 +172,11 @@ class PositionReviewEngine:
 
     def review(self, inputs: PositionReviewInput) -> PositionReviewDecision:
         exit_signals = (
-            (inputs.stop_broken, "STOP_BROKEN", "The active risk stop has been broken."),
+            (
+                inputs.stop_broken,
+                "STOP_BROKEN",
+                "The active risk stop has been broken.",
+            ),
             (
                 inputs.thesis_invalidated,
                 "THESIS_INVALIDATED",
@@ -226,7 +238,10 @@ class PositionReviewEngine:
         if reduce_evidence:
             return PositionReviewDecision(
                 state=LifecycleState.REDUCE,
-                reason="Risk/reward no longer supports retaining the full position size.",
+                reason=(
+                    "Risk/reward no longer supports retaining the full position "
+                    "size."
+                ),
                 evidence=tuple(reduce_evidence),
                 confidence=LifecycleConfidence.MEDIUM,
                 reduction_percent=inputs.suggested_reduction_percent,
@@ -238,7 +253,10 @@ class PositionReviewEngine:
             evidence=(
                 LifecycleEvidence(
                     "THESIS_INTACT",
-                    "Available position evidence does not invalidate the active thesis.",
+                    (
+                        "Available position evidence does not invalidate the active "
+                        "thesis."
+                    ),
                 ),
             ),
             confidence=LifecycleConfidence.MEDIUM,
