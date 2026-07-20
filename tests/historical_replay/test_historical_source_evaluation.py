@@ -42,6 +42,11 @@ from alpha.historical_replay.breakout_source_gap import (
 
 runner = CliRunner()
 
+_PROJECT_REPLAY_CORPUS_AVAILABLE = (
+    Path(".alpha/breakout_reference_dataset_v1.json").is_file()
+    and Path(".alpha/candidate_learning_ledger.json").is_file()
+)
+
 
 def _record(
     candidate_id: str,
@@ -289,6 +294,10 @@ def test_unsupported_mandatory_capability_fails_provider_gate() -> None:
     assert report.coverage_results[0].mandatory_failures
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_project_manifest_contains_exact_missing_populations() -> None:
     report = build_project_historical_source_evaluation(dry_run=True)
     assert len(report.manifest.records) == 657
@@ -297,6 +306,10 @@ def test_project_manifest_contains_exact_missing_populations() -> None:
     assert report.manifest.unique_symbols == 158
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_project_manifest_is_deterministic_and_retains_identity() -> None:
     first = build_project_historical_source_evaluation(dry_run=True)
     second = build_project_historical_source_evaluation(dry_run=True)
@@ -307,6 +320,10 @@ def test_project_manifest_is_deterministic_and_retains_identity() -> None:
     assert all(item.current_symbol is None for item in first.manifest.records)
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_project_manifest_order_and_lookback_are_conservative() -> None:
     report = build_project_historical_source_evaluation(dry_run=True)
     keys = tuple(
@@ -321,6 +338,10 @@ def test_project_manifest_order_and_lookback_are_conservative() -> None:
     )
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_project_manifest_retains_exact_gap_causes() -> None:
     report = build_project_historical_source_evaluation(dry_run=True)
     causes = {item.gap_cause for item in report.manifest.records}
@@ -593,6 +614,10 @@ def test_no_provider_adequate_is_deterministic() -> None:
     assert report.projected_remaining_unresolved_candidates is None
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_price_and_identity_require_separate_documented_sources() -> None:
     report = build_project_historical_source_evaluation(dry_run=True)
     assert report.best_price_history_source == "NSE_DATA_ANALYTICS_LICENSED"
@@ -603,6 +628,10 @@ def test_price_and_identity_require_separate_documented_sources() -> None:
     )
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_convenient_broker_is_not_promoted_for_poor_identity_coverage() -> None:
     report = build_project_historical_source_evaluation(dry_run=True)
     providers = {item.provider_id: item for item in report.providers}
@@ -758,6 +787,10 @@ def test_cli_rejects_invalid_provider() -> None:
     assert "unsupported historical source provider" in result.output
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_cli_rejects_invalid_candidate() -> None:
     result = runner.invoke(
         app,
