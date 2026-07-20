@@ -157,9 +157,7 @@ def _read_signals(path: Path) -> tuple[dict[str, str], ...]:
                 + ", ".join(sorted(missing))
             )
         return tuple(
-            dict(row)
-            for row in reader
-            if row["final_signal"] in {"BUY", "STRONG_BUY"}
+            dict(row) for row in reader if row["final_signal"] in {"BUY", "STRONG_BUY"}
         )
 
 
@@ -304,18 +302,13 @@ def _outcomes_csv(audit: DiagnosticSignalAudit) -> str:
     headers = (
         tuple(dataclasses.asdict(audit.outcomes[0]))
         if audit.outcomes
-        else tuple(
-            field.name for field in dataclasses.fields(DiagnosticSignalOutcome)
-        )
+        else tuple(field.name for field in dataclasses.fields(DiagnosticSignalOutcome))
     )
     writer = csv.DictWriter(stream, fieldnames=headers, lineterminator="\\n")
     writer.writeheader()
     for item in audit.outcomes:
         writer.writerow(
-            {
-                key: _csv_value(value)
-                for key, value in dataclasses.asdict(item).items()
-            }
+            {key: _csv_value(value) for key, value in dataclasses.asdict(item).items()}
         )
     return stream.getvalue()
 

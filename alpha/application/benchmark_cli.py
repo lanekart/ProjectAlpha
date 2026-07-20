@@ -140,8 +140,7 @@ def benchmark_signal_audit(
     )
     typer.echo("Diagnostic Signal Audit")
     typer.echo(
-        "Raw BUY/STRONG BUY signals: "
-        f"{audit.summary['raw_buy_or_strong_buy_signals']}"
+        f"Raw BUY/STRONG BUY signals: {audit.summary['raw_buy_or_strong_buy_signals']}"
     )
     typer.echo("DIAGNOSTIC_ONLY=true")
     typer.echo("PRODUCTION_INFLUENCE=false")
