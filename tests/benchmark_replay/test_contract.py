@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 from alpha.application.benchmark_cli import benchmark_app
 from alpha.benchmark_replay.engine import observed_equal_weight_comparison
 from alpha.benchmark_replay.exporting import BenchmarkArtifactExporter
+from alpha.benchmark_replay.rendering import render_executive_report, render_replay_summary
 from alpha.benchmark_replay.models import (
     BASELINE_ID,
     PRODUCTION_INFLUENCE,
@@ -94,6 +95,25 @@ def test_exports_decision_eligibility_and_rejection_attribution(
     assert "minimum_complete_history_sessions" in eligibility
     assert "BLOCKED_NO_200_SESSION_SECURITIES" in eligibility
     assert rejection.startswith("reason_code,rejected_candidates")
+
+
+def test_blocked_report_marks_strategy_performance_unavailable(
+    benchmark_report: BenchmarkReplayReport,
+) -> None:
+    blocked_report = replace(
+        benchmark_report,
+        eligible_securities=0,
+        eligible_security_observations=0,
+    )
+
+    executive = render_executive_report(blocked_report)
+    summary = render_replay_summary(blocked_report)
+
+    assert "| CAGR | unavailable |" in executive
+    assert "| Maximum drawdown | unavailable |" in executive
+    assert "no deployment or strategy-performance conclusion is available" in executive
+    assert "CAGR: unavailable" in summary
+    assert "Maximum Drawdown: unavailable" in summary
 
 
 def test_non_economic_equal_weight_benchmark_fails_closed(tmp_path: Path) -> None:
