@@ -51,7 +51,7 @@ class PopulationSummary:
 
 
 class HistoricalPopulationEngine:
-    """Populate canonical history and immutable snapshots from official archives."""
+    """Populate and account for canonical history and immutable snapshots."""
 
     def __init__(
         self,
