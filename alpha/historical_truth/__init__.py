@@ -21,6 +21,13 @@ from alpha.historical_truth.models import (
 from alpha.historical_truth.plugins import NseBhavcopyPlugin
 from alpha.historical_truth.registry import ArchiveDatasetPlugin, DatasetRegistry
 from alpha.historical_truth.resumable import HistoricalTruthWarehouse
+from alpha.historical_truth.snapshots import (
+    ImmutableMarketSnapshot,
+    PointInTimeSnapshotEngine,
+    SnapshotAvailability,
+    SnapshotMetadata,
+    SnapshotVerification,
+)
 
 __all__ = [
     "ArchiveDataset",
@@ -34,10 +41,15 @@ __all__ = [
     "DownloadSummary",
     "HistoricalArchiveManager",
     "HistoricalTruthWarehouse",
+    "ImmutableMarketSnapshot",
     "ManifestRecord",
     "ManifestStatus",
     "MarketSnapshot",
     "NseBhavcopyPlugin",
+    "PointInTimeSnapshotEngine",
+    "SnapshotAvailability",
+    "SnapshotMetadata",
+    "SnapshotVerification",
     "TaskState",
     "ValidationIssue",
     "ValidationSeverity",
