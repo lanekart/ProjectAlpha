@@ -54,6 +54,11 @@ from alpha.historical_replay.upstox_historical_probe_service import (
 IST = timezone(timedelta(hours=5, minutes=30))
 runner = CliRunner()
 
+_PROJECT_REPLAY_CORPUS_AVAILABLE = (
+    Path(".alpha/breakout_reference_dataset_v1.json").is_file()
+    and Path(".alpha/candidate_learning_ledger.json").is_file()
+)
+
 
 @pytest.fixture(scope="module")
 def manifest() -> HistoricalSourceEvaluationManifest:
@@ -189,6 +194,10 @@ def _population_records(
     return tuple(rows)
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_manifest_population_invariants(
     manifest: HistoricalSourceEvaluationManifest,
 ) -> None:
@@ -197,6 +206,10 @@ def test_manifest_population_invariants(
     assert manifest.recovery_uncertain_count == 49
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_incomplete_population_reconciles_not_tested_without_fabrication(
     manifest: HistoricalSourceEvaluationManifest,
     breakout_audit: BreakoutSourceGapAuditReport,
@@ -219,6 +232,10 @@ def test_incomplete_population_reconciles_not_tested_without_fabrication(
     )
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_full_population_denominators_and_slices_reconcile(
     manifest: HistoricalSourceEvaluationManifest,
     breakout_audit: BreakoutSourceGapAuditReport,
@@ -260,6 +277,10 @@ def test_full_population_denominators_and_slices_reconcile(
     )
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_invalid_series_is_excluded_from_full_price_coverage(
     manifest: HistoricalSourceEvaluationManifest,
     breakout_audit: BreakoutSourceGapAuditReport,
@@ -282,6 +303,10 @@ def test_invalid_series_is_excluded_from_full_price_coverage(
     assert report.invalid_series_causes == (("DUPLICATE_SESSION", 1),)
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_price_only_evidence_cannot_clear_identity_or_corporate_action_blockers(
     manifest: HistoricalSourceEvaluationManifest,
     breakout_audit: BreakoutSourceGapAuditReport,
@@ -307,6 +332,10 @@ def test_price_only_evidence_cannot_clear_identity_or_corporate_action_blockers(
     assert report.actual_authoritative_readiness == breakout_audit.ready_records
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_year_biased_coverage_and_inactive_exclusion_are_explicit(
     manifest: HistoricalSourceEvaluationManifest,
     breakout_audit: BreakoutSourceGapAuditReport,
@@ -408,6 +437,10 @@ def test_selection_bias_conclusion_is_deterministic(
     assert classify_selection_bias_impact(baseline, provisional, hhi) is expected
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_utility_json_and_text_are_redacted_and_contain_no_candles(
     tmp_path: Path,
     manifest: HistoricalSourceEvaluationManifest,
@@ -437,6 +470,10 @@ def test_utility_json_and_text_are_redacted_and_contain_no_candles(
     assert report.production_influence is False
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_utility_cli_uses_persisted_evidence_without_network(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

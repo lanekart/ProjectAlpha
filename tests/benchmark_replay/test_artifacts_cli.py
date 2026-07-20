@@ -22,13 +22,15 @@ def test_export_is_deterministic_schema_complete_and_immutable(
     first_bytes = {path.name: path.read_bytes() for path in first}
     second = exporter.export(benchmark_report, output_directory=tmp_path)
     assert first_bytes == {path.name: path.read_bytes() for path in second}
-    assert len(first) == 14
+    assert len(first) == 16
 
+    assert (tmp_path / "decision_eligibility.csv").is_file()
+    assert (tmp_path / "top_rejection_reasons.csv").is_file()
     trade_headers = next(csv.reader((tmp_path / "trade_log.csv").open()))
     assert {"trade_id", "entry_price", "exit_reason"}.issubset(trade_headers)
     manifest = json.loads((tmp_path / "manifest.json").read_text())
     assert manifest["production_influence"] is False
-    assert len(manifest["artifact_hashes"]) == 13
+    assert len(manifest["artifact_hashes"]) == 15
     assert manifest["replay_classification"] == "OBSERVED_MARKET_REPLAY"
 
 

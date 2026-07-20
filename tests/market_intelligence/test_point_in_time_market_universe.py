@@ -792,14 +792,16 @@ def test_reporting_command_does_not_hidden_build_without_materialization(
         app,
         ["replay", "point-in-time-universe-coverage"],
         env={
+            "_TYPER_FORCE_DISABLE_TERMINAL": "1",
             "ALPHA_POINT_IN_TIME_ANALYTICAL_STORE": str(tmp_path / "pit.duckdb"),
             "ALPHA_POINT_IN_TIME_MATERIALIZATION_LEDGER": str(tmp_path / "pit.json"),
         },
     )
 
     assert result.exit_code != 0
+    normalized_output = " ".join(result.output.split())
     assert "Reporting commands do not silently trigger full historical rebuilds" in (
-        result.output
+        normalized_output
     )
 
 

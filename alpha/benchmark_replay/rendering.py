@@ -20,6 +20,11 @@ def render_executive_report(report: BenchmarkReplayReport) -> str:
     buy = sum(item.buy_candidates for item in flow)
     strong_buy = sum(item.strong_buy_candidates for item in flow)
     capture_rate = None if opportunity is None else opportunity.capture_rate_percent
+    performance_available = report.eligible_securities > 0
+    performance_cagr = stats.cagr_percent if performance_available else None
+    performance_drawdown = (
+        stats.maximum_drawdown_percent if performance_available else None
+    )
     lines = [
         "# Canonical Alpha Benchmark Replay",
         "",
@@ -47,8 +52,8 @@ def render_executive_report(report: BenchmarkReplayReport) -> str:
         f"| Win rate | {_value(stats.win_rate_percent, '%')} |",
         f"| Profit factor | {_value(stats.profit_factor)} |",
         f"| Expectancy | {_value(stats.expectancy_percent, '%')} |",
-        f"| CAGR | {stats.cagr_percent}% |",
-        f"| Maximum drawdown | {stats.maximum_drawdown_percent}% |",
+        f"| CAGR | {_value(performance_cagr, '%')} |",
+        f"| Maximum drawdown | {_value(performance_drawdown, '%')} |",
         f"| Sharpe | {_value(stats.sharpe_ratio)} |",
         f"| Sortino | {_value(stats.sortino_ratio)} |",
         f"| Calmar | {_value(stats.calmar_ratio)} |",
@@ -57,12 +62,33 @@ def render_executive_report(report: BenchmarkReplayReport) -> str:
         f"| Average idle cash | INR {stats.average_idle_cash} |",
         f"| Opportunity capture | {_value(capture_rate, '%')} |",
         "",
+        "## Decision Eligibility",
+        "",
+        "- Complete-history eligibility requires at least 200 observations "
+        "per security.",
+        f"- Complete-history securities: {report.eligible_securities:,}.",
+        f"- Complete-history security-days: {report.eligible_security_observations:,}.",
+        (
+            "- Status: BLOCKED_NO_200_SESSION_SECURITIES. Raw technical and "
+            "BUY/STRONG_BUY signals are diagnostic only and are not an eligible "
+            "decision population."
+            if report.eligible_securities == 0
+            else "- Status: ELIGIBLE_POPULATION_AVAILABLE."
+        ),
+        "",
         "## Portfolio",
         "",
-        f"Starting capital was INR {stats.starting_capital}; ending capital was "
-        f"INR {stats.ending_capital}. The unchanged institutional gate approved "
-        f"{approvals} candidates, so capital deployment reflects policy output "
-        "rather than a relaxed or counterfactual strategy.",
+        (
+            f"Starting capital was INR {stats.starting_capital}; ending capital was "
+            f"INR {stats.ending_capital}. No security met complete-history "
+            "eligibility, so no deployment or strategy-performance conclusion is "
+            "available. Raw signals remain diagnostic only."
+            if not performance_available
+            else f"Starting capital was INR {stats.starting_capital}; ending capital "
+            f"was INR {stats.ending_capital}. The unchanged institutional gate "
+            f"approved {approvals} candidates, so capital deployment reflects policy "
+            "output rather than a relaxed or counterfactual strategy."
+        ),
         "",
         "## Trading Statistics",
         "",
@@ -109,6 +135,9 @@ def render_replay_summary(report: BenchmarkReplayReport) -> str:
     approvals = sum(
         item.institutional_approvals for item in report.candidate_statistics
     )
+    performance_available = report.eligible_securities > 0
+    cagr = stats.cagr_percent if performance_available else None
+    drawdown = stats.maximum_drawdown_percent if performance_available else None
     return "\n".join(
         (
             "Canonical Alpha Benchmark Replay",
@@ -119,8 +148,8 @@ def render_replay_summary(report: BenchmarkReplayReport) -> str:
             f"Institutional Approvals: {approvals}",
             f"Trades Executed: {stats.logical_trades}",
             f"Ending Capital: INR {stats.ending_capital}",
-            f"CAGR: {stats.cagr_percent}%",
-            f"Maximum Drawdown: {stats.maximum_drawdown_percent}%",
+            f"CAGR: {_value(cagr, '%')}",
+            f"Maximum Drawdown: {_value(drawdown, '%')}",
             "PRODUCTION_INFLUENCE=false",
             "",
         )
