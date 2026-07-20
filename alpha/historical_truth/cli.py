@@ -112,14 +112,8 @@ def populate(
     paths = engine.export(records, output_dir)
     print(f"Population coverage: {summary.coverage_ratio:.2%}")
     print(f"Candle snapshots ingested: {summary.candle_snapshots}")
-    print(
-        "Evidence-complete snapshots: "
-        f"{summary.evidence_complete_snapshots}"
-    )
-    print(
-        "Evidence-incomplete snapshots: "
-        f"{summary.evidence_incomplete_snapshots}"
-    )
+    print(f"Evidence-complete snapshots: {summary.evidence_complete_snapshots}")
+    print(f"Evidence-incomplete snapshots: {summary.evidence_incomplete_snapshots}")
     print(f"Failed: {summary.failed}")
     print(f"Unavailable: {summary.unavailable}")
     print(f"Skipped: {summary.skipped}")
@@ -182,9 +176,7 @@ def integrity_audit(
 ) -> None:
     start_date, end_date = _parse_range(start, end)
     as_of_date = _parse_date(as_of, "--as-of")
-    holiday_dates = frozenset(
-        _parse_date(value, "--holiday") for value in holiday
-    )
+    holiday_dates = frozenset(_parse_date(value, "--holiday") for value in holiday)
     archive = HistoricalTruthWarehouse(root)
     canonical = CanonicalPointInTimeWarehouse(
         root / "warehouse" / "historical_truth.duckdb"
@@ -207,10 +199,7 @@ def integrity_audit(
     print(f"Observed trading days: {summary.observed_trading_days}")
     print(f"Coverage: {summary.coverage_ratio:.2%}")
     print(f"Candle replay ready: {summary.candle_replay_ready}")
-    print(
-        "Full-evidence replay ready: "
-        f"{summary.full_evidence_replay_ready}"
-    )
+    print(f"Full-evidence replay ready: {summary.full_evidence_replay_ready}")
     for blocker in report.replay_blockers:
         print(f"BLOCKER {blocker}")
     for path in paths:
