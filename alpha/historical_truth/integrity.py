@@ -272,8 +272,7 @@ class HistoricalTruthIntegrityAudit:
                 classification="validation_or_ingestion_failed",
                 source_url=record.source_url,
                 evidence=(
-                    f"manifest status is {record.status.value}; "
-                    "no canonical candles"
+                    f"manifest status is {record.status.value}; no canonical candles"
                 ),
             )
         elif trading_date >= as_of_date:
