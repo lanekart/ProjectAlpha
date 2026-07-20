@@ -172,3 +172,28 @@ about semantics:
 After upgrading, rerun `populate` for the governed range. Existing verified
 snapshots are skipped and previously rejected T0-only sessions are recovered
 from the immutable raw archives.
+
+## Canonical Replay Bridge
+
+Run the existing canonical benchmark engine from verified immutable Historical Truth
+snapshots:
+
+```bash
+poetry run python -m alpha benchmark replay \
+  --database alpha_data/warehouse/historical_truth.duckdb \
+  --historical-truth-snapshots alpha_data/snapshots \
+  --start 2026-01-01 \
+  --end 2026-07-20
+```
+
+The bridge reconciles the requested warehouse sessions with snapshot files, verifies
+every snapshot checksum and metadata record, validates candle relationships, and
+fails closed when any observed session is missing or invalid. It projects only the
+NSE `EQ` series into the replay store. Other series remain preserved as historical
+evidence but cannot create duplicate replay securities.
+
+This is a candle-input bridge only. It does not assert historical index or sector
+membership, complete corporate-action evidence, or full-evidence replay readiness.
+It does not influence production decisions and never fills missing sessions or
+securities.
+
