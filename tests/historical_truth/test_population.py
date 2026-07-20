@@ -115,3 +115,36 @@ def test_population_exports_are_deterministic(tmp_path: Path) -> None:
         "historical_population.md",
     ]
     assert "Coverage: 100.00%" in paths[2].read_text(encoding="utf-8")
+
+
+def test_t0_exception_is_quarantined_without_rejecting_session(
+    tmp_path: Path,
+) -> None:
+    engine = _engine(tmp_path)
+    request = _request()
+    archive_path = engine.archive.raw_root / request.relative_path
+    archive_path.parent.mkdir(parents=True, exist_ok=True)
+    content = (
+        "SYMBOL,SERIES,OPEN,HIGH,LOW,CLOSE,TOTTRDQTY,ISIN\n"
+        "AAA,EQ,100,110,95,108,1000,INE000A01001\n"
+        "IDEA,T0,11.27,11.27,11.27,10.98,1000,INE669E01016\n"
+    )
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("cm17JUL2026bhav.csv", content)
+
+    records = engine.populate((request,))
+
+    assert records[0].status is PopulationStatus.PARTIAL
+    assert records[0].validated is True
+    assert records[0].ingested_rows == 2
+    with engine.canonical._connect() as connection:
+        quarantine = connection.execute(
+            """
+            SELECT code, severity, message
+            FROM validation_quarantine
+            ORDER BY code
+            """
+        ).fetchall()
+    assert quarantine[0][0] == "T0_CLOSE_RANGE_EXCEPTION"
+    assert quarantine[0][1] == "warning"
+    assert "symbol=IDEA" in quarantine[0][2]
