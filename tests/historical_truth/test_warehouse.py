@@ -83,3 +83,20 @@ def test_status_exports_are_deterministic_when_empty(tmp_path: Path) -> None:
         "historical_truth_status.md",
     ]
     assert paths[0].read_text(encoding="utf-8") == "[]"
+
+
+def test_validate_t0_close_range_exception_is_warning(tmp_path: Path) -> None:
+    csv_path = tmp_path / "bhav.csv"
+    csv_path.write_text(
+        "SYMBOL,SERIES,OPEN,HIGH,LOW,CLOSE,TOTTRDQTY\n"
+        "IDEA,T0,11.27,11.27,11.27,10.98,1000\n",
+        encoding="utf-8",
+    )
+    warehouse = HistoricalTruthWarehouse(tmp_path / "warehouse")
+
+    issues = warehouse.validate_bhavcopy_csv(csv_path)
+
+    assert [issue.code for issue in issues] == ["T0_CLOSE_RANGE_EXCEPTION"]
+    assert issues[0].severity.value == "warning"
+    assert "symbol=IDEA" in issues[0].message
+    assert "violations=low>close" in issues[0].message
