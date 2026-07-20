@@ -12,16 +12,16 @@ from typer.testing import CliRunner
 from alpha.application.benchmark_cli import benchmark_app
 from alpha.benchmark_replay.engine import observed_equal_weight_comparison
 from alpha.benchmark_replay.exporting import BenchmarkArtifactExporter
-from alpha.benchmark_replay.rendering import (
-    render_executive_report,
-    render_replay_summary,
-)
 from alpha.benchmark_replay.models import (
     BASELINE_ID,
     PRODUCTION_INFLUENCE,
     REPLAY_CLASSIFICATION,
     BenchmarkPolicy,
     BenchmarkReplayReport,
+)
+from alpha.benchmark_replay.rendering import (
+    render_executive_report,
+    render_replay_summary,
 )
 from alpha.benchmark_replay.rendering import (
     render_executive_report,
