@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import csv
-import hashlib
 import json
 import os
 from collections import Counter
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from io import StringIO
@@ -19,7 +18,6 @@ from alpha.canonical_universe_audit.store import LegacyMarketDataStore
 DIAGNOSTIC_ONLY = True
 PRODUCTION_INFLUENCE = False
 DEFAULT_HORIZONS = (1, 5, 10, 20)
-_TWO = Decimal("0.01")
 _FOUR = Decimal("0.0001")
 
 
@@ -333,7 +331,9 @@ def _render_report(audit: DiagnosticSignalAudit) -> str:
         "| Horizon | Observed | Censored | Median forward return |",
         "|---:|---:|---:|---:|",
     ]
-    for row in audit.summary["horizons"]:
+    horizon_rows = audit.summary["horizons"]
+    assert isinstance(horizon_rows, list)
+    for row in horizon_rows:
         assert isinstance(row, dict)
         value = row["median_forward_return_percent"]
         rendered = "unavailable" if value is None else f"{value}%"
