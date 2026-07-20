@@ -11,11 +11,6 @@ from typing import Any
 
 import pandas as pd
 import pytest
-
-from alpha.application.governed_replay_backtest import (
-    GovernedReplayBacktestService,
-    export_governed_replay_backtest_attestations,
-)
 from alpha.backtest.engine import BacktestEngine
 from alpha.recovery.corporate_actions import CorporateActionTimeline
 from alpha.recovery.replay_frame import (
@@ -25,6 +20,11 @@ from alpha.recovery.replay_frame import (
 from alpha.recovery.security_timeline import (
     SecurityIdentityRecord,
     SecurityIdentityTimeline,
+)
+
+from alpha.application.governed_replay_backtest import (
+    GovernedReplayBacktestService,
+    export_governed_replay_backtest_attestations,
 )
 
 _TRADE_DATE = date(2025, 1, 10)
