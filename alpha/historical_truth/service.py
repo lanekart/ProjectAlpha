@@ -317,7 +317,12 @@ class HistoricalTruthWarehouse:
             writer = csv.DictWriter(handle, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(payload)
-        lines = ["# Historical Truth Warehouse Status", "", f"Records: {len(records)}", ""]
+        lines = [
+            "# Historical Truth Warehouse Status",
+            "",
+            f"Records: {len(records)}",
+            "",
+        ]
         lines.extend(
             [
                 "| Date | Exchange | Dataset | Status | Bytes | Error |",
