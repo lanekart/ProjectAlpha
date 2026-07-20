@@ -793,7 +793,6 @@ def test_reporting_command_does_not_hidden_build_without_materialization(
         ["replay", "point-in-time-universe-coverage"],
         env={
             "_TYPER_FORCE_DISABLE_TERMINAL": "1",
-            "TERMINAL_WIDTH": "200",
             "ALPHA_POINT_IN_TIME_ANALYTICAL_STORE": str(tmp_path / "pit.duckdb"),
             "ALPHA_POINT_IN_TIME_MATERIALIZATION_LEDGER": str(tmp_path / "pit.json"),
         },
