@@ -610,26 +610,30 @@ class HistoricalTruthIntegrityAudit:
                     "evidence": missing.evidence,
                 }
             )
-        for item in report.security_findings:
+        for security in report.security_findings:
             rows.append(
                 {
                     "finding_type": "security",
-                    "trading_date": missing.trading_date.isoformat(),
-                    "code": item.code,
-                    "severity": item.severity,
-                    "symbol": item.symbol,
-                    "series": item.series,
-                    "isin": item.isin or "",
-                    "evidence": missing.evidence,
+                    "trading_date": security.trading_date.isoformat(),
+                    "code": security.code,
+                    "severity": security.severity,
+                    "symbol": security.symbol,
+                    "series": security.series,
+                    "isin": security.isin or "",
+                    "evidence": security.evidence,
                 }
             )
-        for item in report.snapshot_findings:
-            if item.exists and item.checksum_valid and item.metadata_valid:
+        for snapshot in report.snapshot_findings:
+            if (
+                snapshot.exists
+                and snapshot.checksum_valid
+                and snapshot.metadata_valid
+            ):
                 continue
             rows.append(
                 {
                     "finding_type": "snapshot",
-                    "trading_date": missing.trading_date.isoformat(),
+                    "trading_date": snapshot.trading_date.isoformat(),
                     "code": "SNAPSHOT_INTEGRITY",
                     "severity": "error",
                     "symbol": "",
