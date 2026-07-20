@@ -16,6 +16,12 @@ from .canonical_replay import (
     CanonicalReplayBuilder,
     CanonicalReplayStatus,
 )
+from .consumer_attestation import (
+    CONSUMER_CONTRACT_VERSION,
+    CanonicalReplayConsumerAttestation,
+)
+from .consumer_guard import CanonicalReplayConsumerGuard
+from .consumer_hash import stamp_canonical_frame
 from .corporate_actions import CorporateActionBar, CorporateActionTimeline
 from .security_timeline import SecurityIdentityTimeline
 
@@ -29,6 +35,7 @@ class CanonicalReplayFrameResult:
     frame: pd.DataFrame
     bars: tuple[CanonicalReplayBar, ...]
     audit: CanonicalReplayAudit
+    attestation: CanonicalReplayConsumerAttestation
 
 
 class CanonicalReplayFrameAdapter:
@@ -44,6 +51,7 @@ class CanonicalReplayFrameAdapter:
         self._identities = identities
         self._builder = CanonicalReplayBuilder(actions)
         self._fail_on_quarantine = fail_on_quarantine
+        self._guard = CanonicalReplayConsumerGuard()
 
     def canonicalize(
         self,
@@ -132,8 +140,20 @@ class CanonicalReplayFrameAdapter:
             for bar in bars
             if bar.status is CanonicalReplayStatus.READY
         ]
-        output = pd.DataFrame(output_rows)
-        return CanonicalReplayFrameResult(frame=output, bars=bars, audit=audit)
+        if not output_rows:
+            raise ValueError("canonical replay produced no consumer-ready bars")
+        output = stamp_canonical_frame(pd.DataFrame(output_rows))
+        attestation = self._guard.validate(
+            output,
+            expected_trade_date=trade_date,
+            expected_as_of=as_of,
+        )
+        return CanonicalReplayFrameResult(
+            frame=output,
+            bars=bars,
+            audit=audit,
+            attestation=attestation,
+        )
 
 
 def _validate_trade_dates(frame: pd.DataFrame, expected: date) -> None:
@@ -166,19 +186,27 @@ def _consumer_row(
             "raw_low": source["low"],
             "raw_close": source["close"],
             "raw_volume": source["volume"],
+            "adjusted_open": str(bar.adjusted_open),
+            "adjusted_high": str(bar.adjusted_high),
+            "adjusted_low": str(bar.adjusted_low),
+            "adjusted_close": str(bar.adjusted_close),
+            "adjusted_volume": str(bar.adjusted_volume),
             "symbol": bar.canonical_symbol,
             "open": float(bar.adjusted_open),
             "high": float(bar.adjusted_high),
             "low": float(bar.adjusted_low),
             "close": float(bar.adjusted_close),
             "volume": float(bar.adjusted_volume),
-            "cumulative_price_factor": float(bar.cumulative_price_factor),
-            "cumulative_volume_factor": float(bar.cumulative_volume_factor),
+            "cumulative_price_factor": str(bar.cumulative_price_factor),
+            "cumulative_volume_factor": str(bar.cumulative_volume_factor),
             "applied_event_ids": bar.applied_event_ids,
             "unresolved_event_ids": bar.unresolved_event_ids,
             "replay_status": bar.status.value,
+            "replay_as_of": bar.as_of.isoformat(),
             "recovery_version": bar.recovery_version,
             "canonical_snapshot_sha256": snapshot_sha256,
+            "canonical_replay_enforced": True,
+            "replay_contract_version": CONSUMER_CONTRACT_VERSION,
         }
     )
     return row
