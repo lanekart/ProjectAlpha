@@ -5,7 +5,6 @@ from decimal import Decimal
 from enum import StrEnum
 
 from alpha.decision_intelligence.models import (
-    FinalDecisionAction,
     InstitutionalDecisionReport,
     OpportunityDecision,
     RejectionReasonCode,
@@ -68,7 +67,9 @@ class OpportunityPipelineDecision:
             if not self.watchlist_reasons:
                 raise ValueError("watchlist decisions require at least one reason")
             if not self.promotion_triggers:
-                raise ValueError("watchlist decisions require at least one promotion trigger")
+                raise ValueError(
+                    "watchlist decisions require at least one promotion trigger"
+                )
 
     @property
     def symbol(self) -> str:
@@ -96,7 +97,11 @@ class OpportunityPipelineEngine:
         report: InstitutionalDecisionReport,
     ) -> OpportunityPipelineReport:
         classified = tuple(self.classify(decision) for decision in report.decisions)
-        buy = tuple(item for item in classified if item.action is OpportunityPipelineAction.BUY)
+        buy = tuple(
+            item
+            for item in classified
+            if item.action is OpportunityPipelineAction.BUY
+        )
         watchlist = tuple(
             sorted(
                 (
@@ -111,7 +116,9 @@ class OpportunityPipelineEngine:
             )
         )
         rejected = tuple(
-            item for item in classified if item.action is OpportunityPipelineAction.REJECT
+            item
+            for item in classified
+            if item.action is OpportunityPipelineAction.REJECT
         )
         return OpportunityPipelineReport(
             decisions=classified,
@@ -120,7 +127,10 @@ class OpportunityPipelineEngine:
             rejected_opportunities=rejected,
         )
 
-    def classify(self, decision: OpportunityDecision) -> OpportunityPipelineDecision:
+    def classify(
+        self,
+        decision: OpportunityDecision,
+    ) -> OpportunityPipelineDecision:
         if decision.accepted:
             return OpportunityPipelineDecision(
                 decision=decision,
@@ -192,21 +202,10 @@ class OpportunityPipelineEngine:
             StressReasonCode.INSUFFICIENT_FIVE_YEAR_HISTORY,
             StressReasonCode.RECENT_FAILED_SIMILAR_SETUP,
         }
-        if any(
+        return not any(
             not result.passed and result.reason_code in hard_stress_codes
             for result in decision.stress_tests
-        ):
-            return False
-        if (
-            decision.decision_quality is not None
-            and decision.decision_quality.final_action is FinalDecisionAction.REJECT
-            and any(
-                not result.passed and result.reason_code in hard_stress_codes
-                for result in decision.stress_tests
-            )
-        ):
-            return False
-        return True
+        )
 
     def _watchlist_reasons(
         self,
@@ -234,7 +233,10 @@ class OpportunityPipelineEngine:
             )
         if RejectionReasonCode.PENDING_ENTRY_TRIGGER in gate_codes:
             reasons.append(WatchlistReasonCode.WAIT_FOR_CONFIRMATION)
-        if candidate.setup_stage == "LATE" and WatchlistReasonCode.ENTRY_EXTENDED not in reasons:
+        if (
+            candidate.setup_stage == "LATE"
+            and WatchlistReasonCode.ENTRY_EXTENDED not in reasons
+        ):
             reasons.append(WatchlistReasonCode.ENTRY_EXTENDED)
         return tuple(dict.fromkeys(reasons))
 
@@ -282,7 +284,9 @@ class OpportunityPipelineEngine:
         return tuple(dict.fromkeys(triggers))
 
 
-def render_opportunity_pipeline(report: OpportunityPipelineReport) -> tuple[str, ...]:
+def render_opportunity_pipeline(
+    report: OpportunityPipelineReport,
+) -> tuple[str, ...]:
     lines = [
         "Opportunity Pipeline",
         f"Buy Ready: {len(report.buy_opportunities)}",
@@ -300,7 +304,8 @@ def render_opportunity_pipeline(report: OpportunityPipelineReport) -> tuple[str,
                 f"- {item.symbol}: WATCHLIST (non-executable)",
                 f"  Directional Verdict: {candidate.final_verdict}",
                 "  Execution Readiness: NOT READY",
-                f"  Opportunity Score: {item.decision.score_breakdown.total_score}",
+                "  Opportunity Score: "
+                f"{item.decision.score_breakdown.total_score}",
                 "  Remark: Strong opportunity remains visible, but current "
                 "risk/reward or entry timing is unfavourable.",
                 "  Reasons: "
