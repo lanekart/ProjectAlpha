@@ -6,7 +6,7 @@ from alpha.historical_truth.models import (
     ValidationIssue,
     ValidationSeverity,
 )
-from alpha.historical_truth.service import HistoricalTruthWarehouse
+from alpha.historical_truth.resumable import HistoricalTruthWarehouse
 
 __all__ = [
     "ArchiveDataset",
