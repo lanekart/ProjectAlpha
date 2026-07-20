@@ -8,6 +8,7 @@ from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import cast
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,11 +98,9 @@ _LINEAGE_TOKENS = (
 
 
 def discover_sources(paths: Sequence[Path]) -> SchemaDiscoveryResult:
-    """Inspect supported source files and infer schemas and relationships."""
+    """Inspect supported files and infer schemas and relationships."""
 
-    schemas = tuple(
-        sorted((_inspect_source(path) for path in paths), key=_schema_key)
-    )
+    schemas = tuple(sorted((_inspect_source(path) for path in paths), key=_schema_key))
     mappings = tuple(
         sorted(
             (
@@ -113,11 +112,10 @@ def discover_sources(paths: Sequence[Path]) -> SchemaDiscoveryResult:
             key=_mapping_key,
         )
     )
-    relationships = _relationship_candidates(schemas)
     return SchemaDiscoveryResult(
         sources=schemas,
         mappings=mappings,
-        relationship_candidates=relationships,
+        relationship_candidates=_relationship_candidates(schemas),
     )
 
 
@@ -125,17 +123,17 @@ def export_schema_discovery(
     result: SchemaDiscoveryResult,
     output: Path,
 ) -> tuple[Path, ...]:
-    """Export deterministic JSON artifacts and a compact Markdown report."""
+    """Export deterministic JSON artifacts and a Markdown report."""
 
     output.mkdir(parents=True, exist_ok=True)
-    source_paths: list[Path] = []
+    schema_paths: list[Path] = []
     for schema in result.sources:
         path = output / f"{schema.source_name}.schema.json"
         path.write_text(
             json.dumps(asdict(schema), indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
-        source_paths.append(path)
+        schema_paths.append(path)
 
     mappings_path = output / "canonical_mapping_candidates.json"
     mappings_path.write_text(
@@ -147,16 +145,14 @@ def export_schema_discovery(
         + "\n",
         encoding="utf-8",
     )
-
     relationships_path = output / "relationship_graph.json"
     relationships_path.write_text(
         json.dumps(result.relationship_candidates, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-
     report_path = output / "report.md"
     report_path.write_text(_render_report(result), encoding="utf-8")
-    return (*source_paths, mappings_path, relationships_path, report_path)
+    return (*schema_paths, mappings_path, relationships_path, report_path)
 
 
 def _inspect_source(path: Path) -> SourceSchema:
@@ -199,9 +195,8 @@ def _read_csv(path: Path) -> tuple[Mapping[str, object], ...]:
 
 
 def _read_json(path: Path) -> tuple[Mapping[str, object], ...]:
-    payload: object
     if path.suffix.lower() == ".jsonl":
-        payload = [
+        payload: object = [
             json.loads(line)
             for line in path.read_text(encoding="utf-8").splitlines()
             if line.strip()
@@ -210,7 +205,7 @@ def _read_json(path: Path) -> tuple[Mapping[str, object], ...]:
         payload = json.loads(path.read_text(encoding="utf-8"))
 
     if isinstance(payload, Mapping):
-        nested_records = next(
+        nested = next(
             (
                 value
                 for value in payload.values()
@@ -219,19 +214,13 @@ def _read_json(path: Path) -> tuple[Mapping[str, object], ...]:
             ),
             None,
         )
-        payload = nested_records if nested_records is not None else [payload]
-
-    if not isinstance(payload, list):
+        payload = nested if nested is not None else [payload]
+    if not isinstance(payload, list) or not all(
+        isinstance(item, Mapping) for item in payload
+    ):
         raise ValueError(f"JSON source must contain records: {path}")
-    if not all(isinstance(item, Mapping) for item in payload):
-        raise ValueError(f"JSON source must contain records: {path}")
-
-    records: list[Mapping[str, object]] = []
-    for item in payload:
-        if not isinstance(item, Mapping):
-            raise ValueError(f"JSON source must contain records: {path}")
-        records.append(dict(item))
-    return tuple(records)
+    records = cast(list[Mapping[str, object]], payload)
+    return tuple(dict(item) for item in records)
 
 
 def _profile_fields(
@@ -243,18 +232,18 @@ def _profile_fields(
         values = tuple(row.get(name) for row in rows)
         non_null = tuple(value for value in values if not _is_null(value))
         rendered = tuple(_render_value(value) for value in non_null)
-        unique = len(set(rendered))
+        unique_count = len(set(rendered))
         profiles.append(
             FieldProfile(
                 name=name,
                 inferred_type=_infer_type(non_null),
                 nullable=len(non_null) != len(rows),
-                unique_count=unique,
+                unique_count=unique_count,
                 non_null_count=len(non_null),
                 candidate_key=(
                     bool(rows)
                     and len(non_null) == len(rows)
-                    and unique == len(rows)
+                    and unique_count == len(rows)
                 ),
                 sample_values=tuple(sorted(set(rendered))[:3]),
             )
@@ -268,8 +257,7 @@ def _infer_type(values: Iterable[object]) -> str:
         return "unknown"
     if len(kinds) == 1:
         return next(iter(kinds))
-    numeric = set(kinds) <= {"integer", "number"}
-    return "number" if numeric else "mixed"
+    return "number" if set(kinds) <= {"integer", "number"} else "mixed"
 
 
 def _value_kind(value: object) -> str:
@@ -304,11 +292,10 @@ def _mapping_candidates(
     normalized = _normalize(raw_field)
     candidates: list[MappingCandidate] = []
     for canonical, aliases in _CANONICAL_ALIASES.items():
-        normalized_aliases = tuple(_normalize(alias) for alias in aliases)
         if normalized == _normalize(canonical):
             confidence = 1.0
             rationale = "Exact canonical field match."
-        elif normalized in normalized_aliases:
+        elif normalized in {_normalize(alias) for alias in aliases}:
             confidence = 0.95
             rationale = "Known semantic alias."
         else:
@@ -330,14 +317,12 @@ def _relationship_candidates(
 ) -> tuple[tuple[str, str, str], ...]:
     by_field: dict[str, list[str]] = {}
     for schema in schemas:
-        for field_profile in schema.fields:
-            normalized_field = _normalize(field_profile.name)
-            by_field.setdefault(normalized_field, []).append(schema.source_name)
-
+        for profile in schema.fields:
+            by_field.setdefault(_normalize(profile.name), []).append(
+                schema.source_name
+            )
     relationships: set[tuple[str, str, str]] = set()
     for field_name, sources in by_field.items():
-        if len(sources) < 2:
-            continue
         ordered = sorted(set(sources))
         for index, left in enumerate(ordered):
             for right in ordered[index + 1 :]:
@@ -348,6 +333,7 @@ def _relationship_candidates(
 def _render_report(result: SchemaDiscoveryResult) -> str:
     lines = ["# Entity Schema Discovery", ""]
     for schema in result.sources:
+        candidate_keys = ", ".join(schema.candidate_primary_keys) or "NONE"
         lines.extend(
             [
                 f"## {schema.source_name}",
@@ -355,10 +341,7 @@ def _render_report(result: SchemaDiscoveryResult) -> str:
                 f"- Format: `{schema.source_format}`",
                 f"- Rows: `{schema.row_count}`",
                 f"- Fields: `{len(schema.fields)}`",
-                (
-                    "- Candidate keys: `"
-                    f"{', '.join(schema.candidate_primary_keys) or 'NONE'}`"
-                ),
+                f"- Candidate keys: `{candidate_keys}`",
                 "",
             ]
         )
@@ -403,7 +386,7 @@ def _looks_like_date(value: str) -> bool:
     if len(value) < 8:
         return False
     separators = value.count("-") + value.count("/")
-    return separators >= 2 and any(char.isdigit() for char in value)
+    return separators >= 2 and any(character.isdigit() for character in value)
 
 
 def _contains_token(value: str, tokens: tuple[str, ...]) -> bool:
@@ -412,8 +395,11 @@ def _contains_token(value: str, tokens: tuple[str, ...]) -> bool:
 
 
 def _normalize(value: str) -> str:
-    normalized = value.strip().lower().replace("-", "_")
-    return "_".join(part for part in normalized.split("_") if part)
+    return "_".join(
+        part
+        for part in value.strip().lower().replace("-", "_").split("_")
+        if part
+    )
 
 
 def _schema_key(schema: SourceSchema) -> tuple[str, str]:
