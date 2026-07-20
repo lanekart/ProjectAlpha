@@ -58,7 +58,14 @@ def test_cli_contract_exposes_required_commands_and_options() -> None:
     root = runner.invoke(benchmark_app, ["--help"], terminal_width=200)
     replay = runner.invoke(benchmark_app, ["replay", "--help"], terminal_width=200)
     assert root.exit_code == replay.exit_code == 0
-    for command in ("replay", "report", "trades", "portfolio", "opportunity"):
+    for command in (
+        "replay",
+        "report",
+        "trades",
+        "portfolio",
+        "opportunity",
+        "signal-audit",
+    ):
         assert command in root.stdout
     for option in (
         "--start",
