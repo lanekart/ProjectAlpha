@@ -99,14 +99,19 @@ _LINEAGE_TOKENS = (
 def discover_sources(paths: Sequence[Path]) -> SchemaDiscoveryResult:
     """Inspect supported source files and infer schemas and relationships."""
 
-    schemas = tuple(sorted((_inspect_source(path) for path in paths), key=_schema_key))
+    schemas = tuple(
+        sorted((_inspect_source(path) for path in paths), key=_schema_key)
+    )
     mappings = tuple(
         sorted(
             (
                 candidate
                 for schema in schemas
                 for field in schema.fields
-                for candidate in _mapping_candidates(schema.source_name, field.name)
+                for candidate in _mapping_candidates(
+                    schema.source_name,
+                    field.name,
+                )
             ),
             key=_mapping_key,
         )
@@ -119,7 +124,10 @@ def discover_sources(paths: Sequence[Path]) -> SchemaDiscoveryResult:
     )
 
 
-def export_schema_discovery(result: SchemaDiscoveryResult, output: Path) -> tuple[Path, ...]:
+def export_schema_discovery(
+    result: SchemaDiscoveryResult,
+    output: Path,
+) -> tuple[Path, ...]:
     """Export deterministic JSON artifacts and a compact Markdown report."""
 
     output.mkdir(parents=True, exist_ok=True)
@@ -133,15 +141,16 @@ def export_schema_discovery(result: SchemaDiscoveryResult, output: Path) -> tupl
         source_paths.append(path)
 
     mappings_path = output / "canonical_mapping_candidates.json"
+    mappings_payload = [asdict(item) for item in result.mappings]
     mappings_path.write_text(
-        json.dumps([asdict(item) for item in result.mappings], indent=2, sort_keys=True)
-        + "\n",
+        json.dumps(mappings_payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
 
     relationships_path = output / "relationship_graph.json"
     relationships_path.write_text(
-        json.dumps(result.relationship_candidates, indent=2, sort_keys=True) + "\n",
+        json.dumps(result.relationship_candidates, indent=2, sort_keys=True)
+        + "\n",
         encoding="utf-8",
     )
 
@@ -172,7 +181,9 @@ def _inspect_source(path: Path) -> SourceSchema:
             field.name for field in fields if field.candidate_key
         ),
         candidate_date_fields=tuple(
-            field.name for field in fields if _contains_token(field.name, _DATE_TOKENS)
+            field.name
+            for field in fields
+            if _contains_token(field.name, _DATE_TOKENS)
         ),
         candidate_lineage_fields=tuple(
             field.name
@@ -199,18 +210,26 @@ def _read_json(path: Path) -> tuple[Mapping[str, object], ...]:
 
     if isinstance(payload, Mapping):
         for value in payload.values():
-            if isinstance(value, list) and all(isinstance(item, Mapping) for item in value):
+            records = isinstance(value, list) and all(
+                isinstance(item, Mapping) for item in value
+            )
+            if records:
                 payload = value
                 break
         else:
             payload = [payload]
 
-    if not isinstance(payload, list) or not all(isinstance(item, Mapping) for item in payload):
+    valid_records = isinstance(payload, list) and all(
+        isinstance(item, Mapping) for item in payload
+    )
+    if not valid_records:
         raise ValueError(f"JSON source must contain records: {path}")
     return tuple(dict(item) for item in payload)
 
 
-def _profile_fields(rows: Sequence[Mapping[str, object]]) -> tuple[FieldProfile, ...]:
+def _profile_fields(
+    rows: Sequence[Mapping[str, object]],
+) -> tuple[FieldProfile, ...]:
     names = sorted({str(key) for row in rows for key in row})
     profiles: list[FieldProfile] = []
     for name in names:
@@ -218,14 +237,15 @@ def _profile_fields(rows: Sequence[Mapping[str, object]]) -> tuple[FieldProfile,
         non_null = tuple(value for value in values if not _is_null(value))
         rendered = tuple(_render_value(value) for value in non_null)
         unique = len(set(rendered))
+        complete = len(non_null) == len(rows)
         profiles.append(
             FieldProfile(
                 name=name,
                 inferred_type=_infer_type(non_null),
-                nullable=len(non_null) != len(rows),
+                nullable=not complete,
                 unique_count=unique,
                 non_null_count=len(non_null),
-                candidate_key=bool(rows) and len(non_null) == len(rows) and unique == len(rows),
+                candidate_key=bool(rows) and complete and unique == len(rows),
                 sample_values=tuple(sorted(set(rendered))[:3]),
             )
         )
@@ -267,7 +287,10 @@ def _value_kind(value: object) -> str:
     return type(value).__name__
 
 
-def _mapping_candidates(source_name: str, raw_field: str) -> tuple[MappingCandidate, ...]:
+def _mapping_candidates(
+    source_name: str,
+    raw_field: str,
+) -> tuple[MappingCandidate, ...]:
     normalized = _normalize(raw_field)
     candidates: list[MappingCandidate] = []
     for canonical, aliases in _CANONICAL_ALIASES.items():
@@ -298,7 +321,9 @@ def _relationship_candidates(
     by_field: dict[str, list[str]] = {}
     for schema in schemas:
         for field in schema.fields:
-            by_field.setdefault(_normalize(field.name), []).append(schema.source_name)
+            by_field.setdefault(_normalize(field.name), []).append(
+                schema.source_name
+            )
 
     relationships: set[tuple[str, str, str]] = set()
     for field, sources in by_field.items():
@@ -314,6 +339,7 @@ def _relationship_candidates(
 def _render_report(result: SchemaDiscoveryResult) -> str:
     lines = ["# Entity Schema Discovery", ""]
     for schema in result.sources:
+        candidate_keys = ", ".join(schema.candidate_primary_keys) or "NONE"
         lines.extend(
             [
                 f"## {schema.source_name}",
@@ -321,7 +347,7 @@ def _render_report(result: SchemaDiscoveryResult) -> str:
                 f"- Format: `{schema.source_format}`",
                 f"- Rows: `{schema.row_count}`",
                 f"- Fields: `{len(schema.fields)}`",
-                f"- Candidate keys: `{', '.join(schema.candidate_primary_keys) or 'NONE'}`",
+                f"- Candidate keys: `{candidate_keys}`",
                 "",
             ]
         )
@@ -375,7 +401,8 @@ def _contains_token(value: str, tokens: tuple[str, ...]) -> bool:
 
 
 def _normalize(value: str) -> str:
-    return "_".join(part for part in value.strip().lower().replace("-", "_").split("_") if part)
+    normalized = value.strip().lower().replace("-", "_")
+    return "_".join(part for part in normalized.split("_") if part)
 
 
 def _schema_key(schema: SourceSchema) -> tuple[str, str]:
