@@ -146,15 +146,15 @@ class HistoricalTruthIntegrityAudit:
                 ),
             )
         )
-        snapshots = tuple(
-            self._snapshot_finding(day, exchange) for day in observed
-        )
+        snapshots = tuple(self._snapshot_finding(day, exchange) for day in observed)
         counts = self._finding_counts(security_findings)
-        coverage = len(observed_set.intersection(expected)) / len(expected) if expected else 1.0
+        coverage = (
+            len(observed_set.intersection(expected)) / len(expected)
+            if expected
+            else 1.0
+        )
         snapshots_valid = sum(
-            finding.exists
-            and finding.checksum_valid
-            and finding.metadata_valid
+            finding.exists and finding.checksum_valid and finding.metadata_valid
             for finding in snapshots
         )
         candle_ready = (
@@ -280,9 +280,7 @@ class HistoricalTruthIntegrityAudit:
             expected_url = self.archive._nse_bhavcopy_request(trading_date).source_url
             if record is not None and record.source_url != expected_url:
                 classification = UnavailableClassification.URL_ERROR
-                evidence = (
-                    f"manifest URL differs from deterministic canonical URL: {expected_url}"
-                )
+                evidence = f"manifest URL differs from deterministic canonical URL: {expected_url}"
             else:
                 classification = UnavailableClassification.ARCHIVE_MISSING
                 evidence = (
@@ -384,7 +382,9 @@ class HistoricalTruthIntegrityAudit:
                 )
         for (trading_date, isin), securities in isin_symbols.items():
             if len(securities) > 1:
-                rendered = ",".join(f"{symbol}/{series}" for symbol, series in sorted(securities))
+                rendered = ",".join(
+                    f"{symbol}/{series}" for symbol, series in sorted(securities)
+                )
                 symbol, series = sorted(securities)[0]
                 findings.append(
                     self._finding(
@@ -418,9 +418,7 @@ class HistoricalTruthIntegrityAudit:
             for issue in self.archive.validate_bhavcopy_csv(csv_path):
                 severity = issue.severity.value
                 code = (
-                    "VALIDATION_ERROR"
-                    if severity == "error"
-                    else "VALIDATION_WARNING"
+                    "VALIDATION_ERROR" if severity == "error" else "VALIDATION_WARNING"
                 )
                 findings.append(
                     self._finding(
