@@ -241,9 +241,7 @@ def export_inventory(
     period_end = _resolve_period_end(year, as_of)
     required = tuple(row for row in rows if row.required)
     blockers = tuple(
-        row
-        for row in rows
-        if row.blocking and not row.certification_ready
+        row for row in rows if row.blocking and not row.certification_ready
     )
     ready_count = sum(row.certification_ready for row in required)
     score = round((ready_count / len(required)) * 100, 2) if required else 0.0
@@ -497,12 +495,7 @@ def _identity_row(
     isin_coverage = (with_isin / total * 100) if total else None
     snapshot_identity = snapshot_evidence.availability_counts.get("identity", 0)
     has_dedicated_rows = bool(table_evidence.row_count)
-    present = bool(
-        matched_tables
-        or matched_files
-        or with_isin
-        or snapshot_identity
-    )
+    present = bool(matched_tables or matched_files or with_isin or snapshot_identity)
     status = "MISSING"
     limitation = "No point-in-time identity evidence was found."
     if present:
@@ -705,10 +698,7 @@ def _render_report(
         f"- Certification: **{summary['certification']}**",
         f"- Coverage score: **{summary['coverage_score_percent']}%**",
         f"- Blocking datasets: **{summary['blocking_dataset_count']}**",
-        (
-            "- Recommended next action: "
-            f"**{summary['recommended_next_action']}**"
-        ),
+        (f"- Recommended next action: **{summary['recommended_next_action']}**"),
         "",
         "## Dataset Readiness",
         "",
@@ -896,9 +886,7 @@ def _matched_tables(
     expected = set(names)
     return tuple(
         sorted(
-            qualified
-            for qualified in tables
-            if qualified.split(".", 1)[-1] in expected
+            qualified for qualified in tables if qualified.split(".", 1)[-1] in expected
         )
     )
 
@@ -971,7 +959,7 @@ def _session_coverage(
     observed_sessions: int | None,
     expected_sessions: int | None,
 ) -> float | None:
-    if observed_sessions is None or expected_sessions in (None, 0):
+    if observed_sessions is None or expected_sessions is None or expected_sessions == 0:
         return None
     return min(100.0, observed_sessions / expected_sessions * 100)
 
@@ -1020,9 +1008,7 @@ def _parse_date(value: str | None) -> date | None:
     try:
         return date.fromisoformat(value)
     except ValueError as exc:
-        raise argparse.ArgumentTypeError(
-            "date must use YYYY-MM-DD format"
-        ) from exc
+        raise argparse.ArgumentTypeError("date must use YYYY-MM-DD format") from exc
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1060,9 +1046,7 @@ def main(argv: list[str] | None = None) -> int:
         output=args.output,
         as_of=as_of,
     )
-    summary = json.loads(
-        (args.output / "summary.json").read_text(encoding="utf-8")
-    )
+    summary = json.loads((args.output / "summary.json").read_text(encoding="utf-8"))
     print("Research Dataset Inventory")
     print(f"Year: {args.year}")
     print(f"Period end: {summary['period_end']}")
