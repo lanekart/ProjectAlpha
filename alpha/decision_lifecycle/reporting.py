@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from collections import Counter
 import csv
+from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass
 from io import StringIO
-from typing import Iterable
 
 from alpha.decision_lifecycle.lifecycle import (
     LifecycleRecord,
@@ -24,7 +24,9 @@ class LifecycleSummary:
             raise ValueError("total_records cannot be negative")
         if self.production_influence:
             raise ValueError("lifecycle summary cannot influence production execution")
-        normalized = tuple((LifecycleState(state), count) for state, count in self.counts)
+        normalized = tuple(
+            (LifecycleState(state), count) for state, count in self.counts
+        )
         if any(count < 0 for _, count in normalized):
             raise ValueError("lifecycle summary counts cannot be negative")
         if sum(count for _, count in normalized) != self.total_records:
