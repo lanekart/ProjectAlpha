@@ -148,6 +148,10 @@ class ReplayParityAnalyzer:
             bar.raw_close,
             bar.adjusted_close,
         )
+        canonical_signal = canonical.signal if canonical else None
+        canonical_decision = canonical.decision if canonical else None
+        signal_changed = raw.signal != canonical.signal if canonical else None
+        decision_changed = raw.decision != canonical.decision if canonical else None
         return ReplayParityRow(
             security_id=bar.security_id,
             trading_date=bar.trading_date,
@@ -158,11 +162,11 @@ class ReplayParityAnalyzer:
             price_change_percent=price_change_percent,
             price_changed=price_changed,
             raw_signal=raw.signal,
-            canonical_signal=canonical.signal if canonical else None,
-            signal_changed=(raw.signal != canonical.signal) if canonical else None,
+            canonical_signal=canonical_signal,
+            signal_changed=signal_changed,
             raw_decision=raw.decision,
-            canonical_decision=canonical.decision if canonical else None,
-            decision_changed=(raw.decision != canonical.decision) if canonical else None,
+            canonical_decision=canonical_decision,
+            decision_changed=decision_changed,
             replay_status=bar.status,
             applied_event_ids=bar.applied_event_ids,
             unresolved_event_ids=bar.unresolved_event_ids,
