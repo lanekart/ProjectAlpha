@@ -73,6 +73,17 @@ class BenchmarkArtifactExporter:
                 report.approval_statistics,
             ),
             _write_csv(
+                output / "top_rejection_reasons.csv",
+                tuple(
+                    {"reason_code": code, "rejected_candidates": count}
+                    for code, count in report.top_rejection_reasons
+                ),
+            ),
+            _write_csv(
+                output / "decision_eligibility.csv",
+                (_decision_eligibility_row(report),),
+            ),
+            _write_csv(
                 output / "opportunity_capture.csv",
                 report.opportunity_capture,
             ),
@@ -102,6 +113,34 @@ class BenchmarkArtifactExporter:
                 "immutable benchmark output already exists with a different input hash"
             )
 
+
+
+def _decision_eligibility_row(report: BenchmarkReplayReport) -> dict[str, object]:
+    raw_candidates = sum(
+        item.technical_candidates for item in report.candidate_statistics
+    )
+    approvable_signals = sum(
+        item.buy_candidates + item.strong_buy_candidates
+        for item in report.candidate_statistics
+    )
+    status = (
+        "BLOCKED_NO_200_SESSION_SECURITIES"
+        if report.eligible_securities == 0
+        else "ELIGIBLE_POPULATION_AVAILABLE"
+    )
+    return {
+        "status": status,
+        "minimum_complete_history_sessions": 200,
+        "replay_sessions": report.manifest.sessions,
+        "eligible_securities": report.eligible_securities,
+        "eligible_security_days": report.eligible_security_observations,
+        "raw_technical_candidates": raw_candidates,
+        "raw_buy_or_strong_buy_signals": approvable_signals,
+        "institutional_approvals": sum(
+            item.institutional_approvals for item in report.candidate_statistics
+        ),
+        "production_influence": False,
+    }
 
 def load_manifest(
     output_directory: Path | str = DEFAULT_BENCHMARK_OUTPUT,
