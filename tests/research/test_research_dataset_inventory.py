@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 
 import duckdb
@@ -10,87 +10,138 @@ import duckdb
 from alpha.research_dataset_inventory import build_inventory, export_inventory
 
 
-def _weekdays(start: date, end: date) -> tuple[date, ...]:
-    return tuple(
-        start + timedelta(days=offset)
-        for offset in range((end - start).days + 1)
-        if (start + timedelta(days=offset)).weekday() < 5
-    )
-
-
-def _database(path: Path) -> None:
+def _database(path: Path, sessions: tuple[date, ...]) -> None:
     connection = duckdb.connect(str(path))
     try:
         connection.execute(
-            "CREATE TABLE daily_prices("
-            "trading_date DATE, symbol VARCHAR, close DECIMAL(18,4))"
+            "CREATE TABLE daily_candle("
+            "trading_date DATE, exchange VARCHAR, symbol VARCHAR, "
+            "series VARCHAR, isin VARCHAR, open_price DECIMAL(18,4), "
+            "high_price DECIMAL(18,4), low_price DECIMAL(18,4), "
+            "close_price DECIMAL(18,4), volume BIGINT, "
+            "source_sha256 VARCHAR)"
         )
-        sessions = _weekdays(date(2026, 1, 1), date(2026, 1, 30))
         connection.executemany(
-            "INSERT INTO daily_prices VALUES (?, 'AAA', 100)",
+            "INSERT INTO daily_candle VALUES "
+            "(?, 'NSE', 'AAA', 'EQ', 'INE0001', 99, 101, 98, 100, "
+            "1000, 'hash')",
             [(session,) for session in sessions],
         )
         connection.execute(
-            "CREATE TABLE corporate_actions("
-            "effective_date DATE, symbol VARCHAR, action_type VARCHAR)"
+            "CREATE TABLE corporate_action("
+            "ex_date DATE, exchange VARCHAR, symbol VARCHAR, "
+            "series VARCHAR, isin VARCHAR, action_type VARCHAR)"
         )
         connection.execute(
-            "INSERT INTO corporate_actions VALUES (?, 'AAA', 'SPLIT')",
-            [date(2026, 1, 15)],
+            "CREATE TABLE security_identity("
+            "exchange VARCHAR, symbol VARCHAR, series VARCHAR, "
+            "isin VARCHAR, valid_from DATE, valid_to DATE)"
         )
     finally:
         connection.close()
 
 
-def test_inventory_reports_present_partial_and_missing_datasets(
+def _snapshots(root: Path, sessions: tuple[date, ...]) -> None:
+    destination = root / "nse" / "2026"
+    destination.mkdir(parents=True)
+    for session in sessions:
+        payload = {
+            "snapshot_date": session.isoformat(),
+            "availability": {
+                "candles": True,
+                "identity": True,
+                "corporate_actions": False,
+                "delivery": False,
+                "indices": False,
+                "vix": False,
+            },
+        }
+        (destination / f"{session.isoformat()}.json").write_text(
+            json.dumps(payload, sort_keys=True),
+            encoding="utf-8",
+        )
+
+
+def test_inventory_uses_canonical_candles_and_snapshots(
     tmp_path: Path,
 ) -> None:
     database = tmp_path / "truth.duckdb"
     snapshots = tmp_path / "snapshots"
-    snapshots.mkdir()
-    (snapshots / "security_master_2026.csv").write_text(
-        "isin,symbol\nINE0001,AAA\n",
-        encoding="utf-8",
+    sessions = (
+        date(2026, 1, 2),
+        date(2026, 1, 5),
+        date(2026, 1, 6),
     )
-    _database(database)
+    _database(database, sessions)
+    _snapshots(snapshots, sessions)
 
     rows = build_inventory(
         year=2026,
         database=database,
         snapshots=snapshots,
+        as_of=date(2026, 1, 6),
     )
     by_key = {row.dataset_key: row for row in rows}
 
-    assert by_key["daily_ohlcv"].status == "COMPLETE_CANDIDATE"
-    assert by_key["daily_ohlcv"].coverage_percent == "100.00"
-    assert by_key["daily_ohlcv"].missing_sessions == 0
-    assert by_key["corporate_actions"].status == "PARTIAL"
-    assert by_key["security_identity"].matched_files == 1
-    assert by_key["delivery_percentage"].status == "MISSING"
+    daily = by_key["daily_ohlcv"]
+    assert daily.status == "COMPLETE_CANDIDATE"
+    assert daily.certification_ready is True
+    assert daily.matched_tables == "main.daily_candle"
+    assert daily.observed_sessions == 3
+    assert daily.last_date == "2026-01-06"
+    assert "snapshot_sessions=3" in daily.evidence
+
+    identity = by_key["security_identity"]
+    assert identity.status == "PARTIAL"
+    assert identity.certification_ready is False
+    assert "candle_isin_coverage=100.00%" in identity.evidence
+    assert by_key["corporate_actions"].status == "PRESENT_EMPTY"
+    assert by_key["trading_calendar"].status == "DERIVED_ONLY"
     assert all(row.diagnostic_only for row in rows)
     assert not any(row.production_influence for row in rows)
 
 
-def test_export_is_deterministic_and_not_certified_with_blockers(
+def test_as_of_caps_expected_sessions_and_export_is_deterministic(
     tmp_path: Path,
 ) -> None:
     database = tmp_path / "truth.duckdb"
-    _database(database)
-    rows = build_inventory(year=2026, database=database, snapshots=None)
+    snapshots = tmp_path / "snapshots"
+    sessions = (date(2026, 7, 17), date(2026, 7, 20))
+    _database(database, sessions)
+    _snapshots(snapshots, sessions)
+    as_of = date(2026, 7, 20)
+    rows = build_inventory(
+        year=2026,
+        database=database,
+        snapshots=snapshots,
+        as_of=as_of,
+    )
     output = tmp_path / "artifacts"
 
-    first_paths = export_inventory(rows, year=2026, output=output)
+    first_paths = export_inventory(
+        rows,
+        year=2026,
+        output=output,
+        as_of=as_of,
+    )
     first = {path.name: path.read_bytes() for path in first_paths}
-    second_paths = export_inventory(rows, year=2026, output=output)
+    second_paths = export_inventory(
+        rows,
+        year=2026,
+        output=output,
+        as_of=as_of,
+    )
     second = {path.name: path.read_bytes() for path in second_paths}
 
     assert first == second
     summary = json.loads(
         (output / "summary.json").read_text(encoding="utf-8")
     )
+    assert summary["period_end"] == "2026-07-20"
     assert summary["certification"] == "NOT_CERTIFIED"
     assert summary["production_influence"] is False
-    assert "corporate_actions" in summary["blocking_datasets"]
+    assert "daily_ohlcv" not in summary["blocking_datasets"]
+    assert summary["recommended_next_action"] == "Corporate Actions"
     with (output / "dataset_inventory.csv").open(
         encoding="utf-8",
         newline="",
@@ -98,6 +149,7 @@ def test_export_is_deterministic_and_not_certified_with_blockers(
         records = list(csv.DictReader(handle))
     assert len(records) == 12
     report = (output / "report.md").read_text(encoding="utf-8")
+    assert "Period end: **2026-07-20**" in report
     assert report.endswith("**PRODUCTION_INFLUENCE=false**\n")
 
 
@@ -108,6 +160,7 @@ def test_missing_database_is_reported_without_fabrication(
         year=2026,
         database=tmp_path / "missing.duckdb",
         snapshots=tmp_path / "missing-snapshots",
+        as_of=date(2026, 7, 20),
     )
 
     assert all(row.status == "MISSING" for row in rows)
