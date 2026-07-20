@@ -93,15 +93,19 @@ def test_identical_decisions_pass(tmp_path: Path) -> None:
     assert report.unexpected_changes == 0
 
 
-def test_symbol_rename_is_expected(tmp_path: Path) -> None:
-    report = DecisionParityValidator(_engine(tmp_path, "INFY")).validate(
-        (_candidate("infy"),)
+def test_identifier_to_canonical_symbol_is_expected(tmp_path: Path) -> None:
+    report = DecisionParityValidator(_engine(tmp_path)).validate(
+        (_candidate("INE000000001"),)
     )
 
     assert report.passed
     assert report.expected_changes == 1
-    assert report.candidate_results[0].classification is (
-        DecisionParityClassification.EXPECTED_CHANGE
+    result = report.candidate_results[0]
+    assert result.legacy_symbol == "INE000000001"
+    assert result.recovered_symbol == "INFY"
+    assert result.classification is DecisionParityClassification.EXPECTED_CHANGE
+    assert tuple(difference.field for difference in result.differences) == (
+        "candidate.symbol",
     )
 
 
