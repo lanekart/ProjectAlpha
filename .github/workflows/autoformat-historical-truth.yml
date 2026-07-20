@@ -5,6 +5,7 @@ on:
     branches:
       - feature/historical-truth-warehouse-v1
     paths:
+      - "alpha/application/historical_truth_cli.py"
       - "alpha/historical_truth/**"
       - "tests/historical_truth/**"
       - ".github/workflows/autoformat-historical-truth.yml"
@@ -30,7 +31,11 @@ jobs:
         run: python -m pip install ruff
 
       - name: Format Historical Truth files
-        run: ruff format alpha/historical_truth tests/historical_truth
+        run: |
+          ruff format \
+            alpha/application/historical_truth_cli.py \
+            alpha/historical_truth \
+            tests/historical_truth
 
       - name: Commit formatting
         run: |
@@ -39,6 +44,9 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add alpha/historical_truth tests/historical_truth
+          git add \
+            alpha/application/historical_truth_cli.py \
+            alpha/historical_truth \
+            tests/historical_truth
           git commit -m "Format Historical Truth files"
           git push origin HEAD:feature/historical-truth-warehouse-v1
