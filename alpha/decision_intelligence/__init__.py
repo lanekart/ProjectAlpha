@@ -66,6 +66,14 @@ from alpha.decision_intelligence.opportunity_pipeline import (
     WatchlistReasonCode,
     render_opportunity_pipeline,
 )
+from alpha.decision_intelligence.parity import (
+    CandidateDecisionParity,
+    DecisionFieldDifference,
+    DecisionParityClassification,
+    DecisionParityReport,
+    DecisionParityValidator,
+    export_decision_parity,
+)
 from alpha.decision_intelligence.rendering import (
     render_decision_audit,
     render_decision_report,
@@ -82,12 +90,17 @@ from alpha.decision_intelligence.stress import (
 from alpha.decision_intelligence.tradeplan import TradePlanOptimizationEngine
 
 __all__ = [
+    "CandidateDecisionParity",
     "CapacityAssessment",
     "CapacityAssessor",
     "CandidateDisqualification",
     "DecisionAuditReport",
     "DecisionEvidenceCardBuilder",
     "DecisionEvidenceSnapshot",
+    "DecisionFieldDifference",
+    "DecisionParityClassification",
+    "DecisionParityReport",
+    "DecisionParityValidator",
     "DecisionQualityAssessment",
     "DecisionStressTestEngine",
     "DisqualificationCategory",
@@ -108,8 +121,8 @@ __all__ = [
     "OpportunityPipelineEngine",
     "OpportunityPipelineReport",
     "OpportunityScoreBreakdown",
-    "OverconfidenceGuard",
     "OverconfidenceAssessment",
+    "OverconfidenceGuard",
     "PromotionTrigger",
     "RecoveredIdentityDecisionEngine",
     "RecoveredSecurityIdentityIndex",
@@ -129,9 +142,9 @@ __all__ = [
     "StressReasonCode",
     "StressSeverity",
     "StressTestResult",
+    "TargetCandidate",
     "TargetQuality",
     "TargetQualityAssessment",
-    "TargetCandidate",
     "TargetQualityReview",
     "TradePlanAuditReport",
     "TradePlanOptimizationEngine",
@@ -140,6 +153,7 @@ __all__ = [
     "TradeSetupDisqualificationReporter",
     "WatchlistReasonCode",
     "candidate_from_recommendation",
+    "export_decision_parity",
     "opportunity_grade",
     "render_decision_audit",
     "render_decision_evidence_cards",
