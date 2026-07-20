@@ -54,6 +54,10 @@ class CanonicalReplayBar:
     def __post_init__(self) -> None:
         if not self.security_id.strip():
             raise ValueError("security_id must not be empty")
+        if not self.raw_symbol.strip():
+            raise ValueError("raw_symbol must not be empty")
+        if not self.canonical_symbol.strip():
+            raise ValueError("canonical_symbol must not be empty")
         if self.trading_date > self.as_of:
             raise ValueError("trading_date cannot be after replay as_of date")
         if self.cumulative_price_factor <= 0 or self.cumulative_volume_factor <= 0:
@@ -85,11 +89,22 @@ class CanonicalReplayBuilder:
         self._timeline = timeline
         self._adjuster = CorporateActionAdjustmentEngine(timeline)
 
-    def build_bar(self, bar: CorporateActionBar, *, as_of: date) -> CanonicalReplayBar:
+    def build_bar(
+        self,
+        bar: CorporateActionBar,
+        *,
+        as_of: date,
+        canonical_symbol: str | None = None,
+    ) -> CanonicalReplayBar:
         if bar.trading_date > as_of:
             raise ValueError("cannot replay a bar after the replay as_of date")
 
         adjusted = self._adjuster.adjust_bar(bar, as_of=as_of)
+        resolved_symbol = (
+            canonical_symbol.strip().upper() if canonical_symbol else adjusted.symbol
+        )
+        if not resolved_symbol:
+            raise ValueError("canonical replay symbol must not be empty")
         unresolved = tuple(
             event.event_id
             for event in self._timeline.for_security(bar.security_id, as_of=as_of)
@@ -104,7 +119,7 @@ class CanonicalReplayBuilder:
         return CanonicalReplayBar(
             security_id=bar.security_id,
             raw_symbol=bar.symbol,
-            canonical_symbol=adjusted.symbol,
+            canonical_symbol=resolved_symbol,
             trading_date=bar.trading_date,
             as_of=as_of,
             raw_open=bar.open,
@@ -145,27 +160,56 @@ class CanonicalReplayBuilder:
         *,
         as_of: date,
     ) -> CanonicalReplayAudit:
-        replay = self.build(bars, as_of=as_of)
+        return self.audit_bars(self.build(bars, as_of=as_of))
+
+    def audit_bars(
+        self,
+        replay: Iterable[CanonicalReplayBar],
+    ) -> CanonicalReplayAudit:
+        """Audit already-built canonical bars without rebuilding identity lineage."""
+
+        ordered = tuple(
+            sorted(
+                replay,
+                key=lambda item: (
+                    item.trading_date,
+                    item.security_id,
+                    item.raw_symbol,
+                ),
+            )
+        )
         ready = tuple(
-            item for item in replay if item.status is CanonicalReplayStatus.READY
+            item for item in ordered if item.status is CanonicalReplayStatus.READY
         )
         quarantined = tuple(
-            item for item in replay if item.status is CanonicalReplayStatus.QUARANTINED
+            item
+            for item in ordered
+            if item.status is CanonicalReplayStatus.QUARANTINED
         )
-        adjusted = tuple(item for item in replay if item.applied_event_ids)
+        adjusted = tuple(
+            item
+            for item in ordered
+            if item.applied_event_ids
+            or item.raw_symbol != item.canonical_symbol
+            or item.raw_close != item.adjusted_close
+        )
         unresolved = tuple(
             sorted(
-                {event_id for item in replay for event_id in item.unresolved_event_ids}
+                {
+                    event_id
+                    for item in ordered
+                    for event_id in item.unresolved_event_ids
+                }
             )
         )
         return CanonicalReplayAudit(
-            bars_examined=len(replay),
+            bars_examined=len(ordered),
             bars_ready=len(ready),
             bars_quarantined=len(quarantined),
             bars_adjusted=len(adjusted),
-            securities_examined=len({item.security_id for item in replay}),
+            securities_examined=len({item.security_id for item in ordered}),
             unresolved_event_ids=unresolved,
-            snapshot_sha256=canonical_replay_sha256(replay),
+            snapshot_sha256=canonical_replay_sha256(ordered),
             passed=not quarantined,
         )
 
