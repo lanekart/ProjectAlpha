@@ -1,14 +1,14 @@
 from __future__ import annotations
 
+import csv
+import json
 from collections import Counter
 from collections.abc import Iterable
-import csv
 from dataclasses import asdict, dataclass
 from datetime import date
 from decimal import Decimal
 from enum import IntEnum, StrEnum
 from io import StringIO
-import json
 
 
 class EvidenceRegistryError(ValueError):
@@ -134,7 +134,9 @@ class EvidenceMetadata:
         object.__setattr__(self, "category", EvidenceCategory(self.category))
         object.__setattr__(self, "maturity", maturity)
         object.__setattr__(self, "status", EvidenceStatus(self.status))
-        object.__setattr__(self, "applicable_regimes", _normalize_tokens(self.applicable_regimes))
+        object.__setattr__(
+            self, "applicable_regimes", _normalize_tokens(self.applicable_regimes)
+        )
         object.__setattr__(self, "dependencies", _normalize_tokens(self.dependencies))
         object.__setattr__(self, "outputs", _normalize_tokens(self.outputs))
 
@@ -166,7 +168,9 @@ class GovernancePolicy:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "environment", GovernanceEnvironment(self.environment))
-        object.__setattr__(self, "minimum_maturity", EvidenceMaturity(self.minimum_maturity))
+        object.__setattr__(
+            self, "minimum_maturity", EvidenceMaturity(self.minimum_maturity)
+        )
         object.__setattr__(
             self,
             "allowed_statuses",
@@ -319,14 +323,19 @@ def render_registry_summary(summary: RegistrySummary) -> tuple[str, ...]:
         for maturity, count in summary.maturity_counts
     )
     lines.append("Status:")
-    lines.extend(f"- {status.value}: {count}" for status, count in summary.status_counts)
+    lines.extend(
+        f"- {status.value}: {count}" for status, count in summary.status_counts
+    )
     lines.append("Execution Status: NON-EXECUTABLE GOVERNANCE METADATA")
     return tuple(lines)
 
 
 def export_registry_json(entries: Iterable[EvidenceMetadata]) -> str:
     return json.dumps(
-        [entry.to_dict() for entry in sorted(entries, key=lambda item: item.evidence_id)],
+        [
+            entry.to_dict()
+            for entry in sorted(entries, key=lambda item: item.evidence_id)
+        ],
         indent=2,
         sort_keys=True,
     )
@@ -382,8 +391,12 @@ def export_registry_csv(entries: Iterable[EvidenceMetadata]) -> str:
                 "|".join(entry.applicable_regimes),
                 "|".join(entry.dependencies),
                 "|".join(entry.outputs),
-                "" if entry.last_validation is None else entry.last_validation.isoformat(),
-                "" if entry.last_calibration is None else entry.last_calibration.isoformat(),
+                ""
+                if entry.last_validation is None
+                else entry.last_validation.isoformat(),
+                ""
+                if entry.last_calibration is None
+                else entry.last_calibration.isoformat(),
                 "" if entry.documentation is None else entry.documentation,
                 str(entry.production_influence).lower(),
             )

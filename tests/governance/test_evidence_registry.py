@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import json
 from datetime import date
 from decimal import Decimal
-import json
 
 import pytest
 
@@ -187,8 +187,7 @@ def test_precision_and_calibration_are_bounded() -> None:
 def test_registry_metadata_cannot_influence_execution() -> None:
     metadata = _metadata()
     values = {
-        field: getattr(metadata, field)
-        for field in metadata.__dataclass_fields__
+        field: getattr(metadata, field) for field in metadata.__dataclass_fields__
     }
     values["production_influence"] = True
 
