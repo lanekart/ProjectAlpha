@@ -302,18 +302,22 @@ class HistoricalTruthWarehouse:
         payload = [self._serialise(record) for record in records]
         json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         with csv_path.open("w", encoding="utf-8", newline="") as handle:
-            fieldnames = list(payload[0]) if payload else [
-                "exchange",
-                "dataset",
-                "trading_date",
-                "source_url",
-                "relative_path",
-                "status",
-                "retrieved_at",
-                "sha256",
-                "byte_size",
-                "error",
-            ]
+            fieldnames = (
+                list(payload[0])
+                if payload
+                else [
+                    "exchange",
+                    "dataset",
+                    "trading_date",
+                    "source_url",
+                    "relative_path",
+                    "status",
+                    "retrieved_at",
+                    "sha256",
+                    "byte_size",
+                    "error",
+                ]
+            )
             writer = csv.DictWriter(handle, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(payload)
