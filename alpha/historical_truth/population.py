@@ -143,6 +143,12 @@ class HistoricalPopulationEngine:
         try:
             csv_path = self._extract_single_csv(archive_path, request)
             issues = self.archive.validate_bhavcopy_csv(csv_path)
+            self.canonical.record_validation_issues(
+                request.trading_date,
+                issues,
+                exchange=request.exchange,
+                source_sha256=fetched.sha256,
+            )
             errors = tuple(issue for issue in issues if issue.severity.value == "error")
             if errors:
                 return PopulationRecord(
