@@ -34,6 +34,10 @@ from .models import (
     RecoverySeverity,
 )
 from .registry import RecoveryRegistry, registry
+from .replay_frame import (
+    CanonicalReplayFrameAdapter,
+    CanonicalReplayFrameResult,
+)
 from .replay_parity import (
     ReplayEvaluation,
     ReplayParityAnalyzer,
@@ -58,6 +62,10 @@ from .security_entity import (
     SecurityEntityRecoveryEngine,
     export_security_entity_recovery,
 )
+from .security_timeline import (
+    SecurityIdentityRecord,
+    SecurityIdentityTimeline,
+)
 
 __all__ = [
     "AdjustedCorporateActionBar",
@@ -66,6 +74,8 @@ __all__ = [
     "CanonicalReplayAudit",
     "CanonicalReplayBar",
     "CanonicalReplayBuilder",
+    "CanonicalReplayFrameAdapter",
+    "CanonicalReplayFrameResult",
     "CanonicalReplaySnapshot",
     "CanonicalReplaySnapshotRepository",
     "CanonicalReplayStatus",
@@ -96,6 +106,8 @@ __all__ = [
     "ReplayParityRow",
     "SchemaDiscoveryResult",
     "SecurityEntityRecoveryEngine",
+    "SecurityIdentityRecord",
+    "SecurityIdentityTimeline",
     "SourceSchema",
     "canonical_replay_sha256",
     "discover_sources",
