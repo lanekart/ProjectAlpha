@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-
 from alpha.diagnostics import (
     DiagnosticContext,
     DiagnosticEngine,
@@ -91,7 +90,7 @@ class ExampleEngine(DiagnosticEngine):
 def _context(tmp_path: Path) -> DiagnosticContext:
     return DiagnosticContext(
         engine_key="example",
-        as_of=datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc),
+        as_of=datetime(2026, 7, 20, 12, 0, tzinfo=UTC),
         output_directory=tmp_path,
         parameters={"year": 2026},
     )
@@ -112,7 +111,7 @@ def test_context_engine_key_must_match(tmp_path: Path) -> None:
     engine = ExampleEngine()
     context = DiagnosticContext(
         engine_key="wrong",
-        as_of=datetime(2026, 7, 20, tzinfo=timezone.utc),
+        as_of=datetime(2026, 7, 20, tzinfo=UTC),
         output_directory=tmp_path,
     )
 
