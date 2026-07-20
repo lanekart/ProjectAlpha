@@ -344,20 +344,14 @@ class HistoricalTruthIntegrityAudit:
                 )
             seen_security.add(key)
             if isin:
-                isin_symbols.setdefault((trading_date, isin, series), set()).add(
-                    symbol
-                )
+                isin_symbols.setdefault((trading_date, isin, series), set()).add(symbol)
             violations = self._ohlc_violations(open_, high, low, close)
             if violations:
                 series_specific = series.upper() == "T0"
                 findings.append(
                     self._finding(
                         trading_date,
-                        (
-                            "SERIES_SPECIFIC_OHLC"
-                            if series_specific
-                            else "INVALID_OHLC"
-                        ),
+                        ("SERIES_SPECIFIC_OHLC" if series_specific else "INVALID_OHLC"),
                         "warning" if series_specific else "error",
                         symbol,
                         series,
@@ -705,10 +699,7 @@ class HistoricalTruthIntegrityAudit:
             f"- Duplicate securities: {summary.duplicate_securities}",
             f"- Duplicate ISINs: {summary.duplicate_isins}",
             f"- Invalid OHLC relationships: {summary.invalid_ohlc}",
-            (
-                "- Series-specific OHLC exceptions: "
-                f"{summary.series_ohlc_exceptions}"
-            ),
+            (f"- Series-specific OHLC exceptions: {summary.series_ohlc_exceptions}"),
             f"- Negative prices: {summary.negative_prices}",
             f"- Zero-volume anomalies: {summary.zero_volume_anomalies}",
             f"- Source validation errors: {summary.validation_errors}",
