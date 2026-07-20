@@ -18,6 +18,10 @@ from alpha.benchmark_replay import (
     ReplayRequest,
     render_replay_summary,
 )
+from alpha.benchmark_replay.signal_audit import (
+    export_diagnostic_signal_audit,
+    run_diagnostic_signal_audit,
+)
 from alpha.canonical_universe_audit.store import LegacyMarketDataStore
 from alpha.config.settings import settings
 from alpha.historical_truth.replay import HistoricalTruthReplayStore
@@ -92,6 +96,54 @@ def benchmark_replay(
         typer.echo(stream.getvalue(), nl=False)
     else:
         typer.echo(render_replay_summary(report), nl=False)
+    typer.echo(f"Artifacts: {destination} ({len(paths)} files)")
+
+
+@benchmark_app.command("signal-audit")
+def benchmark_signal_audit(
+    benchmark_output: Annotated[Path, typer.Option("--benchmark-output")] = (
+        DEFAULT_BENCHMARK_OUTPUT
+    ),
+    database: Annotated[Path, typer.Option("--database")] = settings.database_path,
+    historical_truth_snapshots: Annotated[
+        Path | None,
+        typer.Option("--historical-truth-snapshots"),
+    ] = None,
+    audit_output: Annotated[Path | None, typer.Option("--audit-output")] = None,
+    start: Annotated[str | None, typer.Option("--start")] = None,
+    end: Annotated[str | None, typer.Option("--end")] = None,
+) -> None:
+    """Audit raw BUY/STRONG BUY signals using future observations only as labels."""
+
+    replay_start = _date(start)
+    replay_end = _date(end)
+    store = (
+        HistoricalTruthReplayStore(
+            database_path=database,
+            snapshot_root=historical_truth_snapshots,
+            start=replay_start,
+            end=replay_end,
+        )
+        if historical_truth_snapshots is not None
+        else LegacyMarketDataStore(database)
+    )
+    approvals = benchmark_output / "approval_statistics.csv"
+    destination = audit_output or benchmark_output / "diagnostic_signal_audit"
+    with store:
+        audit = run_diagnostic_signal_audit(
+            store=store,
+            approval_statistics=approvals,
+        )
+    paths = export_diagnostic_signal_audit(
+        audit,
+        output_directory=destination,
+    )
+    typer.echo("Diagnostic Signal Audit")
+    typer.echo(
+        f"Raw BUY/STRONG BUY signals: {audit.summary['raw_buy_or_strong_buy_signals']}"
+    )
+    typer.echo("DIAGNOSTIC_ONLY=true")
+    typer.echo("PRODUCTION_INFLUENCE=false")
     typer.echo(f"Artifacts: {destination} ({len(paths)} files)")
 
 

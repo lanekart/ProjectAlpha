@@ -148,6 +148,7 @@ class CanonicalBenchmarkReplayEngine:
                         opportunity_grade=(
                             "ACCEPTED" if item.institutional_approved else "REJECT"
                         ),
+                        final_signal=item.final_signal,
                         primary_reason_code=reason_code,
                         rejection_category=category,
                         explanation=explanation,

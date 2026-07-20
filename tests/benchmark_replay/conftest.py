@@ -97,6 +97,7 @@ def benchmark_report() -> BenchmarkReplayReport:
             approved=False,
             opportunity_score=Decimal("50"),
             opportunity_grade="REJECT",
+            final_signal="HOLD",
             primary_reason_code="WEAK_VERDICT",
             rejection_category=RejectionCategory.NO_CANDIDATE,
             explanation="Only BUY candidates are deployable.",

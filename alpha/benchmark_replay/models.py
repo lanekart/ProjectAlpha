@@ -113,6 +113,7 @@ class ApprovalStatistic:
     approved: bool
     opportunity_score: Decimal
     opportunity_grade: str
+    final_signal: str
     primary_reason_code: str
     rejection_category: RejectionCategory
     explanation: str
