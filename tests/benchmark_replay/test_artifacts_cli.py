@@ -28,6 +28,8 @@ def test_export_is_deterministic_schema_complete_and_immutable(
     assert (tmp_path / "top_rejection_reasons.csv").is_file()
     trade_headers = next(csv.reader((tmp_path / "trade_log.csv").open()))
     assert {"trade_id", "entry_price", "exit_reason"}.issubset(trade_headers)
+    approval_headers = next(csv.reader((tmp_path / "approval_statistics.csv").open()))
+    assert "final_signal" in approval_headers
     manifest = json.loads((tmp_path / "manifest.json").read_text())
     assert manifest["production_influence"] is False
     assert len(manifest["artifact_hashes"]) == 15
