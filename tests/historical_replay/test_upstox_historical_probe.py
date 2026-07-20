@@ -74,6 +74,11 @@ from alpha.historical_replay.upstox_series_integrity import (
 )
 
 runner = CliRunner()
+
+_PROJECT_REPLAY_CORPUS_AVAILABLE = (
+    Path(".alpha/breakout_reference_dataset_v1.json").is_file()
+    and Path(".alpha/candidate_learning_ledger.json").is_file()
+)
 IST = timezone(timedelta(hours=5, minutes=30))
 
 
@@ -893,6 +898,10 @@ def test_persistent_provider_error_is_classified_after_retries() -> None:
     assert captured.value.category is UpstoxProbeErrorCategory.PERSISTENT_PROVIDER_ERROR
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_permanent_instrument_not_found_is_not_retried(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1003,6 +1012,10 @@ def test_dry_run_makes_no_network_call_and_creates_no_evidence_file(
     assert plan.production_influence is False
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_live_sample_is_resumable_and_persistence_is_sanitized(tmp_path: Path) -> None:
     planning = UpstoxHistoricalProbeService(
         client=UpstoxReadOnlyHistoricalClient(
@@ -1059,6 +1072,10 @@ def test_live_sample_is_resumable_and_persistence_is_sanitized(tmp_path: Path) -
     assert second.resumed_candidates == 1
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_full_population_requires_live_confirmation_and_successful_sample(
     tmp_path: Path,
 ) -> None:
@@ -1078,6 +1095,10 @@ def test_full_population_requires_live_confirmation_and_successful_sample(
         )
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_full_population_resume_reuses_completed_sample_evidence(
     tmp_path: Path,
 ) -> None:
@@ -1140,6 +1161,10 @@ def test_full_population_resume_reuses_completed_sample_evidence(
     assert len(transport.calls) == 2
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_persistent_authentication_failure_stops_full_run(
     tmp_path: Path,
 ) -> None:
@@ -1204,6 +1229,10 @@ def test_persistent_authentication_failure_stops_full_run(
     )
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_read_only_reports_use_persisted_full_population_dataset(
     tmp_path: Path,
 ) -> None:
@@ -1235,6 +1264,10 @@ def test_read_only_reports_use_persisted_full_population_dataset(
     assert len(run.dataset.records) == 1
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_manifest_filters_are_deterministic() -> None:
     service = UpstoxHistoricalProbeService(
         client=UpstoxReadOnlyHistoricalClient(
@@ -1361,6 +1394,10 @@ def test_cli_explicit_live_auth_probe_uses_mocked_read_only_calls(
     assert "unit-test-only-credential" not in result.output
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_cli_sample_and_headline_report_are_read_only_by_default(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1381,7 +1418,9 @@ def test_cli_sample_and_headline_report_are_read_only_by_default(
 
 def test_cli_full_population_safeguard_and_deterministic_json(tmp_path: Path) -> None:
     blocked = runner.invoke(
-        app, ["replay", "upstox-historical-sample", "--full-population"]
+        app,
+        ["replay", "upstox-historical-sample", "--full-population"],
+        terminal_width=200,
     )
     assert blocked.exit_code != 0
     assert "requires --live" in blocked.output
@@ -1403,6 +1442,10 @@ def test_cli_full_population_safeguard_and_deterministic_json(tmp_path: Path) ->
     assert paths[0].read_bytes() == paths[1].read_bytes()
 
 
+@pytest.mark.skipif(
+    not _PROJECT_REPLAY_CORPUS_AVAILABLE,
+    reason="requires the authoritative local .alpha replay corpus",
+)
 def test_manifest_and_production_provider_policy_remain_unchanged() -> None:
     report = build_project_historical_source_evaluation(dry_run=True)
     assert report.manifest.manifest_version == HISTORICAL_SOURCE_MANIFEST_VERSION

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 from collections import Counter
-from dataclasses import asdict, dataclass
-from decimal import Decimal, ROUND_HALF_UP
+from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal
 from enum import StrEnum
 
 from alpha.decision_lifecycle import LifecycleState
@@ -70,7 +70,9 @@ class CommitteeVote:
         if not self.member.active:
             raise ValueError("inactive committee member cannot vote")
         if not Decimal("0") < confidence <= Decimal("1"):
-            raise ValueError("committee confidence must be greater than 0 and at most 1")
+            raise ValueError(
+                "committee confidence must be greater than 0 and at most 1"
+            )
         if not reason:
             raise ValueError("committee vote reason cannot be empty")
         if not evidence_ids:
@@ -165,15 +167,13 @@ class InvestmentCommittee:
         )
         counter = Counter(vote.proposed_state for vote in votes)
         vote_counts = tuple(
-            (state, counter[state])
-            for state in LifecycleState
-            if counter[state] > 0
+            (state, counter[state]) for state in LifecycleState if counter[state] > 0
         )
         winning_votes = counter[decision.final_state]
         consensus = int(
-            (
-                (Decimal(winning_votes) / Decimal(len(votes))) * Decimal("100")
-            ).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+            ((Decimal(winning_votes) / Decimal(len(votes))) * Decimal("100")).quantize(
+                Decimal("1"), rounding=ROUND_HALF_UP
+            )
         )
         return CommitteeResult(
             decision=decision,
@@ -196,7 +196,11 @@ def render_committee_minutes(result: CommitteeResult) -> tuple[str, ...]:
         lines.append(f"Decision Stability: {result.decision.stability_score}/100")
     lines.append("Committee Votes:")
     for vote in result.votes:
-        marker = "SELECTED" if vote.member.member_id == result.decision.winning_source else ""
+        marker = (
+            "SELECTED"
+            if vote.member.member_id == result.decision.winning_source
+            else ""
+        )
         suffix = f" [{marker}]" if marker else ""
         lines.append(
             f"- {vote.member.display_name}: {vote.proposed_state.value} "

@@ -1,0 +1,40 @@
+name: Autoformat Historical Truth Replay Integration
+
+on:
+  push:
+    branches:
+      - feature/historical-truth-replay-integration
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out integration branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/historical-truth-replay-integration
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install Ruff
+        run: python -m pip install ruff
+
+      - name: Format repository
+        run: ruff format .
+
+      - name: Commit formatting
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -u
+          git commit -m "Format replay integration files"
+          git push origin HEAD:feature/historical-truth-replay-integration

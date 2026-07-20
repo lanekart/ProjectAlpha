@@ -158,9 +158,7 @@ def render_stability_assessment(
         f"Decision Flips: {assessment.changed_scenarios}",
     ]
     if assessment.changed_scenario_ids:
-        lines.append(
-            "Changed Scenarios: " + ", ".join(assessment.changed_scenario_ids)
-        )
+        lines.append("Changed Scenarios: " + ", ".join(assessment.changed_scenario_ids))
     if assessment.critical_flips:
         lines.append("Critical Flips: " + ", ".join(assessment.critical_flips))
     lines.append("Execution Status: NON-EXECUTABLE DECISION DIAGNOSTIC")

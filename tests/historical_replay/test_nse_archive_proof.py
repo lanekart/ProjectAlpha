@@ -548,7 +548,7 @@ def test_cli_commands_are_registered_and_require_no_live_flag_for_offline_help()
         "nse-archive-readiness",
     )
     for command in commands:
-        result = runner.invoke(app, ["replay", command, "--help"])
+        result = runner.invoke(app, ["replay", command, "--help"], terminal_width=200)
         assert result.exit_code == 0
         assert "--live" in result.stdout
 

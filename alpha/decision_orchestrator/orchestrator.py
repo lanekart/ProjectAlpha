@@ -83,13 +83,7 @@ class AdvisorSignal:
         reason = self.reason.strip()
         confidence = Decimal(self.confidence)
         evidence_ids = tuple(
-            sorted(
-                {
-                    item.strip().upper()
-                    for item in self.evidence_ids
-                    if item.strip()
-                }
-            )
+            sorted({item.strip().upper() for item in self.evidence_ids if item.strip()})
         )
         if not source:
             raise ValueError("advisor source cannot be empty")
@@ -154,15 +148,10 @@ class OrchestratedDecision:
             raise ValueError("confidence_score must be between 0 and 100")
         if not 0 <= self.urgency_score <= 100:
             raise ValueError("urgency_score must be between 0 and 100")
-        if (
-            self.stability_score is not None
-            and not 0 <= self.stability_score <= 100
-        ):
+        if self.stability_score is not None and not 0 <= self.stability_score <= 100:
             raise ValueError("stability_score must be between 0 and 100")
         if self.production_influence:
-            raise ValueError(
-                "orchestrated decision cannot execute production orders"
-            )
+            raise ValueError("orchestrated decision cannot execute production orders")
 
     def to_dict(self) -> dict[str, object]:
         payload = asdict(self)
@@ -200,13 +189,11 @@ class DecisionOrchestrator:
         for signal in signals:
             if signal.proposed_state not in _ALLOWED_STATES[context]:
                 raise ValueError(
-                    f"{signal.proposed_state.value} is invalid for "
-                    f"{context.value}"
+                    f"{signal.proposed_state.value} is invalid for {context.value}"
                 )
             if (
                 context is DecisionContext.EXECUTION
-                and signal.authority
-                is not AdvisorAuthority.EXECUTION_CONFIRMATION
+                and signal.authority is not AdvisorAuthority.EXECUTION_CONFIRMATION
             ):
                 raise ValueError(
                     "BUY requires explicit execution-confirmation authority"
@@ -321,9 +308,7 @@ def render_orchestrated_decision(
         "Supporting Sources: " + ", ".join(decision.supporting_sources),
     ]
     if decision.dissenting_sources:
-        lines.append(
-            "Dissenting Sources: " + ", ".join(decision.dissenting_sources)
-        )
+        lines.append("Dissenting Sources: " + ", ".join(decision.dissenting_sources))
     if decision.stability_score is not None:
         lines.append(f"Stability: {decision.stability_score}/100")
     lines.append("Execution Status: NON-EXECUTABLE DECISION INTELLIGENCE")
