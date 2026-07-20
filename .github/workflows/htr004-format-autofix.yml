@@ -23,16 +23,9 @@ jobs:
       - name: Install locked Ruff
         run: pip install ruff==0.15.20
 
-      - name: Format validated scope
+      - name: Format and verify repository
         run: |
-          ruff format \
-            alpha/recovery \
-            alpha/application/governed_replay_backtest.py \
-            alpha/application/__init__.py \
-            alpha/diagnostics/historical_truth_governance.py \
-            tests/recovery \
-            tests/application/test_governed_replay_backtest.py \
-            tests/research/test_research_dataset_inventory.py
+          ruff format .
           ruff check .
           ruff format --check .
 
@@ -40,16 +33,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
-            alpha/recovery \
-            alpha/application/governed_replay_backtest.py \
-            alpha/application/__init__.py \
-            alpha/diagnostics/historical_truth_governance.py \
-            tests/recovery \
-            tests/application/test_governed_replay_backtest.py \
-            tests/research/test_research_dataset_inventory.py
+          git add -u
           if git diff --cached --quiet; then
             exit 0
           fi
-          git commit -m "Format HTR-004 and repository carryover files"
+          git commit -m "Apply repository Ruff formatting"
           git push origin HEAD:feature/htr-004-canonical-replay
