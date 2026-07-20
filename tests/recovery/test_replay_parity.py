@@ -33,11 +33,7 @@ def _bar(
         if status is CanonicalReplayStatus.QUARANTINED
         else ()
     )
-    applied = (
-        ("SEC-1:SPLIT:2025-01-15",)
-        if adjusted_close != Decimal("104")
-        else ()
-    )
+    applied = ("SEC-1:SPLIT:2025-01-15",) if adjusted_close != Decimal("104") else ()
     factor = adjusted_close / Decimal("104")
     return CanonicalReplayBar(
         security_id="SEC-1",
