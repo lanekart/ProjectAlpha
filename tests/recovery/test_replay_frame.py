@@ -7,18 +7,18 @@ from decimal import Decimal
 
 import pandas as pd
 import pytest
-
 from alpha.recovery.corporate_actions import (
     CorporateActionEvent,
     CorporateActionStatus,
     CorporateActionTimeline,
     CorporateActionType,
 )
-from alpha.recovery.replay_frame import CanonicalReplayFrameAdapter
 from alpha.recovery.security_timeline import (
     SecurityIdentityRecord,
     SecurityIdentityTimeline,
 )
+
+from alpha.recovery.replay_frame import CanonicalReplayFrameAdapter
 
 _TRADE_DATE = date(2025, 1, 10)
 _AS_OF = date(2025, 1, 15)
@@ -97,10 +97,15 @@ def test_canonicalizes_identity_prices_and_lineage() -> None:
     assert row["raw_symbol"] == "ALPHA"
     assert row["symbol"] == "NEWALPHA"
     assert row["raw_close"] == 104
+    assert row["adjusted_close"] == "52.00000000"
     assert row["close"] == 52.0
     assert row["volume"] == 2000.0
     assert row["replay_status"] == "READY"
+    assert row["replay_as_of"] == _AS_OF.isoformat()
+    assert row["canonical_replay_enforced"]
     assert row["applied_event_ids"] == ("SEC-1:SPLIT:2025-01-15",)
+    assert row["canonical_frame_sha256"] == result.attestation.canonical_frame_sha256
+    assert result.attestation.trade_date == _TRADE_DATE
     assert result.audit.bars_adjusted == 1
     assert result.audit.passed
 
