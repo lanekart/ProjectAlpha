@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 
 from alpha.application.benchmark_cli import benchmark_app
 from alpha.benchmark_replay.engine import observed_equal_weight_comparison
+from alpha.benchmark_replay.exporting import BenchmarkArtifactExporter
 from alpha.benchmark_replay.models import (
     BASELINE_ID,
     PRODUCTION_INFLUENCE,
@@ -70,6 +71,25 @@ def test_cli_contract_exposes_required_commands_and_options() -> None:
     assert REPLAY_CLASSIFICATION == "OBSERVED_MARKET_REPLAY"
     assert PRODUCTION_INFLUENCE is False
 
+
+
+def test_exports_decision_eligibility_and_rejection_attribution(
+    tmp_path: Path,
+    benchmark_report: BenchmarkReplayReport,
+) -> None:
+    paths = BenchmarkArtifactExporter().export(
+        benchmark_report,
+        output_directory=tmp_path / "benchmark",
+    )
+    by_name = {path.name: path for path in paths}
+
+    assert "decision_eligibility.csv" in by_name
+    assert "top_rejection_reasons.csv" in by_name
+    eligibility = by_name["decision_eligibility.csv"].read_text(encoding="utf-8")
+    rejection = by_name["top_rejection_reasons.csv"].read_text(encoding="utf-8")
+    assert "minimum_complete_history_sessions" in eligibility
+    assert "BLOCKED_NO_200_SESSION_SECURITIES" in eligibility
+    assert rejection.startswith("reason_code,rejected_candidates")
 
 def test_non_economic_equal_weight_benchmark_fails_closed(tmp_path: Path) -> None:
     database = tmp_path / "prices.duckdb"
