@@ -168,9 +168,7 @@ def test_cross_series_isin_and_t0_exception_do_not_block_replay(
     assert report.summary.series_ohlc_exceptions == 1
     assert report.summary.candle_replay_ready is True
     finding = next(
-        item
-        for item in report.security_findings
-        if item.code == "SERIES_SPECIFIC_OHLC"
+        item for item in report.security_findings if item.code == "SERIES_SPECIFIC_OHLC"
     )
     assert finding.symbol == "IDEA"
     assert finding.series == "T0"
@@ -203,6 +201,4 @@ def test_same_isin_and_series_with_multiple_symbols_is_duplicate(
     )
 
     assert report.summary.duplicate_isins == 1
-    assert "DUPLICATE_ISIN" in {
-        item.code for item in report.security_findings
-    }
+    assert "DUPLICATE_ISIN" in {item.code for item in report.security_findings}
