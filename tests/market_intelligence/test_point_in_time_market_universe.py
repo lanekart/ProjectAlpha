@@ -800,8 +800,9 @@ def test_reporting_command_does_not_hidden_build_without_materialization(
     )
 
     assert result.exit_code != 0
+    normalized_output = " ".join(result.output.split())
     assert "Reporting commands do not silently trigger full historical rebuilds" in (
-        result.output
+        normalized_output
     )
 
 
