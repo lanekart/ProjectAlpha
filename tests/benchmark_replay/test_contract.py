@@ -23,10 +23,6 @@ from alpha.benchmark_replay.rendering import (
     render_executive_report,
     render_replay_summary,
 )
-from alpha.benchmark_replay.rendering import (
-    render_executive_report,
-    render_replay_summary,
-)
 from alpha.canonical_universe_audit.store import LegacyMarketDataStore
 
 
