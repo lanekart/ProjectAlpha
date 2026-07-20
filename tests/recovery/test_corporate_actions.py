@@ -17,7 +17,7 @@ from alpha.recovery.corporate_actions import (
     export_corporate_action_recovery,
     export_corporate_action_replay_audit,
 )
-from alpha.recovery.models import RecoveryContext
+from alpha.recovery.models import RecoveryContext, RecoveryResult
 
 
 def _write_actions(tmp_path: Path, records: list[dict[str, object]]) -> Path:
@@ -26,7 +26,7 @@ def _write_actions(tmp_path: Path, records: list[dict[str, object]]) -> Path:
     return path
 
 
-def _run(tmp_path: Path, records: list[dict[str, object]]):
+def _run(tmp_path: Path, records: list[dict[str, object]]) -> RecoveryResult:
     return CorporateActionRecoveryEngine().run(
         RecoveryContext(
             engine_key="corporate-action-recovery",
