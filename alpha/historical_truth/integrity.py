@@ -597,30 +597,30 @@ class HistoricalTruthIntegrityAudit:
     @staticmethod
     def _csv_rows(report: IntegrityAuditReport) -> list[dict[str, object]]:
         rows: list[dict[str, object]] = []
-        for item in report.missing_dates:
+        for missing in report.missing_dates:
             rows.append(
                 {
                     "finding_type": "missing_date",
-                    "trading_date": item.trading_date.isoformat(),
-                    "code": item.classification,
+                    "trading_date": missing.trading_date.isoformat(),
+                    "code": missing.classification,
                     "severity": "error",
                     "symbol": "",
                     "series": "",
                     "isin": "",
-                    "evidence": item.evidence,
+                    "evidence": missing.evidence,
                 }
             )
         for item in report.security_findings:
             rows.append(
                 {
                     "finding_type": "security",
-                    "trading_date": item.trading_date.isoformat(),
+                    "trading_date": missing.trading_date.isoformat(),
                     "code": item.code,
                     "severity": item.severity,
                     "symbol": item.symbol,
                     "series": item.series,
                     "isin": item.isin or "",
-                    "evidence": item.evidence,
+                    "evidence": missing.evidence,
                 }
             )
         for item in report.snapshot_findings:
@@ -629,13 +629,13 @@ class HistoricalTruthIntegrityAudit:
             rows.append(
                 {
                     "finding_type": "snapshot",
-                    "trading_date": item.trading_date.isoformat(),
+                    "trading_date": missing.trading_date.isoformat(),
                     "code": "SNAPSHOT_INTEGRITY",
                     "severity": "error",
                     "symbol": "",
                     "series": "",
                     "isin": "",
-                    "evidence": item.evidence,
+                    "evidence": snapshot.evidence,
                 }
             )
         return rows
@@ -676,10 +676,10 @@ class HistoricalTruthIntegrityAudit:
             "| Date | Classification | Evidence |",
             "|---|---|---|",
         ]
-        for item in report.missing_dates:
+        for missing in report.missing_dates:
             lines.append(
-                f"| {item.trading_date.isoformat()} | {item.classification} | "
-                f"{item.evidence.replace('|', '/')} |"
+                f"| {missing.trading_date.isoformat()} | {missing.classification} | "
+                f"{missing.evidence.replace('|', '/')} |"
             )
         lines.extend(
             [
@@ -690,11 +690,11 @@ class HistoricalTruthIntegrityAudit:
                 "|---|---|---|---|---|",
             ]
         )
-        for item in report.security_findings:
+        for security in report.security_findings:
             lines.append(
-                f"| {item.trading_date.isoformat()} | {item.code} | "
-                f"{item.severity} | {item.symbol}/{item.series} | "
-                f"{item.evidence.replace('|', '/')} |"
+                f"| {security.trading_date.isoformat()} | {security.code} | "
+                f"{security.severity} | {security.symbol}/{security.series} | "
+                f"{security.evidence.replace('|', '/')} |"
             )
         lines.extend(
             [
