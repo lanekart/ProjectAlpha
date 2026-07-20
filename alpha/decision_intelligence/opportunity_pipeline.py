@@ -5,6 +5,7 @@ from decimal import Decimal
 from enum import StrEnum
 
 from alpha.decision_intelligence.models import (
+    FinalDecisionAction,
     InstitutionalDecisionReport,
     OpportunityDecision,
     RejectionReasonCode,
@@ -98,9 +99,7 @@ class OpportunityPipelineEngine:
     ) -> OpportunityPipelineReport:
         classified = tuple(self.classify(decision) for decision in report.decisions)
         buy = tuple(
-            item
-            for item in classified
-            if item.action is OpportunityPipelineAction.BUY
+            item for item in classified if item.action is OpportunityPipelineAction.BUY
         )
         watchlist = tuple(
             sorted(
@@ -127,10 +126,7 @@ class OpportunityPipelineEngine:
             rejected_opportunities=rejected,
         )
 
-    def classify(
-        self,
-        decision: OpportunityDecision,
-    ) -> OpportunityPipelineDecision:
+    def classify(self, decision: OpportunityDecision) -> OpportunityPipelineDecision:
         if decision.accepted:
             return OpportunityPipelineDecision(
                 decision=decision,
@@ -202,10 +198,21 @@ class OpportunityPipelineEngine:
             StressReasonCode.INSUFFICIENT_FIVE_YEAR_HISTORY,
             StressReasonCode.RECENT_FAILED_SIMILAR_SETUP,
         }
-        return not any(
+        if any(
             not result.passed and result.reason_code in hard_stress_codes
             for result in decision.stress_tests
-        )
+        ):
+            return False
+        if (
+            decision.decision_quality is not None
+            and decision.decision_quality.final_action is FinalDecisionAction.REJECT
+            and any(
+                not result.passed and result.reason_code in hard_stress_codes
+                for result in decision.stress_tests
+            )
+        ):
+            return False
+        return True
 
     def _watchlist_reasons(
         self,
@@ -284,9 +291,7 @@ class OpportunityPipelineEngine:
         return tuple(dict.fromkeys(triggers))
 
 
-def render_opportunity_pipeline(
-    report: OpportunityPipelineReport,
-) -> tuple[str, ...]:
+def render_opportunity_pipeline(report: OpportunityPipelineReport) -> tuple[str, ...]:
     lines = [
         "Opportunity Pipeline",
         f"Buy Ready: {len(report.buy_opportunities)}",
@@ -304,8 +309,7 @@ def render_opportunity_pipeline(
                 f"- {item.symbol}: WATCHLIST (non-executable)",
                 f"  Directional Verdict: {candidate.final_verdict}",
                 "  Execution Readiness: NOT READY",
-                "  Opportunity Score: "
-                f"{item.decision.score_breakdown.total_score}",
+                f"  Opportunity Score: {item.decision.score_breakdown.total_score}",
                 "  Remark: Strong opportunity remains visible, but current "
                 "risk/reward or entry timing is unfavourable.",
                 "  Reasons: "
