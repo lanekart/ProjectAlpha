@@ -153,7 +153,9 @@ def run_precision_audit(
             evidence.append(_inspect_file(path, repository_root, rule))
 
     dataset_rows = tuple(
-        _summarize_dataset(rule, tuple(row for row in evidence if row.dataset_key == rule.key))
+        _summarize_dataset(
+            rule, tuple(row for row in evidence if row.dataset_key == rule.key)
+        )
         for rule in RULES
     )
     sessions = _session_rows(database, period_start, period_end)
@@ -180,9 +182,19 @@ def export_precision_audit(
     _write_csv(dataset_path, (asdict(row) for row in datasets))
     _write_csv(sessions_path, (asdict(row) for row in sessions))
 
-    usable = [row.dataset_key for row in datasets if row.classification == "RAW_DATA_CONFIRMED"]
-    missing = [row.dataset_key for row in datasets if row.classification == "NO_USABLE_RAW_DATA"]
-    unresolved = [row.session_date for row in sessions if row.classification == "UNRESOLVED"]
+    usable = [
+        row.dataset_key
+        for row in datasets
+        if row.classification == "RAW_DATA_CONFIRMED"
+    ]
+    missing = [
+        row.dataset_key
+        for row in datasets
+        if row.classification == "NO_USABLE_RAW_DATA"
+    ]
+    unresolved = [
+        row.session_date for row in sessions if row.classification == "UNRESOLVED"
+    ]
     summary: dict[str, object] = {
         "classification": "HISTORICAL_TRUTH_RECONCILIATION_V1_1",
         "period_start": period_start.isoformat(),
@@ -201,7 +213,9 @@ def export_precision_audit(
         json.dumps(summary, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    report_path.write_text(_render_report(datasets, sessions, summary), encoding="utf-8")
+    report_path.write_text(
+        _render_report(datasets, sessions, summary), encoding="utf-8"
+    )
     return evidence_path, dataset_path, sessions_path, summary_path, report_path
 
 
@@ -215,7 +229,9 @@ def _inspect_file(path: Path, root: Path, rule: DatasetRule) -> EvidenceRow:
     last_date: date | None = None
 
     if role == "RAW_CANDIDATE" and path.suffix.lower() == ".csv":
-        row_count, columns, first_date, last_date = _inspect_csv(path, rule.date_columns)
+        row_count, columns, first_date, last_date = _inspect_csv(
+            path, rule.date_columns
+        )
     elif role == "RAW_CANDIDATE" and path.suffix.lower() in {".json", ".jsonl"}:
         row_count, columns = _inspect_json(path)
 
@@ -310,7 +326,11 @@ def _inspect_csv(
 def _inspect_json(path: Path) -> tuple[int | None, tuple[str, ...]]:
     try:
         if path.suffix.lower() == ".jsonl":
-            rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+            rows = [
+                json.loads(line)
+                for line in path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
         else:
             payload = json.loads(path.read_text(encoding="utf-8"))
             rows = payload if isinstance(payload, list) else [payload]
@@ -453,9 +473,7 @@ def _parse_date(value: str) -> date:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Historical Truth Reconciliation v1.1"
-    )
+    parser = argparse.ArgumentParser(description="Historical Truth Reconciliation v1.1")
     parser.add_argument("--repository-root", type=Path, default=Path("."))
     parser.add_argument("--database", type=Path, required=True)
     parser.add_argument("--start", type=_parse_date, required=True)
