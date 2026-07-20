@@ -20,9 +20,13 @@ from alpha.historical_truth.models import (
     ValidationSeverity,
 )
 
-_REQUIRED_BHAVCOPY_COLUMNS: Final[frozenset[str]] = frozenset(
+_LEGACY_REQUIRED_COLUMNS: Final[frozenset[str]] = frozenset(
     {"SYMBOL", "SERIES", "OPEN", "HIGH", "LOW", "CLOSE", "TOTTRDQTY"}
 )
+_UDIFF_REQUIRED_COLUMNS: Final[frozenset[str]] = frozenset(
+    {"TckrSymb", "SctySrs", "OpnPric", "HghPric", "LwPric", "ClsPric", "TtlTradgVol"}
+)
+_UDIFF_START_DATE: Final[date] = date(2024, 7, 8)
 
 
 class HistoricalTruthWarehouse:
@@ -59,25 +63,34 @@ class HistoricalTruthWarehouse:
         current = start
         while current <= end:
             if current.weekday() < 5:
-                token = current.strftime("%d%b%Y").upper()
-                year = current.strftime("%Y")
-                month = current.strftime("%b").upper()
-                filename = f"cm{token}bhav.csv.zip"
-                source_url = (
-                    "https://nsearchives.nseindia.com/content/historical/EQUITIES/"
-                    f"{year}/{month}/{filename}"
-                )
-                requests_.append(
-                    ArchiveRequest(
-                        exchange="nse",
-                        dataset=ArchiveDataset.BHAVCOPY,
-                        trading_date=current,
-                        source_url=source_url,
-                        relative_path=Path("nse") / "bhavcopy" / year / filename,
-                    )
-                )
+                requests_.append(self._nse_bhavcopy_request(current))
             current += timedelta(days=1)
         return tuple(requests_)
+
+    @staticmethod
+    def _nse_bhavcopy_request(trading_date: date) -> ArchiveRequest:
+        year = trading_date.strftime("%Y")
+        if trading_date >= _UDIFF_START_DATE:
+            filename = (
+                "BhavCopy_NSE_CM_0_0_0_"
+                f"{trading_date.strftime('%Y%m%d')}_F_0000.csv.zip"
+            )
+            source_url = f"https://nsearchives.nseindia.com/content/cm/{filename}"
+        else:
+            token = trading_date.strftime("%d%b%Y").upper()
+            month = trading_date.strftime("%b").upper()
+            filename = f"cm{token}bhav.csv.zip"
+            source_url = (
+                "https://nsearchives.nseindia.com/content/historical/EQUITIES/"
+                f"{year}/{month}/{filename}"
+            )
+        return ArchiveRequest(
+            exchange="nse",
+            dataset=ArchiveDataset.BHAVCOPY,
+            trading_date=trading_date,
+            source_url=source_url,
+            relative_path=Path("nse") / "bhavcopy" / year / filename,
+        )
 
     def fetch(self, request: ArchiveRequest) -> ManifestRecord:
         self.initialise()
@@ -102,8 +115,7 @@ class HistoricalTruthWarehouse:
             return record
 
         temporary = destination.with_suffix(destination.suffix + ".part")
-        if temporary.exists():
-            temporary.unlink()
+        temporary.unlink(missing_ok=True)
         try:
             response = requests.get(
                 request.source_url,
@@ -138,8 +150,7 @@ class HistoricalTruthWarehouse:
                 error=None,
             )
         except (OSError, requests.RequestException, ValueError) as exc:
-            if temporary.exists():
-                temporary.unlink()
+            temporary.unlink(missing_ok=True)
             record = self._failure_record(
                 request,
                 ManifestStatus.FAILED,
@@ -153,19 +164,26 @@ class HistoricalTruthWarehouse:
         with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
             reader = csv.DictReader(handle)
             columns = frozenset(reader.fieldnames or ())
-            missing = sorted(_REQUIRED_BHAVCOPY_COLUMNS - columns)
-            if missing:
+            schema = self._detect_bhavcopy_schema(columns)
+            if schema is None:
+                missing_legacy = sorted(_LEGACY_REQUIRED_COLUMNS - columns)
+                missing_udiff = sorted(_UDIFF_REQUIRED_COLUMNS - columns)
                 return (
                     ValidationIssue(
                         code="MISSING_REQUIRED_COLUMNS",
                         severity=ValidationSeverity.ERROR,
-                        message=f"Missing columns: {', '.join(missing)}",
+                        message=(
+                            "Unsupported bhavcopy schema. Missing legacy columns: "
+                            f"{', '.join(missing_legacy)}; missing UDiFF columns: "
+                            f"{', '.join(missing_udiff)}"
+                        ),
                     ),
                 )
+            fields = self._schema_fields(schema)
             seen: set[tuple[str, str]] = set()
             for row_number, row in enumerate(reader, start=2):
-                symbol = (row.get("SYMBOL") or "").strip()
-                series = (row.get("SERIES") or "").strip()
+                symbol = (row.get(fields["symbol"]) or "").strip()
+                series = (row.get(fields["series"]) or "").strip()
                 key = (symbol, series)
                 if key in seen:
                     issues.append(
@@ -178,11 +196,11 @@ class HistoricalTruthWarehouse:
                     )
                 seen.add(key)
                 try:
-                    open_ = float(row["OPEN"])
-                    high = float(row["HIGH"])
-                    low = float(row["LOW"])
-                    close = float(row["CLOSE"])
-                    volume = float(row["TOTTRDQTY"])
+                    open_ = float(row[fields["open"]])
+                    high = float(row[fields["high"]])
+                    low = float(row[fields["low"]])
+                    close = float(row[fields["close"]])
+                    volume = float(row[fields["volume"]])
                 except (TypeError, ValueError, KeyError):
                     issues.append(
                         ValidationIssue(
@@ -212,6 +230,36 @@ class HistoricalTruthWarehouse:
                         )
                     )
         return tuple(issues)
+
+    @staticmethod
+    def _detect_bhavcopy_schema(columns: frozenset[str]) -> str | None:
+        if _LEGACY_REQUIRED_COLUMNS <= columns:
+            return "legacy"
+        if _UDIFF_REQUIRED_COLUMNS <= columns:
+            return "udiff"
+        return None
+
+    @staticmethod
+    def _schema_fields(schema: str) -> dict[str, str]:
+        if schema == "legacy":
+            return {
+                "symbol": "SYMBOL",
+                "series": "SERIES",
+                "open": "OPEN",
+                "high": "HIGH",
+                "low": "LOW",
+                "close": "CLOSE",
+                "volume": "TOTTRDQTY",
+            }
+        return {
+            "symbol": "TckrSymb",
+            "series": "SctySrs",
+            "open": "OpnPric",
+            "high": "HghPric",
+            "low": "LwPric",
+            "close": "ClsPric",
+            "volume": "TtlTradgVol",
+        }
 
     def records(self) -> tuple[ManifestRecord, ...]:
         if not self.manifest_path.exists():
@@ -254,30 +302,28 @@ class HistoricalTruthWarehouse:
         payload = [self._serialise(record) for record in records]
         json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         with csv_path.open("w", encoding="utf-8", newline="") as handle:
-            fieldnames = (
-                list(payload[0])
-                if payload
-                else [
-                    "exchange",
-                    "dataset",
-                    "trading_date",
-                    "source_url",
-                    "relative_path",
-                    "status",
-                    "retrieved_at",
-                    "sha256",
-                    "byte_size",
-                    "error",
-                ]
-            )
+            fieldnames = list(payload[0]) if payload else [
+                "exchange",
+                "dataset",
+                "trading_date",
+                "source_url",
+                "relative_path",
+                "status",
+                "retrieved_at",
+                "sha256",
+                "byte_size",
+                "error",
+            ]
             writer = csv.DictWriter(handle, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(payload)
-        lines = ["# Historical Truth Warehouse Status", ""]
-        lines.append(f"Records: {len(records)}")
-        lines.append("")
-        lines.append("| Date | Exchange | Dataset | Status | Bytes | Error |")
-        lines.append("|---|---|---|---|---:|---|")
+        lines = ["# Historical Truth Warehouse Status", "", f"Records: {len(records)}", ""]
+        lines.extend(
+            [
+                "| Date | Exchange | Dataset | Status | Bytes | Error |",
+                "|---|---|---|---|---:|---|",
+            ]
+        )
         for record in records:
             lines.append(
                 "| "
