@@ -7,7 +7,7 @@ import json
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from pathlib import Path
@@ -152,7 +152,9 @@ class CorporateActionTimeline:
         seen: set[str] = set()
         for event in ordered:
             if event.event_id in seen:
-                raise ValueError(f"duplicate corporate action event_id {event.event_id!r}")
+                raise ValueError(
+                    f"duplicate corporate action event_id {event.event_id!r}"
+                )
             seen.add(event.event_id)
         self._events = ordered
         by_security: dict[str, list[CorporateActionEvent]] = defaultdict(list)
@@ -183,7 +185,9 @@ class CorporateActionTimeline:
 
     @classmethod
     def from_recovery_result(cls, result: RecoveryResult) -> CorporateActionTimeline:
-        events = tuple(_event_from_mapping(row.values) for row in result.canonical_preview)
+        events = tuple(
+            _event_from_mapping(row.values) for row in result.canonical_preview
+        )
         return cls(events)
 
 
@@ -248,7 +252,9 @@ class CorporateActionAdjustmentEngine:
         source = tuple(bars)
         adjusted = self.adjust_bars(source, as_of=as_of)
         changed = tuple(item for item in adjusted if item.applied_event_ids)
-        event_ids = {event_id for item in changed for event_id in item.applied_event_ids}
+        event_ids = {
+            event_id for item in changed for event_id in item.applied_event_ids
+        }
         affected = tuple(sorted({item.original.security_id for item in changed}))
         price_changes = tuple(
             abs((item.close / item.original.close - _ONE) * Decimal("100"))
@@ -284,7 +290,9 @@ class CorporateActionRecoveryEngine(CanonicalRecoveryEngine):
         return {
             "source_path": source_path,
             "rows": _read_records(source_path),
-            "source_name": str(context.parameters.get("source_name", "corporate_actions")),
+            "source_name": str(
+                context.parameters.get("source_name", "corporate_actions")
+            ),
         }
 
     def build_evidence_graph(
@@ -345,7 +353,9 @@ class CorporateActionRecoveryEngine(CanonicalRecoveryEngine):
                         RecoveryIssue(
                             issue_key=f"missing-{field}:{index}",
                             severity=RecoverySeverity.HIGH,
-                            summary=f"Corporate action is missing required field {field}.",
+                            summary=(
+                                f"Corporate action is missing required field {field}."
+                            ),
                             evidence_ids=(evidence_id,),
                         )
                     )
@@ -362,9 +372,10 @@ class CorporateActionRecoveryEngine(CanonicalRecoveryEngine):
                 )
                 continue
             if action_type in {CorporateActionType.SPLIT, CorporateActionType.BONUS}:
-                if _decimal(row, "ratio_numerator") is None or _decimal(
-                    row, "ratio_denominator"
-                ) is None:
+                if (
+                    _decimal(row, "ratio_numerator") is None
+                    or _decimal(row, "ratio_denominator") is None
+                ):
                     issues.append(
                         RecoveryIssue(
                             issue_key=f"missing-ratio:{index}",
@@ -496,14 +507,22 @@ def export_corporate_action_recovery(
     _write_mapping_csv(timeline_path, rows)
     _write_mapping_csv(
         unresolved_path,
-        [row for row in rows if row.get("status") == CorporateActionStatus.UNRESOLVED.value],
+        [
+            row
+            for row in rows
+            if row.get("status") == CorporateActionStatus.UNRESOLVED.value
+        ],
     )
     verification_path.write_text(
         json.dumps(
             {
                 "classification": result.classification,
-                "validation_issues": [asdict(item) for item in result.validation_issues],
-                "verification_issues": [asdict(item) for item in result.verification_issues],
+                "validation_issues": [
+                    asdict(item) for item in result.validation_issues
+                ],
+                "verification_issues": [
+                    asdict(item) for item in result.verification_issues
+                ],
                 "metadata": dict(result.metadata),
             },
             indent=2,
@@ -675,7 +694,12 @@ def _derive_factors(
         volume = manual_volume_factor or (_ONE / manual_price_factor)
         return _quantize(manual_price_factor), _quantize(volume)
     if action_type is CorporateActionType.SPLIT:
-        if not numerator or not denominator or numerator <= _ZERO or denominator <= _ZERO:
+        if (
+            not numerator
+            or not denominator
+            or numerator <= _ZERO
+            or denominator <= _ZERO
+        ):
             return None, None
         return _quantize(denominator / numerator), _quantize(numerator / denominator)
     if action_type is CorporateActionType.BONUS:
@@ -693,9 +717,9 @@ def _derive_factors(
             or rights_price is None
         ):
             return None, None
-        theoretical = (
-            denominator * reference_price + numerator * rights_price
-        ) / (denominator + numerator)
+        theoretical = (denominator * reference_price + numerator * rights_price) / (
+            denominator + numerator
+        )
         share_multiplier = (denominator + numerator) / denominator
         return _quantize(theoretical / reference_price), _quantize(share_multiplier)
     if action_type is CorporateActionType.CASH_DIVIDEND:
