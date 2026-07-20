@@ -154,7 +154,8 @@ were not part of an eligible decision population. The replay evidence preserves
 the original final signal so the audit never reconstructs or guesses verdicts.
 
 Fixed 1, 5, 10, and 20-session horizons report forward close return, maximum
-favorable excursion, and maximum adverse excursion. A horizon is observed only
+favorable excursion, and maximum adverse excursion relative to the decision
+close. A horizon is observed only
 when every required symbol/session candle exists. Missing observations and the
 right replay boundary are explicitly censored.
 
