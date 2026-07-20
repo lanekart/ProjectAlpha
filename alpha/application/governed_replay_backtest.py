@@ -8,11 +8,11 @@ from decimal import Decimal
 from pathlib import Path
 
 import pandas as pd
-
 from alpha.analysis.signals.daily_report import DailyMarketReport
 from alpha.application.backtest import (
     BacktestApplicationService,
     BacktestRun,
+    BacktestSummary,
     MarketReportGenerator,
 )
 from alpha.application.ingestion import IngestionService
@@ -20,10 +20,17 @@ from alpha.backtest.broker import BrokerSimulator
 from alpha.backtest.engine import BacktestEngine
 from alpha.backtest.equity_curve import EquityCurveBuilder
 from alpha.backtest.ledger import ExecutionLedger
+from alpha.backtest.models import BacktestOrder
 from alpha.market.resolver import TradingDateResolver
 from alpha.market_truth.historical_service import (
     MarketTruthArchiveDownloader as BhavcopyDownloader,
 )
+
+from alpha.recovery.consumer_attestation import (
+    CanonicalReplayConsumerAttestation,
+    export_consumer_attestations,
+)
+from alpha.recovery.consumer_guard import CanonicalReplayConsumerGuard
 from alpha.recovery.replay_frame import CanonicalReplayFrameAdapter
 
 
@@ -37,6 +44,14 @@ class CanonicalReplayIngestionService(IngestionService):
     ) -> None:
         self._source = source
         self._canonicalizer = canonicalizer
+        self._guard = CanonicalReplayConsumerGuard()
+        self._attestations: list[CanonicalReplayConsumerAttestation] = []
+
+    @property
+    def attestations(self) -> tuple[CanonicalReplayConsumerAttestation, ...]:
+        """Return immutable attestations for frames released to the consumer."""
+
+        return tuple(self._attestations)
 
     def ingest(self, zip_path: Path) -> pd.DataFrame:
         frame = self._source.ingest(zip_path)
@@ -59,7 +74,70 @@ class CanonicalReplayIngestionService(IngestionService):
         )
         if not result.audit.passed:
             raise ValueError("canonical replay audit did not pass")
-        return result.frame
+        attestation = self._guard.validate(
+            result.frame,
+            expected_trade_date=trade_date,
+            expected_as_of=trade_date,
+        )
+        if attestation != result.attestation:
+            raise ValueError("canonical replay attestation changed before consumption")
+        self._attestations.append(attestation)
+        return result.frame.copy()
+
+
+@dataclass(frozen=True, slots=True)
+class GovernedReplayBacktestRun:
+    """Backtest result coupled to the replay attestations it consumed."""
+
+    backtest: BacktestRun
+    replay_attestations: tuple[CanonicalReplayConsumerAttestation, ...]
+
+    def __post_init__(self) -> None:
+        if not self.replay_attestations:
+            raise ValueError("governed backtest requires replay attestations")
+        if any(
+            not attestation.canonical_replay_enforced
+            for attestation in self.replay_attestations
+        ):
+            raise ValueError("governed backtest contains an unenforced replay frame")
+
+    @property
+    def summary(self) -> BacktestSummary:
+        """Expose the existing backtest summary contract."""
+
+        return self.backtest.summary
+
+    @property
+    def orders(self) -> tuple[BacktestOrder, ...]:
+        """Expose the existing immutable order sequence."""
+
+        return self.backtest.orders
+
+    @property
+    def canonical_snapshot_sha256s(self) -> tuple[str, ...]:
+        """Return the distinct immutable replay snapshots consumed."""
+
+        return tuple(
+            sorted(
+                {
+                    attestation.canonical_snapshot_sha256
+                    for attestation in self.replay_attestations
+                }
+            )
+        )
+
+    @property
+    def canonical_frame_sha256s(self) -> tuple[str, ...]:
+        """Return the distinct consumer-frame digests released to the backtest."""
+
+        return tuple(
+            sorted(
+                {
+                    attestation.canonical_frame_sha256
+                    for attestation in self.replay_attestations
+                }
+            )
+        )
 
 
 @dataclass(slots=True)
@@ -83,7 +161,7 @@ class GovernedReplayBacktestService:
         start: date,
         end: date,
         starting_cash: Decimal,
-    ) -> BacktestRun:
+    ) -> GovernedReplayBacktestRun:
         governed_ingestion = CanonicalReplayIngestionService(
             source=self.ingestion,
             canonicalizer=self.canonicalizer,
@@ -98,12 +176,25 @@ class GovernedReplayBacktestService:
             ledger=self.ledger,
             equity_curve_builder=self.equity_curve_builder,
         )
-        return service.run(
+        backtest = service.run(
             strategy=strategy,
             start=start,
             end=end,
             starting_cash=starting_cash,
         )
+        return GovernedReplayBacktestRun(
+            backtest=backtest,
+            replay_attestations=governed_ingestion.attestations,
+        )
+
+
+def export_governed_replay_backtest_attestations(
+    run: GovernedReplayBacktestRun,
+    output: Path,
+) -> tuple[Path, ...]:
+    """Export the exact replay proofs associated with a governed backtest."""
+
+    return export_consumer_attestations(run.replay_attestations, output)
 
 
 def _single_trade_date(frame: pd.DataFrame) -> date:
