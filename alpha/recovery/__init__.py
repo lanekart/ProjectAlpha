@@ -22,6 +22,10 @@ from .schema_discovery import (
     discover_sources,
     export_schema_discovery,
 )
+from .security_entity import (
+    SecurityEntityRecoveryEngine,
+    export_security_entity_recovery,
+)
 
 __all__ = [
     "CanonicalPreviewRow",
@@ -39,8 +43,10 @@ __all__ = [
     "RecoveryResult",
     "RecoverySeverity",
     "SchemaDiscoveryResult",
+    "SecurityEntityRecoveryEngine",
     "SourceSchema",
     "discover_sources",
     "export_schema_discovery",
+    "export_security_entity_recovery",
     "registry",
 ]
