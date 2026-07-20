@@ -148,6 +148,8 @@ def test_exports_are_deterministic(tmp_path: Path) -> None:
         "report.md",
     )
     assert json.loads(paths[0].read_text(encoding="utf-8"))["passed"] is True
-    assert paths[-1].read_text(encoding="utf-8").startswith(
-        "# Decision Parity Validation\n"
+    assert (
+        paths[-1]
+        .read_text(encoding="utf-8")
+        .startswith("# Decision Parity Validation\n")
     )
