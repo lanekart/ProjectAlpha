@@ -42,6 +42,27 @@ def test_ingest_and_snapshot_are_point_in_time(tmp_path: Path) -> None:
     assert snapshot.candles[0].isin == "INE000A01001"
 
 
+def test_ingest_udiff_bhavcopy(tmp_path: Path) -> None:
+    csv_path = tmp_path / "udiff.csv"
+    csv_path.write_text(
+        "TckrSymb,SctySrs,ISIN,OpnPric,HghPric,LwPric,ClsPric,TtlTradgVol\n"
+        "ABC,EQ,INE000A01001,100,110,95,108,1000\n",
+        encoding="utf-8",
+    )
+    warehouse = CanonicalPointInTimeWarehouse(tmp_path / "market.duckdb")
+
+    count = warehouse.ingest_bhavcopy_csv(
+        csv_path,
+        trading_date=date(2026, 7, 17),
+    )
+    snapshot = warehouse.snapshot(date(2026, 7, 17))
+
+    assert count == 1
+    assert snapshot.candles[0].symbol == "ABC"
+    assert snapshot.candles[0].close_price == 108.0
+    assert snapshot.candles[0].volume == 1000
+
+
 def test_reingestion_is_idempotent(tmp_path: Path) -> None:
     csv_path = tmp_path / "bhav.csv"
     _write_bhavcopy(csv_path)
@@ -74,6 +95,6 @@ def test_missing_columns_fail_closed(tmp_path: Path) -> None:
     try:
         warehouse.ingest_bhavcopy_csv(csv_path, trading_date=date(2026, 7, 17))
     except ValueError as exc:
-        assert "missing required columns" in str(exc)
+        assert "unsupported bhavcopy schema" in str(exc)
     else:
         raise AssertionError("missing schema should fail closed")
