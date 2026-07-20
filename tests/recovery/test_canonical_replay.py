@@ -39,6 +39,7 @@ def _event(
     status: CorporateActionStatus = CorporateActionStatus.RESOLVED,
     announced_at: date = date(2024, 12, 20),
 ) -> CorporateActionEvent:
+    resolved = status is CorporateActionStatus.RESOLVED
     return CorporateActionEvent(
         event_id="SEC-1:SPLIT:2025-01-15",
         security_id="SEC-1",
@@ -46,8 +47,8 @@ def _event(
         action_type=CorporateActionType.SPLIT,
         effective_date=date(2025, 1, 15),
         announced_at=announced_at,
-        price_factor=Decimal("0.5") if status is CorporateActionStatus.RESOLVED else None,
-        volume_factor=Decimal("2") if status is CorporateActionStatus.RESOLVED else None,
+        price_factor=Decimal("0.5") if resolved else None,
+        volume_factor=Decimal("2") if resolved else None,
         old_symbol=None,
         new_symbol=None,
         cash_amount=None,
