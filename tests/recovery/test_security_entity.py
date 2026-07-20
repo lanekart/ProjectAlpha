@@ -14,7 +14,11 @@ from alpha.recovery import (
 )
 
 
-def _context(tmp_path: Path, master: Path, listing: Path | None = None) -> RecoveryContext:
+def _context(
+    tmp_path: Path,
+    master: Path,
+    listing: Path | None = None,
+) -> RecoveryContext:
     parameters: dict[str, object] = {"security_master": master}
     if listing is not None:
         parameters["listing_history"] = listing
@@ -62,7 +66,9 @@ def test_recovers_security_entity_with_agreeing_provenance(tmp_path: Path) -> No
         "listing_history:0",
         "security_master:0",
     )
-    assert row.values["entity_confidence"] > 0.0
+    entity_confidence = row.values["entity_confidence"]
+    assert isinstance(entity_confidence, float)
+    assert entity_confidence > 0.0
     assert result.metadata["canonical_writes"] is False
 
 
@@ -93,9 +99,7 @@ def test_conflict_resolution_prefers_weighted_security_master(tmp_path: Path) ->
     assert row.values["listing_date"] == "2020-01-01"
     conflicts = row.values["field_conflicts"]
     assert isinstance(conflicts, dict)
-    assert conflicts["listing_date"] == (
-        "listing_history:0=2020-01-02",
-    )
+    assert conflicts["listing_date"] == ("listing_history:0=2020-01-02",)
     confidence = row.values["field_confidence"]
     assert isinstance(confidence, dict)
     assert 0.4 < confidence["listing_date"] < 1.0
