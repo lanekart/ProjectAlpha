@@ -62,6 +62,7 @@ class IntegritySummary:
     duplicate_securities: int
     duplicate_isins: int
     invalid_ohlc: int
+    series_ohlc_exceptions: int
     negative_prices: int
     zero_volume_anomalies: int
     validation_errors: int
@@ -133,7 +134,7 @@ class HistoricalTruthIntegrityAudit:
             start_date,
             end_date,
             exchange,
-        ) + self._staged_validation_findings(start_date, end_date)
+        ) + self._validation_findings(start_date, end_date, exchange)
         security_findings = tuple(
             sorted(
                 security_findings,
@@ -196,6 +197,7 @@ class HistoricalTruthIntegrityAudit:
             duplicate_securities=counts.get("DUPLICATE_SECURITY", 0),
             duplicate_isins=counts.get("DUPLICATE_ISIN", 0),
             invalid_ohlc=counts.get("INVALID_OHLC", 0),
+            series_ohlc_exceptions=counts.get("SERIES_SPECIFIC_OHLC", 0),
             negative_prices=counts.get("NEGATIVE_PRICE", 0),
             zero_volume_anomalies=counts.get("ZERO_VOLUME", 0),
             validation_errors=counts.get("VALIDATION_ERROR", 0),
@@ -320,7 +322,7 @@ class HistoricalTruthIntegrityAudit:
             ).fetchall()
         findings: list[SecurityFinding] = []
         seen_security: set[tuple[date, str, str]] = set()
-        isin_symbols: dict[tuple[date, str], set[tuple[str, str]]] = {}
+        isin_symbols: dict[tuple[date, str, str], set[str]] = {}
         for row in rows:
             trading_date = row[0]
             symbol, series = str(row[1]), str(row[2])
@@ -342,16 +344,21 @@ class HistoricalTruthIntegrityAudit:
                 )
             seen_security.add(key)
             if isin:
-                isin_symbols.setdefault((trading_date, isin), set()).add(
-                    (symbol, series)
+                isin_symbols.setdefault((trading_date, isin, series), set()).add(
+                    symbol
                 )
             violations = self._ohlc_violations(open_, high, low, close)
             if violations:
+                series_specific = series.upper() == "T0"
                 findings.append(
                     self._finding(
                         trading_date,
-                        "INVALID_OHLC",
-                        "error",
+                        (
+                            "SERIES_SPECIFIC_OHLC"
+                            if series_specific
+                            else "INVALID_OHLC"
+                        ),
+                        "warning" if series_specific else "error",
                         symbol,
                         series,
                         isin,
@@ -385,24 +392,60 @@ class HistoricalTruthIntegrityAudit:
                         "official candle reports zero traded volume",
                     )
                 )
-        for (trading_date, isin), securities in isin_symbols.items():
-            if len(securities) > 1:
-                rendered = ",".join(
-                    f"{symbol}/{series}" for symbol, series in sorted(securities)
-                )
-                symbol, series = sorted(securities)[0]
+        for (trading_date, isin, series), symbols in isin_symbols.items():
+            if len(symbols) > 1:
+                rendered = ",".join(sorted(symbols))
                 findings.append(
                     self._finding(
                         trading_date,
                         "DUPLICATE_ISIN",
-                        "warning",
-                        symbol,
+                        "error",
+                        sorted(symbols)[0],
                         series,
                         isin,
-                        f"ISIN maps to multiple securities on one date: {rendered}",
+                        (
+                            "ISIN and series map to multiple symbols on one date: "
+                            f"{rendered}"
+                        ),
                     )
                 )
         return tuple(findings)
+
+    def _validation_findings(
+        self,
+        start_date: date,
+        end_date: date,
+        exchange: str,
+    ) -> tuple[SecurityFinding, ...]:
+        self.canonical.initialise()
+        with self.canonical._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT trading_date, code, severity, row_number, message
+                FROM validation_quarantine
+                WHERE exchange = ? AND trading_date BETWEEN ? AND ?
+                ORDER BY trading_date, code, row_number, message
+                """,
+                [exchange, start_date, end_date],
+            ).fetchall()
+        if rows:
+            return tuple(
+                self._finding(
+                    row[0],
+                    (
+                        "VALIDATION_ERROR"
+                        if str(row[2]) == "error"
+                        else "VALIDATION_WARNING"
+                    ),
+                    str(row[2]),
+                    "",
+                    "",
+                    None,
+                    f"{row[1]}; row={row[3]}; {row[4]}",
+                )
+                for row in rows
+            )
+        return self._staged_validation_findings(start_date, end_date)
 
     def _staged_validation_findings(
         self,
@@ -662,6 +705,10 @@ class HistoricalTruthIntegrityAudit:
             f"- Duplicate securities: {summary.duplicate_securities}",
             f"- Duplicate ISINs: {summary.duplicate_isins}",
             f"- Invalid OHLC relationships: {summary.invalid_ohlc}",
+            (
+                "- Series-specific OHLC exceptions: "
+                f"{summary.series_ohlc_exceptions}"
+            ),
             f"- Negative prices: {summary.negative_prices}",
             f"- Zero-volume anomalies: {summary.zero_volume_anomalies}",
             f"- Source validation errors: {summary.validation_errors}",
