@@ -1,0 +1,17 @@
+{
+  "blocking_datasets": [
+    "corporate_actions",
+    "security_identity",
+    "listing_history",
+    "delisting_history",
+    "trading_calendar",
+    "benchmark_history",
+    "sector_mapping"
+  ],
+  "coverage_score_percent": "11.11",
+  "diagnostic_only": true,
+  "period_end": "2026-07-20",
+  "production_influence": false,
+  "status": "NOT_CERTIFIED",
+  "year": 2026
+}

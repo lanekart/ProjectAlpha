@@ -1,0 +1,23 @@
+{
+  "blocking_dataset_count": 7,
+  "blocking_datasets": [
+    "corporate_actions",
+    "security_identity",
+    "listing_history",
+    "delisting_history",
+    "trading_calendar",
+    "benchmark_history",
+    "sector_mapping"
+  ],
+  "certification": "NOT_CERTIFIED",
+  "classification": "RESEARCH_DATASET_INVENTORY_V1",
+  "coverage_score_percent": "11.11",
+  "dataset_count": 12,
+  "diagnostic_only": true,
+  "period_end": "2026-07-20",
+  "production_influence": false,
+  "recommended_next_action": "Corporate Actions",
+  "required_dataset_count": 9,
+  "required_ready_count": 1,
+  "year": 2026
+}

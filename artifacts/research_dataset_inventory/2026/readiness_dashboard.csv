@@ -1,0 +1,13 @@
+research_area,capability,status,blocking,recommended_action
+Daily OHLCV,Historical replay,COMPLETE_CANDIDATE,True,Warehouse sessions reconcile with dated historical-truth snapshots. Official-calendar certification remains separate.
+Corporate Actions,Adjusted returns,PRESENT_EMPTY,True,A canonical table exists but has no rows for the period.
+Security Identity History,Point-in-time identity,PARTIAL,True,"Candle ISIN and/or snapshot identity evidence exists, but the dedicated effective-dated identity history is not complete."
+Listing History,Survivorship-free replay,MISSING,True,"No matching warehouse, archive, or snapshot evidence found."
+Delisting/Suspension History,Survivorship-free replay,MISSING,True,"No matching warehouse, archive, or snapshot evidence found."
+Trading Calendar,Session alignment,DERIVED_ONLY,True,"Observed sessions can be derived from snapshots, but the official exchange trading calendar and holiday evidence are not certified."
+Benchmark History,Benchmark-relative returns,MISSING,True,"No matching warehouse, archive, or snapshot evidence found."
+Historical Sector Mapping,Sector attribution,MISSING,True,"No matching warehouse, archive, or snapshot evidence found."
+Historical Index Constituents,Point-in-time universes,MISSING,False,"No matching warehouse, archive, or snapshot evidence found."
+Market Breadth,Market regime,MISSING,False,"No matching warehouse, archive, or snapshot evidence found."
+Delivery Percentage,Liquidity intelligence,MISSING,False,"No matching warehouse, archive, or snapshot evidence found."
+Volatility Index,Risk regime,MISSING,False,"No matching warehouse, archive, or snapshot evidence found."

@@ -1,0 +1,15 @@
+{
+  "classification": "HISTORICAL_TRUTH_RECONCILIATION_V1_1",
+  "daily_ohlcv_coverage_percent": "100.00",
+  "diagnostic_only": true,
+  "no_usable_raw_data": [],
+  "period_end": "2026-07-20",
+  "period_start": "2026-01-01",
+  "production_influence": false,
+  "raw_data_confirmed": [
+    "security_identity",
+    "listing_history"
+  ],
+  "unresolved_sessions": [],
+  "verified_holidays": 10
+}

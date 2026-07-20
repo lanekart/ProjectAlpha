@@ -1,0 +1,33 @@
+{
+  "apparent_missing_sessions": 10,
+  "classification": "HISTORICAL_TRUTH_RECONCILIATION_V1",
+  "corporate_actions_next_milestone": true,
+  "diagnostic_only": true,
+  "period_end": "2026-07-20",
+  "period_start": "2026-01-01",
+  "production_influence": false,
+  "recoverable_without_download": [
+    "corporate_actions",
+    "security_identity",
+    "listing_history",
+    "trading_calendar",
+    "benchmark_history",
+    "sector_mapping",
+    "index_constituents"
+  ],
+  "truly_missing": [
+    "delisting_history"
+  ],
+  "unresolved_missing_sessions": [
+    "2026-01-15",
+    "2026-01-26",
+    "2026-03-03",
+    "2026-03-26",
+    "2026-03-31",
+    "2026-04-03",
+    "2026-04-14",
+    "2026-05-01",
+    "2026-05-28",
+    "2026-06-26"
+  ]
+}

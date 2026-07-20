@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+
 from alpha.diagnostics import (
     DiagnosticContext,
     DiagnosticEngine,

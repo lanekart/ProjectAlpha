@@ -1,0 +1,17 @@
+{
+  "artifact_hashes": {
+    "report.md": "df694d7e514145ceab9e7022d294d41dbaf9476b89cbb6ece774a57ec1165786",
+    "signal_outcomes.csv": "59b54437d3031efc260dad354dd3b56f35687bd2ef2e44255f3f8d7c17947091",
+    "summary.json": "78b021ff35a80a5941a3c7fc0967e64aee02d127bf09a444a2dc52d9545b9c05"
+  },
+  "dataset_version": "HISTORICAL_TRUTH_SNAPSHOT_V1",
+  "diagnostic_only": true,
+  "horizons": [
+    1,
+    5,
+    10,
+    20
+  ],
+  "production_influence": false,
+  "source_approval_hash": "0ef7fba33ae8393f98a1ae945407e791808d4a91d7f11781d38bc1abf5f701bb"
+}

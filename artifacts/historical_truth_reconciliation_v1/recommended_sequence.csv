@@ -1,0 +1,9 @@
+rank,dataset_key,classification,recoverable_without_download,recommended_action
+1,trading_calendar,CERTIFICATION_LOGIC_GAP,True,Repair Trading Calendar certification logic without downloading data.
+2,corporate_actions,RAW_DATA_PRESENT,True,Implement or connect the parser and ingest existing Corporate Actions evidence.
+3,security_identity,RAW_DATA_PRESENT,True,Implement or connect the parser and ingest existing Security Identity History evidence.
+4,listing_history,RAW_DATA_PRESENT,True,Implement or connect the parser and ingest existing Listing History evidence.
+5,benchmark_history,RAW_DATA_PRESENT,True,Implement or connect the parser and ingest existing Benchmark History evidence.
+6,sector_mapping,RAW_DATA_PRESENT,True,Implement or connect the parser and ingest existing Historical Sector Mapping evidence.
+7,index_constituents,RAW_DATA_PRESENT,True,Implement or connect the parser and ingest existing Historical Index Constituents evidence.
+8,delisting_history,TRULY_MISSING,False,Plan governed acquisition for Delisting/Suspension History.

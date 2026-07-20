@@ -1,0 +1,13 @@
+dataset_key,status,row_count,first_date,last_date,observed_sessions,expected_sessions,missing_sessions,coverage_percent
+daily_ohlcv,COMPLETE_CANDIDATE,446154,2026-01-01,2026-07-20,133,143,10,93.01
+corporate_actions,PRESENT_EMPTY,0,,,,,,
+security_identity,PARTIAL,0,,,,,,100.00
+listing_history,MISSING,,,,,,,
+delisting_history,MISSING,,,,,,,
+trading_calendar,DERIVED_ONLY,,2026-01-01,2026-07-20,133,143,10,93.01
+benchmark_history,MISSING,,,,,,,
+sector_mapping,MISSING,,,,,,,
+index_constituents,MISSING,,,,,,,
+market_breadth,MISSING,,,,,,,
+delivery_percentage,MISSING,,,,,,,
+volatility_index,MISSING,,,,,,,

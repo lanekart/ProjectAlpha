@@ -1,0 +1,9 @@
+dataset_key,canonical_table,row_count,first_date,last_date,classification
+corporate_actions,main.corporate_action,0,,,RAW_DATA_PRESENT
+security_identity,main.security_identity,0,,,RAW_DATA_PRESENT
+listing_history,,,,,RAW_DATA_PRESENT
+delisting_history,,,,,TRULY_MISSING
+trading_calendar,,,,,CERTIFICATION_LOGIC_GAP
+benchmark_history,,,,,RAW_DATA_PRESENT
+sector_mapping,,,,,RAW_DATA_PRESENT
+index_constituents,,,,,RAW_DATA_PRESENT

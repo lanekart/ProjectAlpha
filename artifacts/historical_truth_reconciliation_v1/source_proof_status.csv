@@ -1,0 +1,9 @@
+dataset_key,source_proof_found,raw_files_found,snapshot_files_found
+corporate_actions,False,3,0
+security_identity,False,2,0
+listing_history,False,1,0
+delisting_history,False,0,0
+trading_calendar,False,0,0
+benchmark_history,False,71,0
+sector_mapping,True,4,0
+index_constituents,False,2,0

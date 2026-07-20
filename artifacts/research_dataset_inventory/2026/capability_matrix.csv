@@ -1,0 +1,13 @@
+capability,dataset_key,status,missing_dependency
+Historical replay,daily_ohlcv,READY,
+Adjusted returns,corporate_actions,BLOCKED,Corporate Actions
+Point-in-time identity,security_identity,BLOCKED,Security Identity History
+Survivorship-free replay,listing_history,BLOCKED,Listing History
+Survivorship-free replay,delisting_history,BLOCKED,Delisting/Suspension History
+Session alignment,trading_calendar,BLOCKED,Trading Calendar
+Benchmark-relative returns,benchmark_history,BLOCKED,Benchmark History
+Sector attribution,sector_mapping,BLOCKED,Historical Sector Mapping
+Point-in-time universes,index_constituents,PARTIAL,Historical Index Constituents
+Market regime,market_breadth,PARTIAL,Market Breadth
+Liquidity intelligence,delivery_percentage,PARTIAL,Delivery Percentage
+Risk regime,volatility_index,PARTIAL,Volatility Index

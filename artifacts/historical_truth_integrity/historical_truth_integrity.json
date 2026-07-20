@@ -1,0 +1,1150 @@
+{
+  "missing_dates": [
+    {
+      "classification": "holiday",
+      "evidence": "date is present in the explicitly supplied holiday set",
+      "source_url": "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_20260115_F_0000.csv.zip",
+      "trading_date": "2026-01-15"
+    },
+    {
+      "classification": "holiday",
+      "evidence": "date is present in the explicitly supplied holiday set",
+      "source_url": "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_20260126_F_0000.csv.zip",
+      "trading_date": "2026-01-26"
+    },
+    {
+      "classification": "holiday",
+      "evidence": "date is present in the explicitly supplied holiday set",
+      "source_url": "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_20260303_F_0000.csv.zip",
+      "trading_date": "2026-03-03"
+    },
+    {
+      "classification": "holiday",
+      "evidence": "date is present in the explicitly supplied holiday set",
+      "source_url": "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_20260326_F_0000.csv.zip",
+      "trading_date": "2026-03-26"
+    },
+    {
+      "classification": "holiday",
+      "evidence": "date is present in the explicitly supplied holiday set",
+      "source_url": "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_20260331_F_0000.csv.zip",
+      "trading_date": "2026-03-31"
+    },
+    {
+      "classification": "holiday",
+      "evidence": "date is present in the explicitly supplied holiday set",
+      "source_url": "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_20260403_F_0000.csv.zip",
+      "trading_date": "2026-04-03"
+    },
+    {
+      "classification": "holiday",
+      "evidence": "date is present in the explicitly supplied holiday set",
+      "source_url": "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_20260414_F_0000.csv.zip",
+      "trading_date": "2026-04-14"
+    },
+    {
+      "classification": "holiday",
+      "evidence": "date is present in the explicitly supplied holiday set",
+      "source_url": "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_20260501_F_0000.csv.zip",
+      "trading_date": "2026-05-01"
+    },
+    {
+      "classification": "holiday",
+      "evidence": "date is present in the explicitly supplied holiday set",
+      "source_url": "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_20260528_F_0000.csv.zip",
+      "trading_date": "2026-05-28"
+    },
+    {
+      "classification": "holiday",
+      "evidence": "date is present in the explicitly supplied holiday set",
+      "source_url": "https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_20260626_F_0000.csv.zip",
+      "trading_date": "2026-06-26"
+    }
+  ],
+  "replay_blockers": [
+    "NON_CANDLE_EVIDENCE_NOT_AUDITED"
+  ],
+  "security_findings": [
+    {
+      "code": "SERIES_SPECIFIC_OHLC",
+      "evidence": "open=11.27; high=11.27; low=11.27; close=10.98; violations=low>close",
+      "isin": "INE669E01016",
+      "series": "T0",
+      "severity": "warning",
+      "symbol": "IDEA",
+      "trading_date": "2026-02-23"
+    },
+    {
+      "code": "VALIDATION_WARNING",
+      "evidence": "T0_CLOSE_RANGE_EXCEPTION; row=3207; symbol=IDEA; series=T0; open=11.27; high=11.27; low=11.27; close=10.98; violations=low>close",
+      "isin": null,
+      "series": "",
+      "severity": "warning",
+      "symbol": "",
+      "trading_date": "2026-02-23"
+    },
+    {
+      "code": "SERIES_SPECIFIC_OHLC",
+      "evidence": "open=10.98; high=10.98; low=10.98; close=10.91; violations=low>close",
+      "isin": "INE669E01016",
+      "series": "T0",
+      "severity": "warning",
+      "symbol": "IDEA",
+      "trading_date": "2026-02-24"
+    },
+    {
+      "code": "VALIDATION_WARNING",
+      "evidence": "T0_CLOSE_RANGE_EXCEPTION; row=3197; symbol=IDEA; series=T0; open=10.98; high=10.98; low=10.98; close=10.91; violations=low>close",
+      "isin": null,
+      "series": "",
+      "severity": "warning",
+      "symbol": "",
+      "trading_date": "2026-02-24"
+    },
+    {
+      "code": "SERIES_SPECIFIC_OHLC",
+      "evidence": "open=9.88; high=9.88; low=9.88; close=10.22; violations=high<close",
+      "isin": "INE669E01016",
+      "series": "T0",
+      "severity": "warning",
+      "symbol": "IDEA",
+      "trading_date": "2026-03-05"
+    },
+    {
+      "code": "VALIDATION_WARNING",
+      "evidence": "T0_CLOSE_RANGE_EXCEPTION; row=3259; symbol=IDEA; series=T0; open=9.88; high=9.88; low=9.88; close=10.22; violations=high<close",
+      "isin": null,
+      "series": "",
+      "severity": "warning",
+      "symbol": "",
+      "trading_date": "2026-03-05"
+    },
+    {
+      "code": "SERIES_SPECIFIC_OHLC",
+      "evidence": "open=75.0; high=75.0; low=75.0; close=75.28; violations=high<close",
+      "isin": "INE848E01016",
+      "series": "T0",
+      "severity": "warning",
+      "symbol": "NHPC",
+      "trading_date": "2026-03-23"
+    },
+    {
+      "code": "VALIDATION_WARNING",
+      "evidence": "T0_CLOSE_RANGE_EXCEPTION; row=2117; symbol=NHPC; series=T0; open=75.0; high=75.0; low=75.0; close=75.28; violations=high<close",
+      "isin": null,
+      "series": "",
+      "severity": "warning",
+      "symbol": "",
+      "trading_date": "2026-03-23"
+    },
+    {
+      "code": "SERIES_SPECIFIC_OHLC",
+      "evidence": "open=17.26; high=17.26; low=17.26; close=17.87; violations=high<close",
+      "isin": "INE528G01035",
+      "series": "T0",
+      "severity": "warning",
+      "symbol": "YESBANK",
+      "trading_date": "2026-04-02"
+    },
+    {
+      "code": "VALIDATION_WARNING",
+      "evidence": "T0_CLOSE_RANGE_EXCEPTION; row=3284; symbol=YESBANK; series=T0; open=17.26; high=17.26; low=17.26; close=17.87; violations=high<close",
+      "isin": null,
+      "series": "",
+      "severity": "warning",
+      "symbol": "",
+      "trading_date": "2026-04-02"
+    },
+    {
+      "code": "SERIES_SPECIFIC_OHLC",
+      "evidence": "open=70.0; high=70.0; low=70.0; close=70.03; violations=high<close",
+      "isin": "INE457A01014",
+      "series": "T0",
+      "severity": "warning",
+      "symbol": "MAHABANK",
+      "trading_date": "2026-04-09"
+    },
+    {
+      "code": "VALIDATION_WARNING",
+      "evidence": "T0_CLOSE_RANGE_EXCEPTION; row=426; symbol=MAHABANK; series=T0; open=70.0; high=70.0; low=70.0; close=70.03; violations=high<close",
+      "isin": null,
+      "series": "",
+      "severity": "warning",
+      "symbol": "",
+      "trading_date": "2026-04-09"
+    },
+    {
+      "code": "SERIES_SPECIFIC_OHLC",
+      "evidence": "open=1346.0; high=1346.0; low=1346.0; close=1343.4; violations=low>close",
+      "isin": "INE002A01018",
+      "series": "T0",
+      "severity": "warning",
+      "symbol": "RELIANCE",
+      "trading_date": "2026-04-23"
+    },
+    {
+      "code": "VALIDATION_WARNING",
+      "evidence": "T0_CLOSE_RANGE_EXCEPTION; row=2481; symbol=RELIANCE; series=T0; open=1346.0; high=1346.0; low=1346.0; close=1343.4; violations=low>close",
+      "isin": null,
+      "series": "",
+      "severity": "warning",
+      "symbol": "",
+      "trading_date": "2026-04-23"
+    }
+  ],
+  "snapshot_findings": [
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-01-01"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-01-02"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-01-05"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-01-06"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-01-07"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-01-08"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-01-09"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-01-12"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-01-13"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-01-14"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-01-16"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-01-19"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-01-20"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-01-21"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-01-22"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-01-23"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-01-27"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-01-28"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-01-29"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-01-30"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-02-02"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-02-03"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-02-04"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-02-05"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-02-06"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-02-09"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-02-10"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-02-11"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-02-12"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-02-13"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-02-16"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-02-17"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-02-18"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-02-19"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-02-20"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-02-23"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-02-24"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-02-25"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-02-26"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-02-27"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-03-02"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-03-04"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-03-05"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-03-06"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-03-09"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-03-10"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-03-11"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-03-12"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-03-13"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-03-16"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-03-17"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-03-18"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-03-19"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-03-20"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-03-23"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-03-24"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-03-25"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-03-27"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-03-30"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-04-01"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-04-02"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-04-06"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-04-07"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-04-08"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-04-09"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-04-10"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-04-13"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-04-15"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-04-16"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-04-17"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-04-20"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-04-21"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-04-22"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-04-23"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-04-24"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-04-27"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-04-28"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-04-29"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-04-30"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-05-04"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-05-05"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-05-06"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-05-07"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-05-08"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-05-11"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-05-12"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-05-13"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-05-14"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-05-15"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-05-18"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-05-19"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-05-20"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-05-21"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-05-22"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-05-25"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-05-26"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-05-27"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-05-29"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-01"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-02"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-03"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-04"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-05"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-08"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-09"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-10"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-11"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-12"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-15"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-16"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-17"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-18"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-19"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-22"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-23"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-24"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-25"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-29"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-06-30"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-07-01"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-07-02"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-07-03"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-07-06"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-07-07"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-07-08"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-07-09"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-07-10"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-07-13"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-07-14"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-07-15"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-07-16"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-07-17"
+    },
+    {
+      "checksum_valid": true,
+      "evidence": "checksum and canonical metadata match",
+      "exists": true,
+      "metadata_valid": true,
+      "trading_date": "2026-07-20"
+    }
+  ],
+  "summary": {
+    "candle_replay_ready": true,
+    "coverage_ratio": 1.0,
+    "duplicate_isins": 0,
+    "duplicate_securities": 0,
+    "end_date": "2026-07-20",
+    "expected_trading_days": 133,
+    "explicit_holidays": 10,
+    "full_evidence_replay_ready": false,
+    "invalid_ohlc": 0,
+    "missing_dates": 10,
+    "negative_prices": 0,
+    "observed_trading_days": 133,
+    "series_ohlc_exceptions": 7,
+    "snapshots_expected": 133,
+    "snapshots_valid": 133,
+    "start_date": "2026-01-01",
+    "validation_errors": 0,
+    "validation_warnings": 7,
+    "weekday_candidates": 143,
+    "zero_volume_anomalies": 0
+  }
+}

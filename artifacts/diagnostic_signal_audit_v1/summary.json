@@ -1,0 +1,38 @@
+{
+  "classification": "DIAGNOSTIC_SIGNAL_AUDIT",
+  "diagnostic_only": true,
+  "horizons": [
+    {
+      "censored": 1,
+      "horizon_sessions": 1,
+      "median_forward_return_percent": "0.2946",
+      "observed": 77
+    },
+    {
+      "censored": 4,
+      "horizon_sessions": 5,
+      "median_forward_return_percent": "0.3744",
+      "observed": 74
+    },
+    {
+      "censored": 8,
+      "horizon_sessions": 10,
+      "median_forward_return_percent": "-1.3717",
+      "observed": 70
+    },
+    {
+      "censored": 13,
+      "horizon_sessions": 20,
+      "median_forward_return_percent": "-2.6753",
+      "observed": 65
+    }
+  ],
+  "outcome_rows": 312,
+  "production_influence": false,
+  "raw_buy_or_strong_buy_signals": 78,
+  "status_counts": {
+    "CENSORED_MISSING_OBSERVATION": 3,
+    "CENSORED_RIGHT_BOUNDARY": 23,
+    "OBSERVED": 286
+  }
+}

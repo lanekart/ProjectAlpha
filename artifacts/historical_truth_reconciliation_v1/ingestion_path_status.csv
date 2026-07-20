@@ -1,0 +1,9 @@
+dataset_key,parser_found,ingestion_command_found,tests_found,recoverable_without_download
+corporate_actions,False,False,False,True
+security_identity,False,False,False,True
+listing_history,False,False,False,True
+delisting_history,False,False,False,False
+trading_calendar,False,False,False,True
+benchmark_history,False,True,True,True
+sector_mapping,False,False,True,True
+index_constituents,False,False,False,True

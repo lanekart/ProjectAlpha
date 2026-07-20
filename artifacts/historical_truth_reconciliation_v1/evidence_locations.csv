@@ -1,0 +1,9 @@
+dataset_key,canonical_table,alternate_tables,raw_files_found,snapshot_files_found,evidence
+corporate_actions,main.corporate_action,,3,0,canonical=main.corporate_action; canonical_rows=0; alternate_tables=none; raw_files=3; snapshot_files=0; source_proof=False; parser=False; ingestion=False
+security_identity,main.security_identity,,2,0,canonical=main.security_identity; canonical_rows=0; alternate_tables=none; raw_files=2; snapshot_files=0; source_proof=False; parser=False; ingestion=False
+listing_history,,,1,0,canonical=none; canonical_rows=unknown; alternate_tables=none; raw_files=1; snapshot_files=0; source_proof=False; parser=False; ingestion=False
+delisting_history,,,0,0,canonical=none; canonical_rows=unknown; alternate_tables=none; raw_files=0; snapshot_files=0; source_proof=False; parser=False; ingestion=False
+trading_calendar,,,0,0,canonical=none; canonical_rows=unknown; alternate_tables=none; raw_files=0; snapshot_files=0; source_proof=False; parser=False; ingestion=False
+benchmark_history,,,71,0,canonical=none; canonical_rows=unknown; alternate_tables=none; raw_files=71; snapshot_files=0; source_proof=False; parser=False; ingestion=True
+sector_mapping,,,4,0,canonical=none; canonical_rows=unknown; alternate_tables=none; raw_files=4; snapshot_files=0; source_proof=True; parser=False; ingestion=False
+index_constituents,,,2,0,canonical=none; canonical_rows=unknown; alternate_tables=none; raw_files=2; snapshot_files=0; source_proof=False; parser=False; ingestion=False
