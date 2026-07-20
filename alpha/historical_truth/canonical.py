@@ -8,6 +8,8 @@ from typing import Final
 
 import duckdb
 
+from alpha.historical_truth.models import ValidationIssue
+
 _LEGACY_REQUIRED_COLUMNS: Final[tuple[str, ...]] = (
     "SYMBOL",
     "SERIES",
@@ -102,6 +104,26 @@ class CanonicalPointInTimeWarehouse:
             )
             connection.execute(
                 """
+                CREATE TABLE IF NOT EXISTS validation_quarantine (
+                    trading_date DATE NOT NULL,
+                    exchange VARCHAR NOT NULL,
+                    code VARCHAR NOT NULL,
+                    severity VARCHAR NOT NULL,
+                    row_number BIGINT NOT NULL,
+                    message VARCHAR NOT NULL,
+                    source_sha256 VARCHAR,
+                    PRIMARY KEY (
+                        trading_date,
+                        exchange,
+                        code,
+                        row_number,
+                        message
+                    )
+                )
+                """
+            )
+            connection.execute(
+                """
                 CREATE TABLE IF NOT EXISTS corporate_action (
                     exchange VARCHAR NOT NULL,
                     isin VARCHAR,
@@ -156,6 +178,41 @@ class CanonicalPointInTimeWarehouse:
                 ],
             )
         return len(rows)
+
+    def record_validation_issues(
+        self,
+        trading_date: date,
+        issues: tuple[ValidationIssue, ...],
+        *,
+        exchange: str = "nse",
+        source_sha256: str | None = None,
+    ) -> int:
+        """Persist exact source-validation evidence without changing source rows."""
+
+        if not issues:
+            return 0
+        self.initialise()
+        with self._connect() as connection:
+            connection.executemany(
+                """
+                INSERT OR REPLACE INTO validation_quarantine VALUES (
+                    ?, ?, ?, ?, ?, ?, ?
+                )
+                """,
+                [
+                    (
+                        trading_date,
+                        exchange.lower(),
+                        issue.code,
+                        issue.severity.value,
+                        issue.row_number if issue.row_number is not None else -1,
+                        issue.message,
+                        source_sha256,
+                    )
+                    for issue in issues
+                ],
+            )
+        return len(issues)
 
     def snapshot(
         self,
