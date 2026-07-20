@@ -294,14 +294,8 @@ class HistoricalPopulationEngine:
             "",
             f"Coverage: {summary.coverage_ratio:.2%}",
             f"Candle snapshots ingested: {summary.candle_snapshots}",
-            (
-                "Evidence-complete snapshots: "
-                f"{summary.evidence_complete_snapshots}"
-            ),
-            (
-                "Evidence-incomplete snapshots: "
-                f"{summary.evidence_incomplete_snapshots}"
-            ),
+            (f"Evidence-complete snapshots: {summary.evidence_complete_snapshots}"),
+            (f"Evidence-incomplete snapshots: {summary.evidence_incomplete_snapshots}"),
             f"Failed: {summary.failed}",
             f"Unavailable: {summary.unavailable}",
             f"Skipped: {summary.skipped}",
