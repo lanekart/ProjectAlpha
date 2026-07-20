@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from decimal import Decimal
 import json
+from decimal import Decimal
 
 import pytest
 
