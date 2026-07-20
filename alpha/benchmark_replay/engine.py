@@ -194,12 +194,18 @@ class CanonicalBenchmarkReplayEngine:
             rankings=audit.rankings,
             trades=trades,
         )
+        eligible_securities = _eligible_security_count(
+            store=store,
+            start=dates[0],
+            end=dates[-1],
+        )
         comparisons = _benchmark_comparison(
             store=store,
             dates=dates,
             starting_capital=run_request.policy.initial_capital,
             alpha_ending=stats.ending_capital,
             alpha_cagr=stats.cagr_percent,
+            alpha_performance_available=eligible_securities > 0,
         )
         notes = (
             "Historical index membership is unavailable; this is not an index replay.",
@@ -249,11 +255,7 @@ class CanonicalBenchmarkReplayEngine:
                     primary_rejections.items(), key=lambda item: (-item[1], item[0])
                 )[:10]
             ),
-            eligible_securities=_eligible_security_count(
-                store=store,
-                start=dates[0],
-                end=dates[-1],
-            ),
+            eligible_securities=eligible_securities,
             eligible_security_observations=sum(
                 item.eligible_securities for item in audit.daily
             ),
@@ -370,12 +372,13 @@ def _benchmark_comparison(
     starting_capital: Decimal,
     alpha_ending: Decimal,
     alpha_cagr: Decimal,
+    alpha_performance_available: bool,
 ) -> tuple[BenchmarkComparison, ...]:
     equal_weight = observed_equal_weight_comparison(
         store, dates[0], dates[-1], starting_capital
     )
     nifty = _nifty_comparison(store, dates[0], dates[-1], starting_capital)
-    if equal_weight.cagr_percent is not None:
+    if alpha_performance_available and equal_weight.cagr_percent is not None:
         equal_weight = BenchmarkComparison(
             benchmark=equal_weight.benchmark,
             availability=equal_weight.availability,
@@ -388,7 +391,7 @@ def _benchmark_comparison(
             excess_cagr_percent=_q(alpha_cagr - equal_weight.cagr_percent),
             reason=equal_weight.reason,
         )
-    if nifty.cagr_percent is not None:
+    if alpha_performance_available and nifty.cagr_percent is not None:
         nifty = BenchmarkComparison(
             benchmark=nifty.benchmark,
             availability=nifty.availability,
@@ -404,15 +407,26 @@ def _benchmark_comparison(
     alpha_total = (alpha_ending / starting_capital - 1) * 100
     alpha = BenchmarkComparison(
         benchmark=BASELINE_ID,
-        availability=BenchmarkAvailability.AVAILABLE,
-        start_date=dates[0],
-        end_date=dates[-1],
-        starting_value=starting_capital,
-        ending_value=alpha_ending,
-        total_return_percent=_q(alpha_total),
-        cagr_percent=alpha_cagr,
-        excess_cagr_percent=_ZERO,
-        reason="Canonical Alpha portfolio capital curve.",
+        availability=(
+            BenchmarkAvailability.AVAILABLE
+            if alpha_performance_available
+            else BenchmarkAvailability.UNAVAILABLE
+        ),
+        start_date=dates[0] if alpha_performance_available else None,
+        end_date=dates[-1] if alpha_performance_available else None,
+        starting_value=starting_capital if alpha_performance_available else None,
+        ending_value=alpha_ending if alpha_performance_available else None,
+        total_return_percent=(
+            _q(alpha_total) if alpha_performance_available else None
+        ),
+        cagr_percent=alpha_cagr if alpha_performance_available else None,
+        excess_cagr_percent=_ZERO if alpha_performance_available else None,
+        reason=(
+            "Canonical Alpha portfolio capital curve."
+            if alpha_performance_available
+            else "No security met the 200-session complete-history requirement; "
+            "strategy performance is unavailable."
+        ),
     )
     return (alpha, equal_weight, nifty)
 
@@ -423,6 +437,12 @@ def observed_equal_weight_comparison(
     end: date,
     capital: Decimal,
 ) -> BenchmarkComparison:
+    dataset_version = store.manifest().dataset_version
+    population_label = (
+        "historical-truth population"
+        if dataset_version != "LEGACY_DATASET"
+        else "legacy market population"
+    )
     rows = store.connection.execute(
         """
         WITH lagged AS (
@@ -478,8 +498,8 @@ def observed_equal_weight_comparison(
         cagr_percent=_q(cagr * 100),
         excess_cagr_percent=None,
         reason=(
-            "Daily equal-weight return of securities observed in the legacy "
-            "market population; this is not an investable index and has no costs."
+            f"Daily equal-weight return of securities observed in the {population_label}; "
+            "this is not an investable index and has no costs."
         ),
     )
 
