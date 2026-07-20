@@ -1,6 +1,19 @@
 """Canonical recovery foundation for Project Alpha."""
 
 from .base import CanonicalRecoveryEngine
+from .corporate_actions import (
+    AdjustedCorporateActionBar,
+    CorporateActionAdjustmentEngine,
+    CorporateActionBar,
+    CorporateActionEvent,
+    CorporateActionRecoveryEngine,
+    CorporateActionReplayAudit,
+    CorporateActionStatus,
+    CorporateActionTimeline,
+    CorporateActionType,
+    export_corporate_action_recovery,
+    export_corporate_action_replay_audit,
+)
 from .evidence_graph import EvidenceGraph
 from .models import (
     CanonicalPreviewRow,
@@ -28,8 +41,17 @@ from .security_entity import (
 )
 
 __all__ = [
+    "AdjustedCorporateActionBar",
     "CanonicalPreviewRow",
     "CanonicalRecoveryEngine",
+    "CorporateActionAdjustmentEngine",
+    "CorporateActionBar",
+    "CorporateActionEvent",
+    "CorporateActionRecoveryEngine",
+    "CorporateActionReplayAudit",
+    "CorporateActionStatus",
+    "CorporateActionTimeline",
+    "CorporateActionType",
     "EvidenceEdge",
     "EvidenceGraph",
     "EvidenceGraphSnapshot",
@@ -46,6 +68,8 @@ __all__ = [
     "SecurityEntityRecoveryEngine",
     "SourceSchema",
     "discover_sources",
+    "export_corporate_action_recovery",
+    "export_corporate_action_replay_audit",
     "export_schema_discovery",
     "export_security_entity_recovery",
     "registry",
