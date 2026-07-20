@@ -9,12 +9,12 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+
 from alpha.recovery.canonical_replay import (
     CanonicalReplayBar,
     CanonicalReplayStatus,
     canonical_replay_sha256,
 )
-
 from alpha.recovery.consumer_attestation import (
     CONSUMER_CONTRACT_VERSION,
     export_consumer_attestations,
