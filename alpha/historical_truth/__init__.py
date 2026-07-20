@@ -35,6 +35,7 @@ from alpha.historical_truth.population import (
     PopulationSummary,
 )
 from alpha.historical_truth.registry import ArchiveDatasetPlugin, DatasetRegistry
+from alpha.historical_truth.replay import HistoricalTruthReplayStore
 from alpha.historical_truth.resumable import HistoricalTruthWarehouse
 from alpha.historical_truth.snapshots import (
     ImmutableMarketSnapshot,
@@ -57,6 +58,7 @@ __all__ = [
     "HistoricalArchiveManager",
     "HistoricalPopulationEngine",
     "HistoricalTruthIntegrityAudit",
+    "HistoricalTruthReplayStore",
     "HistoricalTruthWarehouse",
     "ImmutableMarketSnapshot",
     "IntegrityAuditReport",
