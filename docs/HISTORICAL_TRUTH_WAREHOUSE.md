@@ -150,3 +150,25 @@ readiness means only that the available candle history and immutable snapshots
 pass the stated checks. Full-evidence replay readiness remains false until the
 separately governed evidence layers are present and audited; the audit neither
 fabricates those layers nor silently treats them as complete.
+
+
+## HTW v4.5.1 series-aware recovery
+
+The canonical archive preserves every official series. Replay integrity is stricter
+about semantics:
+
+- same-ISIN observations across different series are legitimate and are not
+  duplicate identities;
+- a duplicate ISIN means the same ISIN and series map to multiple symbols on the
+  same date;
+- `T0` close/range differences are retained as
+  `T0_CLOSE_RANGE_EXCEPTION` warnings because the auxiliary T+0 series can carry
+  close semantics that are not comparable to its observed intraday range;
+- every warning or error is persisted in `validation_quarantine` with its source
+  date, row, severity, exact values, violated rules, and source checksum;
+- an auxiliary-series warning cannot reject an otherwise valid trading session;
+- unresolved `EQ` OHLC failures remain replay-blocking errors.
+
+After upgrading, rerun `populate` for the governed range. Existing verified
+snapshots are skipped and previously rejected T0-only sessions are recovered
+from the immutable raw archives.
