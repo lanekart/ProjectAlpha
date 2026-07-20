@@ -34,6 +34,14 @@ from .models import (
     RecoverySeverity,
 )
 from .registry import RecoveryRegistry, registry
+from .replay_parity import (
+    ReplayEvaluation,
+    ReplayParityAnalyzer,
+    ReplayParityAudit,
+    ReplayParityResult,
+    ReplayParityRow,
+    export_replay_parity,
+)
 from .replay_snapshot import (
     CanonicalReplaySnapshot,
     CanonicalReplaySnapshotRepository,
@@ -81,6 +89,11 @@ __all__ = [
     "RecoveryRegistry",
     "RecoveryResult",
     "RecoverySeverity",
+    "ReplayEvaluation",
+    "ReplayParityAnalyzer",
+    "ReplayParityAudit",
+    "ReplayParityResult",
+    "ReplayParityRow",
     "SchemaDiscoveryResult",
     "SecurityEntityRecoveryEngine",
     "SourceSchema",
@@ -88,6 +101,7 @@ __all__ = [
     "discover_sources",
     "export_corporate_action_recovery",
     "export_corporate_action_replay_audit",
+    "export_replay_parity",
     "export_schema_discovery",
     "export_security_entity_recovery",
     "registry",
