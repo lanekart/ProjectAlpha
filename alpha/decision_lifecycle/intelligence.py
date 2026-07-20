@@ -239,8 +239,7 @@ class PositionReviewEngine:
             return PositionReviewDecision(
                 state=LifecycleState.REDUCE,
                 reason=(
-                    "Risk/reward no longer supports retaining the full position "
-                    "size."
+                    "Risk/reward no longer supports retaining the full position size."
                 ),
                 evidence=tuple(reduce_evidence),
                 confidence=LifecycleConfidence.MEDIUM,
