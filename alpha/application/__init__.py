@@ -12,6 +12,10 @@ from alpha.application.backtest import (
     BacktestRun,
     BacktestSummary,
 )
+from alpha.application.governed_replay_backtest import (
+    CanonicalReplayIngestionService,
+    GovernedReplayBacktestService,
+)
 from alpha.application.runtime import ProjectAlphaRuntime
 from alpha.application.runtime_models import (
     RuntimeMetadata,
@@ -24,6 +28,8 @@ __all__ = [
     "BacktestApplicationService",
     "BacktestRun",
     "BacktestSummary",
+    "CanonicalReplayIngestionService",
+    "GovernedReplayBacktestService",
     "ProjectAlphaRuntime",
     "RuntimeMetadata",
     "RuntimeMode",
