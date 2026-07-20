@@ -271,7 +271,10 @@ class HistoricalTruthIntegrityAudit:
                 trading_date=trading_date,
                 classification="validation_or_ingestion_failed",
                 source_url=record.source_url,
-                evidence=f"manifest status is {record.status.value}; no canonical candles",
+                evidence=(
+                    f"manifest status is {record.status.value}; "
+                    "no canonical candles"
+                ),
             )
         elif trading_date >= as_of_date:
             classification = UnavailableClassification.DATA_NOT_RELEASED
@@ -280,7 +283,10 @@ class HistoricalTruthIntegrityAudit:
             expected_url = self.archive._nse_bhavcopy_request(trading_date).source_url
             if record is not None and record.source_url != expected_url:
                 classification = UnavailableClassification.URL_ERROR
-                evidence = f"manifest URL differs from deterministic canonical URL: {expected_url}"
+                evidence = (
+                    "manifest URL differs from deterministic canonical URL: "
+                    f"{expected_url}"
+                )
             else:
                 classification = UnavailableClassification.ARCHIVE_MISSING
                 evidence = (
@@ -641,7 +647,10 @@ class HistoricalTruthIntegrityAudit:
         lines = [
             "# Historical Truth Integrity Audit",
             "",
-            f"Period: {summary.start_date.isoformat()} to {summary.end_date.isoformat()}",
+            (
+                f"Period: {summary.start_date.isoformat()} to "
+                f"{summary.end_date.isoformat()}"
+            ),
             f"Expected trading days: {summary.expected_trading_days}",
             f"Observed trading days: {summary.observed_trading_days}",
             f"Coverage: {summary.coverage_ratio:.2%}",
@@ -658,7 +667,10 @@ class HistoricalTruthIntegrityAudit:
             f"- Zero-volume anomalies: {summary.zero_volume_anomalies}",
             f"- Source validation errors: {summary.validation_errors}",
             f"- Source validation warnings: {summary.validation_warnings}",
-            f"- Valid snapshots: {summary.snapshots_valid}/{summary.snapshots_expected}",
+            (
+                f"- Valid snapshots: {summary.snapshots_valid}/"
+                f"{summary.snapshots_expected}"
+            ),
             "",
             "## Missing dates",
             "",
