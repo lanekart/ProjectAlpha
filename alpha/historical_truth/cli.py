@@ -15,6 +15,27 @@ historical_truth_app = typer.Typer(
 )
 
 
+def _parse_date(value: str, option_name: str) -> date:
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise typer.BadParameter(
+            "must use ISO format YYYY-MM-DD",
+            param_hint=option_name,
+        ) from exc
+
+
+def _parse_range(start: str, end: str) -> tuple[date, date]:
+    start_date = _parse_date(start, "--start")
+    end_date = _parse_date(end, "--end")
+    if start_date > end_date:
+        raise typer.BadParameter(
+            "must be on or before --end",
+            param_hint="--start",
+        )
+    return start_date, end_date
+
+
 @historical_truth_app.command("init")
 def initialise(
     root: Path = typer.Option(Path("alpha_data"), "--root"),
@@ -26,12 +47,13 @@ def initialise(
 
 @historical_truth_app.command("plan")
 def plan(
-    start: date = typer.Option(..., "--start"),
-    end: date = typer.Option(..., "--end"),
+    start: str = typer.Option(..., "--start"),
+    end: str = typer.Option(..., "--end"),
     root: Path = typer.Option(Path("alpha_data"), "--root"),
 ) -> None:
+    start_date, end_date = _parse_range(start, end)
     warehouse = HistoricalTruthWarehouse(root)
-    requests = warehouse.plan_nse_bhavcopies(start, end)
+    requests = warehouse.plan_nse_bhavcopies(start_date, end_date)
     print(f"Planned NSE bhavcopy requests: {len(requests)}")
     for request in requests:
         print(
@@ -42,8 +64,8 @@ def plan(
 
 @historical_truth_app.command("fetch")
 def fetch(
-    start: date = typer.Option(..., "--start"),
-    end: date = typer.Option(..., "--end"),
+    start: str = typer.Option(..., "--start"),
+    end: str = typer.Option(..., "--end"),
     root: Path = typer.Option(Path("alpha_data"), "--root"),
     retry_failed: bool = typer.Option(
         True,
@@ -51,8 +73,9 @@ def fetch(
         help="Retry files whose latest manifest state is FAILED.",
     ),
 ) -> None:
+    start_date, end_date = _parse_range(start, end)
     warehouse = HistoricalTruthWarehouse(root)
-    requests = warehouse.plan_nse_bhavcopies(start, end)
+    requests = warehouse.plan_nse_bhavcopies(start_date, end_date)
     records = warehouse.fetch_many(requests, retry_failed=retry_failed)
     for record in records:
         print(
@@ -63,8 +86,8 @@ def fetch(
 
 @historical_truth_app.command("populate")
 def populate(
-    start: date = typer.Option(..., "--start"),
-    end: date = typer.Option(..., "--end"),
+    start: str = typer.Option(..., "--start"),
+    end: str = typer.Option(..., "--end"),
     root: Path = typer.Option(Path("alpha_data"), "--root"),
     output_dir: Path = typer.Option(
         Path("artifacts/historical_population"),
@@ -75,13 +98,14 @@ def populate(
         "--retry-failed/--no-retry-failed",
     ),
 ) -> None:
+    start_date, end_date = _parse_range(start, end)
     archive = HistoricalTruthWarehouse(root)
     canonical = CanonicalPointInTimeWarehouse(
         root / "warehouse" / "historical_truth.duckdb"
     )
     snapshots = PointInTimeSnapshotEngine(canonical, root / "snapshots")
     engine = HistoricalPopulationEngine(archive, canonical, snapshots)
-    requests = archive.plan_nse_bhavcopies(start, end)
+    requests = archive.plan_nse_bhavcopies(start_date, end_date)
     records = engine.populate(requests, retry_failed=retry_failed)
     summary = engine.summarise(records)
     paths = engine.export(records, output_dir)
