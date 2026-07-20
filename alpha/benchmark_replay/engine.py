@@ -86,7 +86,8 @@ class CanonicalBenchmarkReplayEngine:
             },
         )
         baseline = (
-            dates[0] == dataset.first_session
+            dataset.dataset_version == "LEGACY_DATASET"
+            and dates[0] == dataset.first_session
             and dates[-1] == dataset.last_session
             and run_request.policy == _CANONICAL_POLICY
         )
