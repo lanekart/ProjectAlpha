@@ -131,3 +131,78 @@ def test_snapshot_integrity_and_exports_are_deterministic(tmp_path: Path) -> Non
     payload = json.loads(first[0].read_text(encoding="utf-8"))
     assert payload["summary"]["coverage_ratio"] == 1.0
     assert "NON_CANDLE_EVIDENCE_NOT_AUDITED" in payload["replay_blockers"]
+
+
+def test_cross_series_isin_and_t0_exception_do_not_block_replay(
+    tmp_path: Path,
+) -> None:
+    engine = _audit(tmp_path)
+    engine.canonical.initialise()
+    with engine.canonical._connect() as connection:
+        connection.executemany(
+            """
+            INSERT INTO daily_candle VALUES (
+                ?, 'nse', ?, ?, 'INE669E01016',
+                ?, ?, ?, ?, 1000, 'source'
+            )
+            """,
+            [
+                (date(2026, 7, 17), "IDEA", "EQ", 11.0, 11.5, 10.8, 11.2),
+                (date(2026, 7, 17), "IDEA", "T0", 11.27, 11.27, 11.27, 10.98),
+            ],
+        )
+    snapshot = engine.snapshots.build(
+        date(2026, 7, 17),
+        generated_at=datetime(2026, 7, 20, tzinfo=UTC),
+    )
+    engine.snapshots.persist(snapshot)
+
+    report = engine.audit(
+        date(2026, 7, 17),
+        date(2026, 7, 17),
+        as_of_date=date(2026, 7, 20),
+    )
+
+    assert report.summary.duplicate_isins == 0
+    assert report.summary.invalid_ohlc == 0
+    assert report.summary.series_ohlc_exceptions == 1
+    assert report.summary.candle_replay_ready is True
+    finding = next(
+        item
+        for item in report.security_findings
+        if item.code == "SERIES_SPECIFIC_OHLC"
+    )
+    assert finding.symbol == "IDEA"
+    assert finding.series == "T0"
+    assert finding.severity == "warning"
+
+
+def test_same_isin_and_series_with_multiple_symbols_is_duplicate(
+    tmp_path: Path,
+) -> None:
+    engine = _audit(tmp_path)
+    engine.canonical.initialise()
+    with engine.canonical._connect() as connection:
+        connection.executemany(
+            """
+            INSERT INTO daily_candle VALUES (
+                ?, 'nse', ?, 'EQ', 'INE000A01001',
+                100, 110, 95, 108, 1000, 'source'
+            )
+            """,
+            [
+                (date(2026, 7, 17), "OLD"),
+                (date(2026, 7, 17), "NEW"),
+            ],
+        )
+
+    report = engine.audit(
+        date(2026, 7, 17),
+        date(2026, 7, 17),
+        as_of_date=date(2026, 7, 20),
+    )
+
+    assert report.summary.duplicate_isins == 1
+    assert "DUPLICATE_ISIN" in {
+        item.code for item in report.security_findings
+    }
