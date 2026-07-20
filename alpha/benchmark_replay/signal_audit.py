@@ -4,7 +4,7 @@ import csv
 import json
 import os
 from collections import Counter
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, fields as dataclass_fields
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from io import StringIO
@@ -301,10 +301,15 @@ def _summary(
 
 def _outcomes_csv(audit: DiagnosticSignalAudit) -> str:
     stream = StringIO(newline="")
-    fields = tuple(asdict(audit.outcomes[0])) if audit.outcomes else tuple(
-        field.name for field in __import__("dataclasses").fields(DiagnosticSignalOutcome)
+    headers = (
+        tuple(asdict(audit.outcomes[0]))
+        if audit.outcomes
+        else tuple(
+            field.name
+            for field in dataclass_fields(DiagnosticSignalOutcome)
+        )
     )
-    writer = csv.DictWriter(stream, fieldnames=fields, lineterminator="\n")
+    writer = csv.DictWriter(stream, fieldnames=headers, lineterminator="\\n")
     writer.writeheader()
     for item in audit.outcomes:
         writer.writerow(
@@ -323,7 +328,8 @@ def _render_report(audit: DiagnosticSignalAudit) -> str:
         "**DIAGNOSTIC_ONLY / PRODUCTION_INFLUENCE=false**",
         "",
         f"- Dataset: {audit.dataset_version}",
-        f"- Raw BUY/STRONG BUY signals: {audit.summary['raw_buy_or_strong_buy_signals']}",
+        "- Raw BUY/STRONG BUY signals: "
+        f"{audit.summary['raw_buy_or_strong_buy_signals']}",
         f"- Horizons: {', '.join(str(value) for value in audit.horizons)} sessions",
         "",
         "## Horizon Outcomes",
