@@ -61,62 +61,14 @@ class MissingSessionRow:
 
 
 SPECS: tuple[DatasetSpec, ...] = (
-    DatasetSpec(
-        "corporate_actions",
-        "Corporate Actions",
-        ("corporate_action",),
-        ("corporate_action", "corporate-actions", "corp_action"),
-        True,
-    ),
-    DatasetSpec(
-        "security_identity",
-        "Security Identity History",
-        ("security_identity",),
-        ("security_identity", "security_master", "symbol_change", "isin"),
-        True,
-    ),
-    DatasetSpec(
-        "listing_history",
-        "Listing History",
-        ("listing_history", "listed_security"),
-        ("listing_history", "listing", "listed_security"),
-        True,
-    ),
-    DatasetSpec(
-        "delisting_history",
-        "Delisting/Suspension History",
-        ("delisting_history", "suspension_history"),
-        ("delist", "suspension", "scheme_of_arrangement"),
-        True,
-    ),
-    DatasetSpec(
-        "trading_calendar",
-        "Trading Calendar",
-        ("trading_calendar", "trading_session", "exchange_holiday"),
-        ("trading_calendar", "exchange_holiday", "holiday"),
-        True,
-    ),
-    DatasetSpec(
-        "benchmark_history",
-        "Benchmark History",
-        ("index_candle", "benchmark_history", "index_price"),
-        ("benchmark", "index_candle", "nifty", "indices"),
-        True,
-    ),
-    DatasetSpec(
-        "sector_mapping",
-        "Historical Sector Mapping",
-        ("sector_mapping", "industry_mapping"),
-        ("sector_mapping", "industry_mapping", "sector", "industry"),
-        True,
-    ),
-    DatasetSpec(
-        "index_constituents",
-        "Historical Index Constituents",
-        ("index_constituent", "index_membership"),
-        ("index_constituent", "index_membership", "constituent"),
-        False,
-    ),
+    DatasetSpec("corporate_actions", "Corporate Actions", ("corporate_action",), ("corporate_action", "corporate-actions", "corp_action"), True),
+    DatasetSpec("security_identity", "Security Identity History", ("security_identity",), ("security_identity", "security_master", "symbol_change", "isin"), True),
+    DatasetSpec("listing_history", "Listing History", ("listing_history", "listed_security"), ("listing_history", "listing", "listed_security"), True),
+    DatasetSpec("delisting_history", "Delisting/Suspension History", ("delisting_history", "suspension_history"), ("delist", "suspension", "scheme_of_arrangement"), True),
+    DatasetSpec("trading_calendar", "Trading Calendar", ("trading_calendar", "trading_session", "exchange_holiday"), ("trading_calendar", "exchange_holiday", "holiday"), True),
+    DatasetSpec("benchmark_history", "Benchmark History", ("index_candle", "benchmark_history", "index_price"), ("benchmark", "index_candle", "nifty", "indices"), True),
+    DatasetSpec("sector_mapping", "Historical Sector Mapping", ("sector_mapping", "industry_mapping"), ("sector_mapping", "industry_mapping", "sector", "industry"), True),
+    DatasetSpec("index_constituents", "Historical Index Constituents", ("index_constituent", "index_membership"), ("index_constituent", "index_membership", "constituent"), False),
 )
 
 
@@ -146,13 +98,13 @@ def run_reconciliation(
         )
         for spec in SPECS
     )
-    missing_sessions = _reconcile_sessions(
+    sessions = _reconcile_sessions(
         database=database,
         files=files,
         period_start=period_start,
         period_end=period_end,
     )
-    return rows, missing_sessions
+    return rows, sessions
 
 
 def export_reconciliation(
@@ -231,21 +183,14 @@ def export_reconciliation(
     schema_mismatches = output / "schema_mismatches.csv"
     _write_csv(
         schema_mismatches,
-        (
-            asdict(row)
-            for row in rows
-            if row.primary_classification in {"INGESTED_NONCANONICAL", "SCHEMA_NOT_RECOGNISED"}
-        ),
+        (asdict(row) for row in rows if row.primary_classification in {"INGESTED_NONCANONICAL", "SCHEMA_NOT_RECOGNISED"}),
     )
 
     recoverable = output / "recoverable_datasets.csv"
     _write_csv(recoverable, (asdict(row) for row in rows if row.recoverable_without_download))
 
     missing = output / "truly_missing_datasets.csv"
-    _write_csv(
-        missing,
-        (asdict(row) for row in rows if row.primary_classification == "TRULY_MISSING"),
-    )
+    _write_csv(missing, (asdict(row) for row in rows if row.primary_classification == "TRULY_MISSING"))
 
     sequence = output / "recommended_sequence.csv"
     ranked = sorted(rows, key=_sequence_key)
@@ -302,9 +247,7 @@ def _reconcile_one(
 ) -> ReconciliationRow:
     canonical_matches = tuple(table for table in tables if _base_name(table) in spec.canonical_tables)
     alternate_tables = tuple(
-        table
-        for table in tables
-        if table not in canonical_matches and _matches(table, spec.tokens)
+        table for table in tables if table not in canonical_matches and _matches(table, spec.tokens)
     )
     canonical_table = canonical_matches[0] if canonical_matches else ""
     row_count, first_date, last_date = _table_stats(
@@ -338,9 +281,6 @@ def _reconcile_one(
         "SCHEMA_NOT_RECOGNISED",
         "CERTIFICATION_LOGIC_GAP",
     }
-    complexity = _complexity(classification)
-    coverage = _coverage(first_date, last_date, period_start, period_end)
-    action = _recommended_action(classification, spec.name)
     evidence = "; ".join(
         (
             f"canonical={canonical_table or 'none'}",
@@ -369,12 +309,12 @@ def _reconcile_one(
         parser_found=parser_found,
         ingestion_command_found=ingestion_command_found,
         tests_found=tests_found,
-        requested_period_coverage=coverage,
+        requested_period_coverage=_coverage(first_date, last_date, period_start, period_end),
         recoverable_without_download=recoverable,
-        estimated_recovery_complexity=complexity,
+        estimated_recovery_complexity=_complexity(classification),
         certification_blocker=spec.blocking and classification != "CERTIFIED_CANONICAL",
         evidence=evidence,
-        recommended_action=action,
+        recommended_action=_recommended_action(classification, spec.name),
     )
 
 
@@ -408,11 +348,7 @@ def _classify(
 
 
 def _reconcile_sessions(
-    *,
-    database: Path,
-    files: tuple[Path, ...],
-    period_start: date,
-    period_end: date,
+    *, database: Path, files: tuple[Path, ...], period_start: date, period_end: date
 ) -> tuple[MissingSessionRow, ...]:
     observed = _daily_candle_dates(database, period_start, period_end)
     expected = {
@@ -424,9 +360,7 @@ def _reconcile_sessions(
     return tuple(
         MissingSessionRow(
             session_date=session.isoformat(),
-            classification=(
-                "VERIFIED_EXCHANGE_HOLIDAY" if session in holiday_evidence else "UNRESOLVED"
-            ),
+            classification="VERIFIED_EXCHANGE_HOLIDAY" if session in holiday_evidence else "UNRESOLVED",
             evidence=(
                 "Matched repository holiday evidence"
                 if session in holiday_evidence
@@ -440,8 +374,7 @@ def _reconcile_sessions(
 def _daily_candle_dates(database: Path, start: date, end: date) -> frozenset[date]:
     if not database.exists():
         return frozenset()
-    tables = _table_names(database)
-    table = next((item for item in tables if _base_name(item) == "daily_candle"), None)
+    table = next((item for item in _table_names(database) if _base_name(item) == "daily_candle"), None)
     if table is None:
         return frozenset()
     date_column = _date_column(database, table)
@@ -572,9 +505,9 @@ def _base_name(table: str) -> str:
 
 
 def _is_raw_evidence(path: Path) -> bool:
-    lowered = str(path).lower()
+    lowered_name = path.name.lower()
     return path.suffix.lower() in {".csv", ".json", ".jsonl", ".parquet", ".zip"} and not any(
-        token in lowered for token in ("test", "fixture", "artifact", "report")
+        token in lowered_name for token in ("test", "fixture", "report")
     )
 
 
@@ -613,11 +546,7 @@ def _coverage(
 def _complexity(classification: str) -> str:
     if classification in {"CERTIFIED_CANONICAL", "CERTIFICATION_LOGIC_GAP"}:
         return "LOW"
-    if classification in {
-        "CANONICAL_TABLE_POPULATED_UNCERTIFIED",
-        "PARSED_NOT_INGESTED",
-        "INGESTED_NONCANONICAL",
-    }:
+    if classification in {"CANONICAL_TABLE_POPULATED_UNCERTIFIED", "PARSED_NOT_INGESTED", "INGESTED_NONCANONICAL"}:
         return "MEDIUM"
     return "HIGH"
 
@@ -661,9 +590,7 @@ def _summary(
     period_end: date,
 ) -> dict[str, object]:
     recoverable = [row.dataset_key for row in rows if row.recoverable_without_download]
-    truly_missing = [
-        row.dataset_key for row in rows if row.primary_classification == "TRULY_MISSING"
-    ]
+    truly_missing = [row.dataset_key for row in rows if row.primary_classification == "TRULY_MISSING"]
     unresolved_sessions = [
         row.session_date for row in missing_sessions if row.classification == "UNRESOLVED"
     ]
@@ -705,8 +632,7 @@ def _render_report(
     ]
     for row in rows:
         lines.append(
-            f"| {row.dataset_name} | {row.inventory_status} | "
-            f"{row.primary_classification} | "
+            f"| {row.dataset_name} | {row.inventory_status} | {row.primary_classification} | "
             f"{row.canonical_row_count if row.canonical_row_count is not None else 'UNKNOWN'} | "
             f"{'YES' if row.recoverable_without_download else 'NO'} |"
         )
@@ -759,11 +685,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--inventory-csv", type=Path)
     parser.add_argument("--start", type=_parse_date, required=True)
     parser.add_argument("--end", type=_parse_date, required=True)
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=Path("artifacts/historical_truth_reconciliation_v1"),
-    )
+    parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     rows, missing_sessions = run_reconciliation(
         database=args.database,
@@ -773,7 +695,7 @@ def main(argv: list[str] | None = None) -> int:
         period_start=args.start,
         period_end=args.end,
     )
-    paths = export_reconciliation(
+    artifacts = export_reconciliation(
         rows,
         missing_sessions,
         output=args.output,
@@ -782,11 +704,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     print("Historical Truth Reconciliation v1")
     print(f"Period: {args.start} to {args.end}")
-    print(f"Datasets: {len(rows)}")
-    print(f"Apparent missing sessions: {len(missing_sessions)}")
     print("DIAGNOSTIC_ONLY=true")
     print("PRODUCTION_INFLUENCE=false")
-    print(f"Artifacts: {args.output} ({len(paths)} files)")
+    print(f"Artifacts: {args.output} ({len(artifacts)} files)")
     return 0
 
 
