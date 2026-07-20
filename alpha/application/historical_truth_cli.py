@@ -40,11 +40,16 @@ def fetch(
     start: date = typer.Option(..., "--start"),
     end: date = typer.Option(..., "--end"),
     root: Path = typer.Option(Path("alpha_data"), "--root"),
+    retry_failed: bool = typer.Option(
+        True,
+        "--retry-failed/--no-retry-failed",
+        help="Retry files whose latest manifest state is FAILED.",
+    ),
 ) -> None:
     warehouse = HistoricalTruthWarehouse(root)
     requests = warehouse.plan_nse_bhavcopies(start, end)
-    for request in requests:
-        record = warehouse.fetch(request)
+    records = warehouse.fetch_many(requests, retry_failed=retry_failed)
+    for record in records:
         print(
             f"{record.trading_date.isoformat()} | {record.status.value} | "
             f"{record.relative_path}"
