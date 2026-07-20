@@ -30,6 +30,7 @@ class PopulationRecord:
     validated: bool
     ingested_rows: int
     snapshot_path: str | None
+    evidence_complete: bool | None = None
     error: str | None = None
 
 
@@ -45,6 +46,7 @@ class PopulationSummary:
     unavailable: int
     skipped: int
     ingested_rows: int
+    available_rows: int
     coverage_ratio: float
 
 
@@ -99,6 +101,9 @@ class HistoricalPopulationEngine:
                     validated=True,
                     ingested_rows=snapshot.metadata.symbol_count,
                     snapshot_path=str(existing_snapshot),
+                    evidence_complete=(
+                        snapshot.metadata.completeness_score == 1.0
+                    ),
                 )
 
         manifest = self.archive._existing_record(request)
@@ -185,6 +190,9 @@ class HistoricalPopulationEngine:
                 validated=True,
                 ingested_rows=row_count,
                 snapshot_path=str(snapshot_path),
+                evidence_complete=(
+                    snapshot.metadata.completeness_score == 1.0
+                ),
             )
         except (OSError, ValueError, zipfile.BadZipFile) as exc:
             return PopulationRecord(
@@ -236,21 +244,36 @@ class HistoricalPopulationEngine:
         counts = {status: 0 for status in PopulationStatus}
         for record in records:
             counts[record.status] += 1
-        complete_or_partial = (
-            counts[PopulationStatus.COMPLETE] + counts[PopulationStatus.PARTIAL]
+        snapshot_records = tuple(
+            record
+            for record in records
+            if record.validated and record.snapshot_path is not None
         )
-        coverage = complete_or_partial / len(records) if records else 1.0
+        candle_snapshots = len(snapshot_records)
+        evidence_complete = sum(
+            record.evidence_complete is True for record in snapshot_records
+        )
+        evidence_incomplete = candle_snapshots - evidence_complete
+        coverage = candle_snapshots / len(records) if records else 1.0
         return PopulationSummary(
             total=len(records),
             complete=counts[PopulationStatus.COMPLETE],
             partial=counts[PopulationStatus.PARTIAL],
-            candle_snapshots=complete_or_partial,
-            evidence_complete_snapshots=counts[PopulationStatus.COMPLETE],
-            evidence_incomplete_snapshots=counts[PopulationStatus.PARTIAL],
+            candle_snapshots=candle_snapshots,
+            evidence_complete_snapshots=evidence_complete,
+            evidence_incomplete_snapshots=evidence_incomplete,
             failed=counts[PopulationStatus.FAILED],
             unavailable=counts[PopulationStatus.UNAVAILABLE],
             skipped=counts[PopulationStatus.SKIPPED],
-            ingested_rows=sum(record.ingested_rows for record in records),
+            ingested_rows=sum(
+                record.ingested_rows
+                for record in records
+                if record.status
+                in {PopulationStatus.COMPLETE, PopulationStatus.PARTIAL}
+            ),
+            available_rows=sum(
+                record.ingested_rows for record in snapshot_records
+            ),
             coverage_ratio=round(coverage, 6),
         )
 
@@ -298,14 +321,15 @@ class HistoricalPopulationEngine:
         lines = [
             "# Historical Population Report",
             "",
-            f"Coverage: {summary.coverage_ratio:.2%}",
-            f"Candle snapshots ingested: {summary.candle_snapshots}",
+            f"Weekday request coverage: {summary.coverage_ratio:.2%}",
+            f"Candle snapshots available: {summary.candle_snapshots}",
             (f"Evidence-complete snapshots: {summary.evidence_complete_snapshots}"),
             (f"Evidence-incomplete snapshots: {summary.evidence_incomplete_snapshots}"),
             f"Failed: {summary.failed}",
             f"Unavailable: {summary.unavailable}",
             f"Skipped: {summary.skipped}",
-            f"Ingested rows: {summary.ingested_rows}",
+            f"Rows ingested this run: {summary.ingested_rows}",
+            f"Rows available in snapshots: {summary.available_rows}",
             "",
             "| Date | Status | Rows | Snapshot | Error |",
             "|---|---|---:|---|---|",
@@ -333,16 +357,20 @@ class HistoricalPopulationEngine:
         payload["trading_date"] = record.trading_date.isoformat()
         payload["status"] = record.status.value
         payload["candle_ingestion"] = (
-            "ingested"
+            "ingested_this_run"
             if record.status in {PopulationStatus.COMPLETE, PopulationStatus.PARTIAL}
-            else "not_ingested"
+            else (
+                "already_available"
+                if record.validated and record.snapshot_path is not None
+                else "not_available"
+            )
         )
         payload["evidence_completeness"] = (
             "complete"
-            if record.status is PopulationStatus.COMPLETE
+            if record.evidence_complete is True
             else (
                 "incomplete"
-                if record.status is PopulationStatus.PARTIAL
+                if record.evidence_complete is False
                 else "not_applicable"
             )
         )
