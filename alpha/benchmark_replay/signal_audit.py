@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import csv
+import dataclasses
 import json
 import os
 from collections import Counter
-from dataclasses import asdict, dataclass, fields as dataclass_fields
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from io import StringIO
@@ -21,7 +21,7 @@ DEFAULT_HORIZONS = (1, 5, 10, 20)
 _FOUR = Decimal("0.0001")
 
 
-@dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class DiagnosticSignalOutcome:
     decision_date: date
     symbol: str
@@ -40,7 +40,7 @@ class DiagnosticSignalOutcome:
     production_influence: bool = PRODUCTION_INFLUENCE
 
 
-@dataclass(frozen=True, slots=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class DiagnosticSignalAudit:
     outcomes: tuple[DiagnosticSignalOutcome, ...]
     summary: dict[str, object]
@@ -302,11 +302,11 @@ def _summary(
 def _outcomes_csv(audit: DiagnosticSignalAudit) -> str:
     stream = StringIO(newline="")
     headers = (
-        tuple(asdict(audit.outcomes[0]))
+        tuple(dataclasses.asdict(audit.outcomes[0]))
         if audit.outcomes
         else tuple(
             field.name
-            for field in dataclass_fields(DiagnosticSignalOutcome)
+            for field in dataclasses.fields(DiagnosticSignalOutcome)
         )
     )
     writer = csv.DictWriter(stream, fieldnames=headers, lineterminator="\\n")
@@ -315,7 +315,7 @@ def _outcomes_csv(audit: DiagnosticSignalAudit) -> str:
         writer.writerow(
             {
                 key: _csv_value(value)
-                for key, value in asdict(item).items()
+                for key, value in dataclasses.asdict(item).items()
             }
         )
     return stream.getvalue()
