@@ -120,3 +120,33 @@ exchange, dataset, and trading date.
 
 These should be added incrementally only after the bhavcopy archive slice passes
 local Ruff, mypy, tests, and a small live archive probe.
+
+
+## HTW v4.5 integrity audit
+
+Run the deterministic diagnostic audit with an explicit knowledge cutoff:
+
+```bash
+poetry run python -m alpha.historical_truth integrity-audit \
+  --start 2016-01-01 \
+  --end 2026-07-20 \
+  --as-of 2026-07-20 \
+  --holiday 2026-01-26
+```
+
+Repeat `--holiday` for each exchange holiday supported by explicit evidence.
+A 404 is never inferred to be a holiday. Past canonical URLs classify as
+`archive_missing`; non-canonical URLs as `url_error`; dates on or after the
+audit cutoff as `data_not_released`.
+
+The audit exports deterministic JSON, CSV, and Markdown artifacts covering
+expected and observed sessions, coverage and missing dates, duplicate securities
+and ISINs, OHLC relationships with per-symbol values and violated rules, negative
+prices, zero-volume anomalies, staged source-validation results, immutable
+snapshot integrity, and replay blockers.
+
+Candle ingestion and evidence completeness are reported separately. Candle replay
+readiness means only that the available candle history and immutable snapshots
+pass the stated checks. Full-evidence replay readiness remains false until the
+separately governed evidence layers are present and audited; the audit neither
+fabricates those layers nor silently treats them as complete.
