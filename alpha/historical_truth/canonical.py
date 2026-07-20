@@ -8,7 +8,7 @@ from typing import Final
 
 import duckdb
 
-_REQUIRED_COLUMNS: Final[tuple[str, ...]] = (
+_LEGACY_REQUIRED_COLUMNS: Final[tuple[str, ...]] = (
     "SYMBOL",
     "SERIES",
     "OPEN",
@@ -16,6 +16,15 @@ _REQUIRED_COLUMNS: Final[tuple[str, ...]] = (
     "LOW",
     "CLOSE",
     "TOTTRDQTY",
+)
+_UDIFF_REQUIRED_COLUMNS: Final[tuple[str, ...]] = (
+    "TckrSymb",
+    "SctySrs",
+    "OpnPric",
+    "HghPric",
+    "LwPric",
+    "ClsPric",
+    "TtlTradgVol",
 )
 
 
@@ -248,27 +257,58 @@ class CanonicalPointInTimeWarehouse:
         with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
             reader = csv.DictReader(handle)
             columns = tuple(reader.fieldnames or ())
-            missing = [
-                column for column in _REQUIRED_COLUMNS if column not in columns
-            ]
-            if missing:
-                raise ValueError(
-                    f"missing required columns: {', '.join(missing)}"
-                )
+            fields = CanonicalPointInTimeWarehouse._schema_fields(columns)
             rows: list[CanonicalCandle] = []
             for raw in reader:
                 rows.append(
                     CanonicalCandle(
                         trading_date=trading_date,
                         exchange=exchange.lower(),
-                        symbol=raw["SYMBOL"].strip(),
-                        series=raw["SERIES"].strip(),
-                        isin=(raw.get("ISIN") or "").strip() or None,
-                        open_price=float(raw["OPEN"]),
-                        high_price=float(raw["HIGH"]),
-                        low_price=float(raw["LOW"]),
-                        close_price=float(raw["CLOSE"]),
-                        volume=int(float(raw["TOTTRDQTY"])),
+                        symbol=raw[fields["symbol"]].strip(),
+                        series=raw[fields["series"]].strip(),
+                        isin=(raw.get(fields["isin"]) or "").strip() or None,
+                        open_price=float(raw[fields["open"]]),
+                        high_price=float(raw[fields["high"]]),
+                        low_price=float(raw[fields["low"]]),
+                        close_price=float(raw[fields["close"]]),
+                        volume=int(float(raw[fields["volume"]])),
                     )
                 )
         return tuple(rows)
+
+    @staticmethod
+    def _schema_fields(columns: tuple[str, ...]) -> dict[str, str]:
+        column_set = set(columns)
+        if set(_LEGACY_REQUIRED_COLUMNS) <= column_set:
+            return {
+                "symbol": "SYMBOL",
+                "series": "SERIES",
+                "isin": "ISIN",
+                "open": "OPEN",
+                "high": "HIGH",
+                "low": "LOW",
+                "close": "CLOSE",
+                "volume": "TOTTRDQTY",
+            }
+        if set(_UDIFF_REQUIRED_COLUMNS) <= column_set:
+            return {
+                "symbol": "TckrSymb",
+                "series": "SctySrs",
+                "isin": "ISIN",
+                "open": "OpnPric",
+                "high": "HghPric",
+                "low": "LwPric",
+                "close": "ClsPric",
+                "volume": "TtlTradgVol",
+            }
+        missing_legacy = [
+            column for column in _LEGACY_REQUIRED_COLUMNS if column not in column_set
+        ]
+        missing_udiff = [
+            column for column in _UDIFF_REQUIRED_COLUMNS if column not in column_set
+        ]
+        raise ValueError(
+            "unsupported bhavcopy schema; missing legacy columns: "
+            f"{', '.join(missing_legacy)}; missing UDiFF columns: "
+            f"{', '.join(missing_udiff)}"
+        )
