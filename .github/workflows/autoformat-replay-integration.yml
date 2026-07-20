@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/historical-truth-replay-integration
+      - feature/diagnostic-signal-audit-v1
 
 permissions:
   contents: write
@@ -15,7 +16,7 @@ jobs:
       - name: Check out integration branch
         uses: actions/checkout@v4
         with:
-          ref: feature/historical-truth-replay-integration
+          ref: ${{ github.ref_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -37,4 +38,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -u
           git commit -m "Format replay integration files"
-          git push origin HEAD:feature/historical-truth-replay-integration
+          git push origin HEAD:${{ github.ref_name }}
