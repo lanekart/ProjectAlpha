@@ -76,7 +76,7 @@ def test_build_preserves_raw_and_adjusted_values() -> None:
 
 def test_no_lookahead_before_announcement() -> None:
     replay = CanonicalReplayBuilder(CorporateActionTimeline((_event(),))).build_bar(
-        _bar(), as_of=date(2024, 12, 19)
+        _bar(date(2024, 12, 18)), as_of=date(2024, 12, 19)
     )
 
     assert replay.adjusted_close == Decimal("104.00000000")
