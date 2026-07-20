@@ -768,6 +768,7 @@ def test_cli_rejects_refresh_without_live_adapter() -> None:
     result = runner.invoke(
         app,
         ["replay", "historical-source-evaluate", "--refresh"],
+        terminal_width=200,
     )
     assert result.exit_code != 0
     assert "refresh is unsupported" in result.output
