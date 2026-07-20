@@ -7,7 +7,6 @@ from decimal import Decimal
 
 import pandas as pd
 import pytest
-
 from alpha.recovery.corporate_actions import (
     CorporateActionEvent,
     CorporateActionStatus,
