@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from decimal import Decimal, ROUND_HALF_UP
-from enum import StrEnum
 import json
+from dataclasses import asdict, dataclass
+from decimal import ROUND_HALF_UP, Decimal
+from enum import StrEnum
 
 from alpha.decision_lifecycle import LifecycleState
 
@@ -36,7 +36,11 @@ class StabilityScenario:
             raise ValueError("scenario weight must be positive")
         object.__setattr__(self, "scenario_id", scenario_id)
         object.__setattr__(self, "description", description)
-        object.__setattr__(self, "resulting_state", LifecycleState(self.resulting_state))
+        object.__setattr__(
+            self,
+            "resulting_state",
+            LifecycleState(self.resulting_state),
+        )
         object.__setattr__(self, "weight", Decimal(self.weight))
 
 
@@ -60,11 +64,17 @@ class DecisionStabilityAssessment:
         if self.unchanged_scenarios + self.changed_scenarios != self.scenarios_tested:
             raise ValueError("scenario counts must reconcile")
         if self.production_influence:
-            raise ValueError("stability assessment cannot influence production execution")
+            raise ValueError(
+                "stability assessment cannot influence production execution"
+            )
         object.__setattr__(self, "baseline_state", LifecycleState(self.baseline_state))
         object.__setattr__(self, "band", StabilityBand(self.band))
         object.__setattr__(self, "critical_flips", tuple(self.critical_flips))
-        object.__setattr__(self, "changed_scenario_ids", tuple(self.changed_scenario_ids))
+        object.__setattr__(
+            self,
+            "changed_scenario_ids",
+            tuple(self.changed_scenario_ids),
+        )
 
     def to_dict(self) -> dict[str, object]:
         payload = asdict(self)
