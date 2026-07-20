@@ -29,9 +29,7 @@ class HistoricalTruthReplayStore(LegacyMarketDataStore):
         self.snapshot_root = Path(snapshot_root)
         self.exchange = exchange.strip().lower()
         if not self.path.is_file():
-            raise FileNotFoundError(
-                f"historical truth database not found: {self.path}"
-            )
+            raise FileNotFoundError(f"historical truth database not found: {self.path}")
         if not self.snapshot_root.is_dir():
             raise FileNotFoundError(
                 f"historical truth snapshot root not found: {self.snapshot_root}"
@@ -96,7 +94,9 @@ class HistoricalTruthReplayStore(LegacyMarketDataStore):
         )
         source_dates = self._source_dates(start=start, end=end)
         if not source_dates:
-            raise ValueError("historical truth warehouse has no candles in replay window")
+            raise ValueError(
+                "historical truth warehouse has no candles in replay window"
+            )
         warehouse = CanonicalPointInTimeWarehouse(self.path)
         snapshots = PointInTimeSnapshotEngine(warehouse, self.snapshot_root)
         rows: list[tuple[object, ...]] = []
