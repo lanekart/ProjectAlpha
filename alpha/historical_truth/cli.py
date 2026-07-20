@@ -6,6 +6,7 @@ from pathlib import Path
 import typer
 
 from alpha.historical_truth.canonical import CanonicalPointInTimeWarehouse
+from alpha.historical_truth.integrity import HistoricalTruthIntegrityAudit
 from alpha.historical_truth.population import HistoricalPopulationEngine
 from alpha.historical_truth.resumable import HistoricalTruthWarehouse
 from alpha.historical_truth.snapshots import PointInTimeSnapshotEngine
@@ -110,8 +111,15 @@ def populate(
     summary = engine.summarise(records)
     paths = engine.export(records, output_dir)
     print(f"Population coverage: {summary.coverage_ratio:.2%}")
-    print(f"Complete: {summary.complete}")
-    print(f"Partial: {summary.partial}")
+    print(f"Candle snapshots ingested: {summary.candle_snapshots}")
+    print(
+        "Evidence-complete snapshots: "
+        f"{summary.evidence_complete_snapshots}"
+    )
+    print(
+        "Evidence-incomplete snapshots: "
+        f"{summary.evidence_incomplete_snapshots}"
+    )
     print(f"Failed: {summary.failed}")
     print(f"Unavailable: {summary.unavailable}")
     print(f"Skipped: {summary.skipped}")
@@ -150,3 +158,60 @@ def validate_csv(
         location = f" row={issue.row_number}" if issue.row_number else ""
         print(f"{issue.severity.value.upper()} {issue.code}{location}: {issue.message}")
     raise typer.Exit(code=1)
+
+
+@historical_truth_app.command("integrity-audit")
+def integrity_audit(
+    start: str = typer.Option(..., "--start"),
+    end: str = typer.Option(..., "--end"),
+    as_of: str = typer.Option(
+        ...,
+        "--as-of",
+        help="Deterministic knowledge cutoff in YYYY-MM-DD format.",
+    ),
+    holiday: list[str] = typer.Option(
+        [],
+        "--holiday",
+        help="Explicit exchange holiday; repeat for multiple dates.",
+    ),
+    root: Path = typer.Option(Path("alpha_data"), "--root"),
+    output_dir: Path = typer.Option(
+        Path("artifacts/historical_truth_integrity"),
+        "--output-dir",
+    ),
+) -> None:
+    start_date, end_date = _parse_range(start, end)
+    as_of_date = _parse_date(as_of, "--as-of")
+    holiday_dates = frozenset(
+        _parse_date(value, "--holiday") for value in holiday
+    )
+    archive = HistoricalTruthWarehouse(root)
+    canonical = CanonicalPointInTimeWarehouse(
+        root / "warehouse" / "historical_truth.duckdb"
+    )
+    snapshots = PointInTimeSnapshotEngine(canonical, root / "snapshots")
+    engine = HistoricalTruthIntegrityAudit(
+        archive,
+        canonical,
+        snapshots,
+        holiday_dates=holiday_dates,
+    )
+    report = engine.audit(
+        start_date,
+        end_date,
+        as_of_date=as_of_date,
+    )
+    paths = engine.export(report, output_dir)
+    summary = report.summary
+    print(f"Expected trading days: {summary.expected_trading_days}")
+    print(f"Observed trading days: {summary.observed_trading_days}")
+    print(f"Coverage: {summary.coverage_ratio:.2%}")
+    print(f"Candle replay ready: {summary.candle_replay_ready}")
+    print(
+        "Full-evidence replay ready: "
+        f"{summary.full_evidence_replay_ready}"
+    )
+    for blocker in report.replay_blockers:
+        print(f"BLOCKER {blocker}")
+    for path in paths:
+        print(path)
