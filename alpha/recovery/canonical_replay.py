@@ -182,9 +182,7 @@ class CanonicalReplayBuilder:
             item for item in ordered if item.status is CanonicalReplayStatus.READY
         )
         quarantined = tuple(
-            item
-            for item in ordered
-            if item.status is CanonicalReplayStatus.QUARANTINED
+            item for item in ordered if item.status is CanonicalReplayStatus.QUARANTINED
         )
         adjusted = tuple(
             item
@@ -195,11 +193,7 @@ class CanonicalReplayBuilder:
         )
         unresolved = tuple(
             sorted(
-                {
-                    event_id
-                    for item in ordered
-                    for event_id in item.unresolved_event_ids
-                }
+                {event_id for item in ordered for event_id in item.unresolved_event_ids}
             )
         )
         return CanonicalReplayAudit(
