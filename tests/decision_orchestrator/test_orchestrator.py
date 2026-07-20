@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from decimal import Decimal
 import json
+from decimal import Decimal
 
 import pytest
 
@@ -155,7 +155,10 @@ def test_supporting_evidence_and_confidence_are_aggregated() -> None:
     )
 
     assert decision.supporting_sources == ("PIPELINE", "STRESS")
-    assert decision.evidence_ids == ("PIPELINE_EVIDENCE", "STRESS_EVIDENCE")
+    assert decision.evidence_ids == (
+        "PIPELINE_EVIDENCE",
+        "STRESS_EVIDENCE",
+    )
     assert decision.confidence_score == 80
     assert decision.stability_score == 75
 
@@ -202,4 +205,20 @@ def test_invalid_signal_metadata_fails_closed() -> None:
             confidence=Decimal("0.8"),
             reason="Valid reason",
             evidence_ids=(),
+        )
+
+
+def test_all_zero_confidence_signals_fail_closed() -> None:
+    with pytest.raises(ValueError, match="positive confidence"):
+        DecisionOrchestrator().decide(
+            recommendation_id="rec-9",
+            symbol="abc",
+            context=DecisionContext.CANDIDATE,
+            signals=(
+                _signal(
+                    "PIPELINE",
+                    LifecycleState.READY,
+                    confidence="0",
+                ),
+            ),
         )
