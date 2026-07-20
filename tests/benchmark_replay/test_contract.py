@@ -72,7 +72,6 @@ def test_cli_contract_exposes_required_commands_and_options() -> None:
     assert PRODUCTION_INFLUENCE is False
 
 
-
 def test_exports_decision_eligibility_and_rejection_attribution(
     tmp_path: Path,
     benchmark_report: BenchmarkReplayReport,
@@ -90,6 +89,7 @@ def test_exports_decision_eligibility_and_rejection_attribution(
     assert "minimum_complete_history_sessions" in eligibility
     assert "BLOCKED_NO_200_SESSION_SECURITIES" in eligibility
     assert rejection.startswith("reason_code,rejected_candidates")
+
 
 def test_non_economic_equal_weight_benchmark_fails_closed(tmp_path: Path) -> None:
     database = tmp_path / "prices.duckdb"
