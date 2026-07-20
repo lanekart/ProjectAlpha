@@ -57,6 +57,19 @@ def render_executive_report(report: BenchmarkReplayReport) -> str:
         f"| Average idle cash | INR {stats.average_idle_cash} |",
         f"| Opportunity capture | {_value(capture_rate, '%')} |",
         "",
+        "## Decision Eligibility",
+        "",
+        "- Complete-history eligibility requires at least 200 observations per security.",
+        f"- Complete-history securities: {report.eligible_securities:,}.",
+        f"- Complete-history security-days: {report.eligible_security_observations:,}.",
+        (
+            "- Status: BLOCKED_NO_200_SESSION_SECURITIES. Raw technical and "
+            "BUY/STRONG_BUY signals are diagnostic only and are not an eligible "
+            "decision population."
+            if report.eligible_securities == 0
+            else "- Status: ELIGIBLE_POPULATION_AVAILABLE."
+        ),
+        "",
         "## Portfolio",
         "",
         f"Starting capital was INR {stats.starting_capital}; ending capital was "
