@@ -242,11 +242,11 @@ def _outcome(
     target_close = Decimal(str(rows[-1][3]))
     return DiagnosticSignalOutcome(
         decision_date=decision_date,
-            symbol=symbol,
-            final_signal=final_signal,
-            opportunity_score=score,
-            primary_reason_code=reason,
-            horizon_sessions=horizon,
+        symbol=symbol,
+        final_signal=final_signal,
+        opportunity_score=score,
+        primary_reason_code=reason,
+        horizon_sessions=horizon,
         status="OBSERVED",
         decision_close=decision_close,
         target_date=target_date,
