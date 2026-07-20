@@ -96,6 +96,6 @@ def test_exports_are_deterministic(tmp_path: Path) -> None:
     schema_payload = json.loads(paths[0].read_text(encoding="utf-8"))
     assert schema_payload["row_count"] == 2
     assert schema_payload["candidate_primary_keys"] == ["security_id", "symbol"]
-    assert paths[-1].read_text(encoding="utf-8").startswith(
-        "# Entity Schema Discovery\n"
+    assert (
+        paths[-1].read_text(encoding="utf-8").startswith("# Entity Schema Discovery\n")
     )
