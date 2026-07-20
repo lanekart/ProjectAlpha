@@ -241,9 +241,7 @@ def _build_audit(rows: tuple[ReplayParityRow, ...]) -> ReplayParityAudit:
         row for row in rows if row.replay_status is CanonicalReplayStatus.READY
     )
     quarantined = tuple(
-        row
-        for row in rows
-        if row.replay_status is CanonicalReplayStatus.QUARANTINED
+        row for row in rows if row.replay_status is CanonicalReplayStatus.QUARANTINED
     )
     signal_changes = sum(row.signal_changed is True for row in ready)
     decision_changes = sum(row.decision_changed is True for row in ready)
