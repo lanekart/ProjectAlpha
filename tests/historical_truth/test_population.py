@@ -114,9 +114,7 @@ def test_population_exports_are_deterministic(tmp_path: Path) -> None:
         "historical_population.csv",
         "historical_population.md",
     ]
-    assert "Weekday request coverage: 100.00%" in paths[2].read_text(
-        encoding="utf-8"
-    )
+    assert "Weekday request coverage: 100.00%" in paths[2].read_text(encoding="utf-8")
 
 
 def test_t0_exception_is_quarantined_without_rejecting_session(
