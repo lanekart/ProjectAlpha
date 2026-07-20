@@ -34,6 +34,10 @@ from .models import (
     RecoverySeverity,
 )
 from .registry import RecoveryRegistry, registry
+from .replay_snapshot import (
+    CanonicalReplaySnapshot,
+    CanonicalReplaySnapshotRepository,
+)
 from .schema_discovery import (
     FieldProfile,
     MappingCandidate,
@@ -54,6 +58,8 @@ __all__ = [
     "CanonicalReplayAudit",
     "CanonicalReplayBar",
     "CanonicalReplayBuilder",
+    "CanonicalReplaySnapshot",
+    "CanonicalReplaySnapshotRepository",
     "CanonicalReplayStatus",
     "CorporateActionAdjustmentEngine",
     "CorporateActionBar",
