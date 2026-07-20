@@ -8,6 +8,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pandas as pd
+
 from alpha.analysis.signals.daily_report import DailyMarketReport
 from alpha.application.backtest import (
     BacktestApplicationService,
