@@ -7,13 +7,14 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
+from typer.testing import CliRunner
+
 from alpha.recovery.__main__ import app
 from alpha.recovery.canonical_replay import CanonicalReplayBar, CanonicalReplayStatus
 from alpha.recovery.replay_snapshot import (
     CanonicalReplaySnapshot,
     CanonicalReplaySnapshotRepository,
 )
-from typer.testing import CliRunner
 
 _AS_OF = date(2025, 1, 15)
 
