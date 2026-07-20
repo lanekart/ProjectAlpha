@@ -38,6 +38,9 @@ class PopulationSummary:
     total: int
     complete: int
     partial: int
+    candle_snapshots: int
+    evidence_complete_snapshots: int
+    evidence_incomplete_snapshots: int
     failed: int
     unavailable: int
     skipped: int
@@ -149,7 +152,9 @@ class HistoricalPopulationEngine:
                     validated=False,
                     ingested_rows=0,
                     snapshot_path=None,
-                    error="; ".join(issue.code for issue in errors),
+                    error="; ".join(
+                        f"{issue.code}: {issue.message}" for issue in errors
+                    ),
                 )
             row_count = self.canonical.ingest_bhavcopy_csv(
                 csv_path,
@@ -233,6 +238,9 @@ class HistoricalPopulationEngine:
             total=len(records),
             complete=counts[PopulationStatus.COMPLETE],
             partial=counts[PopulationStatus.PARTIAL],
+            candle_snapshots=complete_or_partial,
+            evidence_complete_snapshots=counts[PopulationStatus.COMPLETE],
+            evidence_incomplete_snapshots=counts[PopulationStatus.PARTIAL],
             failed=counts[PopulationStatus.FAILED],
             unavailable=counts[PopulationStatus.UNAVAILABLE],
             skipped=counts[PopulationStatus.SKIPPED],
@@ -285,8 +293,15 @@ class HistoricalPopulationEngine:
             "# Historical Population Report",
             "",
             f"Coverage: {summary.coverage_ratio:.2%}",
-            f"Complete: {summary.complete}",
-            f"Partial: {summary.partial}",
+            f"Candle snapshots ingested: {summary.candle_snapshots}",
+            (
+                "Evidence-complete snapshots: "
+                f"{summary.evidence_complete_snapshots}"
+            ),
+            (
+                "Evidence-incomplete snapshots: "
+                f"{summary.evidence_incomplete_snapshots}"
+            ),
             f"Failed: {summary.failed}",
             f"Unavailable: {summary.unavailable}",
             f"Skipped: {summary.skipped}",
@@ -317,4 +332,18 @@ class HistoricalPopulationEngine:
         payload = asdict(record)
         payload["trading_date"] = record.trading_date.isoformat()
         payload["status"] = record.status.value
+        payload["candle_ingestion"] = (
+            "ingested"
+            if record.status in {PopulationStatus.COMPLETE, PopulationStatus.PARTIAL}
+            else "not_ingested"
+        )
+        payload["evidence_completeness"] = (
+            "complete"
+            if record.status is PopulationStatus.COMPLETE
+            else (
+                "incomplete"
+                if record.status is PopulationStatus.PARTIAL
+                else "not_applicable"
+            )
+        )
         return payload
