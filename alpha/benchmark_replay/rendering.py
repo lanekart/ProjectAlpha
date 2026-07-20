@@ -59,7 +59,8 @@ def render_executive_report(report: BenchmarkReplayReport) -> str:
         "",
         "## Decision Eligibility",
         "",
-        "- Complete-history eligibility requires at least 200 observations per security.",
+        "- Complete-history eligibility requires at least 200 observations "
+        "per security.",
         f"- Complete-history securities: {report.eligible_securities:,}.",
         f"- Complete-history security-days: {report.eligible_security_observations:,}.",
         (
