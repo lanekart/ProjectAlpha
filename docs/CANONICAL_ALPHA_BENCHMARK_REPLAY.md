@@ -146,3 +146,39 @@ are evaluated against the same warehouse, replay period, execution assumptions,
 and portfolio policy as `ALPHA_BASELINE_v1.0`. A better isolated metric is not
 enough; comparisons must consider opportunity capture, expectancy, drawdown,
 capital use, and reproducibility together.
+
+## Diagnostic Signal Audit
+
+The diagnostic signal audit evaluates raw `BUY` and `STRONG_BUY` verdicts that
+were not part of an eligible decision population. The replay evidence preserves
+the original final signal so the audit never reconstructs or guesses verdicts.
+
+Fixed 1, 5, 10, and 20-session horizons report forward close return, maximum
+favorable excursion, and maximum adverse excursion. A horizon is observed only
+when every required symbol/session candle exists. Missing observations and the
+right replay boundary are explicitly censored.
+
+Artifacts are deterministic:
+
+- `signal_outcomes.csv`;
+- `summary.json`;
+- `report.md`;
+- `manifest.json` with input and artifact hashes.
+
+Run after generating benchmark artifacts:
+
+```text
+poetry run python -m alpha benchmark signal-audit \\
+  --benchmark-output .alpha/benchmark/<RUN_ID> \\
+  --database alpha_data/warehouse/historical_truth.duckdb \\
+  --historical-truth-snapshots alpha_data/snapshots \\
+  --start 2026-01-01 \\
+  --end 2026-07-20
+```
+
+This audit does not measure deployable strategy performance, tune thresholds,
+or change approval or portfolio policy.
+
+`DIAGNOSTIC_ONLY=true`
+
+`PRODUCTION_INFLUENCE=false`
