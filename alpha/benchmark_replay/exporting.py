@@ -114,7 +114,6 @@ class BenchmarkArtifactExporter:
             )
 
 
-
 def _decision_eligibility_row(report: BenchmarkReplayReport) -> dict[str, object]:
     raw_candidates = sum(
         item.technical_candidates for item in report.candidate_statistics
@@ -141,6 +140,7 @@ def _decision_eligibility_row(report: BenchmarkReplayReport) -> dict[str, object
         ),
         "production_influence": False,
     }
+
 
 def load_manifest(
     output_directory: Path | str = DEFAULT_BENCHMARK_OUTPUT,
