@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import zipfile
-from datetime import date, datetime, UTC
+from datetime import date
 from pathlib import Path
 
 from alpha.historical_truth import (
@@ -38,7 +38,8 @@ def _write_archive(path: Path) -> None:
 
 def _engine(tmp_path: Path) -> HistoricalPopulationEngine:
     archive = HistoricalTruthWarehouse(tmp_path / "alpha_data")
-    canonical = CanonicalPointInTimeWarehouse(tmp_path / "alpha_data/warehouse/truth.duckdb")
+    database_path = tmp_path / "alpha_data/warehouse/truth.duckdb"
+    canonical = CanonicalPointInTimeWarehouse(database_path)
     snapshots = PointInTimeSnapshotEngine(
         canonical,
         tmp_path / "alpha_data/snapshots",
