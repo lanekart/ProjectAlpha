@@ -211,12 +211,28 @@ class HistoricalTruthWarehouse:
                         )
                     )
                     continue
-                if high < max(open_, low, close) or low > min(open_, high, close):
+                violations: list[str] = []
+                if high < open_:
+                    violations.append("high<open")
+                if high < close:
+                    violations.append("high<close")
+                if high < low:
+                    violations.append("high<low")
+                if low > open_:
+                    violations.append("low>open")
+                if low > close:
+                    violations.append("low>close")
+                if violations:
+                    evidence = (
+                        f"symbol={symbol}; series={series}; open={open_}; "
+                        f"high={high}; low={low}; close={close}; "
+                        f"violations={','.join(violations)}"
+                    )
                     issues.append(
                         ValidationIssue(
                             code="IMPOSSIBLE_OHLC",
                             severity=ValidationSeverity.ERROR,
-                            message=f"Impossible OHLC values for {symbol}/{series}",
+                            message=evidence,
                             row_number=row_number,
                         )
                     )
