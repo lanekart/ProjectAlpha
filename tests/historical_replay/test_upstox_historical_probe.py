@@ -1418,7 +1418,9 @@ def test_cli_sample_and_headline_report_are_read_only_by_default(
 
 def test_cli_full_population_safeguard_and_deterministic_json(tmp_path: Path) -> None:
     blocked = runner.invoke(
-        app, ["replay", "upstox-historical-sample", "--full-population"]
+        app,
+        ["replay", "upstox-historical-sample", "--full-population"],
+        terminal_width=200,
     )
     assert blocked.exit_code != 0
     assert "requires --live" in blocked.output
