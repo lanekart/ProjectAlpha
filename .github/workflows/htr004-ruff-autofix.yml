@@ -25,8 +25,10 @@ jobs:
 
       - name: Apply Ruff fixes and formatting
         run: |
-          ruff check alpha/recovery/corporate_actions.py --fix
+          ruff check alpha/recovery/corporate_actions.py --fix || true
           ruff format alpha/recovery/corporate_actions.py
+          ruff check alpha/recovery/corporate_actions.py
+          ruff format --check alpha/recovery/corporate_actions.py
 
       - name: Commit fixes
         run: |
