@@ -177,9 +177,7 @@ def _inspect_source(path: Path) -> SourceSchema:
             field.name for field in fields if field.candidate_key
         ),
         candidate_date_fields=tuple(
-            field.name
-            for field in fields
-            if _contains_token(field.name, _DATE_TOKENS)
+            field.name for field in fields if _contains_token(field.name, _DATE_TOKENS)
         ),
         candidate_lineage_fields=tuple(
             field.name
@@ -318,9 +316,7 @@ def _relationship_candidates(
     by_field: dict[str, list[str]] = {}
     for schema in schemas:
         for profile in schema.fields:
-            by_field.setdefault(_normalize(profile.name), []).append(
-                schema.source_name
-            )
+            by_field.setdefault(_normalize(profile.name), []).append(schema.source_name)
     relationships: set[tuple[str, str, str]] = set()
     for field_name, sources in by_field.items():
         ordered = sorted(set(sources))
@@ -396,9 +392,7 @@ def _contains_token(value: str, tokens: tuple[str, ...]) -> bool:
 
 def _normalize(value: str) -> str:
     return "_".join(
-        part
-        for part in value.strip().lower().replace("-", "_").split("_")
-        if part
+        part for part in value.strip().lower().replace("-", "_").split("_") if part
     )
 
 

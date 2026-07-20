@@ -157,6 +157,6 @@ def test_exports_are_deterministic(tmp_path: Path) -> None:
     assert rows[0]["record_key"] == "SEC-1"
     verification = json.loads(paths[4].read_text(encoding="utf-8"))
     assert verification["classification"] == "PREVIEW_READY"
-    assert paths[5].read_text(encoding="utf-8").startswith(
-        "# Security Entity Recovery\n"
+    assert (
+        paths[5].read_text(encoding="utf-8").startswith("# Security Entity Recovery\n")
     )

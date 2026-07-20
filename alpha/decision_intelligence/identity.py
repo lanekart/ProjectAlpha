@@ -215,9 +215,7 @@ def _identity_from_mapping(
     try:
         confidence = float(confidence_value)
     except ValueError as exc:
-        raise ValueError(
-            f"invalid identity confidence for {record_key!r}"
-        ) from exc
+        raise ValueError(f"invalid identity confidence for {record_key!r}") from exc
     if not 0.0 <= confidence <= 1.0:
         raise ValueError(f"identity confidence outside [0, 1]: {record_key!r}")
     return SecurityIdentity(
@@ -227,9 +225,7 @@ def _identity_from_mapping(
         symbol=symbol,
         exchange=_optional_text(values.get("exchange")),
         confidence=confidence,
-        recovery_version=(
-            _optional_text(values.get("recovery_version")) or "UNKNOWN"
-        ),
+        recovery_version=(_optional_text(values.get("recovery_version")) or "UNKNOWN"),
         evidence_ids=evidence_ids,
     )
 

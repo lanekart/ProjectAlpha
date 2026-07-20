@@ -382,9 +382,7 @@ def _choose_candidate(
     chosen = winning[0][2]
     supporting = {item[1] for item in winning}
     rejected = {
-        f"{item[1]}={_render_value(item[2])}"
-        for group in ranked[1:]
-        for item in group
+        f"{item[1]}={_render_value(item[2])}" for group in ranked[1:] for item in group
     }
     return chosen, supporting, rejected
 
@@ -537,9 +535,7 @@ def _first_object(row: Mapping[str, object], aliases: Sequence[str]) -> object:
 
 def _normalize(value: str) -> str:
     return "_".join(
-        part
-        for part in value.strip().lower().replace("-", "_").split("_")
-        if part
+        part for part in value.strip().lower().replace("-", "_").split("_") if part
     )
 
 
