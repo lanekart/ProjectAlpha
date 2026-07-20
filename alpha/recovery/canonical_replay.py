@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from datetime import date
 from decimal import Decimal
 from enum import StrEnum
-from typing import Iterable
 
 from .corporate_actions import (
     CorporateActionAdjustmentEngine,
@@ -139,15 +139,32 @@ class CanonicalReplayBuilder:
         )
         return tuple(self.build_bar(bar, as_of=as_of) for bar in source)
 
-    def audit(self, bars: Iterable[CorporateActionBar], *, as_of: date) -> CanonicalReplayAudit:
+    def audit(
+        self,
+        bars: Iterable[CorporateActionBar],
+        *,
+        as_of: date,
+    ) -> CanonicalReplayAudit:
         replay = self.build(bars, as_of=as_of)
-        ready = tuple(item for item in replay if item.status is CanonicalReplayStatus.READY)
+        ready = tuple(
+            item
+            for item in replay
+            if item.status is CanonicalReplayStatus.READY
+        )
         quarantined = tuple(
-            item for item in replay if item.status is CanonicalReplayStatus.QUARANTINED
+            item
+            for item in replay
+            if item.status is CanonicalReplayStatus.QUARANTINED
         )
         adjusted = tuple(item for item in replay if item.applied_event_ids)
         unresolved = tuple(
-            sorted({event_id for item in replay for event_id in item.unresolved_event_ids})
+            sorted(
+                {
+                    event_id
+                    for item in replay
+                    for event_id in item.unresolved_event_ids
+                }
+            )
         )
         return CanonicalReplayAudit(
             bars_examined=len(replay),
@@ -165,8 +182,13 @@ def canonical_replay_sha256(bars: Iterable[CanonicalReplayBar]) -> str:
     """Return a deterministic content digest for immutable replay snapshots."""
 
     payload = [
-        {key: str(value) if isinstance(value, (date, Decimal)) else value for key, value in asdict(bar).items()}
+        {
+            key: str(value) if isinstance(value, (date, Decimal)) else value
+            for key, value in asdict(bar).items()
+        }
         for bar in bars
     ]
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
     return hashlib.sha256(encoded).hexdigest()
