@@ -1,3 +1,9 @@
+from alpha.historical_truth.canonical import (
+    CanonicalCandle,
+    CanonicalPointInTimeWarehouse,
+    CompletenessReport,
+    MarketSnapshot,
+)
 from alpha.historical_truth.manager import (
     ArchiveTask,
     DownloadSummary,
@@ -21,12 +27,16 @@ __all__ = [
     "ArchiveDatasetPlugin",
     "ArchiveRequest",
     "ArchiveTask",
+    "CanonicalCandle",
+    "CanonicalPointInTimeWarehouse",
+    "CompletenessReport",
     "DatasetRegistry",
     "DownloadSummary",
     "HistoricalArchiveManager",
     "HistoricalTruthWarehouse",
     "ManifestRecord",
     "ManifestStatus",
+    "MarketSnapshot",
     "NseBhavcopyPlugin",
     "TaskState",
     "ValidationIssue",
