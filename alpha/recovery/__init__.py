@@ -1,6 +1,13 @@
 """Canonical recovery foundation for Project Alpha."""
 
 from .base import CanonicalRecoveryEngine
+from .canonical_replay import (
+    CanonicalReplayAudit,
+    CanonicalReplayBar,
+    CanonicalReplayBuilder,
+    CanonicalReplayStatus,
+    canonical_replay_sha256,
+)
 from .corporate_actions import (
     AdjustedCorporateActionBar,
     CorporateActionAdjustmentEngine,
@@ -44,6 +51,10 @@ __all__ = [
     "AdjustedCorporateActionBar",
     "CanonicalPreviewRow",
     "CanonicalRecoveryEngine",
+    "CanonicalReplayAudit",
+    "CanonicalReplayBar",
+    "CanonicalReplayBuilder",
+    "CanonicalReplayStatus",
     "CorporateActionAdjustmentEngine",
     "CorporateActionBar",
     "CorporateActionEvent",
@@ -67,6 +78,7 @@ __all__ = [
     "SchemaDiscoveryResult",
     "SecurityEntityRecoveryEngine",
     "SourceSchema",
+    "canonical_replay_sha256",
     "discover_sources",
     "export_corporate_action_recovery",
     "export_corporate_action_replay_audit",
