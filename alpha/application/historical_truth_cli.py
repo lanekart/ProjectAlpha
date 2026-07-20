@@ -7,7 +7,9 @@ import typer
 
 from alpha.historical_truth import HistoricalTruthWarehouse
 
-historical_truth_app = typer.Typer(help="Build and audit official historical market truth.")
+historical_truth_app = typer.Typer(
+    help="Build and audit official historical market truth."
+)
 
 
 @historical_truth_app.command("init")
