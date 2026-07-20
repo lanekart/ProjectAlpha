@@ -83,7 +83,7 @@ class IntegrityAuditReport:
 
 
 class HistoricalTruthIntegrityAudit:
-    """Run the deterministic, diagnostic-only HTW v4.5 integrity audit."""
+    """Run the deterministic, series-aware HTW v4.5.1 integrity audit."""
 
     def __init__(
         self,
