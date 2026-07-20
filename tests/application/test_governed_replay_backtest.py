@@ -11,7 +11,6 @@ from typing import Any
 
 import pandas as pd
 import pytest
-
 from alpha.application.governed_replay_backtest import (
     GovernedReplayBacktestService,
     export_governed_replay_backtest_attestations,
