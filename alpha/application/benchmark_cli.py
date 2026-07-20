@@ -101,9 +101,9 @@ def benchmark_replay(
 
 @benchmark_app.command("signal-audit")
 def benchmark_signal_audit(
-    benchmark_output: Annotated[
-        Path, typer.Option("--benchmark-output")
-    ] = DEFAULT_BENCHMARK_OUTPUT,
+    benchmark_output: Annotated[Path, typer.Option("--benchmark-output")] = (
+        DEFAULT_BENCHMARK_OUTPUT
+    ),
     database: Annotated[Path, typer.Option("--database")] = settings.database_path,
     historical_truth_snapshots: Annotated[
         Path | None,
