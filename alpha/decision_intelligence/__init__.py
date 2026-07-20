@@ -19,6 +19,13 @@ from alpha.decision_intelligence.engine import (
     InstitutionalDecisionEngine,
     candidate_from_recommendation,
 )
+from alpha.decision_intelligence.identity import (
+    IdentityParityReport,
+    IdentityResolution,
+    RecoveredIdentityDecisionEngine,
+    RecoveredSecurityIdentityIndex,
+    SecurityIdentity,
+)
 from alpha.decision_intelligence.models import (
     CapacityAssessment,
     DecisionAuditReport,
@@ -88,6 +95,8 @@ __all__ = [
     "ExitStrategyType",
     "FinalDecisionAction",
     "GateDecision",
+    "IdentityParityReport",
+    "IdentityResolution",
     "InstitutionalCandidate",
     "InstitutionalDecisionEngine",
     "InstitutionalDecisionReport",
@@ -102,10 +111,13 @@ __all__ = [
     "OverconfidenceGuard",
     "OverconfidenceAssessment",
     "PromotionTrigger",
+    "RecoveredIdentityDecisionEngine",
+    "RecoveredSecurityIdentityIndex",
     "RejectionReason",
     "RejectionReasonCode",
     "RiskCommitteeGate",
     "RiskCommitteeVerdict",
+    "SecurityIdentity",
     "SetupQualityScorecard",
     "SimilarHistoricalCases",
     "SimilarHistoricalCasesEngine",
