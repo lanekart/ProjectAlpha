@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from alpha.application.historical_truth_cli import historical_truth_app
 
 
