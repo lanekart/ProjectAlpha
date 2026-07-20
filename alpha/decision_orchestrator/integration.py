@@ -140,22 +140,22 @@ class GovernedDecisionFlow:
                 )
 
         included = bool(allowed or diagnostic) and not blocked
-        effective_authority: AdvisorAuthority | None = signal.authority
         governed: AdvisorSignal | None = None
+        effective_authority: AdvisorAuthority | None = None
         if included:
-            if diagnostic:
-                effective_authority = AdvisorAuthority.CONTEXT
+            authority = (
+                AdvisorAuthority.CONTEXT if diagnostic else signal.authority
+            )
+            effective_authority = authority
             governed = AdvisorSignal(
                 source=signal.source,
                 proposed_state=signal.proposed_state,
-                authority=effective_authority,
+                authority=authority,
                 confidence=signal.confidence,
                 reason=signal.reason,
                 evidence_ids=tuple(sorted(allowed + diagnostic)),
                 veto=signal.veto and not diagnostic,
             )
-        else:
-            effective_authority = None
 
         return governed, GovernedSignalAssessment(
             source=signal.source,
