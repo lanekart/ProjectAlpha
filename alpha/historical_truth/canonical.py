@@ -148,7 +148,12 @@ class CanonicalPointInTimeWarehouse:
             )
         return len(rows)
 
-    def snapshot(self, trading_date: date, *, exchange: str = "nse") -> MarketSnapshot:
+    def snapshot(
+        self,
+        trading_date: date,
+        *,
+        exchange: str = "nse",
+    ) -> MarketSnapshot:
         self.initialise()
         with self._connect() as connection:
             result = connection.execute(
@@ -211,7 +216,9 @@ class CanonicalPointInTimeWarehouse:
             for candidate in self._date_range(start_date, end_date)
             if candidate.weekday() < 5
         )
-        missing = tuple(candidate for candidate in expected if candidate not in observed_set)
+        missing = tuple(
+            candidate for candidate in expected if candidate not in observed_set
+        )
         coverage = len(observed) / len(expected) if expected else 1.0
         return CompletenessReport(
             start_date=start_date,
@@ -227,7 +234,10 @@ class CanonicalPointInTimeWarehouse:
     @staticmethod
     def _date_range(start_date: date, end_date: date) -> tuple[date, ...]:
         days = (end_date - start_date).days
-        return tuple(start_date.fromordinal(start_date.toordinal() + offset) for offset in range(days + 1))
+        return tuple(
+            date.fromordinal(start_date.toordinal() + offset)
+            for offset in range(days + 1)
+        )
 
     @staticmethod
     def _read_bhavcopy(
@@ -238,9 +248,13 @@ class CanonicalPointInTimeWarehouse:
         with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
             reader = csv.DictReader(handle)
             columns = tuple(reader.fieldnames or ())
-            missing = [column for column in _REQUIRED_COLUMNS if column not in columns]
+            missing = [
+                column for column in _REQUIRED_COLUMNS if column not in columns
+            ]
             if missing:
-                raise ValueError(f"missing required columns: {', '.join(missing)}")
+                raise ValueError(
+                    f"missing required columns: {', '.join(missing)}"
+                )
             rows: list[CanonicalCandle] = []
             for raw in reader:
                 rows.append(
