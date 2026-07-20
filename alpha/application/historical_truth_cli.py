@@ -8,6 +8,7 @@ import typer
 from alpha.historical_truth import (
     CanonicalPointInTimeWarehouse,
     HistoricalPopulationEngine,
+    HistoricalTruthIntegrityAudit,
     HistoricalTruthWarehouse,
     PointInTimeSnapshotEngine,
 )
