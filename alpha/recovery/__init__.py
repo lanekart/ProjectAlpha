@@ -14,6 +14,14 @@ from .models import (
     RecoverySeverity,
 )
 from .registry import RecoveryRegistry, registry
+from .schema_discovery import (
+    FieldProfile,
+    MappingCandidate,
+    SchemaDiscoveryResult,
+    SourceSchema,
+    discover_sources,
+    export_schema_discovery,
+)
 
 __all__ = [
     "CanonicalPreviewRow",
@@ -23,10 +31,16 @@ __all__ = [
     "EvidenceGraphSnapshot",
     "EvidenceKind",
     "EvidenceNode",
+    "FieldProfile",
+    "MappingCandidate",
     "RecoveryContext",
     "RecoveryIssue",
     "RecoveryRegistry",
     "RecoveryResult",
     "RecoverySeverity",
+    "SchemaDiscoveryResult",
+    "SourceSchema",
+    "discover_sources",
+    "export_schema_discovery",
     "registry",
 ]
