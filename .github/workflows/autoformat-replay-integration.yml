@@ -1,4 +1,4 @@
-name: Autoformat Replay Integration
+name: Autoformat Historical Truth Replay Integration
 
 on:
   push:
