@@ -174,17 +174,14 @@ def _outcome(
     reason: str,
     horizon: int,
 ) -> DiagnosticSignalOutcome:
-    base = {
-        "decision_date": decision_date,
-        "symbol": symbol,
-        "final_signal": final_signal,
-        "opportunity_score": score,
-        "primary_reason_code": reason,
-        "horizon_sessions": horizon,
-    }
     if decision_index is None or decision_close is None:
         return DiagnosticSignalOutcome(
-            **base,
+            decision_date=decision_date,
+            symbol=symbol,
+            final_signal=final_signal,
+            opportunity_score=score,
+            primary_reason_code=reason,
+            horizon_sessions=horizon,
             status="UNAVAILABLE_DECISION_OBSERVATION",
             decision_close=decision_close,
             target_date=None,
@@ -196,7 +193,12 @@ def _outcome(
     target_index = decision_index + horizon
     if target_index >= len(sessions):
         return DiagnosticSignalOutcome(
-            **base,
+            decision_date=decision_date,
+            symbol=symbol,
+            final_signal=final_signal,
+            opportunity_score=score,
+            primary_reason_code=reason,
+            horizon_sessions=horizon,
             status="CENSORED_RIGHT_BOUNDARY",
             decision_close=decision_close,
             target_date=None,
@@ -221,7 +223,12 @@ def _outcome(
     observed_dates = tuple(row[0] for row in rows)
     if observed_dates != expected_dates:
         return DiagnosticSignalOutcome(
-            **base,
+            decision_date=decision_date,
+            symbol=symbol,
+            final_signal=final_signal,
+            opportunity_score=score,
+            primary_reason_code=reason,
+            horizon_sessions=horizon,
             status="CENSORED_MISSING_OBSERVATION",
             decision_close=decision_close,
             target_date=target_date,
@@ -234,7 +241,12 @@ def _outcome(
     lows = tuple(Decimal(str(row[2])) for row in rows)
     target_close = Decimal(str(rows[-1][3]))
     return DiagnosticSignalOutcome(
-        **base,
+        decision_date=decision_date,
+            symbol=symbol,
+            final_signal=final_signal,
+            opportunity_score=score,
+            primary_reason_code=reason,
+            horizon_sessions=horizon,
         status="OBSERVED",
         decision_close=decision_close,
         target_date=target_date,
