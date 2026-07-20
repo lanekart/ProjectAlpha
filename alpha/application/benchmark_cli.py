@@ -20,6 +20,7 @@ from alpha.benchmark_replay import (
 )
 from alpha.canonical_universe_audit.store import LegacyMarketDataStore
 from alpha.config.settings import settings
+from alpha.historical_truth.replay import HistoricalTruthReplayStore
 
 benchmark_app = typer.Typer(
     help="Run and inspect the immutable Canonical Alpha Benchmark Replay.",
@@ -30,6 +31,10 @@ benchmark_app = typer.Typer(
 @benchmark_app.command("replay")
 def benchmark_replay(
     database: Annotated[Path, typer.Option("--database")] = settings.database_path,
+    historical_truth_snapshots: Annotated[
+        Path | None,
+        typer.Option("--historical-truth-snapshots"),
+    ] = None,
     output: Annotated[Path | None, typer.Option("--output")] = None,
     start: Annotated[str | None, typer.Option("--start")] = None,
     end: Annotated[str | None, typer.Option("--end")] = None,
@@ -49,12 +54,24 @@ def benchmark_replay(
         transaction_cost_percent=_decimal(transaction_cost, "transaction cost"),
         slippage_percent=_decimal(slippage, "slippage"),
     )
-    with LegacyMarketDataStore(database) as store:
+    replay_start = _date(start)
+    replay_end = _date(end)
+    store = (
+        HistoricalTruthReplayStore(
+            database_path=database,
+            snapshot_root=historical_truth_snapshots,
+            start=replay_start,
+            end=replay_end,
+        )
+        if historical_truth_snapshots is not None
+        else LegacyMarketDataStore(database)
+    )
+    with store:
         report = CanonicalBenchmarkReplayEngine().run(
             store=store,
             request=ReplayRequest(
-                start=_date(start),
-                end=_date(end),
+                start=replay_start,
+                end=replay_end,
                 policy=policy,
             ),
             project_root=settings.project_root,
