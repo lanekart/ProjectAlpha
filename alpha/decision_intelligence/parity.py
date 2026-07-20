@@ -80,56 +80,18 @@ class DecisionParityValidator:
         legacy: InstitutionalDecisionReport,
         recovered: InstitutionalDecisionReport,
     ) -> DecisionParityReport:
-        legacy_by_symbol = _decision_index(legacy.decisions)
-        recovered_by_position = tuple(recovered.decisions)
-        results: list[CandidateDecisionParity] = []
-
-        for index, legacy_decision in enumerate(legacy.decisions):
-            recovered_decision = recovered_by_position[index]
-            legacy_symbol = legacy_decision.candidate.symbol
-            recovered_symbol = recovered_decision.candidate.symbol
-            differences = _decision_differences(legacy_decision, recovered_decision)
-            classification = _classify(differences)
-            results.append(
-                CandidateDecisionParity(
-                    legacy_symbol=legacy_symbol,
-                    recovered_symbol=recovered_symbol,
-                    classification=classification,
-                    differences=differences,
-                )
+        results = [
+            _compare_decisions(legacy_decision, recovered_decision)
+            for legacy_decision, recovered_decision in zip(
+                legacy.decisions,
+                recovered.decisions,
+                strict=False,
             )
-
-        if len(legacy.decisions) != len(recovered.decisions):
-            missing = abs(len(legacy.decisions) - len(recovered.decisions))
-            for offset in range(missing):
-                results.append(
-                    CandidateDecisionParity(
-                        legacy_symbol=f"MISSING:{offset}",
-                        recovered_symbol=f"MISSING:{offset}",
-                        classification=DecisionParityClassification.UNEXPECTED_CHANGE,
-                        differences=(
-                            DecisionFieldDifference(
-                                field="decision_count",
-                                legacy_value=str(len(legacy.decisions)),
-                                recovered_value=str(len(recovered.decisions)),
-                            ),
-                        ),
-                    )
-                )
-
-        del legacy_by_symbol
-        identical = sum(
-            item.classification is DecisionParityClassification.IDENTICAL
-            for item in results
-        )
-        expected = sum(
-            item.classification is DecisionParityClassification.EXPECTED_CHANGE
-            for item in results
-        )
-        unexpected = sum(
-            item.classification is DecisionParityClassification.UNEXPECTED_CHANGE
-            for item in results
-        )
+        ]
+        results.extend(_decision_count_mismatches(legacy, recovered))
+        identical = _count(results, DecisionParityClassification.IDENTICAL)
+        expected = _count(results, DecisionParityClassification.EXPECTED_CHANGE)
+        unexpected = _count(results, DecisionParityClassification.UNEXPECTED_CHANGE)
         compared = len(results)
         parity = (
             Decimal("100.00")
@@ -162,7 +124,7 @@ def export_decision_parity(
     unexpected_csv = output / "unexpected_changes.csv"
     report_md = output / "report.md"
 
-    summary_payload = {
+    payload: dict[str, object] = {
         "candidates_compared": report.candidates_compared,
         "identical": report.identical,
         "expected_changes": report.expected_changes,
@@ -171,17 +133,17 @@ def export_decision_parity(
         "passed": report.passed,
     }
     summary_json.write_text(
-        json.dumps(summary_payload, indent=2, sort_keys=True) + "\n",
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    _write_summary_csv(summary_csv, summary_payload)
+    _write_summary_csv(summary_csv, payload)
     _write_differences_csv(differences_csv, report.candidate_results)
     _write_differences_csv(
         unexpected_csv,
         tuple(
-            item
-            for item in report.candidate_results
-            if item.classification
+            result
+            for result in report.candidate_results
+            if result.classification
             is DecisionParityClassification.UNEXPECTED_CHANGE
         ),
     )
@@ -195,20 +157,68 @@ def export_decision_parity(
     )
 
 
-def _decision_index(
-    decisions: Sequence[OpportunityDecision],
-) -> Mapping[str, OpportunityDecision]:
-    return {decision.candidate.symbol: decision for decision in decisions}
+def _compare_decisions(
+    legacy: OpportunityDecision,
+    recovered: OpportunityDecision,
+) -> CandidateDecisionParity:
+    legacy_symbol = legacy.candidate.symbol
+    recovered_symbol = recovered.candidate.symbol
+    differences = _decision_differences(legacy, recovered)
+    classification = _classify(
+        differences,
+        legacy_symbol=legacy_symbol,
+        recovered_symbol=recovered_symbol,
+    )
+    return CandidateDecisionParity(
+        legacy_symbol=legacy_symbol,
+        recovered_symbol=recovered_symbol,
+        classification=classification,
+        differences=differences,
+    )
+
+
+def _decision_count_mismatches(
+    legacy: InstitutionalDecisionReport,
+    recovered: InstitutionalDecisionReport,
+) -> list[CandidateDecisionParity]:
+    difference = len(legacy.decisions) - len(recovered.decisions)
+    if difference == 0:
+        return []
+    return [
+        CandidateDecisionParity(
+            legacy_symbol=f"MISSING:{offset}",
+            recovered_symbol=f"MISSING:{offset}",
+            classification=DecisionParityClassification.UNEXPECTED_CHANGE,
+            differences=(
+                DecisionFieldDifference(
+                    field="decision_count",
+                    legacy_value=str(len(legacy.decisions)),
+                    recovered_value=str(len(recovered.decisions)),
+                ),
+            ),
+        )
+        for offset in range(abs(difference))
+    ]
+
+
+def _count(
+    results: Sequence[CandidateDecisionParity],
+    classification: DecisionParityClassification,
+) -> int:
+    return sum(result.classification is classification for result in results)
 
 
 def _decision_differences(
     legacy: OpportunityDecision,
     recovered: OpportunityDecision,
 ) -> tuple[DecisionFieldDifference, ...]:
-    legacy_payload = _normalize(asdict(legacy))
-    recovered_payload = _normalize(asdict(recovered))
     differences: list[DecisionFieldDifference] = []
-    _collect_differences("", legacy_payload, recovered_payload, differences)
+    _collect_differences(
+        "",
+        _normalize(asdict(legacy)),
+        _normalize(asdict(recovered)),
+        differences,
+    )
     return tuple(differences)
 
 
@@ -219,8 +229,7 @@ def _collect_differences(
     differences: list[DecisionFieldDifference],
 ) -> None:
     if isinstance(legacy, dict) and isinstance(recovered, dict):
-        keys = sorted(set(legacy) | set(recovered))
-        for key in keys:
+        for key in sorted(set(legacy) | set(recovered)):
             field = f"{prefix}.{key}" if prefix else str(key)
             _collect_differences(
                 field,
@@ -231,33 +240,57 @@ def _collect_differences(
         return
     if isinstance(legacy, list) and isinstance(recovered, list):
         if legacy != recovered:
-            differences.append(
-                DecisionFieldDifference(
-                    field=prefix,
-                    legacy_value=_render(legacy),
-                    recovered_value=_render(recovered),
-                )
-            )
+            differences.append(_difference(prefix, legacy, recovered))
         return
     if legacy != recovered:
-        differences.append(
-            DecisionFieldDifference(
-                field=prefix,
-                legacy_value=_render(legacy),
-                recovered_value=_render(recovered),
-            )
-        )
+        differences.append(_difference(prefix, legacy, recovered))
+
+
+def _difference(field: str, legacy: Any, recovered: Any) -> DecisionFieldDifference:
+    return DecisionFieldDifference(
+        field=field,
+        legacy_value=_render(legacy),
+        recovered_value=_render(recovered),
+    )
 
 
 def _classify(
     differences: tuple[DecisionFieldDifference, ...],
+    *,
+    legacy_symbol: str,
+    recovered_symbol: str,
 ) -> DecisionParityClassification:
     if not differences:
         return DecisionParityClassification.IDENTICAL
-    allowed = {"candidate.symbol"}
-    if {difference.field for difference in differences} <= allowed:
+    if legacy_symbol == recovered_symbol:
+        return DecisionParityClassification.UNEXPECTED_CHANGE
+    if all(
+        _is_identity_propagated_difference(
+            difference,
+            legacy_symbol=legacy_symbol,
+            recovered_symbol=recovered_symbol,
+        )
+        for difference in differences
+    ):
         return DecisionParityClassification.EXPECTED_CHANGE
     return DecisionParityClassification.UNEXPECTED_CHANGE
+
+
+def _is_identity_propagated_difference(
+    difference: DecisionFieldDifference,
+    *,
+    legacy_symbol: str,
+    recovered_symbol: str,
+) -> bool:
+    if difference.field == "candidate.symbol":
+        return (
+            difference.legacy_value == legacy_symbol
+            and difference.recovered_value == recovered_symbol
+        )
+    return difference.recovered_value == difference.legacy_value.replace(
+        legacy_symbol,
+        recovered_symbol,
+    )
 
 
 def _normalize(value: Any) -> Any:
@@ -303,19 +336,10 @@ def _write_differences_csv(
         writer = csv.DictWriter(handle, fieldnames=columns)
         writer.writeheader()
         for result in results:
-            if not result.differences:
-                writer.writerow(
-                    {
-                        "legacy_symbol": result.legacy_symbol,
-                        "recovered_symbol": result.recovered_symbol,
-                        "classification": result.classification.value,
-                        "field": "",
-                        "legacy_value": "",
-                        "recovered_value": "",
-                    }
-                )
-                continue
-            for difference in result.differences:
+            differences = result.differences or (
+                DecisionFieldDifference("", "", ""),
+            )
+            for difference in differences:
                 writer.writerow(
                     {
                         "legacy_symbol": result.legacy_symbol,
