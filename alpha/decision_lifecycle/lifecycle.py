@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import json
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from enum import StrEnum
-import json
-from typing import Iterable
 
 
 class LifecycleState(StrEnum):
@@ -33,7 +33,12 @@ _ALLOWED_TRANSITIONS: dict[LifecycleState, frozenset[LifecycleState]] = {
         {LifecycleState.READY, LifecycleState.AVOID, LifecycleState.EXPIRED}
     ),
     LifecycleState.READY: frozenset(
-        {LifecycleState.BUY, LifecycleState.WATCHLIST, LifecycleState.AVOID, LifecycleState.EXPIRED}
+        {
+            LifecycleState.BUY,
+            LifecycleState.WATCHLIST,
+            LifecycleState.AVOID,
+            LifecycleState.EXPIRED,
+        }
     ),
     LifecycleState.BUY: frozenset({LifecycleState.HOLD, LifecycleState.EXIT}),
     LifecycleState.HOLD: frozenset(
@@ -152,12 +157,16 @@ class LifecycleHistoryRepository:
             if transition.occurred_at <= last.occurred_at:
                 raise LifecycleTransitionError("transition timestamps must increase")
             if transition.previous_state is not last.new_state:
-                raise LifecycleTransitionError("previous_state does not match current state")
+                raise LifecycleTransitionError(
+                    "previous_state does not match current state"
+                )
         self._events.append(transition)
 
     def history(self, recommendation_id: str) -> tuple[LifecycleTransition, ...]:
         return tuple(
-            event for event in self._events if event.recommendation_id == recommendation_id
+            event
+            for event in self._events
+            if event.recommendation_id == recommendation_id
         )
 
     def all(self) -> tuple[LifecycleTransition, ...]:
@@ -185,7 +194,8 @@ class DecisionLifecycleEngine:
         new_state = LifecycleState(new_state)
         if new_state not in _ALLOWED_TRANSITIONS[previous_state]:
             raise LifecycleTransitionError(
-                f"illegal lifecycle transition: {previous_state.value} -> {new_state.value}"
+                "illegal lifecycle transition: "
+                f"{previous_state.value} -> {new_state.value}"
             )
         transition = LifecycleTransition(
             recommendation_id=recommendation_id,
