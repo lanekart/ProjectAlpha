@@ -114,7 +114,9 @@ def test_population_exports_are_deterministic(tmp_path: Path) -> None:
         "historical_population.csv",
         "historical_population.md",
     ]
-    assert "Coverage: 100.00%" in paths[2].read_text(encoding="utf-8")
+    assert "Weekday request coverage: 100.00%" in paths[2].read_text(
+        encoding="utf-8"
+    )
 
 
 def test_t0_exception_is_quarantined_without_rejecting_session(
@@ -148,3 +150,22 @@ def test_t0_exception_is_quarantined_without_rejecting_session(
     assert quarantine[0][0] == "T0_CLOSE_RANGE_EXCEPTION"
     assert quarantine[0][1] == "warning"
     assert "symbol=IDEA" in quarantine[0][2]
+
+
+def test_resumed_summary_counts_valid_skips_as_available(
+    tmp_path: Path,
+) -> None:
+    engine = _engine(tmp_path)
+    request = _request()
+    _write_archive(engine.archive.raw_root / request.relative_path)
+    engine.populate((request,))
+
+    resumed = engine.populate((request,))
+    summary = engine.summarise(resumed)
+
+    assert summary.skipped == 1
+    assert summary.candle_snapshots == 1
+    assert summary.evidence_incomplete_snapshots == 1
+    assert summary.coverage_ratio == 1.0
+    assert summary.ingested_rows == 0
+    assert summary.available_rows == 2
