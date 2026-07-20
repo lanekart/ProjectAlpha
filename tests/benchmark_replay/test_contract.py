@@ -76,8 +76,13 @@ def test_exports_decision_eligibility_and_rejection_attribution(
     tmp_path: Path,
     benchmark_report: BenchmarkReplayReport,
 ) -> None:
-    paths = BenchmarkArtifactExporter().export(
+    blocked_report = replace(
         benchmark_report,
+        eligible_securities=0,
+        eligible_security_observations=0,
+    )
+    paths = BenchmarkArtifactExporter().export(
+        blocked_report,
         output_directory=tmp_path / "benchmark",
     )
     by_name = {path.name: path for path in paths}
