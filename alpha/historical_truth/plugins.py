@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from alpha.historical_truth.models import ArchiveDataset, ArchiveRequest
-from alpha.historical_truth.service import HistoricalTruthWarehouse
+from alpha.historical_truth.resumable import HistoricalTruthWarehouse
 
 
 @dataclass(frozen=True, slots=True)
