@@ -201,7 +201,9 @@ def export_replay_parity(
     return rows_path, changed_path, audit_path, report_path
 
 
-def _index_bars(bars: Iterable[CanonicalReplayBar]) -> dict[ReplayKey, CanonicalReplayBar]:
+def _index_bars(
+    bars: Iterable[CanonicalReplayBar],
+) -> dict[ReplayKey, CanonicalReplayBar]:
     indexed: dict[ReplayKey, CanonicalReplayBar] = {}
     for bar in bars:
         key = bar.security_id, bar.trading_date
@@ -274,16 +276,13 @@ def _build_audit(rows: tuple[ReplayParityRow, ...]) -> ReplayParityAudit:
 def _parity_percent(total: int, changes: int) -> Decimal:
     if total == 0:
         return _ZERO
-    return (
-        Decimal(total - changes) / Decimal(total) * _HUNDRED
-    ).quantize(Decimal("0.0001"))
+    return (Decimal(total - changes) / Decimal(total) * _HUNDRED).quantize(
+        Decimal("0.0001")
+    )
 
 
 def _row_payload(row: ReplayParityRow) -> dict[str, object]:
-    return {
-        key: _json_ready(value)
-        for key, value in asdict(row).items()
-    }
+    return {key: _json_ready(value) for key, value in asdict(row).items()}
 
 
 def _json_ready(value: object) -> object:
