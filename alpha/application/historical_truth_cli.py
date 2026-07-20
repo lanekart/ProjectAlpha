@@ -5,7 +5,12 @@ from pathlib import Path
 
 import typer
 
-from alpha.historical_truth import HistoricalTruthWarehouse
+from alpha.historical_truth import (
+    CanonicalPointInTimeWarehouse,
+    HistoricalPopulationEngine,
+    HistoricalTruthWarehouse,
+    PointInTimeSnapshotEngine,
+)
 
 historical_truth_app = typer.Typer(
     help="Build and audit official historical market truth."
@@ -56,6 +61,41 @@ def fetch(
             f"{record.trading_date.isoformat()} | {record.status.value} | "
             f"{record.relative_path}"
         )
+
+
+@historical_truth_app.command("populate")
+def populate(
+    start: date = typer.Option(..., "--start"),
+    end: date = typer.Option(..., "--end"),
+    root: Path = typer.Option(Path("alpha_data"), "--root"),
+    output_dir: Path = typer.Option(
+        Path("artifacts/historical_population"),
+        "--output-dir",
+    ),
+    retry_failed: bool = typer.Option(
+        True,
+        "--retry-failed/--no-retry-failed",
+    ),
+) -> None:
+    archive = HistoricalTruthWarehouse(root)
+    canonical = CanonicalPointInTimeWarehouse(
+        root / "warehouse" / "historical_truth.duckdb"
+    )
+    snapshots = PointInTimeSnapshotEngine(canonical, root / "snapshots")
+    engine = HistoricalPopulationEngine(archive, canonical, snapshots)
+    requests = archive.plan_nse_bhavcopies(start, end)
+    records = engine.populate(requests, retry_failed=retry_failed)
+    summary = engine.summarise(records)
+    paths = engine.export(records, output_dir)
+    print(f"Population coverage: {summary.coverage_ratio:.2%}")
+    print(f"Complete: {summary.complete}")
+    print(f"Partial: {summary.partial}")
+    print(f"Failed: {summary.failed}")
+    print(f"Unavailable: {summary.unavailable}")
+    print(f"Skipped: {summary.skipped}")
+    print(f"Ingested rows: {summary.ingested_rows}")
+    for path in paths:
+        print(path)
 
 
 @historical_truth_app.command("status")
