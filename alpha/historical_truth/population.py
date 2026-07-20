@@ -101,9 +101,7 @@ class HistoricalPopulationEngine:
                     validated=True,
                     ingested_rows=snapshot.metadata.symbol_count,
                     snapshot_path=str(existing_snapshot),
-                    evidence_complete=(
-                        snapshot.metadata.completeness_score == 1.0
-                    ),
+                    evidence_complete=(snapshot.metadata.completeness_score == 1.0),
                 )
 
         manifest = self.archive._existing_record(request)
@@ -190,9 +188,7 @@ class HistoricalPopulationEngine:
                 validated=True,
                 ingested_rows=row_count,
                 snapshot_path=str(snapshot_path),
-                evidence_complete=(
-                    snapshot.metadata.completeness_score == 1.0
-                ),
+                evidence_complete=(snapshot.metadata.completeness_score == 1.0),
             )
         except (OSError, ValueError, zipfile.BadZipFile) as exc:
             return PopulationRecord(
@@ -271,9 +267,7 @@ class HistoricalPopulationEngine:
                 if record.status
                 in {PopulationStatus.COMPLETE, PopulationStatus.PARTIAL}
             ),
-            available_rows=sum(
-                record.ingested_rows for record in snapshot_records
-            ),
+            available_rows=sum(record.ingested_rows for record in snapshot_records),
             coverage_ratio=round(coverage, 6),
         )
 
@@ -369,9 +363,7 @@ class HistoricalPopulationEngine:
             "complete"
             if record.evidence_complete is True
             else (
-                "incomplete"
-                if record.evidence_complete is False
-                else "not_applicable"
+                "incomplete" if record.evidence_complete is False else "not_applicable"
             )
         )
         return payload
