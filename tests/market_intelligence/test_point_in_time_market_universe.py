@@ -603,6 +603,8 @@ def test_diagnostic_v2_cli_reads_indexed_store_and_candidate_ledger(
         app,
         ["replay", "diagnostic-market-state-v2-integrity"],
         env={
+            "_TYPER_FORCE_DISABLE_TERMINAL": "1",
+            "TERMINAL_WIDTH": "200",
             "ALPHA_POINT_IN_TIME_ANALYTICAL_STORE": str(store_path),
             "ALPHA_CANDIDATE_LEARNING_LEDGER": str(ledger_path),
             "ALPHA_DIAGNOSTIC_MARKET_STATE_LEDGER": str(tmp_path / "v1.json"),
