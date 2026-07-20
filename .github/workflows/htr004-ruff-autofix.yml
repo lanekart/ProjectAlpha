@@ -36,3 +36,5 @@ jobs:
           fi
           git commit -m "Fix HTR-004 corporate action quality gates"
           git push origin HEAD:feature/htr-004-canonical-replay
+
+# Follow-up registration commit ensures the push trigger is active.
