@@ -228,10 +228,19 @@ class HistoricalTruthWarehouse:
                         f"high={high}; low={low}; close={close}; "
                         f"violations={','.join(violations)}"
                     )
+                    series_specific = series.upper() == "T0"
                     issues.append(
                         ValidationIssue(
-                            code="IMPOSSIBLE_OHLC",
-                            severity=ValidationSeverity.ERROR,
+                            code=(
+                                "T0_CLOSE_RANGE_EXCEPTION"
+                                if series_specific
+                                else "IMPOSSIBLE_OHLC"
+                            ),
+                            severity=(
+                                ValidationSeverity.WARNING
+                                if series_specific
+                                else ValidationSeverity.ERROR
+                            ),
                             message=evidence,
                             row_number=row_number,
                         )
