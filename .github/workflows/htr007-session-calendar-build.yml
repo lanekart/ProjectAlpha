@@ -23,10 +23,13 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.14'
 
       - name: Install Poetry
         run: pip install poetry
+
+      - name: Configure Poetry
+        run: poetry config virtualenvs.create true
 
       - name: Install dependencies
         run: poetry install --no-interaction
@@ -41,7 +44,11 @@ jobs:
           text = path.read_text(encoding='utf-8')
           text = text.replace(
               'from dataclasses import asdict, dataclass',
-              'from dataclasses import asdict, dataclass, replace',
+              'from collections.abc import Iterable\nfrom dataclasses import asdict, dataclass, replace',
+          )
+          text = text.replace(
+              'from typing import Any, Iterable',
+              'from typing import Any',
           )
           text = text.replace(
               '        conflicts = sum(bool(record.issue_codes) for record in records) - unconfirmed - missing_special\n',
@@ -56,9 +63,32 @@ jobs:
               '        )\n',
               '        return replace(provisional, report_sha256=digest)\n',
           )
+          text = text.replace(
+              '            raise ValueError(f"official calendar source has no covered years: {source_path}")\n',
+              '            raise ValueError(\n'
+              '                "official calendar source has no covered years: "\n'
+              '                f"{source_path}"\n'
+              '            )\n',
+          )
+          text = text.replace(
+              '            f"Missing official special sessions: {report.missing_special_session_count}",\n',
+              '            (\n'
+              '                "Missing official special sessions: "\n'
+              '                f"{report.missing_special_session_count}"\n'
+              '            ),\n',
+          )
+          text = text.replace(
+              '            "A missing bhavcopy is never classified as a holiday without official evidence."\n',
+              '            "A missing bhavcopy is never classified as a holiday "\n'
+              '            "without official evidence."\n',
+          )
           path.write_text(text, encoding='utf-8')
           PY
 
+          poetry run ruff check --fix \
+            alpha/historical_truth/session_calendar.py \
+            alpha/historical_truth/session_calendar_cli.py \
+            tests/historical_truth/test_session_calendar.py
           poetry run ruff format \
             alpha/historical_truth/session_calendar.py \
             alpha/historical_truth/session_calendar_cli.py \
