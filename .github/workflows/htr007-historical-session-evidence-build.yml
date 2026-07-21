@@ -36,13 +36,13 @@ jobs:
           poetry lock
           poetry install --no-interaction
 
-      - name: Add public Historical Truth exports
+      - name: Add public exports and repair source
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          path = Path("alpha/historical_truth/__init__.py")
-          text = path.read_text(encoding="utf-8")
+          init_path = Path("alpha/historical_truth/__init__.py")
+          text = init_path.read_text(encoding="utf-8")
           import_block = '''from alpha.historical_truth.historical_session_evidence import (
               HTR007_HISTORICAL_SESSION_EVIDENCE_CONTRACT_VERSION,
               NSE_YEAR_PAGE_TEMPLATE,
@@ -69,7 +69,19 @@ jobs:
           for addition in reversed(additions):
               if addition not in text:
                   text = text.replace(anchor, anchor + addition)
-          path.write_text(text, encoding="utf-8")
+          init_path.write_text(text, encoding="utf-8")
+
+          source_path = Path(
+              "alpha/historical_truth/historical_session_evidence.py"
+          )
+          source = source_path.read_text(encoding="utf-8")
+          source = source.replace(
+              '"description": f"Official NSE Muhurat trading session ({parsed.year})",',
+              '"description": (\n'
+              '    f"Official NSE Muhurat trading session ({parsed.year})"\n'
+              '),',
+          )
+          source_path.write_text(source, encoding="utf-8")
           PY
 
       - name: Format and validate slice
@@ -120,7 +132,7 @@ jobs:
       - name: Commit validated source and remove temporary workflow
         run: |
           rm .github/workflows/htr007-historical-session-evidence-build.yml
-          git config user.name "github-actions[bot]]"
+          git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
             alpha/historical_truth/historical_session_evidence.py \
