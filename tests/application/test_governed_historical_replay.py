@@ -29,6 +29,7 @@ from alpha.recovery.security_timeline import (
     SecurityIdentityRecord,
     SecurityIdentityTimeline,
 )
+from tests.historical_replay.inventory_fixtures import inventory_evidence
 
 _TRADE_DATE = date(2025, 1, 10)
 
@@ -193,6 +194,7 @@ def _service(executor: FakeExecutor) -> GovernedHistoricalReplayService:
         source=_source(),
         inputs=_inputs(),
         executor=executor,
+        inventory_evidence=inventory_evidence(period_end=_TRADE_DATE),
         observation_builder_factory=ReadingBuilder,
     )
 
@@ -208,6 +210,8 @@ def test_service_binds_inputs_observations_readiness_and_engine_outputs() -> Non
     assert len(run.observation_build.consumer_attestations) == 3
     assert run.readiness.status.value == "READY"
     assert run.readiness.observation_run_sha256 == run.observation_build.run_sha256
+    assert run.readiness.inventory_evidence[0].year == 2025
+    assert len(run.readiness.inventory_evidence[0].inventory_sha256) == 64
     assert len(run.readiness.readiness_sha256) == 64
     assert run.replay_runs[0].replay_date == _TRADE_DATE
     assert executor.seen_observations == ()
@@ -277,4 +281,5 @@ def test_run_exports_are_deterministic_and_complete(tmp_path: Path) -> None:
     assert payload["inputs"]["manifest_sha256"] == run.inputs.manifest.manifest_sha256
     assert payload["readiness"]["readiness_sha256"] == run.readiness.readiness_sha256
     assert readiness["status"] == "READY"
+    assert readiness["inventory_evidence"][0]["year"] == 2025
     assert readiness["readiness_sha256"] == run.readiness.readiness_sha256
