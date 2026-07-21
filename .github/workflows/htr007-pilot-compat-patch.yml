@@ -1,0 +1,115 @@
+name: HTR-007 Pilot Compatibility Patch
+
+on:
+  pull_request:
+    types: [synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-007-checkpointed-backfill
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install project
+        run: |
+          pip install poetry
+          poetry config virtualenvs.create true
+          poetry install --no-interaction
+
+      - name: Preserve pilot checksum-drift evidence
+        run: |
+          poetry run python - <<'PY'
+          from pathlib import Path
+
+          path = Path("alpha/historical_truth/pilot.py")
+          content = path.read_text(encoding="utf-8")
+          old = '''        previous = self._latest_manifest(request)
+          fetched = self.archive.fetch(request)
+          if fetched.status is ManifestStatus.UNAVAILABLE:
+              return self._failure_record(
+                  request,
+                  expected_schema,
+                  fetched,
+                  BackfillPilotStatus.UNAVAILABLE,
+                  fetched.error,
+              )
+          if fetched.status not in {ManifestStatus.DOWNLOADED, ManifestStatus.VALIDATED}:
+              return self._failure_record(
+                  request,
+                  expected_schema,
+                  fetched,
+                  BackfillPilotStatus.FAILED,
+                  fetched.error,
+              )
+
+          checksum_drift = bool(
+              previous is not None
+              and previous.sha256 is not None
+              and fetched.sha256 is not None
+              and previous.sha256 != fetched.sha256
+          )
+          '''
+          new = '''        previous = self._latest_manifest(request)
+          fetched = self.archive.fetch(request)
+          checksum_drift = bool(
+              previous is not None
+              and previous.sha256 is not None
+              and fetched.sha256 is not None
+              and previous.sha256 != fetched.sha256
+          ) or fetched.error in {
+              "immutable archive checksum drift detected",
+              "refetched archive checksum differs from trusted manifest",
+          }
+          if fetched.status is ManifestStatus.UNAVAILABLE:
+              return self._failure_record(
+                  request,
+                  expected_schema,
+                  fetched,
+                  BackfillPilotStatus.UNAVAILABLE,
+                  fetched.error,
+                  checksum_drift=checksum_drift,
+              )
+          if fetched.status not in {ManifestStatus.DOWNLOADED, ManifestStatus.VALIDATED}:
+              return self._failure_record(
+                  request,
+                  expected_schema,
+                  fetched,
+                  BackfillPilotStatus.FAILED,
+                  fetched.error,
+                  checksum_drift=checksum_drift,
+              )
+
+          '''
+          if content.count(old) != 1:
+              raise SystemExit("pilot status/checksum block did not match exactly")
+          path.write_text(content.replace(old, new, 1), encoding="utf-8")
+          PY
+
+      - name: Validate compatibility patch
+        run: |
+          poetry run ruff format alpha/historical_truth/pilot.py
+          poetry run ruff check alpha/historical_truth/pilot.py
+          poetry run mypy alpha
+          poetry run pytest \
+            tests/historical_truth/test_backfill_pilot.py \
+            tests/historical_truth/test_backfill.py \
+            tests/historical_truth/test_backfill_cli.py -q
+
+      - name: Commit compatibility patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f .github/workflows/htr007-pilot-compat-patch.yml
+          git add alpha/historical_truth/pilot.py
+          git commit -m "Preserve pilot checksum drift evidence"
+          git push origin HEAD:feature/htr-007-checkpointed-backfill
