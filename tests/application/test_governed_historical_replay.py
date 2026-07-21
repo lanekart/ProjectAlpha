@@ -29,6 +29,8 @@ from alpha.recovery.security_timeline import (
     SecurityIdentityRecord,
     SecurityIdentityTimeline,
 )
+from tests.historical_replay.coverage_fixtures import coverage_evidence
+from tests.historical_replay.inventory_fixtures import inventory_evidence
 
 _TRADE_DATE = date(2025, 1, 10)
 
@@ -193,11 +195,16 @@ def _service(executor: FakeExecutor) -> GovernedHistoricalReplayService:
         source=_source(),
         inputs=_inputs(),
         executor=executor,
+        inventory_evidence=inventory_evidence(period_end=_TRADE_DATE),
+        coverage_evidence=coverage_evidence(
+            from_date=_TRADE_DATE,
+            to_date=_TRADE_DATE,
+        ),
         observation_builder_factory=ReadingBuilder,
     )
 
 
-def test_service_binds_inputs_observations_and_engine_outputs() -> None:
+def test_service_binds_inputs_observations_readiness_and_engine_outputs() -> None:
     executor = FakeExecutor()
 
     run = _service(executor).run(from_date=_TRADE_DATE, to_date=_TRADE_DATE)
@@ -206,6 +213,15 @@ def test_service_binds_inputs_observations_and_engine_outputs() -> None:
     assert run.inputs.manifest.security_ids == ("SEC-1",)
     assert len(run.observation_build.repository_reads) == 3
     assert len(run.observation_build.consumer_attestations) == 3
+    assert run.readiness.status.value == "READY"
+    assert run.readiness.observation_run_sha256 == run.observation_build.run_sha256
+    assert run.readiness.inventory_evidence[0].year == 2025
+    assert len(run.readiness.inventory_evidence[0].inventory_sha256) == 64
+    assert run.readiness.coverage_evidence is not None
+    assert run.readiness.coverage_evidence.observed_warmup_sessions == 200
+    assert run.readiness.coverage_evidence.observed_outcome_sessions == 60
+    assert run.readiness.coverage_evidence.eligible_security_count == 1
+    assert len(run.readiness.readiness_sha256) == 64
     assert run.replay_runs[0].replay_date == _TRADE_DATE
     assert executor.seen_observations == ()
     assert len(run.run_sha256) == 64
@@ -259,6 +275,7 @@ def test_run_exports_are_deterministic_and_complete(tmp_path: Path) -> None:
     assert first_content == second_content
     assert tuple(path.name for path in first_paths) == (
         "governed_historical_replay_run.json",
+        "historical_replay_readiness.json",
         "governed_replay_inputs.json",
         "governed_replay_reads.csv",
         "governed_historical_replay_run.md",
@@ -267,6 +284,14 @@ def test_run_exports_are_deterministic_and_complete(tmp_path: Path) -> None:
         "canonical_replay_attestations.md",
     )
     payload = json.loads(first_content["governed_historical_replay_run.json"])
+    readiness = json.loads(first_content["historical_replay_readiness.json"])
     assert payload["canonical_replay_enforced"] is True
     assert payload["run_sha256"] == run.run_sha256
     assert payload["inputs"]["manifest_sha256"] == run.inputs.manifest.manifest_sha256
+    assert payload["readiness"]["readiness_sha256"] == run.readiness.readiness_sha256
+    assert readiness["status"] == "READY"
+    assert readiness["inventory_evidence"][0]["year"] == 2025
+    assert readiness["coverage_evidence"]["observed_warmup_sessions"] == 200
+    assert readiness["coverage_evidence"]["observed_outcome_sessions"] == 60
+    assert readiness["coverage_evidence"]["eligible_security_count"] == 1
+    assert readiness["readiness_sha256"] == run.readiness.readiness_sha256

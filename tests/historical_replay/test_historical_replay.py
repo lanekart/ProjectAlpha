@@ -5,6 +5,7 @@ from decimal import Decimal
 from pathlib import Path
 from types import MappingProxyType
 
+import duckdb
 import pandas as pd
 from typer.testing import CliRunner
 
@@ -312,6 +313,40 @@ def test_cli_replay_evidence_feature_and_simulation_commands(
     repo = PricesRepository(db)
     _insert_replay_price_history(repo, replay_date=replay_date)
     db.close()
+    connection = duckdb.connect(str(db_path))
+    try:
+        connection.execute(
+            "CREATE TABLE daily_candle (trading_date DATE, isin VARCHAR)"
+        )
+        connection.execute(
+            "INSERT INTO daily_candle VALUES "
+            "('2026-01-01', 'INE000000001'), "
+            "('2026-01-01', 'INE000000002'), "
+            "('2026-01-01', 'INE000000003')"
+        )
+        for table_name, date_column in (
+            ("corporate_action", "effective_date"),
+            ("security_identity", "valid_from"),
+            ("listing_history", "valid_from"),
+            ("delisting_history", "effective_date"),
+            ("trading_calendar", "trading_date"),
+            ("benchmark_history", "trade_date"),
+            ("sector_mapping", "valid_from"),
+            ("index_constituent", "valid_from"),
+        ):
+            connection.execute(f'CREATE TABLE "{table_name}" ("{date_column}" DATE)')
+            connection.execute(
+                f'INSERT INTO "{table_name}" VALUES (?)',
+                [replay_date],
+            )
+    finally:
+        connection.close()
+    snapshots_path = tmp_path / "snapshots"
+    snapshots_path.mkdir()
+    (snapshots_path / "2026-01-01.json").write_text(
+        '{"availability": {}}\n',
+        encoding="utf-8",
+    )
     identity_artifact = tmp_path / "canonical_identities.csv"
     identity_artifact.write_text(
         "security_id,symbol,exchange\n"
@@ -347,6 +382,8 @@ def test_cli_replay_evidence_feature_and_simulation_commands(
             str(identity_artifact),
             "--corporate-action-artifact",
             str(corporate_action_artifact),
+            "--historical-truth-snapshots",
+            str(snapshots_path),
             "--output",
             str(governed_output),
         ],
