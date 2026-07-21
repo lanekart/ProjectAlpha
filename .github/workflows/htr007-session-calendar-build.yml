@@ -34,7 +34,7 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction
 
-      - name: Repair and validate session calendar slice
+      - name: Repair session calendar source
         shell: bash
         run: |
           python - <<'PY'
@@ -85,25 +85,66 @@ jobs:
           path.write_text(text, encoding='utf-8')
           PY
 
+      - name: Validate session calendar slice
+        id: validate
+        shell: bash
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: '1'
+        run: |
+          set +e
           poetry run ruff check --fix \
             alpha/historical_truth/session_calendar.py \
             alpha/historical_truth/session_calendar_cli.py \
-            tests/historical_truth/test_session_calendar.py
+            tests/historical_truth/test_session_calendar.py \
+            2>&1 | tee ruff-fix.txt
+          s1=${PIPESTATUS[0]}
+
           poetry run ruff format \
             alpha/historical_truth/session_calendar.py \
             alpha/historical_truth/session_calendar_cli.py \
-            tests/historical_truth/test_session_calendar.py
+            tests/historical_truth/test_session_calendar.py \
+            2>&1 | tee ruff-format.txt
+          s2=${PIPESTATUS[0]}
+
           poetry run ruff check \
             alpha/historical_truth/session_calendar.py \
             alpha/historical_truth/session_calendar_cli.py \
-            tests/historical_truth/test_session_calendar.py
+            tests/historical_truth/test_session_calendar.py \
+            2>&1 | tee ruff-check.txt
+          s3=${PIPESTATUS[0]}
+
           poetry run mypy \
             alpha/historical_truth/session_calendar.py \
-            alpha/historical_truth/session_calendar_cli.py
-          poetry run pytest tests/historical_truth/test_session_calendar.py -q
+            alpha/historical_truth/session_calendar_cli.py \
+            2>&1 | tee mypy.txt
+          s4=${PIPESTATUS[0]}
+
+          poetry run pytest tests/historical_truth/test_session_calendar.py -q \
+            2>&1 | tee pytest.txt
+          s5=${PIPESTATUS[0]}
+
+          printf 'ruff_fix=%s\nruff_format=%s\nruff_check=%s\nmypy=%s\npytest=%s\n' \
+            "$s1" "$s2" "$s3" "$s4" "$s5" | tee validation-status.txt
+          if (( s1 || s2 || s3 || s4 || s5 )); then
+            exit 1
+          fi
+
+      - name: Upload validation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: htr007-session-calendar-diagnostics
+          path: |
+            ruff-fix.txt
+            ruff-format.txt
+            ruff-check.txt
+            mypy.txt
+            pytest.txt
+            validation-status.txt
+          if-no-files-found: error
 
       - name: Commit validated source and remove temporary workflow
-        if: github.event_name != 'pull_request'
+        if: success() && github.event_name != 'pull_request'
         shell: bash
         run: |
           rm .github/workflows/htr007-session-calendar-build.yml
