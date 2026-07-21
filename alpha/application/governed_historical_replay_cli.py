@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import date
 from pathlib import Path
+from typing import cast
 
 from alpha.application.governed_historical_replay import (
     GovernedHistoricalReplayRun,
@@ -22,8 +24,8 @@ from alpha.market_truth.consumer_repository import MarketTruthPriceRepository
 
 def execute_governed_historical_replay(
     *,
-    from_date: object,
-    to_date: object,
+    from_date: date,
+    to_date: date,
     identity_artifact: Path,
     corporate_action_artifact: Path,
     learning_repository: LearningLedgerRepository,
@@ -36,8 +38,6 @@ def execute_governed_historical_replay(
 ) -> GovernedHistoricalReplayRun:
     """Execute one fail-closed governed replay and optionally export proofs."""
 
-    start = _require_date(from_date, "from_date")
-    end = _require_date(to_date, "to_date")
     inputs = load_governed_replay_inputs(
         identity_path=identity_artifact,
         corporate_action_path=corporate_action_artifact,
@@ -53,15 +53,16 @@ def execute_governed_historical_replay(
             inputs=inputs,
             executor=replay_executor,
             observation_builder_factory=observation_builder_factory,
-        ).run(from_date=start, to_date=end)
+        ).run(from_date=from_date, to_date=to_date)
         if output is not None:
             export_governed_historical_replay_run(run, output)
         return run
     finally:
         close = getattr(price_source, "close", None)
-        if callable(close):
-            close_callback = _close_callback(close)
-            close_callback()
+        if close is not None:
+            if not callable(close):
+                raise TypeError("price source close attribute must be callable")
+            cast(Callable[[], object], close)()
 
 
 def render_governed_historical_replay_run(
@@ -84,24 +85,8 @@ def render_governed_historical_replay_run(
         f"Run SHA-256: {run.run_sha256}",
         "Canonical Replay Enforced: true",
     ]
-    lines.extend(
-        f"Skipped: {item}" for item in build.skipped_dates[:10]
-    )
+    lines.extend(f"Skipped: {item}" for item in build.skipped_dates[:10])
     return tuple(lines)
-
-
-def _require_date(value: object, label: str) -> object:
-    from datetime import date
-
-    if not isinstance(value, date):
-        raise TypeError(f"{label} must be a date")
-    return value
-
-
-def _close_callback(value: object) -> Callable[[], object]:
-    if not callable(value):
-        raise TypeError("price source close attribute must be callable")
-    return value
 
 
 __all__ = [
