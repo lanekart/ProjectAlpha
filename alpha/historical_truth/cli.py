@@ -7,6 +7,10 @@ import typer
 
 from alpha.historical_truth.canonical import CanonicalPointInTimeWarehouse
 from alpha.historical_truth.integrity import HistoricalTruthIntegrityAudit
+from alpha.historical_truth.pilot import (
+    DEFAULT_CROSS_ERA_DATES,
+    HistoricalBackfillPilot,
+)
 from alpha.historical_truth.population import HistoricalPopulationEngine
 from alpha.historical_truth.resumable import HistoricalTruthWarehouse
 from alpha.historical_truth.snapshots import PointInTimeSnapshotEngine
@@ -121,6 +125,48 @@ def populate(
     print(f"Rows available in snapshots: {summary.available_rows}")
     for path in paths:
         print(path)
+
+
+@historical_truth_app.command("pilot")
+def backfill_pilot(
+    root: Path = typer.Option(Path("alpha_data"), "--root"),
+    pilot_date: list[str] = typer.Option(
+        [],
+        "--date",
+        help="Representative NSE trading date; repeat to override defaults.",
+    ),
+    output_dir: Path = typer.Option(
+        Path("artifacts/htr007_backfill_pilot"),
+        "--output-dir",
+    ),
+) -> None:
+    """Run the governed HTR-007 cross-era acquisition pilot."""
+
+    dates = (
+        tuple(_parse_date(value, "--date") for value in pilot_date)
+        if pilot_date
+        else DEFAULT_CROSS_ERA_DATES
+    )
+    archive = HistoricalTruthWarehouse(root)
+    canonical = CanonicalPointInTimeWarehouse(
+        root / "warehouse" / "historical_truth.duckdb"
+    )
+    snapshots = PointInTimeSnapshotEngine(canonical, root / "snapshots")
+    engine = HistoricalBackfillPilot(archive, canonical, snapshots)
+    report = engine.run(dates)
+    paths = engine.export(report, output_dir)
+    print(f"Pilot Complete: {report.complete}")
+    print(f"Schemas Observed: {', '.join(report.schemas_observed)}")
+    print(f"Report SHA-256: {report.report_sha256}")
+    for record in report.records:
+        print(
+            f"{record.trading_date.isoformat()} | {record.status.value} | "
+            f"{record.detected_schema or '-'} | {record.error or ''}"
+        )
+    for path in paths:
+        print(path)
+    if not report.complete:
+        raise typer.Exit(code=1)
 
 
 @historical_truth_app.command("status")

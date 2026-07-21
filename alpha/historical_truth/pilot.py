@@ -232,13 +232,13 @@ class HistoricalBackfillPilot:
             snapshot_valid = verification.valid
             snapshot_symbol_count = snapshot.metadata.symbol_count
 
-        population_success = (
-            population.status in {PopulationStatus.COMPLETE, PopulationStatus.PARTIAL}
-            or (
-                population.status is PopulationStatus.SKIPPED
-                and population.validated
-                and population.snapshot_path is not None
-            )
+        population_success = population.status in {
+            PopulationStatus.COMPLETE,
+            PopulationStatus.PARTIAL,
+        } or (
+            population.status is PopulationStatus.SKIPPED
+            and population.validated
+            and population.snapshot_path is not None
         )
         validation_passed = population.validated and population.error is None
         complete = population_success and validation_passed and snapshot_valid
@@ -251,9 +251,7 @@ class HistoricalBackfillPilot:
             raw_relative_path=str(request.relative_path),
             expected_schema=expected_schema,
             status=(
-                BackfillPilotStatus.COMPLETE
-                if complete
-                else BackfillPilotStatus.FAILED
+                BackfillPilotStatus.COMPLETE if complete else BackfillPilotStatus.FAILED
             ),
             manifest_status=fetched.status.value,
             archive_sha256=fetched.sha256,
@@ -262,7 +260,9 @@ class HistoricalBackfillPilot:
             detected_schema=inspection.schema,
             archive_row_count=inspection.row_count,
             validation_passed=validation_passed,
-            population_status=population.status.value,
+            population_status=(
+                "available" if population_success else population.status.value
+            ),
             ingested_rows=population.ingested_rows,
             snapshot_relative_path=snapshot_relative_path,
             snapshot_valid=snapshot_valid,
