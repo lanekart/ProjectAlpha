@@ -33,35 +33,10 @@ jobs:
 
           path = Path("alpha/historical_truth/pilot.py")
           content = path.read_text(encoding="utf-8")
-          old = '''        previous = self._latest_manifest(request)
-          fetched = self.archive.fetch(request)
-          if fetched.status is ManifestStatus.UNAVAILABLE:
-              return self._failure_record(
-                  request,
-                  expected_schema,
-                  fetched,
-                  BackfillPilotStatus.UNAVAILABLE,
-                  fetched.error,
-              )
-          if fetched.status not in {ManifestStatus.DOWNLOADED, ManifestStatus.VALIDATED}:
-              return self._failure_record(
-                  request,
-                  expected_schema,
-                  fetched,
-                  BackfillPilotStatus.FAILED,
-                  fetched.error,
-              )
 
-          checksum_drift = bool(
-              previous is not None
-              and previous.sha256 is not None
-              and fetched.sha256 is not None
-              and previous.sha256 != fetched.sha256
-          )
-          '''
-          new = '''        previous = self._latest_manifest(request)
-          fetched = self.archive.fetch(request)
-          checksum_drift = bool(
+          fetched_anchor = "        fetched = self.archive.fetch(request)\n"
+          early_drift = '''        fetched = self.archive.fetch(request)
+          checksum_drift_before_status = bool(
               previous is not None
               and previous.sha256 is not None
               and fetched.sha256 is not None
@@ -70,29 +45,38 @@ jobs:
               "immutable archive checksum drift detected",
               "refetched archive checksum differs from trusted manifest",
           }
-          if fetched.status is ManifestStatus.UNAVAILABLE:
-              return self._failure_record(
-                  request,
-                  expected_schema,
-                  fetched,
-                  BackfillPilotStatus.UNAVAILABLE,
-                  fetched.error,
-                  checksum_drift=checksum_drift,
-              )
-          if fetched.status not in {ManifestStatus.DOWNLOADED, ManifestStatus.VALIDATED}:
-              return self._failure_record(
-                  request,
-                  expected_schema,
-                  fetched,
-                  BackfillPilotStatus.FAILED,
-                  fetched.error,
-                  checksum_drift=checksum_drift,
-              )
-
           '''
-          if content.count(old) != 1:
-              raise SystemExit("pilot status/checksum block did not match exactly")
-          path.write_text(content.replace(old, new, 1), encoding="utf-8")
+          if content.count(fetched_anchor) != 1:
+              raise SystemExit("pilot fetched anchor did not match exactly")
+          content = content.replace(fetched_anchor, early_drift, 1)
+
+          unavailable_old = '''                BackfillPilotStatus.UNAVAILABLE,
+          fetched.error,
+      )
+          '''
+          unavailable_new = '''                BackfillPilotStatus.UNAVAILABLE,
+          fetched.error,
+          checksum_drift=checksum_drift_before_status,
+      )
+          '''
+          if content.count(unavailable_old) != 1:
+              raise SystemExit("pilot unavailable record anchor did not match exactly")
+          content = content.replace(unavailable_old, unavailable_new, 1)
+
+          failed_old = '''                BackfillPilotStatus.FAILED,
+          fetched.error,
+      )
+          '''
+          failed_new = '''                BackfillPilotStatus.FAILED,
+          fetched.error,
+          checksum_drift=checksum_drift_before_status,
+      )
+          '''
+          if content.count(failed_old) != 1:
+              raise SystemExit("pilot failed record anchor did not match exactly")
+          content = content.replace(failed_old, failed_new, 1)
+
+          path.write_text(content, encoding="utf-8")
           PY
 
       - name: Validate compatibility patch
