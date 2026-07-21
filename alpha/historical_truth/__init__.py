@@ -1,3 +1,12 @@
+from alpha.historical_truth.backfill import (
+    HTR007_BACKFILL_CONTRACT_VERSION,
+    PLANNING_BASIS,
+    BackfillCertificationState,
+    BackfillRecord,
+    BackfillRecordStatus,
+    BackfillReport,
+    HistoricalBackfillEngine,
+)
 from alpha.historical_truth.canonical import (
     CanonicalCandle,
     CanonicalPointInTimeWarehouse,
@@ -44,7 +53,10 @@ from alpha.historical_truth.population import (
 )
 from alpha.historical_truth.registry import ArchiveDatasetPlugin, DatasetRegistry
 from alpha.historical_truth.replay import HistoricalTruthReplayStore
-from alpha.historical_truth.resumable import HistoricalTruthWarehouse
+from alpha.historical_truth.resumable import (
+    HistoricalTruthWarehouse,
+    RawArchiveVerification,
+)
 from alpha.historical_truth.snapshots import (
     ImmutableMarketSnapshot,
     PointInTimeSnapshotEngine,
@@ -58,17 +70,23 @@ __all__ = [
     "ArchiveDatasetPlugin",
     "ArchiveRequest",
     "ArchiveTask",
+    "BackfillCertificationState",
     "BackfillPilotRecord",
     "BackfillPilotReport",
     "BackfillPilotStatus",
+    "BackfillRecord",
+    "BackfillRecordStatus",
+    "BackfillReport",
     "CanonicalCandle",
     "CanonicalPointInTimeWarehouse",
     "CompletenessReport",
     "DEFAULT_CROSS_ERA_DATES",
     "DatasetRegistry",
     "DownloadSummary",
+    "HTR007_BACKFILL_CONTRACT_VERSION",
     "HTR007_PILOT_CONTRACT_VERSION",
     "HistoricalArchiveManager",
+    "HistoricalBackfillEngine",
     "HistoricalBackfillPilot",
     "HistoricalPopulationEngine",
     "HistoricalTruthIntegrityAudit",
@@ -82,10 +100,12 @@ __all__ = [
     "MarketSnapshot",
     "MissingDateFinding",
     "NseBhavcopyPlugin",
+    "PLANNING_BASIS",
     "PointInTimeSnapshotEngine",
     "PopulationRecord",
     "PopulationStatus",
     "PopulationSummary",
+    "RawArchiveVerification",
     "SecurityFinding",
     "SnapshotAvailability",
     "SnapshotMetadata",
