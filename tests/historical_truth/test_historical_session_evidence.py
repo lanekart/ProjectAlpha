@@ -99,9 +99,7 @@ def test_acquisition_persists_immutable_normalized_evidence_and_reuses_checkpoin
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     year = 2025
-    page_url = (
-        "https://www.nseindia.com/static/holidays-for-the-calendar-year-2025"
-    )
+    page_url = "https://www.nseindia.com/static/holidays-for-the-calendar-year-2025"
     pdf_url = "https://nsearchives.nseindia.com/content/circulars/CMTR65587.pdf"
     page = (
         "Capital Market (Equities) Trade "

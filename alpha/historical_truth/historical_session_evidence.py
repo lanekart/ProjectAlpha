@@ -297,7 +297,7 @@ class HistoricalSessionEvidenceEngine:
 
         specials: set[date] = set()
         for match in re.finditer(r"muhurat\s+trading", lower):
-            context = normalized[max(0, match.start() - 250) : match.end() + 350]
+            context = normalized[match.end() : match.end() + 220]
             specials.update(cls._dates_for_year(context, year))
         if len(specials) > 1:
             holiday_specials = specials.intersection(holidays)
@@ -432,7 +432,9 @@ class HistoricalSessionEvidenceEngine:
             "special_sessions": [
                 {
                     "date": item.isoformat(),
-                    "description": f"Official NSE Muhurat trading session ({parsed.year})",
+                    "description": (
+                        f"Official NSE Muhurat trading session ({parsed.year})"
+                    ),
                 }
                 for item in parsed.special_sessions
             ],
@@ -459,9 +461,7 @@ class HistoricalSessionEvidenceEngine:
                 item.status is HistoricalEvidenceStatus.FAILED for item in records
             ),
             holiday_count=sum(item.holiday_count for item in records),
-            special_session_count=sum(
-                item.special_session_count for item in records
-            ),
+            special_session_count=sum(item.special_session_count for item in records),
             report_sha256="",
         )
         digest = hashlib.sha256(
@@ -541,9 +541,18 @@ class HistoricalSessionEvidenceEngine:
         }:
             return None
         verification_pairs = (
-            (record_payload.get("year_page_path"), record_payload.get("year_page_sha256")),
-            (record_payload.get("circular_path"), record_payload.get("circular_sha256")),
-            (record_payload.get("normalized_path"), record_payload.get("normalized_sha256")),
+            (
+                record_payload.get("year_page_path"),
+                record_payload.get("year_page_sha256"),
+            ),
+            (
+                record_payload.get("circular_path"),
+                record_payload.get("circular_sha256"),
+            ),
+            (
+                record_payload.get("normalized_path"),
+                record_payload.get("normalized_sha256"),
+            ),
         )
         for path_value, expected in verification_pairs:
             if not path_value or not expected:

@@ -13,6 +13,15 @@ from alpha.historical_truth.canonical import (
     CompletenessReport,
     MarketSnapshot,
 )
+from alpha.historical_truth.historical_session_evidence import (
+    HTR007_HISTORICAL_SESSION_EVIDENCE_CONTRACT_VERSION,
+    NSE_YEAR_PAGE_TEMPLATE,
+    HistoricalEvidenceRecord,
+    HistoricalEvidenceReport,
+    HistoricalEvidenceStatus,
+    HistoricalSessionEvidenceEngine,
+    ParsedAnnualCalendar,
+)
 from alpha.historical_truth.integrity import (
     HistoricalTruthIntegrityAudit,
     IntegrityAuditReport,
@@ -100,6 +109,13 @@ __all__ = [
     "DatasetRegistry",
     "DownloadSummary",
     "HTR007_BACKFILL_CONTRACT_VERSION",
+    "HTR007_HISTORICAL_SESSION_EVIDENCE_CONTRACT_VERSION",
+    "HistoricalEvidenceRecord",
+    "HistoricalEvidenceReport",
+    "HistoricalEvidenceStatus",
+    "HistoricalSessionEvidenceEngine",
+    "NSE_YEAR_PAGE_TEMPLATE",
+    "ParsedAnnualCalendar",
     "HTR007_PILOT_CONTRACT_VERSION",
     "HTR007_SESSION_CALENDAR_CONTRACT_VERSION",
     "HistoricalArchiveManager",

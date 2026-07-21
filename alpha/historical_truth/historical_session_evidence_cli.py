@@ -104,7 +104,9 @@ def run(
         for path in sorted(current_source_dir.glob("nse_cm_holidays_*.json"))
         if path.parent == current_source_dir
     )
-    unique_paths = tuple(dict.fromkeys(path.resolve() for path in calendar_source_paths))
+    unique_paths = tuple(
+        dict.fromkeys(path.resolve() for path in calendar_source_paths)
+    )
     if not unique_paths:
         raise typer.BadParameter("no official calendar sources are available")
 
@@ -127,16 +129,14 @@ def run(
     print(f"Evidence Failed: {evidence_report.failed_count}")
     print(f"Historical Holidays Parsed: {evidence_report.holiday_count}")
     print(
-        "Historical Special Sessions Parsed: "
-        f"{evidence_report.special_session_count}"
+        f"Historical Special Sessions Parsed: {evidence_report.special_session_count}"
     )
     print(f"Evidence Report SHA-256: {evidence_report.report_sha256}")
     print(f"Certification State: {calendar_report.certification_state.value}")
     print(f"Official Sources: {len(calendar_report.sources)}")
     print(f"Official Holidays: {calendar_report.official_holiday_count}")
     print(
-        "Official Special Sessions: "
-        f"{calendar_report.official_special_session_count}"
+        f"Official Special Sessions: {calendar_report.official_special_session_count}"
     )
     print(f"Expected Sessions: {calendar_report.expected_session_count}")
     print(f"Observed Sessions: {calendar_report.observed_session_count}")
@@ -145,10 +145,7 @@ def run(
         "Unconfirmed Special Sessions: "
         f"{calendar_report.unconfirmed_special_session_count}"
     )
-    print(
-        "Missing Special Sessions: "
-        f"{calendar_report.missing_special_session_count}"
-    )
+    print(f"Missing Special Sessions: {calendar_report.missing_special_session_count}")
     print(f"Conflicts: {calendar_report.conflict_count}")
     print(f"Calendar Report SHA-256: {calendar_report.report_sha256}")
     for path in (*evidence_paths, *calendar_paths):
