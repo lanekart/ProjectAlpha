@@ -31,6 +31,12 @@ The guarded compatibility workflow passed:
 
 Each temporary workflow deleted itself before committing validated source.
 
+## Runtime repository hygiene
+
+Authorized pilot execution exposed that Historical Truth runtime state had previously been committed to Git. Slice 2 removes tracked raw archives, staging CSVs, immutable snapshots, warehouse files, manifests and checkpoints from the repository index while preserving those paths as ignored local runtime state.
+
+This prevents future authorized downloads from dirtying the source tree or being accidentally committed. Local runtime data must be backed up before first synchronizing to the cleaned branch head, then restored after the reset.
+
 ## Required repository validation
 
 Before PR #18 can leave draft state, GitHub must independently pass:
