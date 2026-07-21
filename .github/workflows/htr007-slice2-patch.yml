@@ -37,8 +37,16 @@ jobs:
             tests/historical_truth/test_backfill.py \
             tests/historical_truth/test_backfill_cli.py
 
-      - name: Ruff Slice 2
+      - name: Autofix and verify Ruff Slice 2
         run: |
+          poetry run ruff check --fix \
+            alpha/historical_truth/backfill.py \
+            alpha/historical_truth/backfill_cli.py \
+            alpha/historical_truth/manager.py \
+            alpha/historical_truth/resumable.py \
+            alpha/historical_truth/__init__.py \
+            tests/historical_truth/test_backfill.py \
+            tests/historical_truth/test_backfill_cli.py
           poetry run ruff check \
             alpha/historical_truth/backfill.py \
             alpha/historical_truth/backfill_cli.py \
