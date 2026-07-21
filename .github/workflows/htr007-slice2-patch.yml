@@ -103,13 +103,17 @@ jobs:
       - name: MyPy repository
         run: poetry run mypy alpha
 
-      - name: Targeted recovery tests
-        run: |
-          poetry run pytest \
-            tests/historical_truth/test_backfill.py \
-            tests/historical_truth/test_backfill_cli.py \
-            tests/historical_truth/test_archive_manager.py \
-            tests/historical_truth/test_resumable_download.py -q
+      - name: Backfill engine tests
+        run: poetry run pytest tests/historical_truth/test_backfill.py -q
+
+      - name: Backfill CLI tests
+        run: poetry run pytest tests/historical_truth/test_backfill_cli.py -q
+
+      - name: Archive manager compatibility tests
+        run: poetry run pytest tests/historical_truth/test_archive_manager.py -q
+
+      - name: Resumable download compatibility tests
+        run: poetry run pytest tests/historical_truth/test_resumable_download.py -q
 
       - name: Commit validated Slice 2 source
         run: |
