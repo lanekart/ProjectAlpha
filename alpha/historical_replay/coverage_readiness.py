@@ -119,9 +119,9 @@ def build_historical_replay_coverage_evidence(
             f'THEN "{date_column}" END) AS warmup_sessions, '
             f'COUNT(DISTINCT CASE WHEN "{date_column}" > ? '
             f'THEN "{date_column}" END) AS outcome_sessions '
-            f'FROM {identifier} '
+            f"FROM {identifier} "
             f'WHERE "{symbol_column}" IS NOT NULL '
-            f'GROUP BY security_id ORDER BY security_id',
+            f"GROUP BY security_id ORDER BY security_id",
             [from_date, to_date],
         ).fetchall()
     finally:
