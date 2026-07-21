@@ -1,0 +1,68 @@
+name: HTR-007 Slice 2 Patch
+
+on:
+  pull_request:
+    types: [synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-007-checkpointed-backfill
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install project
+        run: |
+          pip install poetry
+          poetry config virtualenvs.create true
+          poetry install --no-interaction
+
+      - name: Format and validate Slice 2
+        run: |
+          poetry run ruff format \
+            alpha/historical_truth/backfill.py \
+            alpha/historical_truth/backfill_cli.py \
+            alpha/historical_truth/manager.py \
+            alpha/historical_truth/resumable.py \
+            alpha/historical_truth/__init__.py \
+            tests/historical_truth/test_backfill.py \
+            tests/historical_truth/test_backfill_cli.py
+          poetry run ruff check \
+            alpha/historical_truth/backfill.py \
+            alpha/historical_truth/backfill_cli.py \
+            alpha/historical_truth/manager.py \
+            alpha/historical_truth/resumable.py \
+            alpha/historical_truth/__init__.py \
+            tests/historical_truth/test_backfill.py \
+            tests/historical_truth/test_backfill_cli.py
+          poetry run mypy alpha
+          poetry run pytest \
+            tests/historical_truth/test_backfill.py \
+            tests/historical_truth/test_backfill_cli.py \
+            tests/historical_truth/test_archive_manager.py \
+            tests/historical_truth/test_resumable_download.py -q
+
+      - name: Commit validated Slice 2 source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f .github/workflows/htr007-slice2-patch.yml
+          git add \
+            alpha/historical_truth/backfill.py \
+            alpha/historical_truth/backfill_cli.py \
+            alpha/historical_truth/manager.py \
+            alpha/historical_truth/resumable.py \
+            alpha/historical_truth/__init__.py \
+            tests/historical_truth/test_backfill.py \
+            tests/historical_truth/test_backfill_cli.py
+          git commit -m "Validate checkpointed HTR-007 backfill"
+          git push origin HEAD:feature/htr-007-checkpointed-backfill
