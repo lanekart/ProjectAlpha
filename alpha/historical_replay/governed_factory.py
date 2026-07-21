@@ -7,7 +7,7 @@ import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
-from typing import Protocol, cast
+from typing import Protocol
 
 from alpha.historical_replay.factory import (
     HistoricalObservationBuildResult,
@@ -84,19 +84,19 @@ class GovernedHistoricalObservationBuild:
     def observations(self) -> tuple[object, ...]:
         """Expose the immutable observation sequence."""
 
-        return cast(tuple[object, ...], self.result.observations)
+        return self.result.observations
 
     @property
     def replay_dates(self) -> tuple[date, ...]:
         """Expose replay dates from the underlying build result."""
 
-        return cast(tuple[date, ...], self.result.replay_dates)
+        return self.result.replay_dates
 
     @property
     def skipped_dates(self) -> tuple[str, ...]:
         """Expose deterministic skipped-date reasons."""
 
-        return cast(tuple[str, ...], self.result.skipped_dates)
+        return self.result.skipped_dates
 
     @property
     def run_sha256(self) -> str:
