@@ -6,7 +6,7 @@ This validation record covers the checkpointed NSE bhavcopy backfill orchestrato
 
 ## Guarded source validation
 
-The formatted source commit `fd6de00cffdf25aefb3e20bd54be850e2feda3fc` was created only after the temporary guarded workflow passed all of the following on the same working tree:
+The formatted Slice 2 source commit `fd6de00cffdf25aefb3e20bd54be850e2feda3fc` was created only after the temporary guarded workflow passed all of the following on the same working tree:
 
 - Ruff checks for all Slice 2 source and tests.
 - Full MyPy over `alpha`.
@@ -15,7 +15,21 @@ The formatted source commit `fd6de00cffdf25aefb3e20bd54be850e2feda3fc` was creat
 - Existing archive-manager compatibility tests.
 - Existing resumable-download compatibility tests.
 
-The temporary workflow deleted itself before committing the validated source.
+The standalone CLI was corrected to parse ISO date strings explicitly because the pinned Typer version does not support `datetime.date` option annotations.
+
+## Pilot compatibility validation
+
+Full repository testing identified that immutable archive drift was blocked correctly but the original pilot evidence flag was not propagated through the new warehouse failure path. Commit `0b4dd2f1c0736f4e6ad994a303f31817d813b8c7` restores the deterministic `checksum_drift` flag while retaining fail-closed behavior.
+
+The guarded compatibility workflow passed:
+
+- Ruff for the pilot source.
+- Full MyPy over `alpha`.
+- Cross-era pilot tests.
+- Checkpointed backfill engine tests.
+- Backfill CLI tests.
+
+Each temporary workflow deleted itself before committing validated source.
 
 ## Required repository validation
 
