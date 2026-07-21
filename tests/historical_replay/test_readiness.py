@@ -64,9 +64,7 @@ def test_no_replay_dates_blocks_execution() -> None:
     )
 
     assert certificate.status is HistoricalReplayReadinessStatus.BLOCKED
-    assert certificate.blockers == (
-        HistoricalReplayReadinessBlocker.NO_REPLAY_DATES,
-    )
+    assert certificate.blockers == (HistoricalReplayReadinessBlocker.NO_REPLAY_DATES,)
     with pytest.raises(HistoricalReplayReadinessError, match="NO_REPLAY_DATES"):
         certificate.assert_ready()
 
