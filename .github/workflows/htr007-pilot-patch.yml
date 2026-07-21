@@ -1,0 +1,269 @@
+name: HTR-007 Pilot Patch
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-007-authoritative-backfill
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install project
+        run: |
+          pip install poetry
+          poetry config virtualenvs.create true
+          poetry install --no-interaction
+
+      - name: Apply deterministic pilot wiring
+        run: |
+          poetry run python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: Path, old: str, new: str, label: str) -> None:
+              content = path.read_text(encoding="utf-8")
+              if content.count(old) != 1:
+                  raise SystemExit(f"{label}: expected one source fragment")
+              path.write_text(content.replace(old, new, 1), encoding="utf-8")
+
+          service_path = Path("alpha/historical_truth/service.py")
+          replace_once(
+              service_path,
+              "            schema = self._detect_bhavcopy_schema(columns)\n",
+              "            schema = self.detect_bhavcopy_schema(columns)\n",
+              "service schema call",
+          )
+          old = (
+              "    @staticmethod\n"
+              "    def _detect_bhavcopy_schema(columns: frozenset[str]) -> str | None:\n"
+              "        if _LEGACY_REQUIRED_COLUMNS <= columns:\n"
+              "            return \"legacy\"\n"
+              "        if _UDIFF_REQUIRED_COLUMNS <= columns:\n"
+              "            return \"udiff\"\n"
+              "        return None\n"
+          )
+          new = (
+              "    @staticmethod\n"
+              "    def detect_bhavcopy_schema(columns: frozenset[str]) -> str | None:\n"
+              "        \"\"\"Return the governed schema name for an exact CSV header.\"\"\"\n"
+              "\n"
+              "        if _LEGACY_REQUIRED_COLUMNS <= columns:\n"
+              "            return \"legacy\"\n"
+              "        if _UDIFF_REQUIRED_COLUMNS <= columns:\n"
+              "            return \"udiff\"\n"
+              "        return None\n"
+              "\n"
+              "    @staticmethod\n"
+              "    def _detect_bhavcopy_schema(columns: frozenset[str]) -> str | None:\n"
+              "        return HistoricalTruthWarehouse.detect_bhavcopy_schema(columns)\n"
+          )
+          replace_once(service_path, old, new, "service schema detector")
+
+          replace_once(
+              Path("alpha/historical_truth/pilot.py"),
+              "            population_status=population.status.value,\n",
+              (
+                  "            population_status=(\n"
+                  "                \"available\"\n"
+                  "                if population_success\n"
+                  "                else population.status.value\n"
+                  "            ),\n"
+              ),
+              "pilot canonical availability",
+          )
+
+          init_path = Path("alpha/historical_truth/__init__.py")
+          replace_once(
+              init_path,
+              "from alpha.historical_truth.plugins import NseBhavcopyPlugin\n",
+              (
+                  "from alpha.historical_truth.pilot import (\n"
+                  "    BackfillPilotRecord,\n"
+                  "    BackfillPilotReport,\n"
+                  "    BackfillPilotStatus,\n"
+                  "    DEFAULT_CROSS_ERA_DATES,\n"
+                  "    HTR007_PILOT_CONTRACT_VERSION,\n"
+                  "    HistoricalBackfillPilot,\n"
+                  ")\n"
+                  "from alpha.historical_truth.plugins import NseBhavcopyPlugin\n"
+              ),
+              "historical truth pilot exports",
+          )
+          replace_once(
+              init_path,
+              "    \"ArchiveTask\",\n",
+              (
+                  "    \"ArchiveTask\",\n"
+                  "    \"BackfillPilotRecord\",\n"
+                  "    \"BackfillPilotReport\",\n"
+                  "    \"BackfillPilotStatus\",\n"
+              ),
+              "historical truth __all__ records",
+          )
+          replace_once(
+              init_path,
+              "    \"DatasetRegistry\",\n",
+              "    \"DEFAULT_CROSS_ERA_DATES\",\n    \"DatasetRegistry\",\n",
+              "historical truth __all__ dates",
+          )
+          replace_once(
+              init_path,
+              "    \"HistoricalArchiveManager\",\n",
+              (
+                  "    \"HTR007_PILOT_CONTRACT_VERSION\",\n"
+                  "    \"HistoricalArchiveManager\",\n"
+                  "    \"HistoricalBackfillPilot\",\n"
+              ),
+              "historical truth __all__ pilot",
+          )
+
+          application_path = Path("alpha/application/historical_truth_cli.py")
+          replace_once(
+              application_path,
+              "from alpha.historical_truth import (\n    CanonicalPointInTimeWarehouse,\n",
+              (
+                  "from alpha.historical_truth import (\n"
+                  "    DEFAULT_CROSS_ERA_DATES,\n"
+                  "    CanonicalPointInTimeWarehouse,\n"
+                  "    HistoricalBackfillPilot,\n"
+              ),
+              "application pilot imports",
+          )
+          app_command = '''@historical_truth_app.command("pilot")
+          def backfill_pilot(
+              root: Path = typer.Option(Path("alpha_data"), "--root"),
+              pilot_date: list[date] = typer.Option(
+                  [],
+                  "--date",
+                  help="Representative NSE trading date; repeat to override defaults.",
+              ),
+              output_dir: Path = typer.Option(
+                  Path("artifacts/htr007_backfill_pilot"),
+                  "--output-dir",
+              ),
+          ) -> None:
+              """Run the governed HTR-007 cross-era acquisition pilot."""
+
+              archive = HistoricalTruthWarehouse(root)
+              canonical = CanonicalPointInTimeWarehouse(
+                  root / "warehouse" / "historical_truth.duckdb"
+              )
+              snapshots = PointInTimeSnapshotEngine(canonical, root / "snapshots")
+              engine = HistoricalBackfillPilot(archive, canonical, snapshots)
+              report = engine.run(tuple(pilot_date) or DEFAULT_CROSS_ERA_DATES)
+              paths = engine.export(report, output_dir)
+              print(f"Pilot Complete: {report.complete}")
+              print(f"Schemas Observed: {', '.join(report.schemas_observed)}")
+              print(f"Report SHA-256: {report.report_sha256}")
+              for record in report.records:
+                  print(
+                      f"{record.trading_date.isoformat()} | {record.status.value} | "
+                      f"{record.detected_schema or '-'} | {record.error or ''}"
+                  )
+              for path in paths:
+                  print(path)
+              if not report.complete:
+                  raise typer.Exit(code=1)
+
+
+          @historical_truth_app.command("status")
+          def status(
+          '''
+          replace_once(
+              application_path,
+              '@historical_truth_app.command("status")\ndef status(\n',
+              app_command,
+              "application pilot command",
+          )
+
+          cli_path = Path("alpha/historical_truth/cli.py")
+          replace_once(
+              cli_path,
+              "from alpha.historical_truth.population import HistoricalPopulationEngine\n",
+              (
+                  "from alpha.historical_truth.pilot import (\n"
+                  "    DEFAULT_CROSS_ERA_DATES,\n"
+                  "    HistoricalBackfillPilot,\n"
+                  ")\n"
+                  "from alpha.historical_truth.population import HistoricalPopulationEngine\n"
+              ),
+              "standalone pilot imports",
+          )
+          cli_command = '''@historical_truth_app.command("pilot")
+          def backfill_pilot(
+              root: Path = typer.Option(Path("alpha_data"), "--root"),
+              pilot_date: list[str] = typer.Option(
+                  [],
+                  "--date",
+                  help="Representative NSE trading date; repeat to override defaults.",
+              ),
+              output_dir: Path = typer.Option(
+                  Path("artifacts/htr007_backfill_pilot"),
+                  "--output-dir",
+              ),
+          ) -> None:
+              """Run the governed HTR-007 cross-era acquisition pilot."""
+
+              dates = (
+                  tuple(_parse_date(value, "--date") for value in pilot_date)
+                  if pilot_date
+                  else DEFAULT_CROSS_ERA_DATES
+              )
+              archive = HistoricalTruthWarehouse(root)
+              canonical = CanonicalPointInTimeWarehouse(
+                  root / "warehouse" / "historical_truth.duckdb"
+              )
+              snapshots = PointInTimeSnapshotEngine(canonical, root / "snapshots")
+              engine = HistoricalBackfillPilot(archive, canonical, snapshots)
+              report = engine.run(dates)
+              paths = engine.export(report, output_dir)
+              print(f"Pilot Complete: {report.complete}")
+              print(f"Schemas Observed: {', '.join(report.schemas_observed)}")
+              print(f"Report SHA-256: {report.report_sha256}")
+              for record in report.records:
+                  print(
+                      f"{record.trading_date.isoformat()} | {record.status.value} | "
+                      f"{record.detected_schema or '-'} | {record.error or ''}"
+                  )
+              for path in paths:
+                  print(path)
+              if not report.complete:
+                  raise typer.Exit(code=1)
+
+
+          @historical_truth_app.command("status")
+          def status(
+          '''
+          replace_once(
+              cli_path,
+              '@historical_truth_app.command("status")\ndef status(\n',
+              cli_command,
+              "standalone pilot command",
+          )
+          PY
+
+      - name: Format and validate pilot slice
+        run: |
+          poetry run ruff format alpha/historical_truth alpha/application/historical_truth_cli.py tests/historical_truth/test_backfill_pilot.py tests/historical_truth/test_backfill_pilot_cli.py
+          poetry run ruff check alpha/historical_truth alpha/application/historical_truth_cli.py tests/historical_truth/test_backfill_pilot.py tests/historical_truth/test_backfill_pilot_cli.py
+          poetry run pytest tests/historical_truth/test_backfill_pilot.py tests/historical_truth/test_backfill_pilot_cli.py -q
+
+      - name: Commit pilot wiring
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f .github/workflows/htr007-pilot-patch.yml
+          git add alpha/historical_truth alpha/application/historical_truth_cli.py tests/historical_truth/test_backfill_pilot.py tests/historical_truth/test_backfill_pilot_cli.py
+          git commit -m "Wire governed HTR-007 backfill pilot"
+          git push origin HEAD:feature/htr-007-authoritative-backfill
