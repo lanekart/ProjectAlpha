@@ -76,6 +76,11 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          poetry run ruff format \
+            alpha/historical_truth/historical_session_evidence.py \
+            alpha/historical_truth/historical_session_evidence_cli.py \
+            alpha/historical_truth/__init__.py \
+            tests/historical_truth/test_historical_session_evidence.py
           poetry run ruff check --fix \
             alpha/historical_truth/historical_session_evidence.py \
             alpha/historical_truth/historical_session_evidence_cli.py \
@@ -115,7 +120,7 @@ jobs:
       - name: Commit validated source and remove temporary workflow
         run: |
           rm .github/workflows/htr007-historical-session-evidence-build.yml
-          git config user.name "github-actions[bot]"
+          git config user.name "github-actions[bot]]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
             alpha/historical_truth/historical_session_evidence.py \
