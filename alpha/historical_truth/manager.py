@@ -62,20 +62,37 @@ class HistoricalArchiveManager:
         self._lock = Lock()
 
     def build_tasks(
-        self, requests: tuple[ArchiveRequest, ...]
+        self,
+        requests: tuple[ArchiveRequest, ...],
     ) -> tuple[ArchiveTask, ...]:
         previous = self._read_checkpoint()
         tasks: list[ArchiveTask] = []
         for request in requests:
-            task_id = self._task_id(request)
+            task_id = self.task_id(request)
             restored = previous.get(task_id)
-            if restored is not None and restored.state in {
-                TaskState.COMPLETE,
-                TaskState.UNAVAILABLE,
-            }:
-                tasks.append(restored)
-            else:
+            if restored is None:
                 tasks.append(ArchiveTask(task_id=task_id, request=request))
+                continue
+            restored_state = (
+                TaskState.PENDING
+                if restored.state is TaskState.RUNNING
+                else restored.state
+            )
+            restored_error = (
+                "interrupted while running; reset to pending"
+                if restored.state is TaskState.RUNNING
+                else restored.error
+            )
+            tasks.append(
+                ArchiveTask(
+                    task_id=task_id,
+                    request=request,
+                    state=restored_state,
+                    attempts=restored.attempts,
+                    updated_at=restored.updated_at,
+                    error=restored_error,
+                )
+            )
         return tuple(tasks)
 
     def run(
@@ -191,10 +208,14 @@ class HistoricalArchiveManager:
             return HistoricalArchiveManager._replace(task, TaskState.COMPLETE)
         if record.status is ManifestStatus.UNAVAILABLE:
             return HistoricalArchiveManager._replace(
-                task, TaskState.UNAVAILABLE, error=record.error
+                task,
+                TaskState.UNAVAILABLE,
+                error=record.error,
             )
         return HistoricalArchiveManager._replace(
-            task, TaskState.FAILED, error=record.error
+            task,
+            TaskState.FAILED,
+            error=record.error,
         )
 
     @staticmethod
@@ -215,7 +236,7 @@ class HistoricalArchiveManager:
         )
 
     @staticmethod
-    def _task_id(request: ArchiveRequest) -> str:
+    def task_id(request: ArchiveRequest) -> str:
         return ":".join(
             (
                 request.exchange.lower(),
@@ -223,6 +244,10 @@ class HistoricalArchiveManager:
                 request.trading_date.isoformat(),
             )
         )
+
+    @staticmethod
+    def _task_id(request: ArchiveRequest) -> str:
+        return HistoricalArchiveManager.task_id(request)
 
     @staticmethod
     def _serialise(task: ArchiveTask) -> dict[str, object]:
