@@ -66,9 +66,7 @@ class CanonicalReplaySnapshotLoader:
             raise ValueError("trade_date cannot be after snapshot as_of")
         snapshot = self._repository.read(as_of)
         self._validate_snapshot(snapshot)
-        selected = tuple(
-            bar for bar in snapshot.bars if bar.trading_date == trade_date
-        )
+        selected = tuple(bar for bar in snapshot.bars if bar.trading_date == trade_date)
         if not selected:
             raise FileNotFoundError(
                 "canonical replay snapshot contains no bars for "
