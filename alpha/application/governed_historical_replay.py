@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -174,9 +174,9 @@ def export_governed_historical_replay_run(
     )
     _write_reads_csv(run, reads_path)
     report_path.write_text(_render_run(run), encoding="utf-8")
-    consumer_paths = export_consumer_attestations(
-        run.observation_build.consumer_attestations,
-        output,
+    attestations = run.observation_build.consumer_attestations
+    consumer_paths = (
+        export_consumer_attestations(attestations, output) if attestations else ()
     )
     return (
         manifest_path,
