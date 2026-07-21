@@ -13,6 +13,7 @@ from alpha.historical_replay.readiness import (
     HistoricalReplayReadinessError,
     HistoricalReplayReadinessStatus,
     assess_historical_replay_readiness,
+    verify_historical_replay_readiness_manifest,
 )
 from tests.historical_replay.coverage_fixtures import coverage_evidence
 from tests.historical_replay.inventory_fixtures import inventory_evidence
@@ -46,6 +47,16 @@ def _coverage(
         warmup_sessions=warmup_sessions,
         outcome_sessions=outcome_sessions,
         eligible_security_ids=eligible_security_ids,
+    )
+
+
+def _ready_certificate() -> HistoricalReplayReadinessCertificate:
+    return assess_historical_replay_readiness(
+        StubBuild(replay_dates=(_FROM, _TO), skipped_dates=()),  # type: ignore[arg-type]
+        from_date=_FROM,
+        to_date=_TO,
+        inventory_evidence=_inventory(),
+        coverage_evidence=_coverage(),
     )
 
 
@@ -137,12 +148,27 @@ def test_missing_inventory_and_coverage_block_execution() -> None:
     )
 
 
-def test_unready_blocking_dataset_blocks_execution() -> None:
+def test_source_validation_failure_mapping_blocks_execution() -> None:
     certificate = assess_historical_replay_readiness(
         StubBuild(replay_dates=(_FROM,), skipped_dates=()),  # type: ignore[arg-type]
         from_date=_FROM,
         to_date=_TO,
         inventory_evidence=_inventory(unready_keys=("daily_ohlcv",)),
+        coverage_evidence=_coverage(),
+    )
+
+    assert certificate.blockers == (
+        HistoricalReplayReadinessBlocker.BLOCKING_DATASETS_NOT_READY,
+        HistoricalReplayReadinessBlocker.REQUIRED_DATASETS_NOT_READY,
+    )
+
+
+def test_missing_expected_sessions_mapping_blocks_execution() -> None:
+    certificate = assess_historical_replay_readiness(
+        StubBuild(replay_dates=(_FROM,), skipped_dates=()),  # type: ignore[arg-type]
+        from_date=_FROM,
+        to_date=_TO,
+        inventory_evidence=_inventory(unready_keys=("trading_calendar",)),
         coverage_evidence=_coverage(),
     )
 
@@ -170,6 +196,15 @@ def test_coverage_blockers_are_deterministic() -> None:
         HistoricalReplayReadinessBlocker.INSUFFICIENT_WARMUP_SESSIONS,
         HistoricalReplayReadinessBlocker.ZERO_ELIGIBLE_SECURITIES,
     )
+
+
+def test_readiness_manifest_digest_detects_tampering() -> None:
+    payload = _ready_certificate().as_dict()
+    verify_historical_replay_readiness_manifest(payload)
+
+    payload["status"] = "BLOCKED"
+    with pytest.raises(ValueError, match="digest mismatch"):
+        verify_historical_replay_readiness_manifest(payload)
 
 
 def test_certificate_rejects_status_that_disagrees_with_blockers() -> None:
