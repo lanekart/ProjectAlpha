@@ -43,7 +43,19 @@ jobs:
           poetry run ruff format --check alpha/cli.py tests/historical_replay/test_historical_replay.py
 
       - name: Test migrated replay command
-        run: poetry run pytest tests/historical_replay/test_historical_replay.py -q
+        run: |
+          set +e
+          poetry run pytest tests/historical_replay/test_historical_replay.py -q 2>&1 | tee htr005-pytest.txt
+          status=${PIPESTATUS[0]}
+          exit "$status"
+
+      - name: Upload migrated replay test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: htr005-pytest-diagnostics
+          path: htr005-pytest.txt
+          if-no-files-found: error
 
       - name: Commit migration and restore workflows
         run: |
