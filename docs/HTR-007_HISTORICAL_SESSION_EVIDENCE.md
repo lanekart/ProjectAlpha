@@ -48,6 +48,13 @@ full-window reconciliation.
 
 All runtime paths remain ignored by Git.
 
+## Validation boundary
+
+CI uses deterministic HTML and extracted-text fixtures and performs no live NSE
+download. The authorized local run remains the gate for real attachment discovery,
+PDF extraction, immutable checksums, and reconciliation against the populated
+Historical Truth Warehouse.
+
 ## Governance
 
 - No third-party holiday list is authoritative evidence.
