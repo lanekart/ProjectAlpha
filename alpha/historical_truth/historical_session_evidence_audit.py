@@ -580,7 +580,7 @@ class HistoricalSessionEvidenceRepairEngine(HistoricalSessionEvidenceEngine):
             json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
         cls._attempt_csv(paths[1], report.attempts)
-        paths[2].write_text(cls._markdown(report), encoding="utf-8")
+        paths[2].write_text(cls._audit_markdown(report), encoding="utf-8")
         paths[3].write_text(
             json.dumps(
                 [cls._jsonable(asdict(x)) for x in rejected], indent=2, sort_keys=True
@@ -686,7 +686,7 @@ class HistoricalSessionEvidenceRepairEngine(HistoricalSessionEvidenceEngine):
                 writer.writerow(row)
 
     @staticmethod
-    def _markdown(report: AcquisitionAuditReport) -> str:
+    def _audit_markdown(report: AcquisitionAuditReport) -> str:
         failures = Counter(
             x.failure_code.value for x in report.attempts if x.failure_code
         )
