@@ -46,6 +46,7 @@ node_modules/
 # Generated reports and exports
 reports/
 exports/
+artifacts/htr007_*/
 
 # Runtime market data and local databases
 data/raw/
@@ -53,6 +54,16 @@ data/extracted/
 data/market_truth/
 data/*.duckdb
 *.duckdb
+
+# Historical Truth Warehouse runtime state
+alpha_data/raw/
+alpha_data/staging/
+alpha_data/snapshots/
+alpha_data/warehouse/
+alpha_data/derived/
+alpha_data/manifests/*.jsonl
+alpha_data/manifests/*checkpoint*.json
+alpha_data/manifests/htr007_*.json
 
 # Temporary editor files
 *.save
