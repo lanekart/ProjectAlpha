@@ -1,0 +1,30 @@
+name: HTR-005 Consumer Discovery
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build historical consumer inventory
+        run: |
+          mkdir -p htr005-discovery
+          grep -R -n -E \
+            "HistoricalObservationFactory|MarketTruthPriceRepository|ReplayPriceRepository|find_by_trade_date|find_history_by_symbols|find_range_by_symbols" \
+            alpha tests > htr005-discovery/consumer-inventory.txt || true
+          cp alpha/cli.py htr005-discovery/cli.py
+          cp alpha/historical_replay/factory.py htr005-discovery/factory.py
+          cp alpha/market_truth/consumer_repository.py htr005-discovery/consumer_repository.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: htr005-consumer-discovery
+          path: htr005-discovery
