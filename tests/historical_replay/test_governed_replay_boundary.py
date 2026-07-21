@@ -21,8 +21,7 @@ def test_production_observation_factory_construction_is_governed() -> None:
     offenders = tuple(
         str(path)
         for path in sorted(alpha_root.rglob("*.py"))
-        if path not in allowed
-        and _constructs(path, "HistoricalObservationFactory")
+        if path not in allowed and _constructs(path, "HistoricalObservationFactory")
     )
 
     assert offenders == ()
