@@ -37,9 +37,9 @@ Authorized pilot execution exposed that Historical Truth runtime state had previ
 
 This prevents future authorized downloads from dirtying the source tree or being accidentally committed. Local runtime data must be backed up before first synchronizing to the cleaned branch head, then restored after the reset.
 
-## Required repository validation
+## Clean repository validation
 
-Before PR #18 can leave draft state, GitHub must independently pass:
+The runtime-cleaned tree passed the complete repository gate on head `da254df8a5536fe2a890afff552aba6da5765c1d`:
 
 ```bash
 poetry run ruff check .
@@ -48,11 +48,16 @@ poetry run mypy alpha
 poetry run pytest -q
 ```
 
-An authorized local smoke run is also required before merge. The smoke run must retain:
+All four commands passed after tracked runtime archives, snapshots, staging files and manifests were removed from Git.
+
+## Remaining local smoke gate
+
+An authorized local smoke run is required before merge. The smoke run must retain:
 
 - planning basis `WEEKDAY_CANDIDATES_UNRECONCILED`;
 - certification state `unreconciled_not_certified`;
 - explicit unavailable and failed counts;
-- deterministic JSON, CSV, Markdown, checkpoint, and report-hash evidence.
+- deterministic JSON, CSV, Markdown, checkpoint, and report-hash evidence;
+- identical report SHA-256 values on the first and second runs.
 
 No full historical certification is claimed by Slice 2.
