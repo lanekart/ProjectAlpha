@@ -19,6 +19,16 @@ backfill_app = typer.Typer(
 )
 
 
+def _parse_date(value: str, option_name: str) -> date:
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise typer.BadParameter(
+            "must use ISO format YYYY-MM-DD",
+            param_hint=option_name,
+        ) from exc
+
+
 @backfill_app.callback()
 def backfill() -> None:
     """Coordinate governed historical-data population commands."""
@@ -26,8 +36,8 @@ def backfill() -> None:
 
 @backfill_app.command("run")
 def run_backfill(
-    end: date = typer.Option(..., "--end", help="Inclusive backfill cutoff date."),
-    start: date = typer.Option(date(2016, 1, 1), "--start"),
+    end: str = typer.Option(..., "--end", help="Inclusive backfill cutoff date."),
+    start: str = typer.Option("2016-01-01", "--start"),
     root: Path = typer.Option(Path("alpha_data"), "--root"),
     output_dir: Path = typer.Option(
         Path("artifacts/htr007_backfill"),
@@ -46,6 +56,14 @@ def run_backfill(
 ) -> None:
     """Download, validate, ingest, snapshot, checkpoint, and report the window."""
 
+    start_date = _parse_date(start, "--start")
+    end_date = _parse_date(end, "--end")
+    if start_date > end_date:
+        raise typer.BadParameter(
+            "must be on or before --end",
+            param_hint="--start",
+        )
+
     archive = HistoricalTruthWarehouse(root)
     canonical = CanonicalPointInTimeWarehouse(
         root / "warehouse" / "historical_truth.duckdb"
@@ -53,8 +71,8 @@ def run_backfill(
     snapshots = PointInTimeSnapshotEngine(canonical, root / "snapshots")
     engine = HistoricalBackfillEngine(archive, canonical, snapshots)
     report = engine.run(
-        start,
-        end,
+        start_date,
+        end_date,
         workers=workers,
         retry_failed=retry_failed,
     )
