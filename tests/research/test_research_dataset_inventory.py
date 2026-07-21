@@ -134,9 +134,7 @@ def test_as_of_caps_expected_sessions_and_export_is_deterministic(
     second = {path.name: path.read_bytes() for path in second_paths}
 
     assert first == second
-    summary = json.loads(
-        (output / "summary.json").read_text(encoding="utf-8")
-    )
+    summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
     assert summary["period_end"] == "2026-07-20"
     assert summary["certification"] == "NOT_CERTIFIED"
     assert summary["production_influence"] is False

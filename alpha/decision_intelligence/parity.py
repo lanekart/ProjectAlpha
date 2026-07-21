@@ -143,8 +143,7 @@ def export_decision_parity(
         tuple(
             result
             for result in report.candidate_results
-            if result.classification
-            is DecisionParityClassification.UNEXPECTED_CHANGE
+            if result.classification is DecisionParityClassification.UNEXPECTED_CHANGE
         ),
     )
     report_md.write_text(_render_report(report), encoding="utf-8")
@@ -336,9 +335,7 @@ def _write_differences_csv(
         writer = csv.DictWriter(handle, fieldnames=columns)
         writer.writeheader()
         for result in results:
-            differences = result.differences or (
-                DecisionFieldDifference("", "", ""),
-            )
+            differences = result.differences or (DecisionFieldDifference("", "", ""),)
             for difference in differences:
                 writer.writerow(
                     {
