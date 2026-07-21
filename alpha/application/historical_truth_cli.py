@@ -6,7 +6,9 @@ from pathlib import Path
 import typer
 
 from alpha.historical_truth import (
+    DEFAULT_CROSS_ERA_DATES,
     CanonicalPointInTimeWarehouse,
+    HistoricalBackfillPilot,
     HistoricalPopulationEngine,
     HistoricalTruthIntegrityAudit,
     HistoricalTruthWarehouse,
@@ -99,6 +101,43 @@ def populate(
     print(f"Rows available in snapshots: {summary.available_rows}")
     for path in paths:
         print(path)
+
+
+@historical_truth_app.command("pilot")
+def backfill_pilot(
+    root: Path = typer.Option(Path("alpha_data"), "--root"),
+    pilot_date: list[date] = typer.Option(
+        [],
+        "--date",
+        help="Representative NSE trading date; repeat to override defaults.",
+    ),
+    output_dir: Path = typer.Option(
+        Path("artifacts/htr007_backfill_pilot"),
+        "--output-dir",
+    ),
+) -> None:
+    """Run the governed HTR-007 cross-era acquisition pilot."""
+
+    archive = HistoricalTruthWarehouse(root)
+    canonical = CanonicalPointInTimeWarehouse(
+        root / "warehouse" / "historical_truth.duckdb"
+    )
+    snapshots = PointInTimeSnapshotEngine(canonical, root / "snapshots")
+    engine = HistoricalBackfillPilot(archive, canonical, snapshots)
+    report = engine.run(tuple(pilot_date) or DEFAULT_CROSS_ERA_DATES)
+    paths = engine.export(report, output_dir)
+    print(f"Pilot Complete: {report.complete}")
+    print(f"Schemas Observed: {', '.join(report.schemas_observed)}")
+    print(f"Report SHA-256: {report.report_sha256}")
+    for record in report.records:
+        print(
+            f"{record.trading_date.isoformat()} | {record.status.value} | "
+            f"{record.detected_schema or '-'} | {record.error or ''}"
+        )
+    for path in paths:
+        print(path)
+    if not report.complete:
+        raise typer.Exit(code=1)
 
 
 @historical_truth_app.command("status")

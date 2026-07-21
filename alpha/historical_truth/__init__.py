@@ -27,6 +27,14 @@ from alpha.historical_truth.models import (
     ValidationIssue,
     ValidationSeverity,
 )
+from alpha.historical_truth.pilot import (
+    DEFAULT_CROSS_ERA_DATES,
+    HTR007_PILOT_CONTRACT_VERSION,
+    BackfillPilotRecord,
+    BackfillPilotReport,
+    BackfillPilotStatus,
+    HistoricalBackfillPilot,
+)
 from alpha.historical_truth.plugins import NseBhavcopyPlugin
 from alpha.historical_truth.population import (
     HistoricalPopulationEngine,
@@ -50,12 +58,18 @@ __all__ = [
     "ArchiveDatasetPlugin",
     "ArchiveRequest",
     "ArchiveTask",
+    "BackfillPilotRecord",
+    "BackfillPilotReport",
+    "BackfillPilotStatus",
     "CanonicalCandle",
     "CanonicalPointInTimeWarehouse",
     "CompletenessReport",
+    "DEFAULT_CROSS_ERA_DATES",
     "DatasetRegistry",
     "DownloadSummary",
+    "HTR007_PILOT_CONTRACT_VERSION",
     "HistoricalArchiveManager",
+    "HistoricalBackfillPilot",
     "HistoricalPopulationEngine",
     "HistoricalTruthIntegrityAudit",
     "HistoricalTruthReplayStore",

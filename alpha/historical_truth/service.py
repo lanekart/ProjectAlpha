@@ -164,7 +164,7 @@ class HistoricalTruthWarehouse:
         with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
             reader = csv.DictReader(handle)
             columns = frozenset(reader.fieldnames or ())
-            schema = self._detect_bhavcopy_schema(columns)
+            schema = self.detect_bhavcopy_schema(columns)
             if schema is None:
                 missing_legacy = sorted(_LEGACY_REQUIRED_COLUMNS - columns)
                 missing_udiff = sorted(_UDIFF_REQUIRED_COLUMNS - columns)
@@ -257,12 +257,18 @@ class HistoricalTruthWarehouse:
         return tuple(issues)
 
     @staticmethod
-    def _detect_bhavcopy_schema(columns: frozenset[str]) -> str | None:
+    def detect_bhavcopy_schema(columns: frozenset[str]) -> str | None:
+        """Return the governed schema name for an exact CSV header."""
+
         if _LEGACY_REQUIRED_COLUMNS <= columns:
             return "legacy"
         if _UDIFF_REQUIRED_COLUMNS <= columns:
             return "udiff"
         return None
+
+    @staticmethod
+    def _detect_bhavcopy_schema(columns: frozenset[str]) -> str | None:
+        return HistoricalTruthWarehouse.detect_bhavcopy_schema(columns)
 
     @staticmethod
     def _schema_fields(schema: str) -> dict[str, str]:
