@@ -34,7 +34,9 @@ def inventory_evidence(
             first_date=(
                 None if definition.key in unready_keys else period_start.isoformat()
             ),
-            last_date=None if definition.key in unready_keys else period_end.isoformat(),
+            last_date=(
+                None if definition.key in unready_keys else period_end.isoformat()
+            ),
             observed_sessions=0 if definition.key in unready_keys else 1,
             expected_sessions=1,
             missing_sessions=1 if definition.key in unready_keys else 0,
