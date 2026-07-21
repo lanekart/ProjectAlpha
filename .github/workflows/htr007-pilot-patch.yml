@@ -1,0 +1,292 @@
+name: HTR-007 Pilot Patch
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-007-authoritative-backfill
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install project
+        run: |
+          pip install poetry
+          poetry config virtualenvs.create true
+          poetry install --no-interaction
+
+      - name: Wire public schema API and pilot commands
+        run: |
+          poetry run python - <<'PY'
+          from pathlib import Path
+
+          service_path = Path("alpha/historical_truth/service.py")
+          service = service_path.read_text(encoding="utf-8")
+          old = "            schema = self._detect_bhavcopy_schema(columns)\n"
+          new = "            schema = self.detect_bhavcopy_schema(columns)\n"
+          if service.count(old) != 1:
+              raise SystemExit("service schema call not found")
+          service = service.replace(old, new, 1)
+          old = '''    @staticmethod
+          def _detect_bhavcopy_schema(columns: frozenset[str]) -> str | None:
+              if _LEGACY_REQUIRED_COLUMNS <= columns:
+                  return "legacy"
+              if _UDIFF_REQUIRED_COLUMNS <= columns:
+                  return "udiff"
+              return None
+          '''
+          new = '''    @staticmethod
+          def detect_bhavcopy_schema(columns: frozenset[str]) -> str | None:
+              """Return the governed bhavcopy schema name for an exact CSV header."""
+
+              if _LEGACY_REQUIRED_COLUMNS <= columns:
+                  return "legacy"
+              if _UDIFF_REQUIRED_COLUMNS <= columns:
+                  return "udiff"
+              return None
+
+              @staticmethod
+              def _detect_bhavcopy_schema(columns: frozenset[str]) -> str | None:
+                  return HistoricalTruthWarehouse.detect_bhavcopy_schema(columns)
+          '''
+          if service.count(old) != 1:
+              raise SystemExit("service schema detector block not found")
+          service = service.replace(old, new, 1)
+          service_path.write_text(service, encoding="utf-8")
+
+          pilot_path = Path("alpha/historical_truth/pilot.py")
+          pilot = pilot_path.read_text(encoding="utf-8")
+          old = "            population_status=population.status.value,\n"
+          new = '''            population_status=(
+              "available" if population_success else population.status.value
+          ),
+          '''
+          if pilot.count(old) != 1:
+              raise SystemExit("pilot population status assignment not found")
+          pilot = pilot.replace(old, new, 1)
+          pilot_path.write_text(pilot, encoding="utf-8")
+
+          init_path = Path("alpha/historical_truth/__init__.py")
+          init = init_path.read_text(encoding="utf-8")
+          marker = "from alpha.historical_truth.plugins import NseBhavcopyPlugin\n"
+          addition = '''from alpha.historical_truth.pilot import (
+              BackfillPilotRecord,
+              BackfillPilotReport,
+              BackfillPilotStatus,
+              DEFAULT_CROSS_ERA_DATES,
+              HTR007_PILOT_CONTRACT_VERSION,
+              HistoricalBackfillPilot,
+          )
+          from alpha.historical_truth.plugins import NseBhavcopyPlugin
+          '''
+          if init.count(marker) != 1:
+              raise SystemExit("historical truth init marker not found")
+          init = init.replace(marker, addition, 1)
+          marker = '    "ArchiveTask",\n'
+          addition = '''    "ArchiveTask",
+              "BackfillPilotRecord",
+              "BackfillPilotReport",
+              "BackfillPilotStatus",
+          '''
+          if init.count(marker) != 1:
+              raise SystemExit("historical truth __all__ archive marker not found")
+          init = init.replace(marker, addition, 1)
+          marker = '    "DatasetRegistry",\n'
+          addition = '''    "DEFAULT_CROSS_ERA_DATES",
+              "DatasetRegistry",
+          '''
+          if init.count(marker) != 1:
+              raise SystemExit("historical truth __all__ dataset marker not found")
+          init = init.replace(marker, addition, 1)
+          marker = '    "HistoricalArchiveManager",\n'
+          addition = '''    "HTR007_PILOT_CONTRACT_VERSION",
+              "HistoricalArchiveManager",
+              "HistoricalBackfillPilot",
+          '''
+          if init.count(marker) != 1:
+              raise SystemExit("historical truth __all__ manager marker not found")
+          init = init.replace(marker, addition, 1)
+          init_path.write_text(init, encoding="utf-8")
+
+          application_path = Path("alpha/application/historical_truth_cli.py")
+          application = application_path.read_text(encoding="utf-8")
+          old = '''from alpha.historical_truth import (
+              CanonicalPointInTimeWarehouse,
+          '''
+          new = '''from alpha.historical_truth import (
+              DEFAULT_CROSS_ERA_DATES,
+              CanonicalPointInTimeWarehouse,
+              HistoricalBackfillPilot,
+          '''
+          if application.count(old) != 1:
+              raise SystemExit("application historical truth import marker not found")
+          application = application.replace(old, new, 1)
+          marker = '''@historical_truth_app.command("status")
+          def status(
+          '''
+          command = '''@historical_truth_app.command("pilot")
+          def backfill_pilot(
+              root: Path = typer.Option(Path("alpha_data"), "--root"),
+              pilot_date: list[date] = typer.Option(
+                  [],
+                  "--date",
+                  help="Representative NSE trading date; repeat to override defaults.",
+              ),
+              output_dir: Path = typer.Option(
+                  Path("artifacts/htr007_backfill_pilot"),
+                  "--output-dir",
+              ),
+          ) -> None:
+              """Run the governed HTR-007 cross-era acquisition pilot."""
+
+              archive = HistoricalTruthWarehouse(root)
+              canonical = CanonicalPointInTimeWarehouse(
+                  root / "warehouse" / "historical_truth.duckdb"
+              )
+              snapshots = PointInTimeSnapshotEngine(canonical, root / "snapshots")
+              engine = HistoricalBackfillPilot(archive, canonical, snapshots)
+              report = engine.run(tuple(pilot_date) or DEFAULT_CROSS_ERA_DATES)
+              paths = engine.export(report, output_dir)
+              print(f"Pilot Complete: {report.complete}")
+              print(f"Schemas Observed: {', '.join(report.schemas_observed)}")
+              print(f"Report SHA-256: {report.report_sha256}")
+              for record in report.records:
+                  print(
+                      f"{record.trading_date.isoformat()} | {record.status.value} | "
+                      f"{record.detected_schema or '-'} | {record.error or ''}"
+                  )
+              for path in paths:
+                  print(path)
+              if not report.complete:
+                  raise typer.Exit(code=1)
+
+
+          @historical_truth_app.command("status")
+          def status(
+          '''
+          if application.count(marker) != 1:
+              raise SystemExit("application historical truth status marker not found")
+          application = application.replace(marker, command, 1)
+          application_path.write_text(application, encoding="utf-8")
+
+          cli_path = Path("alpha/historical_truth/cli.py")
+          cli = cli_path.read_text(encoding="utf-8")
+          marker = (
+              "from alpha.historical_truth.population import HistoricalPopulationEngine\n"
+          )
+          addition = '''from alpha.historical_truth.pilot import (
+              DEFAULT_CROSS_ERA_DATES,
+              HistoricalBackfillPilot,
+          )
+          from alpha.historical_truth.population import HistoricalPopulationEngine
+          '''
+          if cli.count(marker) != 1:
+              raise SystemExit("standalone historical truth import marker not found")
+          cli = cli.replace(marker, addition, 1)
+          marker = '''@historical_truth_app.command("status")
+          def status(
+          '''
+          command = '''@historical_truth_app.command("pilot")
+          def backfill_pilot(
+              root: Path = typer.Option(Path("alpha_data"), "--root"),
+              pilot_date: list[str] = typer.Option(
+                  [],
+                  "--date",
+                  help="Representative NSE trading date; repeat to override defaults.",
+              ),
+              output_dir: Path = typer.Option(
+                  Path("artifacts/htr007_backfill_pilot"),
+                  "--output-dir",
+              ),
+          ) -> None:
+              """Run the governed HTR-007 cross-era acquisition pilot."""
+
+              dates = (
+                  tuple(_parse_date(value, "--date") for value in pilot_date)
+                  if pilot_date
+                  else DEFAULT_CROSS_ERA_DATES
+              )
+              archive = HistoricalTruthWarehouse(root)
+              canonical = CanonicalPointInTimeWarehouse(
+                  root / "warehouse" / "historical_truth.duckdb"
+              )
+              snapshots = PointInTimeSnapshotEngine(canonical, root / "snapshots")
+              engine = HistoricalBackfillPilot(archive, canonical, snapshots)
+              report = engine.run(dates)
+              paths = engine.export(report, output_dir)
+              print(f"Pilot Complete: {report.complete}")
+              print(f"Schemas Observed: {', '.join(report.schemas_observed)}")
+              print(f"Report SHA-256: {report.report_sha256}")
+              for record in report.records:
+                  print(
+                      f"{record.trading_date.isoformat()} | {record.status.value} | "
+                      f"{record.detected_schema or '-'} | {record.error or ''}"
+                  )
+              for path in paths:
+                  print(path)
+              if not report.complete:
+                  raise typer.Exit(code=1)
+
+
+          @historical_truth_app.command("status")
+          def status(
+          '''
+          if cli.count(marker) != 1:
+              raise SystemExit("standalone historical truth status marker not found")
+          cli = cli.replace(marker, command, 1)
+          cli_path.write_text(cli, encoding="utf-8")
+          PY
+
+      - name: Format and validate pilot slice
+        run: |
+          poetry run ruff format \
+            alpha/historical_truth/service.py \
+            alpha/historical_truth/pilot.py \
+            alpha/historical_truth/__init__.py \
+            alpha/application/historical_truth_cli.py \
+            alpha/historical_truth/cli.py \
+            tests/historical_truth/test_backfill_pilot.py \
+            tests/historical_truth/test_backfill_pilot_cli.py
+          poetry run ruff check \
+            alpha/historical_truth/service.py \
+            alpha/historical_truth/pilot.py \
+            alpha/historical_truth/__init__.py \
+            alpha/application/historical_truth_cli.py \
+            alpha/historical_truth/cli.py \
+            tests/historical_truth/test_backfill_pilot.py \
+            tests/historical_truth/test_backfill_pilot_cli.py
+          poetry run pytest \
+            tests/historical_truth/test_backfill_pilot.py \
+            tests/historical_truth/test_backfill_pilot_cli.py -q
+
+      - name: Commit pilot wiring
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f .github/workflows/htr007-pilot-patch.yml
+          git add \
+            alpha/historical_truth/service.py \
+            alpha/historical_truth/pilot.py \
+            alpha/historical_truth/__init__.py \
+            alpha/application/historical_truth_cli.py \
+            alpha/historical_truth/cli.py \
+            tests/historical_truth/test_backfill_pilot.py \
+            tests/historical_truth/test_backfill_pilot_cli.py
+          git commit -m "Wire governed HTR-007 backfill pilot"
+          git push origin HEAD:feature/htr-007-authoritative-backfill
