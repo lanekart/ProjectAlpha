@@ -74,8 +74,6 @@ jobs:
             tests/historical_truth/test_backfill_cli.py
 
       - name: Verify Ruff Slice 2
-        id: ruff
-        continue-on-error: true
         run: |
           poetry run ruff check \
             alpha/historical_truth/backfill.py \
@@ -84,21 +82,7 @@ jobs:
             alpha/historical_truth/resumable.py \
             alpha/historical_truth/__init__.py \
             tests/historical_truth/test_backfill.py \
-            tests/historical_truth/test_backfill_cli.py \
-            > htr007-slice2-ruff.txt 2>&1
-
-      - name: Upload Slice 2 Ruff diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: htr007-slice2-ruff
-          path: htr007-slice2-ruff.txt
-
-      - name: Enforce Ruff result
-        if: steps.ruff.outcome == 'failure'
-        run: |
-          cat htr007-slice2-ruff.txt
-          exit 1
+            tests/historical_truth/test_backfill_cli.py
 
       - name: MyPy repository
         run: poetry run mypy alpha
@@ -107,7 +91,24 @@ jobs:
         run: poetry run pytest tests/historical_truth/test_backfill.py -q
 
       - name: Backfill CLI tests
-        run: poetry run pytest tests/historical_truth/test_backfill_cli.py -q
+        id: cli_tests
+        continue-on-error: true
+        run: |
+          poetry run pytest tests/historical_truth/test_backfill_cli.py -vv --tb=long \
+            > htr007-backfill-cli-test.txt 2>&1
+
+      - name: Upload backfill CLI diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: htr007-backfill-cli-test
+          path: htr007-backfill-cli-test.txt
+
+      - name: Enforce backfill CLI tests
+        if: steps.cli_tests.outcome == 'failure'
+        run: |
+          cat htr007-backfill-cli-test.txt
+          exit 1
 
       - name: Archive manager compatibility tests
         run: poetry run pytest tests/historical_truth/test_archive_manager.py -q
