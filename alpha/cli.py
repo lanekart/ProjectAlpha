@@ -30,6 +30,10 @@ from alpha.application.feature_attribution_cli import feature_attribution_app
 from alpha.application.forward_cli import forward_app
 from alpha.application.gate_dependency_cli import gate_dependency_app
 from alpha.application.gate_truth_cli import gate_app
+from alpha.application.governed_historical_replay_cli import (
+    execute_governed_historical_replay,
+    render_governed_historical_replay_run,
+)
 from alpha.application.historical_ingestion import HistoricalIngestionService
 from alpha.application.integrity_audit_cli import integrity_audit_app
 from alpha.application.intelligence import (
@@ -269,8 +273,6 @@ from alpha.historical_replay import (
     HistoricalCredentialStatus,
     HistoricalDataCoverageAnalyzer,
     HistoricalEvidenceService,
-    HistoricalObservationFactory,
-    HistoricalReplayEngine,
     HistoricalReplayRepository,
     HistoricalReplaySampler,
     HistoricalSourceRecommendationReport,
@@ -1715,10 +1717,25 @@ def learning_combinations(
     refresh_replay: bool = typer.Option(
         False,
         "--refresh-replay",
-        help="Build historical replay observations before ranking combinations.",
+        help="Build governed historical replay before ranking combinations.",
     ),
     from_date: str | None = typer.Option(None, "--from-date"),
     to_date: str | None = typer.Option(None, "--to-date"),
+    identity_artifact: Path | None = typer.Option(
+        None,
+        "--identity-artifact",
+        help="HTR-002 canonical identity CSV/JSON artifact.",
+    ),
+    corporate_action_artifact: Path | None = typer.Option(
+        None,
+        "--corporate-action-artifact",
+        help="HTR-003 canonical action timeline CSV/JSON artifact.",
+    ),
+    replay_output: Path | None = typer.Option(
+        None,
+        "--replay-output",
+        help="Optional governed replay proof output directory.",
+    ),
 ) -> None:
     """
     Rank indicator combinations by realized forward outcomes and market regime.
@@ -1731,16 +1748,28 @@ def learning_combinations(
             )
         start = _parse_date(from_date)
         end = _parse_date(to_date)
+        if identity_artifact is None or corporate_action_artifact is None:
+            raise typer.BadParameter(
+                "--refresh-replay requires --identity-artifact and "
+                "--corporate-action-artifact."
+            )
         learning_repository = NightlyLearningLoop.from_path().repository
-        build = HistoricalObservationFactory(
-            price_repository=MarketTruthPriceRepository()
-        ).build(from_date=start, to_date=end)
-        HistoricalReplayEngine(
-            replay_repository=HistoricalReplayRepository(),
-            learning_repository=learning_repository,
-        ).run(from_date=start, to_date=end, observations=build.observations)
+        try:
+            governed = execute_governed_historical_replay(
+                from_date=start,
+                to_date=end,
+                identity_artifact=identity_artifact,
+                corporate_action_artifact=corporate_action_artifact,
+                learning_repository=learning_repository,
+                replay_repository=HistoricalReplayRepository(),
+                output=replay_output,
+            )
+        except (FileNotFoundError, ValueError) as error:
+            raise typer.BadParameter(str(error)) from error
+        build = governed.observation_build
         print()
         print(f"Historical Replay Refreshed: {len(build.observations)} observations")
+        print(f"Canonical Replay SHA-256: {governed.run_sha256}")
         if build.skipped_dates:
             print(f"Skipped Dates: {len(build.skipped_dates)}")
 
@@ -1759,6 +1788,21 @@ def learning_combinations(
 def replay_run(
     from_date: str = typer.Option(..., "--from-date"),
     to_date: str = typer.Option(..., "--to-date"),
+    identity_artifact: Path = typer.Option(
+        ...,
+        "--identity-artifact",
+        help="HTR-002 canonical identity CSV/JSON artifact.",
+    ),
+    corporate_action_artifact: Path = typer.Option(
+        ...,
+        "--corporate-action-artifact",
+        help="HTR-003 canonical action timeline CSV/JSON artifact.",
+    ),
+    output: Path = typer.Option(
+        Path("artifacts/governed_historical_replay"),
+        "--output",
+        help="Governed replay proof output directory.",
+    ),
 ) -> None:
     """
     Run historical replay from locally persisted price history.
@@ -1767,25 +1811,24 @@ def replay_run(
     start = _parse_date(from_date)
     end = _parse_date(to_date)
     learning_repository = NightlyLearningLoop.from_path().repository
-    build = HistoricalObservationFactory(
-        price_repository=MarketTruthPriceRepository()
-    ).build(from_date=start, to_date=end)
-    engine = HistoricalReplayEngine(
-        replay_repository=HistoricalReplayRepository(),
-        learning_repository=learning_repository,
-    )
-    runs = engine.run(
-        from_date=start,
-        to_date=end,
-        observations=build.observations,
-    )
+    try:
+        governed = execute_governed_historical_replay(
+            from_date=start,
+            to_date=end,
+            identity_artifact=identity_artifact,
+            corporate_action_artifact=corporate_action_artifact,
+            learning_repository=learning_repository,
+            replay_repository=HistoricalReplayRepository(),
+            output=output,
+        )
+    except (FileNotFoundError, ValueError) as error:
+        raise typer.BadParameter(str(error)) from error
     print()
-    for line in render_replay_run(runs):
+    for line in render_governed_historical_replay_run(governed):
         print(line)
-    if build.skipped_dates:
-        print("Skipped Replay Dates:")
-        for item in build.skipped_dates[:10]:
-            print(f"- {item}")
+    print()
+    for line in render_replay_run(governed.replay_runs):
+        print(line)
 
 
 @replay_app.command(name="sample-plan")
@@ -1816,6 +1859,21 @@ def replay_accumulate(
     to_date: str = typer.Option(..., "--to-date"),
     frequency: str = typer.Option("monthly", "--frequency"),
     max_dates: int | None = typer.Option(None, "--max-dates"),
+    identity_artifact: Path = typer.Option(
+        ...,
+        "--identity-artifact",
+        help="HTR-002 canonical identity CSV/JSON artifact.",
+    ),
+    corporate_action_artifact: Path = typer.Option(
+        ...,
+        "--corporate-action-artifact",
+        help="HTR-003 canonical action timeline CSV/JSON artifact.",
+    ),
+    output: Path = typer.Option(
+        Path("artifacts/governed_historical_replay_accumulation"),
+        "--output",
+        help="Root directory for per-date governed replay proofs.",
+    ),
 ) -> None:
     """
     Build replay outcomes from evenly sampled dates, sequentially with progress.
@@ -1833,14 +1891,8 @@ def replay_accumulate(
     if not plan.selected_dates:
         return
 
-    price_repository = MarketTruthPriceRepository()
     learning_repository = NightlyLearningLoop.from_path().repository
     replay_repository = HistoricalReplayRepository()
-    factory = HistoricalObservationFactory(price_repository=price_repository)
-    engine = HistoricalReplayEngine(
-        replay_repository=replay_repository,
-        learning_repository=learning_repository,
-    )
     processed = 0
     skipped: list[str] = []
     total_raw = 0
@@ -1850,16 +1902,24 @@ def replay_accumulate(
     print()
     print("Replay Accumulation Progress")
     for replay_date in plan.selected_dates:
-        build = factory.build(from_date=replay_date, to_date=replay_date)
+        try:
+            governed = execute_governed_historical_replay(
+                from_date=replay_date,
+                to_date=replay_date,
+                identity_artifact=identity_artifact,
+                corporate_action_artifact=corporate_action_artifact,
+                learning_repository=learning_repository,
+                replay_repository=replay_repository,
+                output=output / replay_date.isoformat(),
+            )
+        except (FileNotFoundError, ValueError) as error:
+            raise typer.BadParameter(str(error)) from error
+        build = governed.observation_build
         if build.skipped_dates:
             skipped.extend(build.skipped_dates)
             print(f"- {replay_date}: skipped ({build.skipped_dates[0]})")
             continue
-        runs = engine.run(
-            from_date=replay_date,
-            to_date=replay_date,
-            observations=build.observations,
-        )
+        runs = governed.replay_runs
         if not runs:
             print(f"- {replay_date}: no observations")
             continue

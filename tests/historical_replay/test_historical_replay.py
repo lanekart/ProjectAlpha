@@ -312,6 +312,20 @@ def test_cli_replay_evidence_feature_and_simulation_commands(
     repo = PricesRepository(db)
     _insert_replay_price_history(repo, replay_date=replay_date)
     db.close()
+    identity_artifact = tmp_path / "canonical_identities.csv"
+    identity_artifact.write_text(
+        "security_id,symbol,exchange\n"
+        "SEC-AAA,AAA,NSE\n"
+        "SEC-BBB,BBB,NSE\n"
+        "SEC-CCC,CCC,NSE\n",
+        encoding="utf-8",
+    )
+    corporate_action_artifact = tmp_path / "canonical_actions.csv"
+    corporate_action_artifact.write_text(
+        "event_id,security_id,symbol,action_type,effective_date,status\n",
+        encoding="utf-8",
+    )
+    governed_output = tmp_path / "governed-replay"
     monkeypatch.setattr(settings, "database_path", db_path)
     env = {
         "ALPHA_CANDIDATE_LEARNING_LEDGER": str(tmp_path / "learning.json"),
@@ -322,7 +336,20 @@ def test_cli_replay_evidence_feature_and_simulation_commands(
     runner = CliRunner()
     replay = runner.invoke(
         app,
-        ["replay", "run", "--from-date", "2026-01-01", "--to-date", "2026-01-01"],
+        [
+            "replay",
+            "run",
+            "--from-date",
+            "2026-01-01",
+            "--to-date",
+            "2026-01-01",
+            "--identity-artifact",
+            str(identity_artifact),
+            "--corporate-action-artifact",
+            str(corporate_action_artifact),
+            "--output",
+            str(governed_output),
+        ],
         env=env,
     )
     evidence = runner.invoke(app, ["evidence", "report"], env=env)
@@ -341,8 +368,11 @@ def test_cli_replay_evidence_feature_and_simulation_commands(
     )
 
     assert replay.exit_code == 0
+    assert "Governed Historical Replay" in replay.stdout
     assert "Historical Replay Run" in replay.stdout
     assert "Raw candidates stored: " in replay.stdout
+    assert "Canonical Replay Enforced: true" in replay.stdout
+    assert (governed_output / "governed_historical_replay_run.json").exists()
     assert evidence.exit_code == 0
     assert "Evidence Cube Report" in evidence.stdout
     assert features.exit_code == 0

@@ -4,77 +4,7 @@ on:
   push:
   pull_request:
 
-permissions:
-  contents: write
-
 jobs:
-  htr005-cli-migration:
-    if: github.event_name == 'pull_request' && github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: feature/htr-005-governed-research-replay
-
-      - name: Install Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
-
-      - name: Install dependencies
-        run: |
-          pip install poetry
-          poetry install --no-interaction
-
-      - name: Apply deterministic migration
-        run: python .github/scripts/htr005_cli_migration.py
-
-      - name: Format migrated commands
-        run: |
-          poetry run ruff format alpha/cli.py tests/historical_replay/test_historical_replay.py
-
-      - name: Lint migrated commands
-        run: |
-          poetry run ruff check alpha/cli.py tests/historical_replay/test_historical_replay.py
-
-      - name: Verify migrated formatting
-        run: |
-          poetry run ruff format --check alpha/cli.py tests/historical_replay/test_historical_replay.py
-
-      - name: Test migrated replay command
-        run: |
-          set +e
-          poetry run pytest tests/historical_replay/test_historical_replay.py -q 2>&1 | tee htr005-pytest.txt
-          status=${PIPESTATUS[0]}
-          exit "$status"
-
-      - name: Upload migrated replay test diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: htr005-pytest-diagnostics
-          path: htr005-pytest.txt
-          if-no-files-found: error
-
-      - name: Commit migration and restore workflows
-        run: |
-          cp .github/scripts/htr005_lint_original.yml .github/workflows/lint.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm \
-            .github/htr005-cli-migration-trigger.txt \
-            .github/scripts/htr005_cli_migration.py \
-            .github/scripts/htr005_lint_original.yml \
-            .github/workflows/htr005-cli-migration.yml \
-            .github/workflows/htr005-cli-push-migration.yml
-          git add \
-            .github/workflows/lint.yml \
-            alpha/cli.py \
-            tests/historical_replay/test_historical_replay.py
-          git commit -m "Enforce governed historical replay in CLI"
-          git push origin HEAD:feature/htr-005-governed-research-replay
-
   ruff:
     runs-on: ubuntu-latest
 
