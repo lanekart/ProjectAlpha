@@ -127,9 +127,7 @@ class HistoricalReplayReadinessCertificate:
             "skipped_dates": list(self.skipped_dates),
             "repository_read_count": self.repository_read_count,
             "consumer_attestation_count": self.consumer_attestation_count,
-            "inventory_evidence": [
-                item.as_dict() for item in self.inventory_evidence
-            ],
+            "inventory_evidence": [item.as_dict() for item in self.inventory_evidence],
             "blockers": [item.value for item in self.blockers],
             "status": self.status.value,
             "contract_version": self.contract_version,
@@ -168,15 +166,11 @@ def assess_historical_replay_readiness(
             HistoricalReplayReadinessBlocker.MISSING_HISTORICAL_TRUTH_INVENTORY
         )
     if any(item.blocking_dataset_keys for item in inventory_evidence):
-        blockers.append(
-            HistoricalReplayReadinessBlocker.BLOCKING_DATASETS_NOT_READY
-        )
+        blockers.append(HistoricalReplayReadinessBlocker.BLOCKING_DATASETS_NOT_READY)
     if any(item.required_unready_dataset_keys for item in inventory_evidence):
         blockers.append(HistoricalReplayReadinessBlocker.REQUIRED_DATASETS_NOT_READY)
 
-    ordered_blockers = tuple(
-        sorted(set(blockers), key=lambda item: item.value)
-    )
+    ordered_blockers = tuple(sorted(set(blockers), key=lambda item: item.value))
     status = (
         HistoricalReplayReadinessStatus.BLOCKED
         if ordered_blockers

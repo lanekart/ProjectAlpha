@@ -81,9 +81,7 @@ class HistoricalTruthInventoryEvidence:
             "period_end": self.period_end.isoformat(),
             "rows": [asdict(row) for row in self.rows],
             "blocking_dataset_keys": list(self.blocking_dataset_keys),
-            "required_unready_dataset_keys": list(
-                self.required_unready_dataset_keys
-            ),
+            "required_unready_dataset_keys": list(self.required_unready_dataset_keys),
             "contract_version": self.contract_version,
         }
         if include_digest:

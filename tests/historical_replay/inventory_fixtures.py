@@ -40,9 +40,7 @@ def inventory_evidence(
             observed_sessions=0 if definition.key in unready_keys else 1,
             expected_sessions=1,
             missing_sessions=1 if definition.key in unready_keys else 0,
-            coverage_percent=(
-                "0.00" if definition.key in unready_keys else "100.00"
-            ),
+            coverage_percent=("0.00" if definition.key in unready_keys else "100.00"),
             certification_ready=definition.key not in unready_keys,
             limitation="missing" if definition.key in unready_keys else "",
         )
