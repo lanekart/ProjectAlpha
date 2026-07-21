@@ -87,7 +87,9 @@ class HistoricalTruthWarehouse(BaseWarehouse):
                     request,
                     digest=digest,
                     byte_size=byte_size,
-                    error=verification.reason or "immutable archive verification failed",
+                    error=(
+                        verification.reason or "immutable archive verification failed"
+                    ),
                 )
                 self._append_manifest(record)
                 return record
@@ -121,7 +123,9 @@ class HistoricalTruthWarehouse(BaseWarehouse):
                         request,
                         digest=digest,
                         byte_size=byte_size,
-                        error="refetched archive checksum differs from trusted manifest",
+                        error=(
+                            "refetched archive checksum differs from trusted manifest"
+                        ),
                     )
                     self._append_manifest(record)
                     return record
@@ -205,8 +209,7 @@ class HistoricalTruthWarehouse(BaseWarehouse):
             if (
                 str(payload.get("exchange")) != request.exchange
                 or str(payload.get("dataset")) != request.dataset.value
-                or str(payload.get("trading_date"))
-                != request.trading_date.isoformat()
+                or str(payload.get("trading_date")) != request.trading_date.isoformat()
             ):
                 continue
             if payload.get("status") not in {

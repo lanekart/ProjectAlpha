@@ -9,7 +9,11 @@ from enum import StrEnum
 from pathlib import Path
 
 from alpha.historical_truth.canonical import CanonicalPointInTimeWarehouse
-from alpha.historical_truth.manager import ArchiveTask, HistoricalArchiveManager, TaskState
+from alpha.historical_truth.manager import (
+    ArchiveTask,
+    HistoricalArchiveManager,
+    TaskState,
+)
 from alpha.historical_truth.population import (
     HistoricalPopulationEngine,
     PopulationRecord,
@@ -234,9 +238,7 @@ class HistoricalBackfillEngine:
         )
         rows = [record.as_dict() for record in report.records]
         fieldnames = (
-            list(rows[0])
-            if rows
-            else list(BackfillRecord.__dataclass_fields__)
+            list(rows[0]) if rows else list(BackfillRecord.__dataclass_fields__)
         )
         with csv_path.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=fieldnames)
@@ -360,9 +362,7 @@ class HistoricalBackfillEngine:
             download_state=task.state.value,
             download_attempts=task.attempts,
             population_status=(
-                "available"
-                if canonical_available
-                else population.status.value
+                "available" if canonical_available else population.status.value
             ),
             downloaded=population.downloaded,
             validated=population.validated,
@@ -472,9 +472,7 @@ class HistoricalBackfillEngine:
             start_date=start_date,
             end_date=end_date,
             planning_basis=PLANNING_BASIS,
-            certification_state=(
-                BackfillCertificationState.UNRECONCILED_NOT_CERTIFIED
-            ),
+            certification_state=(BackfillCertificationState.UNRECONCILED_NOT_CERTIFIED),
             workers=workers,
             retry_failed=retry_failed,
             run_complete=run_complete,
