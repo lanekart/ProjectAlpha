@@ -1731,6 +1731,11 @@ def learning_combinations(
         "--corporate-action-artifact",
         help="HTR-003 canonical action timeline CSV/JSON artifact.",
     ),
+    historical_truth_snapshots: Path = typer.Option(
+        Path("alpha_data/snapshots"),
+        "--historical-truth-snapshots",
+        help="Historical-truth snapshot root for readiness certification.",
+    ),
     replay_output: Path | None = typer.Option(
         None,
         "--replay-output",
@@ -1762,6 +1767,7 @@ def learning_combinations(
                 corporate_action_artifact=corporate_action_artifact,
                 learning_repository=learning_repository,
                 replay_repository=HistoricalReplayRepository(),
+                snapshots_path=historical_truth_snapshots,
                 output=replay_output,
             )
         except (FileNotFoundError, ValueError) as error:
@@ -1798,6 +1804,11 @@ def replay_run(
         "--corporate-action-artifact",
         help="HTR-003 canonical action timeline CSV/JSON artifact.",
     ),
+    historical_truth_snapshots: Path = typer.Option(
+        Path("alpha_data/snapshots"),
+        "--historical-truth-snapshots",
+        help="Historical-truth snapshot root for readiness certification.",
+    ),
     output: Path = typer.Option(
         Path("artifacts/governed_historical_replay"),
         "--output",
@@ -1819,6 +1830,7 @@ def replay_run(
             corporate_action_artifact=corporate_action_artifact,
             learning_repository=learning_repository,
             replay_repository=HistoricalReplayRepository(),
+            snapshots_path=historical_truth_snapshots,
             output=output,
         )
     except (FileNotFoundError, ValueError) as error:
@@ -1869,6 +1881,11 @@ def replay_accumulate(
         "--corporate-action-artifact",
         help="HTR-003 canonical action timeline CSV/JSON artifact.",
     ),
+    historical_truth_snapshots: Path = typer.Option(
+        Path("alpha_data/snapshots"),
+        "--historical-truth-snapshots",
+        help="Historical-truth snapshot root for readiness certification.",
+    ),
     output: Path = typer.Option(
         Path("artifacts/governed_historical_replay_accumulation"),
         "--output",
@@ -1910,6 +1927,7 @@ def replay_accumulate(
                 corporate_action_artifact=corporate_action_artifact,
                 learning_repository=learning_repository,
                 replay_repository=replay_repository,
+                snapshots_path=historical_truth_snapshots,
                 output=output / replay_date.isoformat(),
             )
         except (FileNotFoundError, ValueError) as error:
