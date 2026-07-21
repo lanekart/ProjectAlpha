@@ -1,0 +1,41 @@
+name: Lint
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install locked Ruff
+        run: pip install ruff==0.15.20
+
+      - name: Show Ruff version
+        run: ruff --version
+
+      - name: Run Ruff check
+        run: |
+          set +e
+          ruff check . 2>&1 | tee ruff-check.txt
+          status=${PIPESTATUS[0]}
+          exit "$status"
+
+      - name: Upload Ruff diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruff-diagnostics
+          path: ruff-check.txt
+          if-no-files-found: error
+
+      - name: Run Ruff format check
+        run: ruff format --check .
