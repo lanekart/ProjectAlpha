@@ -1,0 +1,59 @@
+name: HTR-007 Commit Patched Source
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  commit-source:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-007-authoritative-backfill
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install project
+        run: |
+          pip install poetry
+          poetry config virtualenvs.create true
+          poetry install --no-interaction
+
+      - name: Reuse guarded pilot patch
+        run: |
+          poetry run python - <<'PY'
+          from pathlib import Path
+          from textwrap import dedent
+
+          workflow = Path(".github/workflows/htr007-pilot-patch.yml")
+          content = workflow.read_text(encoding="utf-8")
+          start = "          poetry run python - <<'PY'\n"
+          end = "\n          PY\n"
+          if content.count(start) != 1:
+              raise SystemExit("embedded pilot patch start not found")
+          block = content.split(start, 1)[1].split(end, 1)[0]
+          exec(compile(dedent(block), str(workflow), "exec"), {"__name__": "__main__"})
+          PY
+
+      - name: Format patched source
+        run: |
+          poetry run ruff format alpha/historical_truth alpha/application/historical_truth_cli.py tests/historical_truth/test_backfill_pilot.py tests/historical_truth/test_backfill_pilot_cli.py
+
+      - name: Commit source and remove temporary workflows
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f \
+            .github/workflows/htr007-pilot-patch.yml \
+            .github/workflows/htr007-enable-diagnostics.yml \
+            .github/workflows/htr007-commit-patched-source.yml
+          git add alpha/historical_truth alpha/application/historical_truth_cli.py tests/historical_truth/test_backfill_pilot.py tests/historical_truth/test_backfill_pilot_cli.py
+          git commit -m "Wire governed HTR-007 backfill pilot"
+          git push origin HEAD:feature/htr-007-authoritative-backfill
