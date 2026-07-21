@@ -14,8 +14,14 @@ backfill_app = typer.Typer(
     help=(
         "Run the checkpointed HTR-007 NSE cash-market backfill. "
         "Outputs remain uncertified until official session reconciliation."
-    )
+    ),
+    no_args_is_help=True,
 )
+
+
+@backfill_app.callback()
+def backfill() -> None:
+    """Coordinate governed historical-data population commands."""
 
 
 @backfill_app.command("run")
