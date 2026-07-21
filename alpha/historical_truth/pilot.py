@@ -163,6 +163,15 @@ class HistoricalBackfillPilot:
         expected_schema = "udiff" if trading_date >= UDIFF_START_DATE else "legacy"
         previous = self._latest_manifest(request)
         fetched = self.archive.fetch(request)
+        checksum_drift_before_status = bool(
+            previous is not None
+            and previous.sha256 is not None
+            and fetched.sha256 is not None
+            and previous.sha256 != fetched.sha256
+        ) or fetched.error in {
+            "immutable archive checksum drift detected",
+            "refetched archive checksum differs from trusted manifest",
+        }
         if fetched.status is ManifestStatus.UNAVAILABLE:
             return self._failure_record(
                 request,
@@ -170,6 +179,7 @@ class HistoricalBackfillPilot:
                 fetched,
                 BackfillPilotStatus.UNAVAILABLE,
                 fetched.error,
+                checksum_drift=checksum_drift_before_status,
             )
         if fetched.status not in {ManifestStatus.DOWNLOADED, ManifestStatus.VALIDATED}:
             return self._failure_record(
@@ -178,6 +188,7 @@ class HistoricalBackfillPilot:
                 fetched,
                 BackfillPilotStatus.FAILED,
                 fetched.error,
+                checksum_drift=checksum_drift_before_status,
             )
 
         checksum_drift = bool(

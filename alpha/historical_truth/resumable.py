@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from time import sleep
@@ -17,6 +19,14 @@ from alpha.historical_truth.models import (
 from alpha.historical_truth.service import HistoricalTruthWarehouse as BaseWarehouse
 
 _CHUNK_SIZE: Final[int] = 1024 * 1024
+
+
+@dataclass(frozen=True, slots=True)
+class RawArchiveVerification:
+    valid: bool
+    expected_sha256: str | None
+    observed_sha256: str | None
+    reason: str | None = None
 
 
 class HistoricalTruthWarehouse(BaseWarehouse):
@@ -38,13 +48,51 @@ class HistoricalTruthWarehouse(BaseWarehouse):
         self.max_attempts = max_attempts
         self.retry_backoff_seconds = retry_backoff_seconds
 
+    def verify_raw_archive(self, request: ArchiveRequest) -> RawArchiveVerification:
+        """Verify an existing raw file against the last trusted manifest digest."""
+
+        destination = self.raw_root / request.relative_path
+        trusted_sha256 = self._trusted_sha256(request)
+        if not destination.exists():
+            return RawArchiveVerification(
+                valid=True,
+                expected_sha256=trusted_sha256,
+                observed_sha256=None,
+            )
+        observed_sha256, _ = self._hash_file(destination)
+        if trusted_sha256 is None or observed_sha256 == trusted_sha256:
+            return RawArchiveVerification(
+                valid=True,
+                expected_sha256=trusted_sha256,
+                observed_sha256=observed_sha256,
+            )
+        return RawArchiveVerification(
+            valid=False,
+            expected_sha256=trusted_sha256,
+            observed_sha256=observed_sha256,
+            reason="immutable archive checksum drift detected",
+        )
+
     def fetch(self, request: ArchiveRequest) -> ManifestRecord:
         self.initialise()
         destination = self.raw_root / request.relative_path
         destination.parent.mkdir(parents=True, exist_ok=True)
         existing = self._existing_record(request)
+        trusted_sha256 = self._trusted_sha256(request)
         if destination.exists():
+            verification = self.verify_raw_archive(request)
             digest, byte_size = self._hash_file(destination)
+            if not verification.valid:
+                record = self._immutable_failure_record(
+                    request,
+                    digest=digest,
+                    byte_size=byte_size,
+                    error=(
+                        verification.reason or "immutable archive verification failed"
+                    ),
+                )
+                self._append_manifest(record)
+                return record
             record = ManifestRecord(
                 exchange=request.exchange,
                 dataset=request.dataset,
@@ -66,8 +114,22 @@ class HistoricalTruthWarehouse(BaseWarehouse):
                 self._download_attempt(request.source_url, temporary)
                 if not temporary.exists() or temporary.stat().st_size == 0:
                     raise ValueError("official archive returned an empty response")
+                digest, byte_size = self._hash_file(temporary)
+                if trusted_sha256 is not None and digest != trusted_sha256:
+                    quarantine = self._quarantine_path(request, digest)
+                    quarantine.parent.mkdir(parents=True, exist_ok=True)
+                    os.replace(temporary, quarantine)
+                    record = self._immutable_failure_record(
+                        request,
+                        digest=digest,
+                        byte_size=byte_size,
+                        error=(
+                            "refetched archive checksum differs from trusted manifest"
+                        ),
+                    )
+                    self._append_manifest(record)
+                    return record
                 os.replace(temporary, destination)
-                digest, byte_size = self._hash_file(destination)
                 record = ManifestRecord(
                     exchange=request.exchange,
                     dataset=request.dataset,
@@ -135,6 +197,60 @@ class HistoricalTruthWarehouse(BaseWarehouse):
                 continue
             results.append(self.fetch(request))
         return tuple(results)
+
+    def _trusted_sha256(self, request: ArchiveRequest) -> str | None:
+        if not self.manifest_path.exists():
+            return None
+        trusted: str | None = None
+        for line in self.manifest_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            payload = json.loads(line)
+            if (
+                str(payload.get("exchange")) != request.exchange
+                or str(payload.get("dataset")) != request.dataset.value
+                or str(payload.get("trading_date")) != request.trading_date.isoformat()
+            ):
+                continue
+            if payload.get("status") not in {
+                ManifestStatus.DOWNLOADED.value,
+                ManifestStatus.VALIDATED.value,
+            }:
+                continue
+            digest = payload.get("sha256")
+            if digest:
+                trusted = str(digest)
+        return trusted
+
+    def _quarantine_path(self, request: ArchiveRequest, digest: str) -> Path:
+        relative = request.relative_path
+        return (
+            self.root
+            / "quarantine"
+            / relative.parent
+            / f"{relative.name}.{digest[:12]}.drift"
+        )
+
+    @staticmethod
+    def _immutable_failure_record(
+        request: ArchiveRequest,
+        *,
+        digest: str,
+        byte_size: int,
+        error: str,
+    ) -> ManifestRecord:
+        return ManifestRecord(
+            exchange=request.exchange,
+            dataset=request.dataset,
+            trading_date=request.trading_date,
+            source_url=request.source_url,
+            relative_path=str(request.relative_path),
+            status=ManifestStatus.FAILED,
+            retrieved_at=datetime.now(UTC),
+            sha256=digest,
+            byte_size=byte_size,
+            error=error,
+        )
 
     def _download_attempt(self, source_url: str, temporary: Path) -> None:
         offset = temporary.stat().st_size if temporary.exists() else 0
