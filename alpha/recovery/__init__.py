@@ -67,6 +67,10 @@ from .security_entity import (
     export_security_entity_recovery,
 )
 from .security_timeline import SecurityIdentityRecord, SecurityIdentityTimeline
+from .snapshot_loader import (
+    CanonicalReplaySnapshotLoad,
+    CanonicalReplaySnapshotLoader,
+)
 
 __all__ = [
     "CONSUMER_CONTRACT_VERSION",
@@ -81,6 +85,8 @@ __all__ = [
     "CanonicalReplayFrameAdapter",
     "CanonicalReplayFrameResult",
     "CanonicalReplaySnapshot",
+    "CanonicalReplaySnapshotLoad",
+    "CanonicalReplaySnapshotLoader",
     "CanonicalReplaySnapshotRepository",
     "CanonicalReplayStatus",
     "CorporateActionAdjustmentEngine",
