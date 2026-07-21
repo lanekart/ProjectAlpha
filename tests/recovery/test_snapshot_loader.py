@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -60,7 +61,10 @@ def _bar(
     )
 
 
-def _repository(tmp_path: Path, bars: tuple[CanonicalReplayBar, ...]) -> CanonicalReplaySnapshotRepository:
+def _repository(
+    tmp_path: Path,
+    bars: tuple[CanonicalReplayBar, ...],
+) -> CanonicalReplaySnapshotRepository:
     repository = CanonicalReplaySnapshotRepository(tmp_path)
     repository.write(CanonicalReplaySnapshot.build(bars, as_of=_AS_OF))
     return repository
@@ -117,16 +121,11 @@ def test_rejects_quarantined_snapshot_selection(tmp_path: Path) -> None:
 
 
 def test_rejects_mixed_recovery_versions(tmp_path: Path) -> None:
-    bars = (
-        _bar(),
-        CanonicalReplayBar(
-            **{
-                **_bar(trading_date=date(2025, 1, 9)).__dict__,
-                "recovery_version": "HTR-004-v0.9.0",
-            }
-        ),
+    older = replace(
+        _bar(trading_date=date(2025, 1, 9)),
+        recovery_version="HTR-004-v0.9.0",
     )
-    loader = CanonicalReplaySnapshotLoader(_repository(tmp_path, bars))
+    loader = CanonicalReplaySnapshotLoader(_repository(tmp_path, (_bar(), older)))
 
     with pytest.raises(ValueError, match="mixed recovery versions"):
         loader.load(trade_date=_TRADE_DATE, as_of=_AS_OF)
