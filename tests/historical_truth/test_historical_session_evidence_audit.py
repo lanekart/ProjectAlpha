@@ -149,9 +149,7 @@ def test_discovery_keeps_official_cm_and_rejects_derivative_segment() -> None:
         2024,
     )
 
-    assert result == (
-        "https://nsearchives.nseindia.com/content/circulars/CMTR123.pdf",
-    )
+    assert result == ("https://nsearchives.nseindia.com/content/circulars/CMTR123.pdf",)
 
 
 def test_repair_admits_valid_alternate_official_pdf(
@@ -186,9 +184,12 @@ def test_repair_admits_valid_alternate_official_pdf(
         "extract_pdf_text",
         staticmethod(lambda _: _annual_text(year)),
     )
-    if "source_family" in inspect.signature(
-        HistoricalSessionEvidenceEngine._normalized_payload
-    ).parameters:
+    if (
+        "source_family"
+        in inspect.signature(
+            HistoricalSessionEvidenceEngine._normalized_payload
+        ).parameters
+    ):
         monkeypatch.setattr(
             HistoricalSessionEvidenceRepairEngine,
             "_normalized_payload",
