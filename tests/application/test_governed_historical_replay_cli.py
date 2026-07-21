@@ -22,6 +22,7 @@ from alpha.historical_replay.governed_price_repository import (
     CanonicalReplayPriceRepository,
 )
 from alpha.historical_replay.models import ReplayCandidateObservation, ReplayRunRecord
+from tests.historical_replay.coverage_fixtures import coverage_evidence
 from tests.historical_replay.inventory_fixtures import inventory_evidence
 
 _TRADE_DATE = date(2025, 1, 10)
@@ -176,17 +177,26 @@ def test_execute_helper_loads_artifacts_exports_and_closes_source(
         source=source,
         executor=FakeExecutor(),
         inventory_evidence=inventory_evidence(period_end=_TRADE_DATE),
+        coverage_evidence=coverage_evidence(
+            from_date=_TRADE_DATE,
+            to_date=_TRADE_DATE,
+        ),
         observation_builder_factory=ReadingBuilder,
     )
 
     assert source.closed
     assert run.canonical_replay_enforced
     assert run.readiness.inventory_evidence[0].year == 2025
+    assert run.readiness.coverage_evidence is not None
+    assert run.readiness.coverage_evidence.eligible_security_count == 1
     assert (output / "governed_historical_replay_run.json").exists()
     lines = render_governed_historical_replay_run(run)
     assert lines[0] == "Governed Historical Replay"
     assert "Readiness Status: READY" in lines
     assert "Inventory Years: 1" in lines
+    assert "Warm-up Sessions: 200" in lines
+    assert "Outcome Sessions: 60" in lines
+    assert "Eligible Securities: 1" in lines
     assert "Canonical Replay Enforced: true" in lines
 
 
@@ -205,6 +215,10 @@ def test_execute_helper_fails_before_raw_replay_when_artifacts_are_missing(
             source=source,
             executor=FakeExecutor(),
             inventory_evidence=inventory_evidence(period_end=_TRADE_DATE),
+            coverage_evidence=coverage_evidence(
+                from_date=_TRADE_DATE,
+                to_date=_TRADE_DATE,
+            ),
             observation_builder_factory=ReadingBuilder,
         )
 
