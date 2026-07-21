@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import date
 from enum import StrEnum
 from pathlib import Path
@@ -13,7 +13,6 @@ from alpha.historical_truth.manager import ArchiveTask, HistoricalArchiveManager
 from alpha.historical_truth.population import (
     HistoricalPopulationEngine,
     PopulationRecord,
-    PopulationStatus,
 )
 from alpha.historical_truth.resumable import HistoricalTruthWarehouse
 from alpha.historical_truth.snapshots import PointInTimeSnapshotEngine
@@ -139,7 +138,8 @@ class HistoricalBackfillEngine:
 
         requests = self.archive.plan_nse_bhavcopies(start_date, end_date)
         checkpoint_path = self.checkpoint_path or self._default_checkpoint_path(
-            start_date, end_date
+            start_date,
+            end_date,
         )
         self._validate_existing_checkpoint(checkpoint_path, start_date, end_date)
 
@@ -233,7 +233,11 @@ class HistoricalBackfillEngine:
             encoding="utf-8",
         )
         rows = [record.as_dict() for record in report.records]
-        fieldnames = list(rows[0]) if rows else list(BackfillRecord.__dataclass_fields__)
+        fieldnames = (
+            list(rows[0])
+            if rows
+            else list(BackfillRecord.__dataclass_fields__)
+        )
         with csv_path.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=fieldnames)
             writer.writeheader()
@@ -249,7 +253,11 @@ class HistoricalBackfillEngine:
             f"Operationally complete: `{report.operationally_complete}`",
             f"Report SHA-256: `{report.report_sha256}`",
             "",
-            "> This run is not authoritative trading-calendar certification. Weekdays are candidate dates until official exchange-session reconciliation is complete.",
+            (
+                "> This run is not authoritative trading-calendar certification. "
+                "Weekdays are candidate dates until official exchange-session "
+                "reconciliation is complete."
+            ),
             "",
             "| Date | Status | Download | Population | Rows | Snapshot valid | Error |",
             "|---|---|---|---|---:|---|---|",
@@ -485,9 +493,7 @@ class HistoricalBackfillEngine:
             sort_keys=True,
             separators=(",", ":"),
         ).encode("utf-8")
-        return BackfillReport(
-            **{
-                **partial.__dict__,
-                "report_sha256": hashlib.sha256(encoded).hexdigest(),
-            }
+        return replace(
+            partial,
+            report_sha256=hashlib.sha256(encoded).hexdigest(),
         )
