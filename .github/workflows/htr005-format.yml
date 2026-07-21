@@ -1,0 +1,53 @@
+name: HTR-005 Format
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-005-snapshot-backed-replay
+
+      - name: Install locked Ruff
+        run: pip install ruff==0.15.20
+
+      - name: Format and verify HTR-005 slice
+        run: |
+          ruff format \
+            alpha/recovery/snapshot_loader.py \
+            alpha/recovery/__init__.py \
+            tests/recovery/test_snapshot_loader.py
+          ruff check \
+            alpha/recovery/snapshot_loader.py \
+            alpha/recovery/__init__.py \
+            tests/recovery/test_snapshot_loader.py
+          ruff format --check \
+            alpha/recovery/snapshot_loader.py \
+            alpha/recovery/__init__.py \
+            tests/recovery/test_snapshot_loader.py
+
+      - name: Commit formatting
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            alpha/recovery/snapshot_loader.py \
+            alpha/recovery/__init__.py \
+            tests/recovery/test_snapshot_loader.py
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Format HTR-005 snapshot loader slice"
+          git push origin HEAD:feature/htr-005-snapshot-backed-replay
