@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feature/htr-007-supporting-official-data
+  pull_request:
+    branches:
+      - feature/recovery-foundation-v1
   workflow_dispatch:
 
 permissions:
@@ -70,6 +73,7 @@ jobs:
           poetry run pytest tests/historical_truth/test_session_calendar.py -q
 
       - name: Commit validated source and remove temporary workflow
+        if: github.event_name != 'pull_request'
         shell: bash
         run: |
           rm .github/workflows/htr007-session-calendar-build.yml
