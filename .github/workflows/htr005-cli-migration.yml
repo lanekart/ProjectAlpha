@@ -384,3 +384,5 @@ jobs:
           git add alpha/cli.py tests/historical_replay/test_historical_replay.py
           git commit -m "Enforce governed historical replay in CLI"
           git push origin HEAD:feature/htr-005-governed-research-replay
+
+# Registration follow-up activates this workflow on PR synchronization.
