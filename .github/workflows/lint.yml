@@ -17,160 +17,165 @@ jobs:
         with:
           ref: feature/htr-006-replay-readiness-gate
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
       - name: Install project
         run: |
           pip install poetry
+          poetry config virtualenvs.create true
           poetry install --no-interaction
 
       - name: Apply deterministic CLI and fixture changes
         run: |
-          python - <<'PY'
+          poetry run python - <<'PY'
           from pathlib import Path
 
           cli_path = Path("alpha/cli.py")
           cli = cli_path.read_text(encoding="utf-8")
 
-          old = '''    replay_output: Path | None = typer.Option(
-          '''
-          new = '''    historical_truth_snapshots: Path = typer.Option(
-              Path("alpha_data/snapshots"),
-              "--historical-truth-snapshots",
-              help="Historical-truth snapshot root for readiness certification.",
-          ),
-          replay_output: Path | None = typer.Option(
-          '''
+          old = "    replay_output: Path | None = typer.Option(\n"
+          new = (
+              "    historical_truth_snapshots: Path = typer.Option(\n"
+              "        Path(\"alpha_data/snapshots\"),\n"
+              "        \"--historical-truth-snapshots\",\n"
+              "        help=\"Historical-truth snapshot root for readiness certification.\",\n"
+              "    ),\n"
+              "    replay_output: Path | None = typer.Option(\n"
+          )
           if cli.count(old) != 1:
               raise SystemExit("unexpected learning replay_output signature count")
           cli = cli.replace(old, new, 1)
 
-          old = '''    corporate_action_artifact: Path = typer.Option(
-              ...,
-              "--corporate-action-artifact",
-              help="HTR-003 canonical action timeline CSV/JSON artifact.",
-          ),
-          output: Path = typer.Option(
-          '''
-          new = '''    corporate_action_artifact: Path = typer.Option(
-              ...,
-              "--corporate-action-artifact",
-              help="HTR-003 canonical action timeline CSV/JSON artifact.",
-          ),
-          historical_truth_snapshots: Path = typer.Option(
-              Path("alpha_data/snapshots"),
-              "--historical-truth-snapshots",
-              help="Historical-truth snapshot root for readiness certification.",
-          ),
-          output: Path = typer.Option(
-          '''
+          old = (
+              "    corporate_action_artifact: Path = typer.Option(\n"
+              "        ...,\n"
+              "        \"--corporate-action-artifact\",\n"
+              "        help=\"HTR-003 canonical action timeline CSV/JSON artifact.\",\n"
+              "    ),\n"
+              "    output: Path = typer.Option(\n"
+          )
+          new = (
+              "    corporate_action_artifact: Path = typer.Option(\n"
+              "        ...,\n"
+              "        \"--corporate-action-artifact\",\n"
+              "        help=\"HTR-003 canonical action timeline CSV/JSON artifact.\",\n"
+              "    ),\n"
+              "    historical_truth_snapshots: Path = typer.Option(\n"
+              "        Path(\"alpha_data/snapshots\"),\n"
+              "        \"--historical-truth-snapshots\",\n"
+              "        help=\"Historical-truth snapshot root for readiness certification.\",\n"
+              "    ),\n"
+              "    output: Path = typer.Option(\n"
+          )
           if cli.count(old) != 2:
               raise SystemExit("unexpected replay command signature count")
           cli = cli.replace(old, new)
 
-          old = '''                replay_repository=HistoricalReplayRepository(),
-                          output=replay_output,
-          '''
-          new = '''                replay_repository=HistoricalReplayRepository(),
-                          snapshots_path=historical_truth_snapshots,
-                          output=replay_output,
-          '''
-          if cli.count(old) != 1:
-              raise SystemExit("learning replay call not found")
-          cli = cli.replace(old, new, 1)
-
-          old = '''            replay_repository=HistoricalReplayRepository(),
-                      output=output,
-          '''
-          new = '''            replay_repository=HistoricalReplayRepository(),
-                      snapshots_path=historical_truth_snapshots,
-                      output=output,
-          '''
-          if cli.count(old) != 1:
-              raise SystemExit("replay run call not found")
-          cli = cli.replace(old, new, 1)
-
-          old = '''                replay_repository=replay_repository,
-                          output=output / replay_date.isoformat(),
-          '''
-          new = '''                replay_repository=replay_repository,
-                          snapshots_path=historical_truth_snapshots,
-                          output=output / replay_date.isoformat(),
-          '''
-          if cli.count(old) != 1:
-              raise SystemExit("replay accumulation call not found")
-          cli = cli.replace(old, new, 1)
+          replacements = {
+              (
+                  "                replay_repository=HistoricalReplayRepository(),\n"
+                  "                output=replay_output,\n"
+              ): (
+                  "                replay_repository=HistoricalReplayRepository(),\n"
+                  "                snapshots_path=historical_truth_snapshots,\n"
+                  "                output=replay_output,\n"
+              ),
+              (
+                  "            replay_repository=HistoricalReplayRepository(),\n"
+                  "            output=output,\n"
+              ): (
+                  "            replay_repository=HistoricalReplayRepository(),\n"
+                  "            snapshots_path=historical_truth_snapshots,\n"
+                  "            output=output,\n"
+              ),
+              (
+                  "                replay_repository=replay_repository,\n"
+                  "                output=output / replay_date.isoformat(),\n"
+              ): (
+                  "                replay_repository=replay_repository,\n"
+                  "                snapshots_path=historical_truth_snapshots,\n"
+                  "                output=output / replay_date.isoformat(),\n"
+              ),
+          }
+          for source, replacement in replacements.items():
+              if cli.count(source) != 1:
+                  raise SystemExit(f"expected CLI source fragment not found: {source!r}")
+              cli = cli.replace(source, replacement, 1)
           cli_path.write_text(cli, encoding="utf-8")
 
           test_path = Path("tests/historical_replay/test_historical_replay.py")
           test = test_path.read_text(encoding="utf-8")
-          old = '''import pandas as pd
-          from typer.testing import CliRunner
-          '''
-          new = '''import duckdb
-          import pandas as pd
-          from typer.testing import CliRunner
-          '''
+          old = "import pandas as pd\nfrom typer.testing import CliRunner\n"
+          new = "import duckdb\nimport pandas as pd\nfrom typer.testing import CliRunner\n"
           if test.count(old) != 1:
               raise SystemExit("test import block not found")
           test = test.replace(old, new, 1)
 
-          old = '''    _insert_replay_price_history(repo, replay_date=replay_date)
-              db.close()
-              identity_artifact = tmp_path / "canonical_identities.csv"
-          '''
-          new = '''    _insert_replay_price_history(repo, replay_date=replay_date)
-              db.close()
-              connection = duckdb.connect(str(db_path))
-              try:
-                  connection.execute(
-                      "CREATE TABLE daily_candle (trading_date DATE, isin VARCHAR)"
-                  )
-                  connection.execute(
-                      "INSERT INTO daily_candle VALUES "
-                      "('2026-01-01', 'INE000000001'), "
-                      "('2026-01-01', 'INE000000002'), "
-                      "('2026-01-01', 'INE000000003')"
-                  )
-                  for table_name, date_column in (
-                      ("corporate_action", "effective_date"),
-                      ("security_identity", "valid_from"),
-                      ("listing_history", "valid_from"),
-                      ("delisting_history", "effective_date"),
-                      ("trading_calendar", "trading_date"),
-                      ("benchmark_history", "trade_date"),
-                      ("sector_mapping", "valid_from"),
-                      ("index_constituent", "valid_from"),
-                  ):
-                      connection.execute(
-                          f'CREATE TABLE "{table_name}" ("{date_column}" DATE)'
-                      )
-                      connection.execute(
-                          f'INSERT INTO "{table_name}" VALUES (?)',
-                          [replay_date],
-                      )
-              finally:
-                  connection.close()
-              snapshots_path = tmp_path / "snapshots"
-              snapshots_path.mkdir()
-              (snapshots_path / "2026-01-01.json").write_text(
-                  '{"availability": {}}\\n',
-                  encoding="utf-8",
-              )
-              identity_artifact = tmp_path / "canonical_identities.csv"
-          '''
+          old = (
+              "    _insert_replay_price_history(repo, replay_date=replay_date)\n"
+              "    db.close()\n"
+              "    identity_artifact = tmp_path / \"canonical_identities.csv\"\n"
+          )
+          new = (
+              "    _insert_replay_price_history(repo, replay_date=replay_date)\n"
+              "    db.close()\n"
+              "    connection = duckdb.connect(str(db_path))\n"
+              "    try:\n"
+              "        connection.execute(\n"
+              "            \"CREATE TABLE daily_candle (trading_date DATE, isin VARCHAR)\"\n"
+              "        )\n"
+              "        connection.execute(\n"
+              "            \"INSERT INTO daily_candle VALUES \"\n"
+              "            \"('2026-01-01', 'INE000000001'), \"\n"
+              "            \"('2026-01-01', 'INE000000002'), \"\n"
+              "            \"('2026-01-01', 'INE000000003')\"\n"
+              "        )\n"
+              "        for table_name, date_column in (\n"
+              "            (\"corporate_action\", \"effective_date\"),\n"
+              "            (\"security_identity\", \"valid_from\"),\n"
+              "            (\"listing_history\", \"valid_from\"),\n"
+              "            (\"delisting_history\", \"effective_date\"),\n"
+              "            (\"trading_calendar\", \"trading_date\"),\n"
+              "            (\"benchmark_history\", \"trade_date\"),\n"
+              "            (\"sector_mapping\", \"valid_from\"),\n"
+              "            (\"index_constituent\", \"valid_from\"),\n"
+              "        ):\n"
+              "            connection.execute(\n"
+              "                f'CREATE TABLE \"{table_name}\" (\"{date_column}\" DATE)'\n"
+              "            )\n"
+              "            connection.execute(\n"
+              "                f'INSERT INTO \"{table_name}\" VALUES (?)',\n"
+              "                [replay_date],\n"
+              "            )\n"
+              "    finally:\n"
+              "        connection.close()\n"
+              "    snapshots_path = tmp_path / \"snapshots\"\n"
+              "    snapshots_path.mkdir()\n"
+              "    (snapshots_path / \"2026-01-01.json\").write_text(\n"
+              "        '{\"availability\": {}}\\n',\n"
+              "        encoding=\"utf-8\",\n"
+              "    )\n"
+              "    identity_artifact = tmp_path / \"canonical_identities.csv\"\n"
+          )
           if test.count(old) != 1:
               raise SystemExit("test database setup block not found")
           test = test.replace(old, new, 1)
 
-          old = '''            "--corporate-action-artifact",
-                      str(corporate_action_artifact),
-                      "--output",
-          '''
-          new = '''            "--corporate-action-artifact",
-                      str(corporate_action_artifact),
-                      "--historical-truth-snapshots",
-                      str(snapshots_path),
-                      "--output",
-          '''
+          old = (
+              "            \"--corporate-action-artifact\",\n"
+              "            str(corporate_action_artifact),\n"
+              "            \"--output\",\n"
+          )
+          new = (
+              "            \"--corporate-action-artifact\",\n"
+              "            str(corporate_action_artifact),\n"
+              "            \"--historical-truth-snapshots\",\n"
+              "            str(snapshots_path),\n"
+              "            \"--output\",\n"
+          )
           if test.count(old) != 1:
               raise SystemExit("test replay arguments not found")
           test = test.replace(old, new, 1)
