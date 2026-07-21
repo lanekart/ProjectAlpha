@@ -175,9 +175,7 @@ class HistoricalSessionEvidenceRepairEngine(HistoricalSessionEvidenceEngine):
             ("nse_circular_directory", NSE_CIRCULAR_DIRECTORY),
         )
         for family, page_url in pages:
-            page = self._fetch(
-                year, family, page_url, client, headers, timeout_seconds
-            )
+            page = self._fetch(year, family, page_url, client, headers, timeout_seconds)
             if page is None:
                 continue
             page_path, page_sha = self._persist_immutable(
@@ -232,7 +230,9 @@ class HistoricalSessionEvidenceRepairEngine(HistoricalSessionEvidenceEngine):
                         self.source_root / str(year) / "normalized",
                         f"nse_cm_session_evidence_{year}",
                         ".json",
-                        (json.dumps(normalized, indent=2, sort_keys=True) + "\n").encode(),
+                        (
+                            json.dumps(normalized, indent=2, sort_keys=True) + "\n"
+                        ).encode(),
                     )
                     self._finish_attempt(document, parsed=parsed)
                     repaired = HistoricalEvidenceRecord(
@@ -355,9 +355,7 @@ class HistoricalSessionEvidenceRepairEngine(HistoricalSessionEvidenceEngine):
                 x in context or x in name
                 for x in ("capital market", "equities", "cmtr")
             )
-            calendar = any(
-                x in context for x in ("holiday", "muhurat", str(year))
-            )
+            calendar = any(x in context for x in ("holiday", "muhurat", str(year)))
             if cm and calendar:
                 found.append(resolved)
         return tuple(dict.fromkeys(found))
@@ -539,8 +537,7 @@ class HistoricalSessionEvidenceRepairEngine(HistoricalSessionEvidenceEngine):
     def _audit(self, evidence: HistoricalEvidenceReport) -> AcquisitionAuditReport:
         attempts = tuple(
             sorted(
-                self.attempts,
-                key=lambda x: (x.year, x.source_family, x.requested_url),
+                self.attempts, key=lambda x: (x.year, x.source_family, x.requested_url)
             )
         )
         provisional = AcquisitionAuditReport(
@@ -578,9 +575,7 @@ class HistoricalSessionEvidenceRepairEngine(HistoricalSessionEvidenceEngine):
             )
         )
         payload = cls._jsonable(asdict(report))
-        rejected = [
-            x for x in report.attempts if x.evidence_status == "rejected"
-        ]
+        rejected = [x for x in report.attempts if x.evidence_status == "rejected"]
         paths[0].write_text(
             json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
@@ -588,9 +583,7 @@ class HistoricalSessionEvidenceRepairEngine(HistoricalSessionEvidenceEngine):
         paths[2].write_text(cls._markdown(report), encoding="utf-8")
         paths[3].write_text(
             json.dumps(
-                [cls._jsonable(asdict(x)) for x in rejected],
-                indent=2,
-                sort_keys=True,
+                [cls._jsonable(asdict(x)) for x in rejected], indent=2, sort_keys=True
             )
             + "\n",
             encoding="utf-8",
@@ -600,9 +593,7 @@ class HistoricalSessionEvidenceRepairEngine(HistoricalSessionEvidenceEngine):
 
     @classmethod
     def unresolved_sessions(
-        cls,
-        evidence: HistoricalEvidenceReport,
-        calendar: SessionCalendarReport,
+        cls, evidence: HistoricalEvidenceReport, calendar: SessionCalendarReport
     ) -> tuple[UnresolvedSessionAudit, ...]:
         failed = {
             x.year
@@ -631,9 +622,7 @@ class HistoricalSessionEvidenceRepairEngine(HistoricalSessionEvidenceEngine):
         csv_path = output_dir / "htr007a_unresolved_sessions.csv"
         json_path.write_text(
             json.dumps(
-                [cls._jsonable(asdict(x)) for x in records],
-                indent=2,
-                sort_keys=True,
+                [cls._jsonable(asdict(x)) for x in records], indent=2, sort_keys=True
             )
             + "\n",
             encoding="utf-8",
@@ -672,9 +661,7 @@ class HistoricalSessionEvidenceRepairEngine(HistoricalSessionEvidenceEngine):
             and calendar.missing_special_session_count == 0
         )
         return (
-            "complete_official_evidence"
-            if complete
-            else "incomplete_official_evidence"
+            "complete_official_evidence" if complete else "incomplete_official_evidence"
         )
 
     @staticmethod
@@ -682,13 +669,9 @@ class HistoricalSessionEvidenceRepairEngine(HistoricalSessionEvidenceEngine):
         return any(host == x or host.endswith(f".{x}") for x in OFFICIAL_HOSTS)
 
     @staticmethod
-    def _attempt_csv(
-        path: Path, attempts: Sequence[AcquisitionAttempt]
-    ) -> None:
+    def _attempt_csv(path: Path, attempts: Sequence[AcquisitionAttempt]) -> None:
         fields = (
-            tuple(asdict(attempts[0]).keys())
-            if attempts
-            else ("year", "failure_code")
+            tuple(asdict(attempts[0]).keys()) if attempts else ("year", "failure_code")
         )
         with path.open("w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=fields)
@@ -721,8 +704,7 @@ class HistoricalSessionEvidenceRepairEngine(HistoricalSessionEvidenceEngine):
             "|:---|---:|",
         ]
         lines.extend(
-            f"| {code} | {count} |"
-            for code, count in sorted(failures.items())
+            f"| {code} | {count} |" for code, count in sorted(failures.items())
         )
         return "\n".join(lines) + "\n"
 
@@ -738,7 +720,5 @@ class HistoricalSessionEvidenceRepairEngine(HistoricalSessionEvidenceEngine):
                 for k, v in value.items()
             }
         if isinstance(value, (tuple, list)):
-            return [
-                HistoricalSessionEvidenceRepairEngine._jsonable(v) for v in value
-            ]
+            return [HistoricalSessionEvidenceRepairEngine._jsonable(v) for v in value]
         return value
