@@ -76,9 +76,7 @@ class GovernedHistoricalReplayRun:
         if invalid:
             rendered = ", ".join(item.isoformat() for item in invalid)
             raise ValueError(f"replay engine emitted ungoverned dates: {rendered}")
-        if any(
-            run.data_cutoff_date != run.replay_date for run in self.replay_runs
-        ):
+        if any(run.data_cutoff_date != run.replay_date for run in self.replay_runs):
             raise ValueError("replay engine emitted a non-point-in-time data cutoff")
 
     @property

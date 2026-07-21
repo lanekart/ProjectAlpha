@@ -131,9 +131,7 @@ def _write_inputs(tmp_path: Path) -> tuple[Path, Path]:
             fieldnames=("security_id", "symbol", "exchange"),
         )
         writer.writeheader()
-        writer.writerow(
-            {"security_id": "SEC-1", "symbol": "ALPHA", "exchange": "NSE"}
-        )
+        writer.writerow({"security_id": "SEC-1", "symbol": "ALPHA", "exchange": "NSE"})
     action_path.write_text(
         "event_id,security_id,symbol,action_type,effective_date,status\n",
         encoding="utf-8",

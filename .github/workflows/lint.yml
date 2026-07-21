@@ -4,43 +4,7 @@ on:
   push:
   pull_request:
 
-permissions:
-  contents: write
-
 jobs:
-  htr005-format:
-    if: github.event_name == 'pull_request' && github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: feature/htr-005-governed-research-replay
-
-      - name: Install Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-
-      - name: Install locked Ruff
-        run: pip install ruff==0.15.20
-
-      - name: Format and verify repository
-        run: |
-          ruff format .
-          ruff check .
-          ruff format --check .
-
-      - name: Commit formatting and restore workflow
-        run: |
-          cp .github/scripts/htr005_lint_original.yml .github/workflows/lint.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm .github/scripts/htr005_lint_original.yml
-          git add -u
-          git commit -m "Format HTR-005 governed replay implementation"
-          git push origin HEAD:feature/htr-005-governed-research-replay
-
   ruff:
     runs-on: ubuntu-latest
 

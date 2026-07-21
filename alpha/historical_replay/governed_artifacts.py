@@ -258,9 +258,7 @@ def _string_tuple(value: object) -> tuple[str, ...]:
     if isinstance(value, float) and value != value:
         return ()
     if isinstance(value, (tuple, list, set)):
-        return tuple(
-            sorted({str(item).strip() for item in value if str(item).strip()})
-        )
+        return tuple(sorted({str(item).strip() for item in value if str(item).strip()}))
     text = str(value).strip()
     if not text or text in {"[]", "()", "{}"}:
         return ()
@@ -273,9 +271,7 @@ def _string_tuple(value: object) -> tuple[str, ...]:
             decoded = text.replace("|", ",").replace(";", ",").split(",")
     if not isinstance(decoded, (tuple, list, set)):
         raise ValueError("artifact sequence field must contain a sequence")
-    return tuple(
-        sorted({str(item).strip() for item in decoded if str(item).strip()})
-    )
+    return tuple(sorted({str(item).strip() for item in decoded if str(item).strip()}))
 
 
 def _required_text(

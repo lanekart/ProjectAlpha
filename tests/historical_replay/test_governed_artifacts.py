@@ -186,9 +186,7 @@ def test_loader_records_unresolved_actions_without_suppressing_them(
         corporate_action_path=action_path,
     )
 
-    assert inputs.manifest.unresolved_action_ids == (
-        "SEC-1:RIGHTS:2025-01-15",
-    )
+    assert inputs.manifest.unresolved_action_ids == ("SEC-1:RIGHTS:2025-01-15",)
     assert inputs.actions.events[-1].status is CorporateActionStatus.UNRESOLVED
 
 
@@ -217,11 +215,14 @@ def test_loader_accepts_json_artifacts_and_empty_action_list(tmp_path: Path) -> 
         corporate_action_path=action_path,
     )
 
-    assert inputs.identities.resolve(
-        "OLDALPHA",
-        trading_date=date(2020, 1, 1),
-        exchange="NSE",
-    ) is not None
+    assert (
+        inputs.identities.resolve(
+            "OLDALPHA",
+            trading_date=date(2020, 1, 1),
+            exchange="NSE",
+        )
+        is not None
+    )
     assert inputs.actions.events == ()
     assert inputs.manifest.corporate_action_count == 0
 
