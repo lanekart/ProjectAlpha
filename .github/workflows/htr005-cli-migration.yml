@@ -1,0 +1,386 @@
+name: HTR-005 CLI Migration
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-005-governed-research-replay
+
+      - name: Install dependencies
+        run: |
+          pip install poetry
+          poetry install --no-interaction
+
+      - name: Migrate replay commands
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("alpha/cli.py")
+          text = path.read_text(encoding="utf-8")
+
+          def replace_once(old: str, new: str, label: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one match, found {count}")
+              text = text.replace(old, new)
+
+          replace_once(
+              "from alpha.application.gate_truth_cli import gate_app\n",
+              "from alpha.application.gate_truth_cli import gate_app\n"
+              "from alpha.application.governed_historical_replay_cli import (\n"
+              "    execute_governed_historical_replay,\n"
+              "    render_governed_historical_replay_run,\n"
+              ")\n",
+              "governed replay CLI import",
+          )
+          replace_once(
+              "    HistoricalObservationFactory,\n    HistoricalReplayEngine,\n",
+              "",
+              "legacy historical factory imports",
+          )
+          replace_once(
+              '''def learning_combinations(
+    period: str = typer.Option("lifetime", "--period"),
+    min_sample_size: int = typer.Option(30, "--min-sample-size"),
+    max_combination_size: int = typer.Option(4, "--max-combination-size"),
+    min_indicator_count: int = typer.Option(
+        1,
+        "--min-indicator-count",
+        help="Minimum indicators in a tested set. Use 1 for baseline edge.",
+    ),
+    source: str = typer.Option(
+        "historical",
+        "--source",
+        help="historical/raw replay evidence or live recommendation outcomes.",
+    ),
+    refresh_replay: bool = typer.Option(
+        False,
+        "--refresh-replay",
+        help="Build historical replay observations before ranking combinations.",
+    ),
+    from_date: str | None = typer.Option(None, "--from-date"),
+    to_date: str | None = typer.Option(None, "--to-date"),
+) -> None:
+''',
+              '''def learning_combinations(
+    period: str = typer.Option("lifetime", "--period"),
+    min_sample_size: int = typer.Option(30, "--min-sample-size"),
+    max_combination_size: int = typer.Option(4, "--max-combination-size"),
+    min_indicator_count: int = typer.Option(
+        1,
+        "--min-indicator-count",
+        help="Minimum indicators in a tested set. Use 1 for baseline edge.",
+    ),
+    source: str = typer.Option(
+        "historical",
+        "--source",
+        help="historical/raw replay evidence or live recommendation outcomes.",
+    ),
+    refresh_replay: bool = typer.Option(
+        False,
+        "--refresh-replay",
+        help="Build governed historical replay before ranking combinations.",
+    ),
+    from_date: str | None = typer.Option(None, "--from-date"),
+    to_date: str | None = typer.Option(None, "--to-date"),
+    identity_artifact: Path | None = typer.Option(
+        None,
+        "--identity-artifact",
+        help="HTR-002 canonical identity CSV/JSON artifact.",
+    ),
+    corporate_action_artifact: Path | None = typer.Option(
+        None,
+        "--corporate-action-artifact",
+        help="HTR-003 canonical action timeline CSV/JSON artifact.",
+    ),
+    replay_output: Path | None = typer.Option(
+        None,
+        "--replay-output",
+        help="Optional governed replay proof output directory.",
+    ),
+) -> None:
+''',
+              "learning combinations signature",
+          )
+          replace_once(
+              '''        learning_repository = NightlyLearningLoop.from_path().repository
+        build = HistoricalObservationFactory(
+            price_repository=MarketTruthPriceRepository()
+        ).build(from_date=start, to_date=end)
+        HistoricalReplayEngine(
+            replay_repository=HistoricalReplayRepository(),
+            learning_repository=learning_repository,
+        ).run(from_date=start, to_date=end, observations=build.observations)
+        print()
+        print(f"Historical Replay Refreshed: {len(build.observations)} observations")
+        if build.skipped_dates:
+            print(f"Skipped Dates: {len(build.skipped_dates)}")
+''',
+              '''        if identity_artifact is None or corporate_action_artifact is None:
+            raise typer.BadParameter(
+                "--refresh-replay requires --identity-artifact and "
+                "--corporate-action-artifact."
+            )
+        learning_repository = NightlyLearningLoop.from_path().repository
+        governed = execute_governed_historical_replay(
+            from_date=start,
+            to_date=end,
+            identity_artifact=identity_artifact,
+            corporate_action_artifact=corporate_action_artifact,
+            learning_repository=learning_repository,
+            replay_repository=HistoricalReplayRepository(),
+            output=replay_output,
+        )
+        build = governed.observation_build
+        print()
+        print(f"Historical Replay Refreshed: {len(build.observations)} observations")
+        print(f"Canonical Replay SHA-256: {governed.run_sha256}")
+        if build.skipped_dates:
+            print(f"Skipped Dates: {len(build.skipped_dates)}")
+''',
+              "learning combinations governed refresh",
+          )
+          replace_once(
+              '''def replay_run(
+    from_date: str = typer.Option(..., "--from-date"),
+    to_date: str = typer.Option(..., "--to-date"),
+) -> None:
+''',
+              '''def replay_run(
+    from_date: str = typer.Option(..., "--from-date"),
+    to_date: str = typer.Option(..., "--to-date"),
+    identity_artifact: Path = typer.Option(
+        ...,
+        "--identity-artifact",
+        help="HTR-002 canonical identity CSV/JSON artifact.",
+    ),
+    corporate_action_artifact: Path = typer.Option(
+        ...,
+        "--corporate-action-artifact",
+        help="HTR-003 canonical action timeline CSV/JSON artifact.",
+    ),
+    output: Path = typer.Option(
+        Path("artifacts/governed_historical_replay"),
+        "--output",
+        help="Governed replay proof output directory.",
+    ),
+) -> None:
+''',
+              "replay run signature",
+          )
+          replace_once(
+              '''    learning_repository = NightlyLearningLoop.from_path().repository
+    build = HistoricalObservationFactory(
+        price_repository=MarketTruthPriceRepository()
+    ).build(from_date=start, to_date=end)
+    engine = HistoricalReplayEngine(
+        replay_repository=HistoricalReplayRepository(),
+        learning_repository=learning_repository,
+    )
+    runs = engine.run(
+        from_date=start,
+        to_date=end,
+        observations=build.observations,
+    )
+    print()
+    for line in render_replay_run(runs):
+        print(line)
+    if build.skipped_dates:
+        print("Skipped Replay Dates:")
+        for item in build.skipped_dates[:10]:
+            print(f"- {item}")
+''',
+              '''    learning_repository = NightlyLearningLoop.from_path().repository
+    try:
+        governed = execute_governed_historical_replay(
+            from_date=start,
+            to_date=end,
+            identity_artifact=identity_artifact,
+            corporate_action_artifact=corporate_action_artifact,
+            learning_repository=learning_repository,
+            replay_repository=HistoricalReplayRepository(),
+            output=output,
+        )
+    except (FileNotFoundError, ValueError) as error:
+        raise typer.BadParameter(str(error)) from error
+    print()
+    for line in render_governed_historical_replay_run(governed):
+        print(line)
+    print()
+    for line in render_replay_run(governed.replay_runs):
+        print(line)
+''',
+              "replay run governed body",
+          )
+          replace_once(
+              '''def replay_accumulate(
+    from_date: str = typer.Option(..., "--from-date"),
+    to_date: str = typer.Option(..., "--to-date"),
+    frequency: str = typer.Option("monthly", "--frequency"),
+    max_dates: int | None = typer.Option(None, "--max-dates"),
+) -> None:
+''',
+              '''def replay_accumulate(
+    from_date: str = typer.Option(..., "--from-date"),
+    to_date: str = typer.Option(..., "--to-date"),
+    frequency: str = typer.Option("monthly", "--frequency"),
+    max_dates: int | None = typer.Option(None, "--max-dates"),
+    identity_artifact: Path = typer.Option(
+        ...,
+        "--identity-artifact",
+        help="HTR-002 canonical identity CSV/JSON artifact.",
+    ),
+    corporate_action_artifact: Path = typer.Option(
+        ...,
+        "--corporate-action-artifact",
+        help="HTR-003 canonical action timeline CSV/JSON artifact.",
+    ),
+    output: Path = typer.Option(
+        Path("artifacts/governed_historical_replay_accumulation"),
+        "--output",
+        help="Root directory for per-date governed replay proofs.",
+    ),
+) -> None:
+''',
+              "replay accumulate signature",
+          )
+          replace_once(
+              '''    price_repository = MarketTruthPriceRepository()
+    learning_repository = NightlyLearningLoop.from_path().repository
+    replay_repository = HistoricalReplayRepository()
+    factory = HistoricalObservationFactory(price_repository=price_repository)
+    engine = HistoricalReplayEngine(
+        replay_repository=replay_repository,
+        learning_repository=learning_repository,
+    )
+''',
+              '''    learning_repository = NightlyLearningLoop.from_path().repository
+    replay_repository = HistoricalReplayRepository()
+''',
+              "replay accumulate raw setup",
+          )
+          replace_once(
+              '''        build = factory.build(from_date=replay_date, to_date=replay_date)
+        if build.skipped_dates:
+            skipped.extend(build.skipped_dates)
+            print(f"- {replay_date}: skipped ({build.skipped_dates[0]})")
+            continue
+        runs = engine.run(
+            from_date=replay_date,
+            to_date=replay_date,
+            observations=build.observations,
+        )
+''',
+              '''        try:
+            governed = execute_governed_historical_replay(
+                from_date=replay_date,
+                to_date=replay_date,
+                identity_artifact=identity_artifact,
+                corporate_action_artifact=corporate_action_artifact,
+                learning_repository=learning_repository,
+                replay_repository=replay_repository,
+                output=output / replay_date.isoformat(),
+            )
+        except (FileNotFoundError, ValueError) as error:
+            raise typer.BadParameter(str(error)) from error
+        build = governed.observation_build
+        if build.skipped_dates:
+            skipped.extend(build.skipped_dates)
+            print(f"- {replay_date}: skipped ({build.skipped_dates[0]})")
+            continue
+        runs = governed.replay_runs
+''',
+              "replay accumulate governed loop",
+          )
+          path.write_text(text, encoding="utf-8")
+
+          test_path = Path("tests/historical_replay/test_historical_replay.py")
+          test_text = test_path.read_text(encoding="utf-8")
+          old_setup = '''    db.close()
+    monkeypatch.setattr(settings, "database_path", db_path)
+'''
+          new_setup = '''    db.close()
+    identity_artifact = tmp_path / "canonical_identities.csv"
+    identity_artifact.write_text(
+        "security_id,symbol,exchange\\n"
+        "SEC-AAA,AAA,NSE\\n"
+        "SEC-BBB,BBB,NSE\\n"
+        "SEC-CCC,CCC,NSE\\n",
+        encoding="utf-8",
+    )
+    corporate_action_artifact = tmp_path / "canonical_actions.csv"
+    corporate_action_artifact.write_text(
+        "event_id,security_id,symbol,action_type,effective_date,status\\n",
+        encoding="utf-8",
+    )
+    governed_output = tmp_path / "governed-replay"
+    monkeypatch.setattr(settings, "database_path", db_path)
+'''
+          if test_text.count(old_setup) != 1:
+              raise SystemExit("test artifact setup anchor not unique")
+          test_text = test_text.replace(old_setup, new_setup)
+          old_invocation = '''        ["replay", "run", "--from-date", "2026-01-01", "--to-date", "2026-01-01"],
+'''
+          new_invocation = '''        [
+            "replay",
+            "run",
+            "--from-date",
+            "2026-01-01",
+            "--to-date",
+            "2026-01-01",
+            "--identity-artifact",
+            str(identity_artifact),
+            "--corporate-action-artifact",
+            str(corporate_action_artifact),
+            "--output",
+            str(governed_output),
+        ],
+'''
+          if test_text.count(old_invocation) != 1:
+              raise SystemExit("test replay invocation anchor not unique")
+          test_text = test_text.replace(old_invocation, new_invocation)
+          old_assertion = '''    assert "Historical Replay Run" in replay.stdout
+    assert "Raw candidates stored: " in replay.stdout
+'''
+          new_assertion = '''    assert "Governed Historical Replay" in replay.stdout
+    assert "Historical Replay Run" in replay.stdout
+    assert "Raw candidates stored: " in replay.stdout
+    assert "Canonical Replay Enforced: true" in replay.stdout
+    assert (governed_output / "governed_historical_replay_run.json").exists()
+'''
+          if test_text.count(old_assertion) != 1:
+              raise SystemExit("test replay assertion anchor not unique")
+          test_text = test_text.replace(old_assertion, new_assertion)
+          test_path.write_text(test_text, encoding="utf-8")
+          PY
+
+      - name: Validate migrated commands
+        run: |
+          poetry run ruff format alpha/cli.py tests/historical_replay/test_historical_replay.py
+          poetry run ruff check alpha/cli.py tests/historical_replay/test_historical_replay.py
+          poetry run ruff format --check alpha/cli.py tests/historical_replay/test_historical_replay.py
+          poetry run pytest tests/historical_replay/test_historical_replay.py -q
+
+      - name: Commit migration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add alpha/cli.py tests/historical_replay/test_historical_replay.py
+          git commit -m "Enforce governed historical replay in CLI"
+          git push origin HEAD:feature/htr-005-governed-research-replay
