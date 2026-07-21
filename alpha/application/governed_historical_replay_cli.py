@@ -15,6 +15,10 @@ from alpha.application.governed_historical_replay import (
     export_governed_historical_replay_run,
 )
 from alpha.candidate_learning import LearningLedgerRepository
+from alpha.historical_replay.coverage_readiness import (
+    HistoricalReplayCoverageEvidence,
+    build_historical_replay_coverage_evidence,
+)
 from alpha.historical_replay.engine import HistoricalReplayEngine
 from alpha.historical_replay.governed_artifacts import load_governed_replay_inputs
 from alpha.historical_replay.governed_price_repository import ReplayPriceSource
@@ -40,6 +44,7 @@ def execute_governed_historical_replay(
     source: ReplayPriceSource | None = None,
     executor: HistoricalReplayExecutor | None = None,
     inventory_evidence: tuple[HistoricalTruthInventoryEvidence, ...] | None = None,
+    coverage_evidence: HistoricalReplayCoverageEvidence | None = None,
     observation_builder_factory: ObservationBuilderFactory | None = None,
 ) -> GovernedHistoricalReplayRun:
     """Execute one fail-closed governed replay and optionally export proofs."""
@@ -54,22 +59,32 @@ def execute_governed_historical_replay(
         learning_repository=learning_repository,
     )
     resolved_inventory = inventory_evidence
-    if resolved_inventory is None:
-        if isinstance(price_source, MarketTruthPriceRepository):
+    resolved_coverage = coverage_evidence
+    if isinstance(price_source, MarketTruthPriceRepository):
+        if resolved_inventory is None:
             resolved_inventory = build_historical_truth_inventory_evidence_for_range(
                 database=price_source.database_path,
                 snapshots=snapshots_path,
                 from_date=from_date,
                 to_date=to_date,
             )
-        else:
+        if resolved_coverage is None:
+            resolved_coverage = build_historical_replay_coverage_evidence(
+                database=price_source.database_path,
+                from_date=from_date,
+                to_date=to_date,
+            )
+    else:
+        if resolved_inventory is None:
             resolved_inventory = ()
+
     try:
         run = GovernedHistoricalReplayService(
             source=price_source,
             inputs=inputs,
             executor=replay_executor,
             inventory_evidence=resolved_inventory,
+            coverage_evidence=resolved_coverage,
             observation_builder_factory=observation_builder_factory,
         ).run(from_date=from_date, to_date=to_date)
         if output is not None:
@@ -89,6 +104,7 @@ def render_governed_historical_replay_run(
     """Render a compact deterministic governed replay summary."""
 
     build = run.observation_build
+    coverage = run.readiness.coverage_evidence
     lines = [
         "Governed Historical Replay",
         f"From: {run.from_date.isoformat()}",
@@ -101,6 +117,9 @@ def render_governed_historical_replay_run(
         f"Consumer Attestations: {len(build.consumer_attestations)}",
         f"Readiness Status: {run.readiness.status.value}",
         f"Inventory Years: {len(run.readiness.inventory_evidence)}",
+        f"Warm-up Sessions: {coverage.observed_warmup_sessions if coverage else 0}",
+        f"Outcome Sessions: {coverage.observed_outcome_sessions if coverage else 0}",
+        f"Eligible Securities: {coverage.eligible_security_count if coverage else 0}",
         f"Input Manifest SHA-256: {run.inputs.manifest.manifest_sha256}",
         f"Run SHA-256: {run.run_sha256}",
         "Canonical Replay Enforced: true",
