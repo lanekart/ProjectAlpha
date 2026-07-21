@@ -76,6 +76,10 @@ jobs:
           )
           source = source_path.read_text(encoding="utf-8")
           source = source.replace(
+              'context = normalized[max(0, match.start() - 250) : match.end() + 350]',
+              'context = normalized[match.end() : match.end() + 220]',
+          )
+          source = source.replace(
               '"description": f"Official NSE Muhurat trading session ({parsed.year})",',
               '"description": (\n'
               '    f"Official NSE Muhurat trading session ({parsed.year})"\n'
