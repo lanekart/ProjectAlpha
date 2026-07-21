@@ -82,6 +82,28 @@ jobs:
               '            "A missing bhavcopy is never classified as a holiday "\n'
               '            "without official evidence."\n',
           )
+          text = text.replace(
+              '        descriptions = tuple(\n'
+              '            dict.fromkeys(\n'
+              '                item.description for item in (*holidays, *specials) if item.description\n'
+              '            )\n'
+              '        )\n'
+              '        source_ids = tuple(\n'
+              '            sorted({item.source_id for item in (*holidays, *specials)})\n'
+              '        )\n',
+              '        descriptions = tuple(\n'
+              '            dict.fromkeys(\n'
+              '                [item.description for item in holidays if item.description]\n'
+              '                + [item.description for item in specials if item.description]\n'
+              '            )\n'
+              '        )\n'
+              '        source_ids = tuple(\n'
+              '            sorted(\n'
+              '                {item.source_id for item in holidays}\n'
+              '                | {item.source_id for item in specials}\n'
+              '            )\n'
+              '        )\n',
+          )
           path.write_text(text, encoding='utf-8')
           PY
 
