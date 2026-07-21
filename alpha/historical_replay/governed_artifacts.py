@@ -106,8 +106,7 @@ def load_governed_replay_inputs(
     actions = CorporateActionTimeline(_action_event(row) for row in action_rows)
     aliases = _action_aliases(actions.events)
     identities = SecurityIdentityTimeline(
-        _identity_record(row, aliases=aliases, index=index)
-        for index, row in enumerate(identity_rows)
+        _identity_record(row, aliases=aliases) for row in identity_rows
     )
     unresolved = tuple(
         event.event_id
@@ -137,7 +136,6 @@ def _identity_record(
     row: Mapping[str, object],
     *,
     aliases: Mapping[str, tuple[str, ...]],
-    index: int,
 ) -> SecurityIdentityRecord:
     security_id = _required_text(
         row,
@@ -160,7 +158,7 @@ def _identity_record(
             row.get("effective_to") or row.get("delisting_date")
         ),
         historical_symbols=tuple(sorted(historical)),
-        evidence_ids=evidence_ids or (f"identity_artifact:{index}",),
+        evidence_ids=evidence_ids,
         recovery_version=_text(row.get("recovery_version")) or "HTR-002-v1.0.0",
     )
 
