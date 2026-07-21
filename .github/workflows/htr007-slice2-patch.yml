@@ -26,7 +26,7 @@ jobs:
           poetry config virtualenvs.create true
           poetry install --no-interaction
 
-      - name: Format and validate Slice 2
+      - name: Format Slice 2
         run: |
           poetry run ruff format \
             alpha/historical_truth/backfill.py \
@@ -36,6 +36,9 @@ jobs:
             alpha/historical_truth/__init__.py \
             tests/historical_truth/test_backfill.py \
             tests/historical_truth/test_backfill_cli.py
+
+      - name: Ruff Slice 2
+        run: |
           poetry run ruff check \
             alpha/historical_truth/backfill.py \
             alpha/historical_truth/backfill_cli.py \
@@ -44,7 +47,12 @@ jobs:
             alpha/historical_truth/__init__.py \
             tests/historical_truth/test_backfill.py \
             tests/historical_truth/test_backfill_cli.py
-          poetry run mypy alpha
+
+      - name: MyPy repository
+        run: poetry run mypy alpha
+
+      - name: Targeted recovery tests
+        run: |
           poetry run pytest \
             tests/historical_truth/test_backfill.py \
             tests/historical_truth/test_backfill_cli.py \
