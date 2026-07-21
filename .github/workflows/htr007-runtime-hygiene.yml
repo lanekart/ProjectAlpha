@@ -1,0 +1,41 @@
+name: HTR-007 Runtime Hygiene
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  untrack-runtime:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-007-checkpointed-backfill
+
+      - name: Remove runtime state from Git index
+        run: |
+          git rm -r --cached --ignore-unmatch \
+            alpha_data/raw \
+            alpha_data/staging \
+            alpha_data/snapshots \
+            alpha_data/warehouse \
+            alpha_data/derived \
+            alpha_data/manifests \
+            artifacts/htr007_backfill_pilot \
+            artifacts/htr007_backfill_smoke_202407
+
+      - name: Commit repository hygiene
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f .github/workflows/htr007-runtime-hygiene.yml
+          git add .gitignore
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "Stop tracking Historical Truth runtime state"
+          git push origin HEAD:feature/htr-007-checkpointed-backfill
