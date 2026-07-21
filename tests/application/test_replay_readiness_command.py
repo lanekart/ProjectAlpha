@@ -36,12 +36,14 @@ def test_replay_readiness_command_is_diagnostic_and_forwards_inputs(
         cli_module,
         "render_governed_historical_replay_assessment",
         lambda value: (
-            "Historical Replay Readiness Assessment",
-            "Status: BLOCKED",
-            "Executor Invoked: false",
-        )
-        if value is assessment
-        else (),
+            (
+                "Historical Replay Readiness Assessment",
+                "Status: BLOCKED",
+                "Executor Invoked: false",
+            )
+            if value is assessment
+            else ()
+        ),
     )
 
     result = CliRunner().invoke(
