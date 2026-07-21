@@ -11,6 +11,9 @@ from datetime import date
 from pathlib import Path
 from typing import Protocol
 
+from alpha.historical_replay.coverage_readiness import (
+    HistoricalReplayCoverageEvidence,
+)
 from alpha.historical_replay.governed_artifacts import GovernedReplayInputs
 from alpha.historical_replay.governed_factory import (
     GovernedHistoricalObservationBuild,
@@ -31,7 +34,7 @@ from alpha.historical_replay.readiness import (
 )
 from alpha.recovery.consumer_attestation import export_consumer_attestations
 
-GOVERNED_REPLAY_RUN_CONTRACT_VERSION = "HTR-006-run-v1.0.0"
+GOVERNED_REPLAY_RUN_CONTRACT_VERSION = "HTR-006-run-v1.1.0"
 ObservationBuilderFactory = Callable[
     [CanonicalReplayPriceRepository], HistoricalObservationBuilder
 ]
@@ -157,6 +160,7 @@ class GovernedHistoricalReplayService:
     inputs: GovernedReplayInputs
     executor: HistoricalReplayExecutor
     inventory_evidence: tuple[HistoricalTruthInventoryEvidence, ...] = ()
+    coverage_evidence: HistoricalReplayCoverageEvidence | None = None
     observation_builder_factory: ObservationBuilderFactory | None = None
 
     def assess(
@@ -188,6 +192,7 @@ class GovernedHistoricalReplayService:
             from_date=from_date,
             to_date=to_date,
             inventory_evidence=self.inventory_evidence,
+            coverage_evidence=self.coverage_evidence,
         )
         return GovernedHistoricalReplayAssessment(
             from_date=from_date,
@@ -296,6 +301,7 @@ def _csv_value(value: object) -> object:
 
 def _render_run(run: GovernedHistoricalReplayRun) -> str:
     observations = run.observation_build
+    coverage = run.readiness.coverage_evidence
     lines = [
         "# Governed Historical Replay Run",
         "",
@@ -309,6 +315,9 @@ def _render_run(run: GovernedHistoricalReplayRun) -> str:
         f"- Readiness Status: `{run.readiness.status.value}`",
         f"- Readiness SHA-256: `{run.readiness.readiness_sha256}`",
         f"- Inventory Years: `{len(run.readiness.inventory_evidence)}`",
+        f"- Warm-up Sessions: `{coverage.observed_warmup_sessions if coverage else 0}`",
+        f"- Outcome Sessions: `{coverage.observed_outcome_sessions if coverage else 0}`",
+        f"- Eligible Securities: `{coverage.eligible_security_count if coverage else 0}`",
         f"- Input Manifest SHA-256: `{run.inputs.manifest.manifest_sha256}`",
         f"- Observation SHA-256: `{observations.run_sha256}`",
         f"- Run SHA-256: `{run.run_sha256}`",
