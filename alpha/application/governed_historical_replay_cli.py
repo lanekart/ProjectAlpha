@@ -23,10 +23,7 @@ from alpha.historical_replay.coverage_readiness import (
     build_historical_replay_coverage_evidence,
 )
 from alpha.historical_replay.engine import HistoricalReplayEngine
-from alpha.historical_replay.governed_artifacts import (
-    GovernedReplayInputs,
-    load_governed_replay_inputs,
-)
+from alpha.historical_replay.governed_artifacts import load_governed_replay_inputs
 from alpha.historical_replay.governed_price_repository import ReplayPriceSource
 from alpha.historical_replay.inventory_readiness import (
     HistoricalTruthInventoryEvidence,
@@ -170,8 +167,9 @@ def export_governed_historical_replay_assessment(
         json.dumps(assessment.readiness.as_dict(), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    input_manifest = assessment.inputs.manifest.as_dict()
     input_path.write_text(
-        json.dumps(assessment.inputs.manifest.as_dict(), indent=2, sort_keys=True) + "\n",
+        json.dumps(input_manifest, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     _write_assessment_reads_csv(assessment, reads_path)
