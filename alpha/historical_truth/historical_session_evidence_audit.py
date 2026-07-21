@@ -15,6 +15,7 @@ from typing import Any
 from urllib.parse import urljoin, urlparse
 
 import requests
+
 from alpha.historical_truth.historical_session_evidence import (
     NSE_HOME,
     HistoricalEvidenceRecord,
