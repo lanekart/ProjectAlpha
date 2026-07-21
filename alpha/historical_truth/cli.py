@@ -18,6 +18,9 @@ from alpha.historical_truth.special_session_recovery_cli import (
     session_calendar_build,
     special_session_candle_recover,
 )
+from alpha.historical_truth.special_session_snapshot_parity_cli import (
+    special_session_snapshot_repair,
+)
 
 historical_truth_app = typer.Typer(
     help="Build and audit official historical market truth."
@@ -134,6 +137,9 @@ def populate(
 historical_truth_app.command("session-calendar-build")(session_calendar_build)
 historical_truth_app.command("special-session-candle-recover")(
     special_session_candle_recover
+)
+historical_truth_app.command("special-session-snapshot-repair")(
+    special_session_snapshot_repair
 )
 
 
