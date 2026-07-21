@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+
 from alpha.historical_truth.historical_session_evidence import (
     HistoricalEvidenceRecord,
     HistoricalEvidenceStatus,
