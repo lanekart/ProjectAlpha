@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum
@@ -237,6 +238,26 @@ def assess_historical_replay_readiness(
     )
 
 
+def verify_historical_replay_readiness_manifest(
+    payload: Mapping[str, object],
+) -> None:
+    """Reject a serialized readiness manifest whose digest no longer matches."""
+
+    digest = payload.get("readiness_sha256")
+    if not isinstance(digest, str) or len(digest) != 64:
+        raise ValueError("readiness manifest is missing a SHA-256 digest")
+    canonical = dict(payload)
+    canonical.pop("readiness_sha256", None)
+    encoded = json.dumps(
+        canonical,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    actual = hashlib.sha256(encoded).hexdigest()
+    if actual != digest:
+        raise ValueError("readiness manifest digest mismatch")
+
+
 __all__ = [
     "HISTORICAL_REPLAY_READINESS_CONTRACT_VERSION",
     "HistoricalReplayReadinessBlocker",
@@ -244,4 +265,5 @@ __all__ = [
     "HistoricalReplayReadinessError",
     "HistoricalReplayReadinessStatus",
     "assess_historical_replay_readiness",
+    "verify_historical_replay_readiness_manifest",
 ]
