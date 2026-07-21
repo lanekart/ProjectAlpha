@@ -47,6 +47,8 @@ node_modules/
 reports/
 exports/
 artifacts/htr007_*/
+artifacts/htr007a_*/
+artifacts/htr007b_*/
 
 # Runtime market data and local databases
 data/raw/
@@ -64,6 +66,8 @@ alpha_data/derived/
 alpha_data/manifests/*.jsonl
 alpha_data/manifests/*checkpoint*.json
 alpha_data/manifests/htr007_*.json
+alpha_data/manifests/htr007a_*/
+alpha_data/manifests/htr007b_*/
 
 # Temporary editor files
 *.save

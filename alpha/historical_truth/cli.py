@@ -14,6 +14,10 @@ from alpha.historical_truth.pilot import (
 from alpha.historical_truth.population import HistoricalPopulationEngine
 from alpha.historical_truth.resumable import HistoricalTruthWarehouse
 from alpha.historical_truth.snapshots import PointInTimeSnapshotEngine
+from alpha.historical_truth.special_session_recovery_cli import (
+    session_calendar_build,
+    special_session_candle_recover,
+)
 
 historical_truth_app = typer.Typer(
     help="Build and audit official historical market truth."
@@ -125,6 +129,12 @@ def populate(
     print(f"Rows available in snapshots: {summary.available_rows}")
     for path in paths:
         print(path)
+
+
+historical_truth_app.command("session-calendar-build")(session_calendar_build)
+historical_truth_app.command("special-session-candle-recover")(
+    special_session_candle_recover
+)
 
 
 @historical_truth_app.command("pilot")

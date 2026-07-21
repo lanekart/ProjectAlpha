@@ -1,0 +1,64 @@
+name: HTR-007A official circular API repair
+
+on:
+  push:
+    branches:
+      - feature/htr-007-historical-session-evidence
+    paths:
+      - .github/workflows/htr007a-api-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  implement-validate-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: feature/htr-007-historical-session-evidence
+
+      - name: Apply implementation patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          gzip -dc .htr007a-api-patch.py.gz > /tmp/htr007a_api_patch.py
+          python /tmp/htr007a_api_patch.py
+          rm -f .htr007a-api-patch.py.gz
+          rm -f .github/workflows/htr007a-api-repair.yml
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip poetry
+          poetry config virtualenvs.create true
+          poetry install --no-interaction
+
+      - name: Validate implementation
+        shell: bash
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+        run: |
+          set -euo pipefail
+          poetry run ruff check .
+          poetry run ruff format --check .
+          poetry run mypy alpha
+          poetry run pytest -q
+
+      - name: Commit validated implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "ProjectAlpha GitHub Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "HTR-007A: add official CMTR circular API fallback"
+          git push origin HEAD:feature/htr-007-historical-session-evidence
