@@ -214,6 +214,7 @@ def _read_records(
     if not path.exists() or not path.is_file():
         raise FileNotFoundError(path)
     suffix = path.suffix.lower()
+    records: tuple[Mapping[str, object], ...]
     if suffix == ".csv":
         with path.open(encoding="utf-8", newline="") as handle:
             records = tuple(dict(row) for row in csv.DictReader(handle))
