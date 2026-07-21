@@ -6,6 +6,7 @@ from datetime import date
 from pathlib import Path
 
 import typer
+
 from alpha.historical_truth.canonical import CanonicalPointInTimeWarehouse
 from alpha.historical_truth.historical_session_evidence import (
     HistoricalEvidenceReport,
