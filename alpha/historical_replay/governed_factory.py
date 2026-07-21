@@ -18,6 +18,7 @@ from alpha.historical_replay.governed_price_repository import (
     CanonicalReplayReadOperation,
     CanonicalReplayRepositoryRead,
 )
+from alpha.historical_replay.models import ReplayCandidateObservation
 from alpha.recovery.consumer_attestation import (
     CanonicalReplayConsumerAttestation,
     attestation_payload,
@@ -81,7 +82,7 @@ class GovernedHistoricalObservationBuild:
             raise ValueError("governed observations require consumer attestations")
 
     @property
-    def observations(self) -> tuple[object, ...]:
+    def observations(self) -> tuple[ReplayCandidateObservation, ...]:
         """Expose the immutable observation sequence."""
 
         return self.result.observations
