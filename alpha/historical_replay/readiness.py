@@ -8,12 +8,15 @@ from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum
 
+from alpha.historical_replay.coverage_readiness import (
+    HistoricalReplayCoverageEvidence,
+)
 from alpha.historical_replay.governed_factory import GovernedHistoricalObservationBuild
 from alpha.historical_replay.inventory_readiness import (
     HistoricalTruthInventoryEvidence,
 )
 
-HISTORICAL_REPLAY_READINESS_CONTRACT_VERSION = "HTR-006-readiness-v1.1.0"
+HISTORICAL_REPLAY_READINESS_CONTRACT_VERSION = "HTR-006-readiness-v1.2.0"
 
 
 class HistoricalReplayReadinessStatus(StrEnum):
@@ -31,6 +34,10 @@ class HistoricalReplayReadinessBlocker(StrEnum):
     MISSING_HISTORICAL_TRUTH_INVENTORY = "MISSING_HISTORICAL_TRUTH_INVENTORY"
     BLOCKING_DATASETS_NOT_READY = "BLOCKING_DATASETS_NOT_READY"
     REQUIRED_DATASETS_NOT_READY = "REQUIRED_DATASETS_NOT_READY"
+    MISSING_REPLAY_COVERAGE_EVIDENCE = "MISSING_REPLAY_COVERAGE_EVIDENCE"
+    INSUFFICIENT_WARMUP_SESSIONS = "INSUFFICIENT_WARMUP_SESSIONS"
+    INSUFFICIENT_OUTCOME_SESSIONS = "INSUFFICIENT_OUTCOME_SESSIONS"
+    ZERO_ELIGIBLE_SECURITIES = "ZERO_ELIGIBLE_SECURITIES"
 
 
 class HistoricalReplayReadinessError(ValueError):
@@ -54,6 +61,7 @@ class HistoricalReplayReadinessCertificate:
     repository_read_count: int
     consumer_attestation_count: int
     inventory_evidence: tuple[HistoricalTruthInventoryEvidence, ...]
+    coverage_evidence: HistoricalReplayCoverageEvidence | None
     blockers: tuple[HistoricalReplayReadinessBlocker, ...]
     status: HistoricalReplayReadinessStatus
     contract_version: str = HISTORICAL_REPLAY_READINESS_CONTRACT_VERSION
@@ -80,6 +88,11 @@ class HistoricalReplayReadinessCertificate:
         expected_years = tuple(range(self.from_date.year, self.to_date.year + 1))
         if any(year not in expected_years for year in inventory_years):
             raise ValueError("readiness inventory contains a year outside the range")
+        if self.coverage_evidence is not None:
+            if self.coverage_evidence.from_date != self.from_date:
+                raise ValueError("coverage start does not match readiness")
+            if self.coverage_evidence.to_date != self.to_date:
+                raise ValueError("coverage end does not match readiness")
         if self.blockers != tuple(
             sorted(set(self.blockers), key=lambda item: item.value)
         ):
@@ -98,6 +111,8 @@ class HistoricalReplayReadinessCertificate:
                 raise ValueError("ready replay cannot contain skipped dates")
             if inventory_years != expected_years:
                 raise ValueError("ready replay requires inventory for every year")
+            if self.coverage_evidence is None:
+                raise ValueError("ready replay requires coverage evidence")
         if self.contract_version != HISTORICAL_REPLAY_READINESS_CONTRACT_VERSION:
             raise ValueError("unsupported historical replay readiness contract")
         if not self.canonical_replay_enforced:
@@ -128,6 +143,11 @@ class HistoricalReplayReadinessCertificate:
             "repository_read_count": self.repository_read_count,
             "consumer_attestation_count": self.consumer_attestation_count,
             "inventory_evidence": [item.as_dict() for item in self.inventory_evidence],
+            "coverage_evidence": (
+                self.coverage_evidence.as_dict()
+                if self.coverage_evidence is not None
+                else None
+            ),
             "blockers": [item.value for item in self.blockers],
             "status": self.status.value,
             "contract_version": self.contract_version,
@@ -150,6 +170,7 @@ def assess_historical_replay_readiness(
     from_date: date,
     to_date: date,
     inventory_evidence: tuple[HistoricalTruthInventoryEvidence, ...] = (),
+    coverage_evidence: HistoricalReplayCoverageEvidence | None = None,
 ) -> HistoricalReplayReadinessCertificate:
     """Assess one governed observation build without invoking a replay executor."""
 
@@ -170,6 +191,31 @@ def assess_historical_replay_readiness(
     if any(item.required_unready_dataset_keys for item in inventory_evidence):
         blockers.append(HistoricalReplayReadinessBlocker.REQUIRED_DATASETS_NOT_READY)
 
+    if coverage_evidence is None:
+        blockers.append(
+            HistoricalReplayReadinessBlocker.MISSING_REPLAY_COVERAGE_EVIDENCE
+        )
+    else:
+        if (
+            coverage_evidence.observed_warmup_sessions
+            < coverage_evidence.required_warmup_sessions
+        ):
+            blockers.append(
+                HistoricalReplayReadinessBlocker.INSUFFICIENT_WARMUP_SESSIONS
+            )
+        if (
+            coverage_evidence.observed_outcome_sessions
+            < coverage_evidence.required_outcome_sessions
+        ):
+            blockers.append(
+                HistoricalReplayReadinessBlocker.INSUFFICIENT_OUTCOME_SESSIONS
+            )
+        if (
+            coverage_evidence.eligible_security_count
+            < coverage_evidence.minimum_eligible_securities
+        ):
+            blockers.append(HistoricalReplayReadinessBlocker.ZERO_ELIGIBLE_SECURITIES)
+
     ordered_blockers = tuple(sorted(set(blockers), key=lambda item: item.value))
     status = (
         HistoricalReplayReadinessStatus.BLOCKED
@@ -185,6 +231,7 @@ def assess_historical_replay_readiness(
         repository_read_count=len(build.repository_reads),
         consumer_attestation_count=len(build.consumer_attestations),
         inventory_evidence=inventory_evidence,
+        coverage_evidence=coverage_evidence,
         blockers=ordered_blockers,
         status=status,
     )
