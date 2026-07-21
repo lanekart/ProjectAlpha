@@ -84,7 +84,9 @@ class HistoricalReplayReadinessCertificate:
         if self.contract_version != HISTORICAL_REPLAY_READINESS_CONTRACT_VERSION:
             raise ValueError("unsupported historical replay readiness contract")
         if not self.canonical_replay_enforced:
-            raise ValueError("historical replay readiness must enforce canonical replay")
+            raise ValueError(
+                "historical replay readiness must enforce canonical replay"
+            )
 
     @property
     def readiness_sha256(self) -> str:
