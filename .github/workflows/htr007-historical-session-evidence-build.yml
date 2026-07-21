@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feature/htr-007-historical-session-evidence
+  pull_request:
+    branches:
+      - feature/recovery-foundation-v1
   workflow_dispatch:
 
 permissions:
