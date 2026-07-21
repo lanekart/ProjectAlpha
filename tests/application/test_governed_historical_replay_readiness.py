@@ -27,6 +27,7 @@ from alpha.recovery.security_timeline import (
     SecurityIdentityRecord,
     SecurityIdentityTimeline,
 )
+from tests.historical_replay.inventory_fixtures import inventory_evidence
 
 _TRADE_DATE = date(2025, 1, 10)
 
@@ -130,7 +131,7 @@ class EmptyBuilder:
         from_date: date,
         to_date: date,
     ) -> HistoricalObservationBuildResult:
-        del self.repository, from_date, to_date
+        del from_date, to_date
         return HistoricalObservationBuildResult(
             observations=(),
             replay_dates=(),
@@ -186,11 +187,20 @@ def _source() -> FakePriceSource:
 def _service(
     executor: CountingExecutor,
     builder: type[ReadyBuilder] | type[SkippedBuilder] | type[EmptyBuilder],
+    *,
+    include_inventory: bool = True,
+    unready_keys: tuple[str, ...] = (),
 ) -> GovernedHistoricalReplayService:
+    evidence = (
+        inventory_evidence(period_end=_TRADE_DATE, unready_keys=unready_keys)
+        if include_inventory
+        else ()
+    )
     return GovernedHistoricalReplayService(
         source=_source(),
         inputs=_inputs(),
         executor=executor,
+        inventory_evidence=evidence,
         observation_builder_factory=builder,
     )
 
@@ -230,6 +240,37 @@ def test_empty_replay_calendar_blocks_before_executor_runs() -> None:
     assert executor.calls == 0
 
 
+def test_missing_inventory_blocks_before_executor_runs() -> None:
+    executor = CountingExecutor()
+
+    with pytest.raises(
+        HistoricalReplayReadinessError,
+        match="MISSING_HISTORICAL_TRUTH_INVENTORY",
+    ):
+        _service(executor, ReadyBuilder, include_inventory=False).run(
+            from_date=_TRADE_DATE,
+            to_date=_TRADE_DATE,
+        )
+
+    assert executor.calls == 0
+
+
+def test_unready_blocking_dataset_blocks_before_executor_runs() -> None:
+    executor = CountingExecutor()
+
+    with pytest.raises(
+        HistoricalReplayReadinessError,
+        match="BLOCKING_DATASETS_NOT_READY",
+    ):
+        _service(
+            executor,
+            ReadyBuilder,
+            unready_keys=("daily_ohlcv",),
+        ).run(from_date=_TRADE_DATE, to_date=_TRADE_DATE)
+
+    assert executor.calls == 0
+
+
 def test_ready_certificate_allows_executor_once() -> None:
     executor = CountingExecutor()
 
@@ -239,4 +280,5 @@ def test_ready_certificate_allows_executor_once() -> None:
     )
 
     assert run.readiness.status is HistoricalReplayReadinessStatus.READY
+    assert run.readiness.inventory_evidence[0].year == 2025
     assert executor.calls == 1
