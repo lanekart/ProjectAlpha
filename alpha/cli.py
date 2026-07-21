@@ -31,7 +31,9 @@ from alpha.application.forward_cli import forward_app
 from alpha.application.gate_dependency_cli import gate_dependency_app
 from alpha.application.gate_truth_cli import gate_app
 from alpha.application.governed_historical_replay_cli import (
+    assess_governed_historical_replay,
     execute_governed_historical_replay,
+    render_governed_historical_replay_assessment,
     render_governed_historical_replay_run,
 )
 from alpha.application.historical_ingestion import HistoricalIngestionService
@@ -1787,6 +1789,57 @@ def learning_combinations(
         min_combination_size=min_indicator_count,
         source=source,
     ):
+        print(line)
+
+
+@replay_app.command(name="readiness")
+def replay_readiness(
+    from_date: str = typer.Option(..., "--from-date"),
+    to_date: str = typer.Option(..., "--to-date"),
+    identity_artifact: Path = typer.Option(
+        ...,
+        "--identity-artifact",
+        help="HTR-002 canonical identity CSV/JSON artifact.",
+    ),
+    corporate_action_artifact: Path = typer.Option(
+        ...,
+        "--corporate-action-artifact",
+        help="HTR-003 canonical action timeline CSV/JSON artifact.",
+    ),
+    database: Path = typer.Option(
+        Path("alpha_data/warehouse/historical_truth.duckdb"),
+        "--database",
+        help="Historical-truth DuckDB warehouse.",
+    ),
+    historical_truth_snapshots: Path = typer.Option(
+        Path("alpha_data/snapshots"),
+        "--historical-truth-snapshots",
+        help="Historical-truth snapshot root for readiness certification.",
+    ),
+    output: Path = typer.Option(
+        Path("artifacts/historical_replay_readiness"),
+        "--output",
+        help="Diagnostic readiness artifact directory.",
+    ),
+) -> None:
+    """Assess governed historical replay readiness without execution."""
+
+    start = _parse_date(from_date)
+    end = _parse_date(to_date)
+    try:
+        assessment = assess_governed_historical_replay(
+            from_date=start,
+            to_date=end,
+            identity_artifact=identity_artifact,
+            corporate_action_artifact=corporate_action_artifact,
+            database_path=database,
+            snapshots_path=historical_truth_snapshots,
+            output=output,
+        )
+    except (FileNotFoundError, ValueError) as error:
+        raise typer.BadParameter(str(error)) from error
+    print()
+    for line in render_governed_historical_replay_assessment(assessment):
         print(line)
 
 
