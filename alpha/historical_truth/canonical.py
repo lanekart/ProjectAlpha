@@ -62,6 +62,15 @@ class CompletenessReport:
     coverage_ratio: float
 
 
+@dataclass(frozen=True, slots=True)
+class CanonicalIngestionResult:
+    parsed_rows: int
+    inserted_rows: int
+    reused_rows: int
+    lineage_rows: int
+    identity_resolved_rows: int
+
+
 class CanonicalPointInTimeWarehouse:
     """DuckDB-backed canonical market warehouse with point-in-time reads."""
 
@@ -142,6 +151,27 @@ class CanonicalPointInTimeWarehouse:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS candle_ingestion_lineage (
+                    trading_date DATE NOT NULL,
+                    exchange VARCHAR NOT NULL,
+                    symbol VARCHAR NOT NULL,
+                    series VARCHAR NOT NULL,
+                    source_sha256 VARCHAR NOT NULL,
+                    source_url VARCHAR NOT NULL,
+                    archive_path VARCHAR NOT NULL,
+                    normalized_path VARCHAR NOT NULL,
+                    PRIMARY KEY (
+                        trading_date,
+                        exchange,
+                        symbol,
+                        series,
+                        source_sha256
+                    )
+                )
+                """
+            )
 
     def ingest_bhavcopy_csv(
         self,
@@ -178,6 +208,146 @@ class CanonicalPointInTimeWarehouse:
                 ],
             )
         return len(rows)
+
+    def ingest_bhavcopy_csv_fail_closed(
+        self,
+        csv_path: Path,
+        *,
+        trading_date: date,
+        source_sha256: str,
+        source_url: str,
+        archive_path: str,
+        normalized_path: str,
+        exchange: str = "nse",
+    ) -> CanonicalIngestionResult:
+        """Insert new evidence or reuse identical rows without overwriting data."""
+
+        if not source_sha256:
+            raise ValueError("source_sha256 is required for governed ingestion")
+        rows = self._read_bhavcopy(csv_path, trading_date, exchange)
+        keys = tuple((row.symbol, row.series) for row in rows)
+        if len(keys) != len(set(keys)):
+            raise ValueError("duplicate symbol/series rows cannot be ingested")
+
+        self.initialise()
+        exchange_key = exchange.lower()
+        with self._connect() as connection:
+            existing_rows = connection.execute(
+                """
+                SELECT trading_date, exchange, symbol, series, isin,
+                       open_price, high_price, low_price, close_price, volume
+                FROM daily_candle
+                WHERE trading_date = ? AND exchange = ?
+                """,
+                [trading_date, exchange_key],
+            ).fetchall()
+            existing = {
+                (str(item[2]), str(item[3])): CanonicalCandle(
+                    trading_date=item[0],
+                    exchange=str(item[1]),
+                    symbol=str(item[2]),
+                    series=str(item[3]),
+                    isin=str(item[4]) if item[4] is not None else None,
+                    open_price=float(item[5]),
+                    high_price=float(item[6]),
+                    low_price=float(item[7]),
+                    close_price=float(item[8]),
+                    volume=int(item[9]),
+                )
+                for item in existing_rows
+            }
+            conflicts = tuple(
+                row
+                for row in rows
+                if (current := existing.get((row.symbol, row.series))) is not None
+                and not self._same_candle(current, row)
+            )
+            if conflicts:
+                names = ", ".join(f"{row.symbol}/{row.series}" for row in conflicts[:5])
+                raise ValueError(
+                    "canonical candle conflict; existing rows were not changed: "
+                    f"{names}"
+                )
+
+            self._validate_identity_compatibility(
+                connection,
+                rows,
+                trading_date=trading_date,
+                exchange=exchange_key,
+            )
+            new_rows = tuple(
+                row for row in rows if (row.symbol, row.series) not in existing
+            )
+            connection.execute("BEGIN TRANSACTION")
+            try:
+                if new_rows:
+                    connection.executemany(
+                        """
+                        INSERT INTO daily_candle VALUES (
+                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                        )
+                        """,
+                        [
+                            (
+                                row.trading_date,
+                                row.exchange,
+                                row.symbol,
+                                row.series,
+                                row.isin,
+                                row.open_price,
+                                row.high_price,
+                                row.low_price,
+                                row.close_price,
+                                row.volume,
+                                source_sha256,
+                            )
+                            for row in new_rows
+                        ],
+                    )
+                before_result = connection.execute(
+                    "SELECT count(*) FROM candle_ingestion_lineage"
+                ).fetchone()
+                if before_result is None:
+                    raise RuntimeError("lineage count query returned no result")
+                before = int(before_result[0])
+                connection.executemany(
+                    """
+                    INSERT INTO candle_ingestion_lineage VALUES (
+                        ?, ?, ?, ?, ?, ?, ?, ?
+                    ) ON CONFLICT DO NOTHING
+                    """,
+                    [
+                        (
+                            row.trading_date,
+                            row.exchange,
+                            row.symbol,
+                            row.series,
+                            source_sha256,
+                            source_url,
+                            archive_path,
+                            normalized_path,
+                        )
+                        for row in rows
+                    ],
+                )
+                after_result = connection.execute(
+                    "SELECT count(*) FROM candle_ingestion_lineage"
+                ).fetchone()
+                if after_result is None:
+                    raise RuntimeError("lineage count query returned no result")
+                after = int(after_result[0])
+                connection.execute("COMMIT")
+            except Exception:
+                connection.execute("ROLLBACK")
+                raise
+
+        return CanonicalIngestionResult(
+            parsed_rows=len(rows),
+            inserted_rows=len(new_rows),
+            reused_rows=len(rows) - len(new_rows),
+            lineage_rows=after - before,
+            identity_resolved_rows=len(rows),
+        )
 
     def record_validation_issues(
         self,
@@ -296,6 +466,59 @@ class CanonicalPointInTimeWarehouse:
 
     def _connect(self) -> duckdb.DuckDBPyConnection:
         return duckdb.connect(str(self.database_path))
+
+    @staticmethod
+    def _same_candle(existing: CanonicalCandle, incoming: CanonicalCandle) -> bool:
+        isin_matches = (
+            existing.isin is None
+            or incoming.isin is None
+            or existing.isin == incoming.isin
+        )
+        return isin_matches and (
+            existing.open_price,
+            existing.high_price,
+            existing.low_price,
+            existing.close_price,
+            existing.volume,
+        ) == (
+            incoming.open_price,
+            incoming.high_price,
+            incoming.low_price,
+            incoming.close_price,
+            incoming.volume,
+        )
+
+    @staticmethod
+    def _validate_identity_compatibility(
+        connection: duckdb.DuckDBPyConnection,
+        rows: tuple[CanonicalCandle, ...],
+        *,
+        trading_date: date,
+        exchange: str,
+    ) -> None:
+        identities = connection.execute(
+            """
+            SELECT symbol, series, isin
+            FROM security_identity
+            WHERE exchange = ?
+              AND valid_from <= ?
+              AND (valid_to IS NULL OR valid_to >= ?)
+            """,
+            [exchange, trading_date, trading_date],
+        ).fetchall()
+        by_key: dict[tuple[str, str], set[str]] = {}
+        for symbol, series, isin in identities:
+            if isin is not None:
+                by_key.setdefault((str(symbol), str(series)), set()).add(str(isin))
+        for row in rows:
+            known = by_key.get((row.symbol, row.series), set())
+            isin_conflict = (
+                row.isin is not None and bool(known) and row.isin not in known
+            )
+            if len(known) > 1 or isin_conflict:
+                raise ValueError(
+                    f"security identity conflict for {row.symbol}/{row.series}"
+                )
 
     @staticmethod
     def _date_range(start_date: date, end_date: date) -> tuple[date, ...]:
