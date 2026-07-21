@@ -27,6 +27,7 @@ from alpha.recovery.security_timeline import (
     SecurityIdentityRecord,
     SecurityIdentityTimeline,
 )
+from tests.historical_replay.coverage_fixtures import coverage_evidence
 from tests.historical_replay.inventory_fixtures import inventory_evidence
 
 _TRADE_DATE = date(2025, 1, 10)
@@ -190,17 +191,33 @@ def _service(
     *,
     include_inventory: bool = True,
     unready_keys: tuple[str, ...] = (),
+    include_coverage: bool = True,
+    warmup_sessions: int = 200,
+    outcome_sessions: int = 60,
+    eligible_security_ids: tuple[str, ...] = ("SEC-1",),
 ) -> GovernedHistoricalReplayService:
-    evidence = (
+    inventory = (
         inventory_evidence(period_end=_TRADE_DATE, unready_keys=unready_keys)
         if include_inventory
         else ()
+    )
+    coverage = (
+        coverage_evidence(
+            from_date=_TRADE_DATE,
+            to_date=_TRADE_DATE,
+            warmup_sessions=warmup_sessions,
+            outcome_sessions=outcome_sessions,
+            eligible_security_ids=eligible_security_ids,
+        )
+        if include_coverage
+        else None
     )
     return GovernedHistoricalReplayService(
         source=_source(),
         inputs=_inputs(),
         executor=executor,
-        inventory_evidence=evidence,
+        inventory_evidence=inventory,
+        coverage_evidence=coverage,
         observation_builder_factory=builder,
     )
 
@@ -271,6 +288,66 @@ def test_unready_blocking_dataset_blocks_before_executor_runs() -> None:
     assert executor.calls == 0
 
 
+def test_missing_coverage_evidence_blocks_before_executor_runs() -> None:
+    executor = CountingExecutor()
+
+    with pytest.raises(
+        HistoricalReplayReadinessError,
+        match="MISSING_REPLAY_COVERAGE_EVIDENCE",
+    ):
+        _service(executor, ReadyBuilder, include_coverage=False).run(
+            from_date=_TRADE_DATE,
+            to_date=_TRADE_DATE,
+        )
+
+    assert executor.calls == 0
+
+
+def test_insufficient_warmup_blocks_before_executor_runs() -> None:
+    executor = CountingExecutor()
+
+    with pytest.raises(
+        HistoricalReplayReadinessError,
+        match="INSUFFICIENT_WARMUP_SESSIONS",
+    ):
+        _service(executor, ReadyBuilder, warmup_sessions=199).run(
+            from_date=_TRADE_DATE,
+            to_date=_TRADE_DATE,
+        )
+
+    assert executor.calls == 0
+
+
+def test_insufficient_outcome_coverage_blocks_before_executor_runs() -> None:
+    executor = CountingExecutor()
+
+    with pytest.raises(
+        HistoricalReplayReadinessError,
+        match="INSUFFICIENT_OUTCOME_SESSIONS",
+    ):
+        _service(executor, ReadyBuilder, outcome_sessions=59).run(
+            from_date=_TRADE_DATE,
+            to_date=_TRADE_DATE,
+        )
+
+    assert executor.calls == 0
+
+
+def test_zero_eligible_securities_blocks_before_executor_runs() -> None:
+    executor = CountingExecutor()
+
+    with pytest.raises(
+        HistoricalReplayReadinessError,
+        match="ZERO_ELIGIBLE_SECURITIES",
+    ):
+        _service(executor, ReadyBuilder, eligible_security_ids=()).run(
+            from_date=_TRADE_DATE,
+            to_date=_TRADE_DATE,
+        )
+
+    assert executor.calls == 0
+
+
 def test_ready_certificate_allows_executor_once() -> None:
     executor = CountingExecutor()
 
@@ -281,4 +358,6 @@ def test_ready_certificate_allows_executor_once() -> None:
 
     assert run.readiness.status is HistoricalReplayReadinessStatus.READY
     assert run.readiness.inventory_evidence[0].year == 2025
+    assert run.readiness.coverage_evidence is not None
+    assert run.readiness.coverage_evidence.eligible_security_count == 1
     assert executor.calls == 1
