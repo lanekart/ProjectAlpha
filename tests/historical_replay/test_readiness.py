@@ -7,10 +7,6 @@ from datetime import date
 
 import pytest
 
-from alpha.historical_replay.inventory_readiness import (
-    HistoricalTruthInventoryEvidence,
-    build_historical_truth_inventory_evidence,
-)
 from alpha.historical_replay.readiness import (
     HistoricalReplayReadinessBlocker,
     HistoricalReplayReadinessCertificate,
@@ -18,7 +14,7 @@ from alpha.historical_replay.readiness import (
     HistoricalReplayReadinessStatus,
     assess_historical_replay_readiness,
 )
-from alpha.research_dataset_inventory import DATASETS, DatasetInventoryRow
+from tests.historical_replay.inventory_fixtures import inventory_evidence
 
 _FROM = date(2025, 1, 10)
 _TO = date(2025, 1, 20)
@@ -33,40 +29,8 @@ class StubBuild:
     run_sha256: str = "a" * 64
 
 
-def _inventory(
-    *,
-    unready_keys: tuple[str, ...] = (),
-) -> tuple[HistoricalTruthInventoryEvidence, ...]:
-    rows = tuple(
-        DatasetInventoryRow(
-            dataset_key=definition.key,
-            dataset_name=definition.name,
-            required=definition.required,
-            blocking=definition.blocking,
-            capability=definition.capability,
-            status="MISSING" if definition.key in unready_keys else "READY",
-            evidence="test",
-            matched_tables="",
-            matched_files=0,
-            row_count=0 if definition.key in unready_keys else 1,
-            first_date=None if definition.key in unready_keys else _FROM.isoformat(),
-            last_date=None if definition.key in unready_keys else _TO.isoformat(),
-            observed_sessions=0 if definition.key in unready_keys else 1,
-            expected_sessions=1,
-            missing_sessions=1 if definition.key in unready_keys else 0,
-            coverage_percent="0.00" if definition.key in unready_keys else "100.00",
-            certification_ready=definition.key not in unready_keys,
-            limitation="missing" if definition.key in unready_keys else "",
-        )
-        for definition in DATASETS
-    )
-    return (
-        build_historical_truth_inventory_evidence(
-            rows,
-            year=2025,
-            period_end=_TO,
-        ),
-    )
+def _inventory(*, unready_keys: tuple[str, ...] = ()):
+    return inventory_evidence(period_end=_TO, unready_keys=unready_keys)
 
 
 def test_ready_certificate_is_deterministic() -> None:
@@ -94,7 +58,10 @@ def test_ready_certificate_is_deterministic() -> None:
     assert first.blockers == ()
     assert first.repository_read_count == 2
     assert first.consumer_attestation_count == 2
-    assert first.inventory_evidence[0].inventory_sha256 == second.inventory_evidence[0].inventory_sha256
+    assert (
+        first.inventory_evidence[0].inventory_sha256
+        == second.inventory_evidence[0].inventory_sha256
+    )
     assert first.readiness_sha256 == second.readiness_sha256
     assert first.as_dict() == second.as_dict()
     first.assert_ready()
