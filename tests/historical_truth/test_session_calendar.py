@@ -62,9 +62,7 @@ def test_session_calendar_certifies_complete_official_window(tmp_path: Path) -> 
     )
     source_path = _write_source(
         tmp_path / "calendar.json",
-        holidays=[
-            {"tradingDate": "01-Jan-2024", "description": "New Year"}
-        ],
+        holidays=[{"tradingDate": "01-Jan-2024", "description": "New Year"}],
         special_sessions=[
             {
                 "tradingDate": "06-Jan-2024",
@@ -123,9 +121,7 @@ def test_holiday_with_observed_candle_is_a_conflict(tmp_path: Path) -> None:
     _seed_candles(warehouse, (date(2024, 1, 1),))
     source_path = _write_source(
         tmp_path / "calendar.json",
-        holidays=[
-            {"tradingDate": "01-Jan-2024", "description": "New Year"}
-        ],
+        holidays=[{"tradingDate": "01-Jan-2024", "description": "New Year"}],
         special_sessions=[],
     )
     source = OfficialSessionCalendarEngine.load_source(source_path)
@@ -146,9 +142,7 @@ def test_calendar_report_and_exports_are_deterministic(tmp_path: Path) -> None:
     _seed_candles(warehouse, (date(2024, 1, 2),))
     source_path = _write_source(
         tmp_path / "calendar.json",
-        holidays=[
-            {"tradingDate": "01-Jan-2024", "description": "New Year"}
-        ],
+        holidays=[{"tradingDate": "01-Jan-2024", "description": "New Year"}],
         special_sessions=[],
     )
     source = OfficialSessionCalendarEngine.load_source(source_path)
@@ -198,6 +192,4 @@ def test_raw_nse_api_payload_uses_cm_segment(tmp_path: Path) -> None:
     source = OfficialSessionCalendarEngine.load_source(path)
 
     assert source.covered_years == (2026,)
-    assert tuple(item.trading_date for item in source.holidays) == (
-        date(2026, 1, 26),
-    )
+    assert tuple(item.trading_date for item in source.holidays) == (date(2026, 1, 26),)

@@ -3,11 +3,12 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
-from dataclasses import asdict, dataclass
+from collections.abc import Iterable
+from dataclasses import asdict, dataclass, replace
 from datetime import date, timedelta
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import requests
 
@@ -141,9 +142,7 @@ class OfficialSessionCalendarEngine:
             if isinstance(item, dict) and item.get("tradingDate")
         )
         years = sorted({item.year for item in dates})
-        year_token = (
-            f"{years[0]}-{years[-1]}" if years else "unknown-year"
-        )
+        year_token = f"{years[0]}-{years[-1]}" if years else "unknown-year"
         source_dir.mkdir(parents=True, exist_ok=True)
         destination = source_dir / f"nse_cm_holidays_{year_token}_{digest[:12]}.json"
         if destination.exists():
@@ -202,7 +201,9 @@ class OfficialSessionCalendarEngine:
         covered_years.update(item.trading_date.year for item in holidays)
         covered_years.update(item.trading_date.year for item in specials)
         if not covered_years:
-            raise ValueError(f"official calendar source has no covered years: {source_path}")
+            raise ValueError(
+                f"official calendar source has no covered years: {source_path}"
+            )
 
         return OfficialCalendarSource(
             source_id=source_id,
@@ -258,14 +259,15 @@ class OfficialSessionCalendarEngine:
             for record in records
         )
         unconfirmed = sum(
-            "UNCONFIRMED_SPECIAL_SESSION" in record.issue_codes
-            for record in records
+            "UNCONFIRMED_SPECIAL_SESSION" in record.issue_codes for record in records
         )
         missing_special = sum(
             "MISSING_OFFICIAL_SPECIAL_SESSION" in record.issue_codes
             for record in records
         )
-        conflicts = sum(bool(record.issue_codes) for record in records) - unconfirmed - missing_special
+        conflicts = sum(
+            "HOLIDAY_HAS_OBSERVED_CANDLES" in record.issue_codes for record in records
+        )
         all_years_covered = all(item.official_source_covered for item in annual)
         state = (
             CalendarCertificationState.CERTIFIED
@@ -302,9 +304,7 @@ class OfficialSessionCalendarEngine:
                 separators=(",", ":"),
             ).encode("utf-8")
         ).hexdigest()
-        return SessionCalendarReport(
-            **{**asdict(provisional), "report_sha256": digest}
-        )
+        return replace(provisional, report_sha256=digest)
 
     def export(
         self,
@@ -376,11 +376,15 @@ class OfficialSessionCalendarEngine:
     ) -> SessionCalendarRecord:
         descriptions = tuple(
             dict.fromkeys(
-                item.description for item in (*holidays, *specials) if item.description
+                [item.description for item in holidays if item.description]
+                + [item.description for item in specials if item.description]
             )
         )
         source_ids = tuple(
-            sorted({item.source_id for item in (*holidays, *specials)})
+            sorted(
+                {item.source_id for item in holidays}
+                | {item.source_id for item in specials}
+            )
         )
         issues: list[str] = []
         if specials:
@@ -421,15 +425,15 @@ class OfficialSessionCalendarEngine:
         special_map: dict[date, tuple[OfficialSpecialSession, ...]],
     ) -> AnnualSessionSummary:
         yearly = tuple(record for record in records if record.trading_date.year == year)
-        weekday_candidates = sum(
-            record.trading_date.weekday() < 5 for record in yearly
-        )
+        weekday_candidates = sum(record.trading_date.weekday() < 5 for record in yearly)
         weekday_holidays = sum(
             day.year == year and day.weekday() < 5 for day in holiday_map
         )
         special_dates = tuple(day for day in special_map if day.year == year)
-        expected = weekday_candidates - weekday_holidays + sum(
-            day.weekday() >= 5 or day in holiday_map for day in special_dates
+        expected = (
+            weekday_candidates
+            - weekday_holidays
+            + sum(day.weekday() >= 5 or day in holiday_map for day in special_dates)
         )
         return AnnualSessionSummary(
             year=year,
@@ -444,8 +448,7 @@ class OfficialSessionCalendarEngine:
                 for record in yearly
             ),
             unconfirmed_special_sessions=sum(
-                "UNCONFIRMED_SPECIAL_SESSION" in record.issue_codes
-                for record in yearly
+                "UNCONFIRMED_SPECIAL_SESSION" in record.issue_codes for record in yearly
             ),
             missing_special_sessions=sum(
                 "MISSING_OFFICIAL_SPECIAL_SESSION" in record.issue_codes
@@ -603,7 +606,10 @@ class OfficialSessionCalendarEngine:
                 "Unconfirmed observed special sessions: "
                 f"{report.unconfirmed_special_session_count}"
             ),
-            f"Missing official special sessions: {report.missing_special_session_count}",
+            (
+                "Missing official special sessions: "
+                f"{report.missing_special_session_count}"
+            ),
             f"Conflicts: {report.conflict_count}",
             f"Report SHA-256: `{report.report_sha256}`",
             "",
@@ -621,6 +627,7 @@ class OfficialSessionCalendarEngine:
             )
         lines.append("")
         lines.append(
-            "A missing bhavcopy is never classified as a holiday without official evidence."
+            "A missing bhavcopy is never classified as a holiday "
+            "without official evidence."
         )
         return "\n".join(lines) + "\n"

@@ -133,10 +133,7 @@ def reconcile(
     print(f"Expected Sessions: {report.expected_session_count}")
     print(f"Observed Sessions: {report.observed_session_count}")
     print(f"Unresolved Weekdays: {report.unresolved_weekday_count}")
-    print(
-        "Unconfirmed Special Sessions: "
-        f"{report.unconfirmed_special_session_count}"
-    )
+    print(f"Unconfirmed Special Sessions: {report.unconfirmed_special_session_count}")
     print(f"Missing Special Sessions: {report.missing_special_session_count}")
     print(f"Conflicts: {report.conflict_count}")
     print(f"Report SHA-256: {report.report_sha256}")
