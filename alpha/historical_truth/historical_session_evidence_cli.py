@@ -6,7 +6,6 @@ from datetime import date
 from pathlib import Path
 
 import typer
-
 from alpha.historical_truth.canonical import CanonicalPointInTimeWarehouse
 from alpha.historical_truth.historical_session_evidence import (
     HistoricalEvidenceReport,
@@ -149,10 +148,10 @@ def _print_summary(
     )
     print(f"Evidence Report SHA-256: {evidence_report.report_sha256}")
     if calendar_report is not None:
-        print(
-            "Certification State: "
-            f"{HistoricalSessionEvidenceRepairEngine.certification_label(evidence_report, calendar_report)}"
+        certification = HistoricalSessionEvidenceRepairEngine.certification_label(
+            evidence_report, calendar_report
         )
+        print(f"Certification State: {certification}")
         print(f"Official Sources: {len(calendar_report.sources)}")
         print(f"Official Holidays: {calendar_report.official_holiday_count}")
         print(
