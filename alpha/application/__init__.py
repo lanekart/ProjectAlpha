@@ -12,11 +12,6 @@ from alpha.application.backtest import (
     BacktestRun,
     BacktestSummary,
 )
-from alpha.application.governed_historical_replay import (
-    GovernedHistoricalReplayRun,
-    GovernedHistoricalReplayService,
-    export_governed_historical_replay_run,
-)
 from alpha.application.governed_replay_backtest import (
     CanonicalReplayIngestionService,
     GovernedReplayBacktestRun,
@@ -36,8 +31,6 @@ __all__ = [
     "BacktestRun",
     "BacktestSummary",
     "CanonicalReplayIngestionService",
-    "GovernedHistoricalReplayRun",
-    "GovernedHistoricalReplayService",
     "GovernedReplayBacktestRun",
     "GovernedReplayBacktestService",
     "ProjectAlphaRuntime",
@@ -45,6 +38,5 @@ __all__ = [
     "RuntimeMode",
     "RuntimeResult",
     "RuntimeStatus",
-    "export_governed_historical_replay_run",
     "export_governed_replay_backtest_attestations",
 ]
