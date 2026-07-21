@@ -302,6 +302,9 @@ def _csv_value(value: object) -> object:
 def _render_run(run: GovernedHistoricalReplayRun) -> str:
     observations = run.observation_build
     coverage = run.readiness.coverage_evidence
+    warmup_sessions = coverage.observed_warmup_sessions if coverage else 0
+    outcome_sessions = coverage.observed_outcome_sessions if coverage else 0
+    eligible_securities = coverage.eligible_security_count if coverage else 0
     lines = [
         "# Governed Historical Replay Run",
         "",
@@ -315,9 +318,9 @@ def _render_run(run: GovernedHistoricalReplayRun) -> str:
         f"- Readiness Status: `{run.readiness.status.value}`",
         f"- Readiness SHA-256: `{run.readiness.readiness_sha256}`",
         f"- Inventory Years: `{len(run.readiness.inventory_evidence)}`",
-        f"- Warm-up Sessions: `{coverage.observed_warmup_sessions if coverage else 0}`",
-        f"- Outcome Sessions: `{coverage.observed_outcome_sessions if coverage else 0}`",
-        f"- Eligible Securities: `{coverage.eligible_security_count if coverage else 0}`",
+        f"- Warm-up Sessions: `{warmup_sessions}`",
+        f"- Outcome Sessions: `{outcome_sessions}`",
+        f"- Eligible Securities: `{eligible_securities}`",
         f"- Input Manifest SHA-256: `{run.inputs.manifest.manifest_sha256}`",
         f"- Observation SHA-256: `{observations.run_sha256}`",
         f"- Run SHA-256: `{run.run_sha256}`",
