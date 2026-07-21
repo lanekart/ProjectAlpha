@@ -73,7 +73,9 @@ def test_cross_era_pilot_is_complete_idempotent_and_deterministic(
 
     assert first.complete
     assert first.schemas_observed == ("legacy", "udiff")
-    assert all(record.status is BackfillPilotStatus.COMPLETE for record in first.records)
+    assert all(
+        record.status is BackfillPilotStatus.COMPLETE for record in first.records
+    )
     assert all(record.snapshot_valid for record in first.records)
     assert all(record.archive_row_count == 1 for record in first.records)
     assert first.as_dict() == second.as_dict()
