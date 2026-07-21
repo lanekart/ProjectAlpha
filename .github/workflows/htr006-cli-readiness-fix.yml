@@ -155,7 +155,7 @@ from typer.testing import CliRunner
     snapshots_path = tmp_path / "snapshots"
     snapshots_path.mkdir()
     (snapshots_path / "2026-01-01.json").write_text(
-        '{"availability": {}}\\n',
+        '{"availability": {}}\n',
         encoding="utf-8",
     )
     identity_artifact = tmp_path / "canonical_identities.csv"
@@ -196,3 +196,5 @@ from typer.testing import CliRunner
           fi
           git commit -m "Enforce inventory readiness in replay CLI"
           git push origin HEAD:feature/htr-006-replay-readiness-gate
+
+# Registration follow-up activates the pull-request workflow.
