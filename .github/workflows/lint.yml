@@ -4,65 +4,7 @@ on:
   push:
   pull_request:
 
-permissions:
-  contents: write
-
 jobs:
-  htr005-mypy-fix:
-    if: github.event_name == 'pull_request' && github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: feature/htr-005-governed-research-replay
-
-      - name: Install Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
-
-      - name: Install dependencies
-        run: |
-          pip install poetry
-          poetry install --no-interaction
-
-      - name: Apply explicit artifact record type
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path("alpha/historical_replay/governed_artifacts.py")
-          text = path.read_text(encoding="utf-8")
-          old = '''    suffix = path.suffix.lower()
-    if suffix == ".csv":
-'''
-          new = '''    suffix = path.suffix.lower()
-    records: tuple[Mapping[str, object], ...]
-    if suffix == ".csv":
-'''
-          if text.count(old) != 1:
-              raise SystemExit("governed artifact record anchor not unique")
-          path.write_text(text.replace(old, new), encoding="utf-8")
-          PY
-
-      - name: Verify quality gates
-        run: |
-          poetry run ruff format alpha/historical_replay/governed_artifacts.py
-          poetry run ruff check .
-          poetry run ruff format --check .
-          poetry run mypy alpha
-
-      - name: Commit fix and restore workflow
-        run: |
-          cp .github/scripts/htr005_lint_original.yml .github/workflows/lint.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm .github/scripts/htr005_lint_original.yml
-          git add .github/workflows/lint.yml alpha/historical_replay/governed_artifacts.py
-          git commit -m "Fix governed artifact loader typing"
-          git push origin HEAD:feature/htr-005-governed-research-replay
-
   ruff:
     runs-on: ubuntu-latest
 
