@@ -30,12 +30,20 @@ jobs:
       - name: Apply deterministic migration
         run: python .github/scripts/htr005_cli_migration.py
 
-      - name: Validate migrated commands
+      - name: Format migrated commands
         run: |
           poetry run ruff format alpha/cli.py tests/historical_replay/test_historical_replay.py
+
+      - name: Lint migrated commands
+        run: |
           poetry run ruff check alpha/cli.py tests/historical_replay/test_historical_replay.py
+
+      - name: Verify migrated formatting
+        run: |
           poetry run ruff format --check alpha/cli.py tests/historical_replay/test_historical_replay.py
-          poetry run pytest tests/historical_replay/test_historical_replay.py -q
+
+      - name: Test migrated replay command
+        run: poetry run pytest tests/historical_replay/test_historical_replay.py -q
 
       - name: Commit migration and restore workflows
         run: |
