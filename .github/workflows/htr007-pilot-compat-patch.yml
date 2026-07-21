@@ -35,43 +35,48 @@ jobs:
           content = path.read_text(encoding="utf-8")
 
           fetched_anchor = "        fetched = self.archive.fetch(request)\n"
-          early_drift = '''        fetched = self.archive.fetch(request)
-          checksum_drift_before_status = bool(
-              previous is not None
-              and previous.sha256 is not None
-              and fetched.sha256 is not None
-              and previous.sha256 != fetched.sha256
-          ) or fetched.error in {
-              "immutable archive checksum drift detected",
-              "refetched archive checksum differs from trusted manifest",
-          }
-          '''
+          early_drift = (
+              "        fetched = self.archive.fetch(request)\n"
+              "        checksum_drift_before_status = bool(\n"
+              "            previous is not None\n"
+              "            and previous.sha256 is not None\n"
+              "            and fetched.sha256 is not None\n"
+              "            and previous.sha256 != fetched.sha256\n"
+              "        ) or fetched.error in {\n"
+              "            \"immutable archive checksum drift detected\",\n"
+              "            \"refetched archive checksum differs from trusted manifest\",\n"
+              "        }\n"
+          )
           if content.count(fetched_anchor) != 1:
               raise SystemExit("pilot fetched anchor did not match exactly")
           content = content.replace(fetched_anchor, early_drift, 1)
 
-          unavailable_old = '''                BackfillPilotStatus.UNAVAILABLE,
-          fetched.error,
-      )
-          '''
-          unavailable_new = '''                BackfillPilotStatus.UNAVAILABLE,
-          fetched.error,
-          checksum_drift=checksum_drift_before_status,
-      )
-          '''
+          unavailable_old = (
+              "                BackfillPilotStatus.UNAVAILABLE,\n"
+              "                fetched.error,\n"
+              "            )\n"
+          )
+          unavailable_new = (
+              "                BackfillPilotStatus.UNAVAILABLE,\n"
+              "                fetched.error,\n"
+              "                checksum_drift=checksum_drift_before_status,\n"
+              "            )\n"
+          )
           if content.count(unavailable_old) != 1:
               raise SystemExit("pilot unavailable record anchor did not match exactly")
           content = content.replace(unavailable_old, unavailable_new, 1)
 
-          failed_old = '''                BackfillPilotStatus.FAILED,
-          fetched.error,
-      )
-          '''
-          failed_new = '''                BackfillPilotStatus.FAILED,
-          fetched.error,
-          checksum_drift=checksum_drift_before_status,
-      )
-          '''
+          failed_old = (
+              "                BackfillPilotStatus.FAILED,\n"
+              "                fetched.error,\n"
+              "            )\n"
+          )
+          failed_new = (
+              "                BackfillPilotStatus.FAILED,\n"
+              "                fetched.error,\n"
+              "                checksum_drift=checksum_drift_before_status,\n"
+              "            )\n"
+          )
           if content.count(failed_old) != 1:
               raise SystemExit("pilot failed record anchor did not match exactly")
           content = content.replace(failed_old, failed_new, 1)
