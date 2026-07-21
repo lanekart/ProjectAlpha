@@ -21,6 +21,9 @@ from alpha.historical_replay.governed_price_repository import (
     CanonicalReplayPriceRepository,
     ReplayPriceSource,
 )
+from alpha.historical_replay.inventory_readiness import (
+    HistoricalTruthInventoryEvidence,
+)
 from alpha.historical_replay.models import ReplayCandidateObservation, ReplayRunRecord
 from alpha.historical_replay.readiness import (
     HistoricalReplayReadinessCertificate,
@@ -28,7 +31,7 @@ from alpha.historical_replay.readiness import (
 )
 from alpha.recovery.consumer_attestation import export_consumer_attestations
 
-GOVERNED_REPLAY_RUN_CONTRACT_VERSION = "HTR-005-run-v1.0.0"
+GOVERNED_REPLAY_RUN_CONTRACT_VERSION = "HTR-006-run-v1.0.0"
 ObservationBuilderFactory = Callable[
     [CanonicalReplayPriceRepository], HistoricalObservationBuilder
 ]
@@ -153,6 +156,7 @@ class GovernedHistoricalReplayService:
     source: ReplayPriceSource
     inputs: GovernedReplayInputs
     executor: HistoricalReplayExecutor
+    inventory_evidence: tuple[HistoricalTruthInventoryEvidence, ...] = ()
     observation_builder_factory: ObservationBuilderFactory | None = None
 
     def assess(
@@ -183,6 +187,7 @@ class GovernedHistoricalReplayService:
             observation_build,
             from_date=from_date,
             to_date=to_date,
+            inventory_evidence=self.inventory_evidence,
         )
         return GovernedHistoricalReplayAssessment(
             from_date=from_date,
@@ -303,6 +308,7 @@ def _render_run(run: GovernedHistoricalReplayRun) -> str:
         f"- Consumer Attestations: `{len(observations.consumer_attestations)}`",
         f"- Readiness Status: `{run.readiness.status.value}`",
         f"- Readiness SHA-256: `{run.readiness.readiness_sha256}`",
+        f"- Inventory Years: `{len(run.readiness.inventory_evidence)}`",
         f"- Input Manifest SHA-256: `{run.inputs.manifest.manifest_sha256}`",
         f"- Observation SHA-256: `{observations.run_sha256}`",
         f"- Run SHA-256: `{run.run_sha256}`",
