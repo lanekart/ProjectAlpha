@@ -1,0 +1,88 @@
+name: HTR-007 Session Calendar Build
+
+on:
+  push:
+    branches:
+      - feature/htr-007-supporting-official-data
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-007-supporting-official-data
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Repair and validate session calendar slice
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('alpha/historical_truth/session_calendar.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              'from dataclasses import asdict, dataclass',
+              'from dataclasses import asdict, dataclass, replace',
+          )
+          text = text.replace(
+              '        conflicts = sum(bool(record.issue_codes) for record in records) - unconfirmed - missing_special\n',
+              '        conflicts = sum(\n'
+              '            "HOLIDAY_HAS_OBSERVED_CANDLES" in record.issue_codes\n'
+              '            for record in records\n'
+              '        )\n',
+          )
+          text = text.replace(
+              '        return SessionCalendarReport(\n'
+              '            **{**asdict(provisional), "report_sha256": digest}\n'
+              '        )\n',
+              '        return replace(provisional, report_sha256=digest)\n',
+          )
+          path.write_text(text, encoding='utf-8')
+          PY
+
+          poetry run ruff format \
+            alpha/historical_truth/session_calendar.py \
+            alpha/historical_truth/session_calendar_cli.py \
+            tests/historical_truth/test_session_calendar.py
+          poetry run ruff check \
+            alpha/historical_truth/session_calendar.py \
+            alpha/historical_truth/session_calendar_cli.py \
+            tests/historical_truth/test_session_calendar.py
+          poetry run mypy \
+            alpha/historical_truth/session_calendar.py \
+            alpha/historical_truth/session_calendar_cli.py
+          poetry run pytest tests/historical_truth/test_session_calendar.py -q
+
+      - name: Commit validated source and remove temporary workflow
+        shell: bash
+        run: |
+          rm .github/workflows/htr007-session-calendar-build.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            alpha/historical_truth/session_calendar.py \
+            alpha/historical_truth/session_calendar_cli.py \
+            tests/historical_truth/test_session_calendar.py \
+            .github/workflows/htr007-session-calendar-build.yml
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "HTR-007: validate official session calendar slice"
+            git push origin HEAD:feature/htr-007-supporting-official-data
+          fi
