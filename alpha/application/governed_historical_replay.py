@@ -22,6 +22,10 @@ from alpha.historical_replay.governed_price_repository import (
     ReplayPriceSource,
 )
 from alpha.historical_replay.models import ReplayCandidateObservation, ReplayRunRecord
+from alpha.historical_replay.readiness import (
+    HistoricalReplayReadinessCertificate,
+    assess_historical_replay_readiness,
+)
 from alpha.recovery.consumer_attestation import export_consumer_attestations
 
 GOVERNED_REPLAY_RUN_CONTRACT_VERSION = "HTR-005-run-v1.0.0"
@@ -45,6 +49,39 @@ class HistoricalReplayExecutor(Protocol):
 
 
 @dataclass(frozen=True, slots=True)
+class GovernedHistoricalReplayAssessment:
+    """Canonical observation build and readiness proof without execution."""
+
+    from_date: date
+    to_date: date
+    inputs: GovernedReplayInputs
+    observation_build: GovernedHistoricalObservationBuild
+    readiness: HistoricalReplayReadinessCertificate
+
+    def __post_init__(self) -> None:
+        if self.to_date < self.from_date:
+            raise ValueError("governed replay assessment end cannot precede start")
+        if self.readiness.from_date != self.from_date:
+            raise ValueError("readiness start does not match assessment")
+        if self.readiness.to_date != self.to_date:
+            raise ValueError("readiness end does not match assessment")
+        if self.readiness.observation_run_sha256 != self.observation_build.run_sha256:
+            raise ValueError("readiness certificate does not match observation build")
+
+    def as_dict(self) -> dict[str, object]:
+        """Return a deterministic diagnostic assessment manifest."""
+
+        return {
+            "from_date": self.from_date.isoformat(),
+            "to_date": self.to_date.isoformat(),
+            "inputs": self.inputs.manifest.as_dict(),
+            "observation_build": self.observation_build.as_dict(),
+            "readiness": self.readiness.as_dict(),
+            "executor_invoked": False,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class GovernedHistoricalReplayRun:
     """Replay outputs bound to canonical inputs and observation proofs."""
 
@@ -52,6 +89,7 @@ class GovernedHistoricalReplayRun:
     to_date: date
     inputs: GovernedReplayInputs
     observation_build: GovernedHistoricalObservationBuild
+    readiness: HistoricalReplayReadinessCertificate
     replay_runs: tuple[ReplayRunRecord, ...]
     contract_version: str = GOVERNED_REPLAY_RUN_CONTRACT_VERSION
     canonical_replay_enforced: bool = True
@@ -65,6 +103,9 @@ class GovernedHistoricalReplayRun:
             raise ValueError("governed historical replay must be enforced")
         if not self.observation_build.canonical_replay_enforced:
             raise ValueError("governed replay contains an unenforced observation build")
+        self.readiness.assert_ready()
+        if self.readiness.observation_run_sha256 != self.observation_build.run_sha256:
+            raise ValueError("readiness certificate does not match observation build")
         replay_dates = set(self.observation_build.replay_dates)
         invalid = tuple(
             sorted(
@@ -95,6 +136,7 @@ class GovernedHistoricalReplayRun:
             "to_date": self.to_date.isoformat(),
             "inputs": self.inputs.manifest.as_dict(),
             "observation_build": self.observation_build.as_dict(),
+            "readiness": self.readiness.as_dict(),
             "replay_runs": [_stable_replay_run(item) for item in self.replay_runs],
             "contract_version": self.contract_version,
             "canonical_replay_enforced": self.canonical_replay_enforced,
@@ -113,13 +155,13 @@ class GovernedHistoricalReplayService:
     executor: HistoricalReplayExecutor
     observation_builder_factory: ObservationBuilderFactory | None = None
 
-    def run(
+    def assess(
         self,
         *,
         from_date: date,
         to_date: date,
-    ) -> GovernedHistoricalReplayRun:
-        """Build governed observations and execute the existing replay engine."""
+    ) -> GovernedHistoricalReplayAssessment:
+        """Build canonical observations and readiness without invoking the executor."""
 
         if to_date < from_date:
             raise ValueError("to_date must be on or after from_date")
@@ -137,16 +179,40 @@ class GovernedHistoricalReplayService:
             price_repository=price_repository,
             builder=builder,
         ).build(from_date=from_date, to_date=to_date)
+        readiness = assess_historical_replay_readiness(
+            observation_build,
+            from_date=from_date,
+            to_date=to_date,
+        )
+        return GovernedHistoricalReplayAssessment(
+            from_date=from_date,
+            to_date=to_date,
+            inputs=self.inputs,
+            observation_build=observation_build,
+            readiness=readiness,
+        )
+
+    def run(
+        self,
+        *,
+        from_date: date,
+        to_date: date,
+    ) -> GovernedHistoricalReplayRun:
+        """Build ready governed observations before invoking the replay engine."""
+
+        assessment = self.assess(from_date=from_date, to_date=to_date)
+        assessment.readiness.assert_ready()
         replay_runs = self.executor.run(
             from_date=from_date,
             to_date=to_date,
-            observations=observation_build.observations,
+            observations=assessment.observation_build.observations,
         )
         return GovernedHistoricalReplayRun(
             from_date=from_date,
             to_date=to_date,
             inputs=self.inputs,
-            observation_build=observation_build,
+            observation_build=assessment.observation_build,
+            readiness=assessment.readiness,
             replay_runs=replay_runs,
         )
 
@@ -155,15 +221,20 @@ def export_governed_historical_replay_run(
     run: GovernedHistoricalReplayRun,
     output: Path,
 ) -> tuple[Path, ...]:
-    """Export deterministic run, read, input, and consumer proof artifacts."""
+    """Export deterministic run, readiness, read, input, and consumer proofs."""
 
     output.mkdir(parents=True, exist_ok=True)
     manifest_path = output / "governed_historical_replay_run.json"
+    readiness_path = output / "historical_replay_readiness.json"
     input_path = output / "governed_replay_inputs.json"
     reads_path = output / "governed_replay_reads.csv"
     report_path = output / "governed_historical_replay_run.md"
     manifest_path.write_text(
         json.dumps(run.as_dict(), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    readiness_path.write_text(
+        json.dumps(run.readiness.as_dict(), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     input_path.write_text(
@@ -178,6 +249,7 @@ def export_governed_historical_replay_run(
     )
     return (
         manifest_path,
+        readiness_path,
         input_path,
         reads_path,
         report_path,
@@ -229,6 +301,8 @@ def _render_run(run: GovernedHistoricalReplayRun) -> str:
         f"- Replay Runs: `{len(run.replay_runs)}`",
         f"- Repository Reads: `{len(observations.repository_reads)}`",
         f"- Consumer Attestations: `{len(observations.consumer_attestations)}`",
+        f"- Readiness Status: `{run.readiness.status.value}`",
+        f"- Readiness SHA-256: `{run.readiness.readiness_sha256}`",
         f"- Input Manifest SHA-256: `{run.inputs.manifest.manifest_sha256}`",
         f"- Observation SHA-256: `{observations.run_sha256}`",
         f"- Run SHA-256: `{run.run_sha256}`",
@@ -254,6 +328,7 @@ def _render_run(run: GovernedHistoricalReplayRun) -> str:
 
 __all__ = [
     "GOVERNED_REPLAY_RUN_CONTRACT_VERSION",
+    "GovernedHistoricalReplayAssessment",
     "GovernedHistoricalReplayRun",
     "GovernedHistoricalReplayService",
     "HistoricalReplayExecutor",
