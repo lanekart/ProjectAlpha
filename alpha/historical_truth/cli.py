@@ -28,6 +28,9 @@ from alpha.historical_truth.replay_eligibility_integrity_cli import (
     replay_eligibility_integrity_audit,
 )
 from alpha.historical_truth.resumable import HistoricalTruthWarehouse
+from alpha.historical_truth.security_population_repair_cli import (
+    security_population_repair,
+)
 from alpha.historical_truth.snapshots import PointInTimeSnapshotEngine
 from alpha.historical_truth.special_session_recovery_cli import (
     session_calendar_build,
@@ -50,6 +53,7 @@ historical_truth_app.command("corporate-action-price-certify")(
 historical_truth_app.command("complete-security-dataset-certify")(
     complete_security_dataset_certify
 )
+historical_truth_app.command("security-population-repair")(security_population_repair)
 
 
 def _parse_date(value: str, option_name: str) -> date:
