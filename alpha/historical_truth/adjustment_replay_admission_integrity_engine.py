@@ -60,11 +60,17 @@ class AdjustmentReplayAdmissionIntegrityEngine:
             "governed_session_coverage": session_coverage,
             "residual_factor_attribution": residual_summary,
         }
+        coverage_complete = (
+            session_coverage["state"] == "GOVERNED_SESSION_COVERAGE_COMPLETE"
+        )
+        economic_state = (
+            "MEASURED_GOVERNED_COMPLETE_WINDOW"
+            if coverage_complete
+            else "MEASURED_OBSERVED_DATABASE_WINDOW"
+        )
         population = {
             **base.population_reconciliation,
-            "requested_window_fully_observed": (
-                session_coverage["state"] == "GOVERNED_SESSION_COVERAGE_COMPLETE"
-            ),
+            "requested_window_fully_observed": coverage_complete,
             "governed_session_coverage_state": session_coverage["state"],
             "governed_expected_session_count": session_coverage.get(
                 "expected_session_count",
@@ -83,6 +89,18 @@ class AdjustmentReplayAdmissionIntegrityEngine:
                 0.0,
             ),
         }
+        quarantine_reconciliation = {
+            **base.quarantine_population_reconciliation,
+            "economic_weight_measurement_state": economic_state,
+            "governed_session_coverage_state": session_coverage["state"],
+        }
+        economic_rows = tuple(
+            {
+                **row,
+                "measurement_state": economic_state,
+            }
+            for row in base.quarantine_economic_weight
+        )
         readiness = _readiness(
             base.replay_readiness,
             enriched_results,
@@ -105,6 +123,8 @@ class AdjustmentReplayAdmissionIntegrityEngine:
             contract_version=HTR010B1C_CONTRACT_VERSION,
             input_contract_diagnostics=diagnostics,
             population_reconciliation=population,
+            quarantine_population_reconciliation=quarantine_reconciliation,
+            quarantine_economic_weight=_sorted(economic_rows),
             factor_validation_results=_sorted(enriched_results),
             replay_readiness=readiness,
             rejected_evidence=_sorted(rejected),
@@ -112,6 +132,8 @@ class AdjustmentReplayAdmissionIntegrityEngine:
                 **base.transformation_contract,
                 "governed_session_completeness_required": True,
                 "boundary_only_coverage_check_prohibited": True,
+                "economic_weight_requires_governed_sessions": True,
+                "observed_only_economic_weight_is_explicit": True,
                 "residual_factor_cause_attribution": True,
                 "market_derived_factor_autocorrection": False,
                 "active_replay_integration": False,
@@ -156,6 +178,12 @@ def _readiness(
         "governed_missing_expected_session_count": session_coverage.get(
             "missing_expected_session_count",
             0,
+        ),
+        "observations_beyond_governed_calendar_window_count": (
+            session_coverage.get(
+                "observations_beyond_governed_calendar_window_count",
+                0,
+            )
         ),
         "residual_attribution_counts": dict(sorted(attribution.items())),
         "market_derived_factor_autocorrection": False,
