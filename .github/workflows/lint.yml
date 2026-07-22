@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: write
+  pull-requests: read
+
 jobs:
   ruff:
     runs-on: ubuntu-latest
@@ -39,3 +43,55 @@ jobs:
 
       - name: Run Ruff format check
         run: ruff format --check .
+
+  fix-pr33-header:
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 33 && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Split report header and commit
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              'alpha/historical_truth/adjustment_replay_admission_exports.py'
+          )
+          text = path.read_text(encoding='utf-8')
+          old = '''def _executive_markdown(payload: dict[str, Any]) -> str:
+    blockers = payload.get("readiness_blockers") or []
+    return "\\n".join(
+        (
+            f"# {payload['contract_version']} Session Coverage and Residual Attribution",
+'''
+          new = '''def _executive_markdown(payload: dict[str, Any]) -> str:
+    blockers = payload.get("readiness_blockers") or []
+    header = (
+        f"# {payload['contract_version']} "
+        "Session Coverage and Residual Attribution"
+    )
+    return "\\n".join(
+        (
+            header,
+'''
+          assert old in text
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          pip install ruff==0.15.20
+          ruff check alpha/historical_truth/adjustment_replay_admission_exports.py
+          ruff format alpha/historical_truth/adjustment_replay_admission_exports.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add alpha/historical_truth/adjustment_replay_admission_exports.py
+          git commit -m 'Fix HTR-010B1C report header formatting'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
