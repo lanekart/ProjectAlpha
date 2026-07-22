@@ -63,6 +63,20 @@ from alpha.historical_truth.population import (
 )
 from alpha.historical_truth.registry import ArchiveDatasetPlugin, DatasetRegistry
 from alpha.historical_truth.replay import HistoricalTruthReplayStore
+from alpha.historical_truth.replay_eligibility_integrity import (
+    ReplayEligibilityIntegrityEngine,
+)
+from alpha.historical_truth.replay_eligibility_models import (
+    CANONICAL_MINIMUM_HISTORY_SESSIONS,
+    HTR008_CONTRACT_VERSION,
+    CertificationState,
+    CorporateActionSeverity,
+    EligibilityAuditPolicy,
+    MissingSessionClassification,
+    ReplayEligibilityIntegrityReport,
+    ReplayReadinessClassification,
+    SurvivorshipRisk,
+)
 from alpha.historical_truth.resumable import (
     HistoricalTruthWarehouse,
     RawArchiveVerification,
@@ -201,6 +215,16 @@ __all__ = [
     "SpecialSessionValidationFinding",
     "SpecialSessionValidationStatus",
     "SpecialSessionSnapshotParityEngine",
+    "CANONICAL_MINIMUM_HISTORY_SESSIONS",
+    "HTR008_CONTRACT_VERSION",
+    "CertificationState",
+    "CorporateActionSeverity",
+    "EligibilityAuditPolicy",
+    "MissingSessionClassification",
+    "ReplayEligibilityIntegrityEngine",
+    "ReplayEligibilityIntegrityReport",
+    "ReplayReadinessClassification",
+    "SurvivorshipRisk",
     "TaskState",
     "UnavailableClassification",
     "ValidationIssue",
