@@ -16,9 +16,7 @@ def _historical_truth_app() -> typer.Typer:
         command.name == command_name
         for command in historical_truth_app.registered_commands
     ):
-        historical_truth_app.command(command_name)(
-            adjustment_replay_admission_certify
-        )
+        historical_truth_app.command(command_name)(adjustment_replay_admission_certify)
     return historical_truth_app
 
 
