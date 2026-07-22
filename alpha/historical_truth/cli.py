@@ -12,6 +12,9 @@ from alpha.historical_truth.pilot import (
     HistoricalBackfillPilot,
 )
 from alpha.historical_truth.population import HistoricalPopulationEngine
+from alpha.historical_truth.replay_eligibility_integrity_cli import (
+    replay_eligibility_integrity_audit,
+)
 from alpha.historical_truth.resumable import HistoricalTruthWarehouse
 from alpha.historical_truth.snapshots import PointInTimeSnapshotEngine
 from alpha.historical_truth.special_session_recovery_cli import (
@@ -140,6 +143,9 @@ historical_truth_app.command("special-session-candle-recover")(
 )
 historical_truth_app.command("special-session-snapshot-repair")(
     special_session_snapshot_repair
+)
+historical_truth_app.command("replay-eligibility-integrity-audit")(
+    replay_eligibility_integrity_audit
 )
 
 
