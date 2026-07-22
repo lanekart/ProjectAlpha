@@ -46,7 +46,9 @@ def bridge_aware_factor_validation_repair(
     print(f"Same-session groups: {report['same_session_group_count']}")
     print(f"Composite groups confirmed: {report['composite_confirmed_group_count']}")
     print(f"Factor-quality confirmed: {report['factor_confirmed_case_count']}")
-    print(f"Replay bridges uncertified: {report['replay_bridge_uncertified_case_count']}")
+    print(
+        f"Replay bridges uncertified: {report['replay_bridge_uncertified_case_count']}"
+    )
     print(
         "Implementation defects remaining: "
         f"{report['implementation_defect_should_remain_count']}"

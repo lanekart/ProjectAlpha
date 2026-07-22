@@ -32,7 +32,9 @@ class BridgeAwareFactorValidationRepairEngine:
             <= end_date
         )
         grouped = _group_cases(selected)
-        group_audits = tuple(_group_audit(key, rows) for key, rows in sorted(grouped.items()))
+        group_audits = tuple(
+            _group_audit(key, rows) for key, rows in sorted(grouped.items())
+        )
         group_by_case = {
             str(case_id): audit
             for audit in group_audits
@@ -174,8 +176,7 @@ def _group_audit(
     else:
         disposition = "COMPOSITE_FACTOR_NOT_CONFIRMED"
     return {
-        "group_id": "htr010b1d2-group:"
-        + sha256("|".join(key).encode()).hexdigest(),
+        "group_id": "htr010b1d2-group:" + sha256("|".join(key).encode()).hexdigest(),
         "identity_key": key[0],
         "effective_date": key[1],
         "prior_isin": key[2] or None,
@@ -338,7 +339,9 @@ def _product(values: tuple[float | None, ...]) -> float | None:
 
 def _records(path: Path) -> tuple[dict[str, Any], ...]:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, list) or not all(isinstance(row, dict) for row in payload):
+    if not isinstance(payload, list) or not all(
+        isinstance(row, dict) for row in payload
+    ):
         raise ValueError(f"expected JSON array of objects: {path}")
     return tuple(payload)
 
@@ -397,10 +400,16 @@ def _markdown(report: dict[str, Any]) -> str:
             "- Corrected dispositions: "
             f"{json.dumps(report['disposition_counts'], sort_keys=True)}",
             "- Proposed validation outcomes: "
-            f"{json.dumps(report['proposed_validation_outcome_counts'], sort_keys=True)}",
+            f"{
+                json.dumps(
+                    report['proposed_validation_outcome_counts'],
+                    sort_keys=True,
+                )
+            }",
             "- Bridge dependencies: "
             f"{json.dumps(report['bridge_dependency_counts'], sort_keys=True)}",
-            f"- Factor-quality confirmed cases: {report['factor_confirmed_case_count']}",
+            "- Factor-quality confirmed cases: "
+            f"{report['factor_confirmed_case_count']}",
             "- Replay-bridge uncertified cases: "
             f"{report['replay_bridge_uncertified_case_count']}",
             "- Cases that should remain implementation defects: "

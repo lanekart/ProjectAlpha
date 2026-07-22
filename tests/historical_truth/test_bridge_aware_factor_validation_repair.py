@@ -266,5 +266,9 @@ def test_command_registration_is_idempotent() -> None:
     second = _historical_truth_app()
     command_name = "bridge-aware-factor-validation-repair"
 
-    assert sum(command.name == command_name for command in first.registered_commands) == 1
-    assert sum(command.name == command_name for command in second.registered_commands) == 1
+    assert (
+        sum(command.name == command_name for command in first.registered_commands) == 1
+    )
+    assert (
+        sum(command.name == command_name for command in second.registered_commands) == 1
+    )
