@@ -1,4 +1,4 @@
-"""Deterministic HTR-010B1 and HTR-010B1A artifact exports."""
+"""Deterministic governed adjustment-admission artifact exports."""
 
 from __future__ import annotations
 
@@ -17,7 +17,9 @@ class AdjustmentReplayAdmissionArtifactExporter:
     """Write the governed adjustment-validation evidence package."""
 
     def export(
-        self, report: AdjustmentReplayAdmissionReport, output: Path
+        self,
+        report: AdjustmentReplayAdmissionReport,
+        output: Path,
     ) -> tuple[Path, ...]:
         output.mkdir(parents=True, exist_ok=True)
         executive = _executive(report)
@@ -47,10 +49,22 @@ class AdjustmentReplayAdmissionArtifactExporter:
         for name, rows in datasets:
             paths.append(_write_csv(output / f"htr010b1_{name}.csv", rows))
             paths.append(_write_json(output / f"htr010b1_{name}.json", list(rows)))
+
+        diagnostics = report.input_contract_diagnostics
         reports = (
             (
                 "input_contract_diagnostics",
-                report.input_contract_diagnostics,
+                diagnostics,
+                _mapping_markdown,
+            ),
+            (
+                "governed_session_coverage",
+                diagnostics.get("governed_session_coverage", {}),
+                _mapping_markdown,
+            ),
+            (
+                "residual_factor_attribution",
+                diagnostics.get("residual_factor_attribution", {}),
                 _mapping_markdown,
             ),
             (
@@ -94,6 +108,9 @@ def _executive(report: AdjustmentReplayAdmissionReport) -> dict[str, Any]:
     evidence_ids = {_identity(row) for row in report.quarantine_census}
     reconciliation = report.quarantine_population_reconciliation
     readiness = report.replay_readiness
+    diagnostics = report.input_contract_diagnostics
+    session_coverage = diagnostics.get("governed_session_coverage", {})
+    residual = diagnostics.get("residual_factor_attribution", {})
     return {
         "contract_version": report.contract_version,
         "transformation_contract_version": report.transformation_contract_version,
@@ -101,8 +118,10 @@ def _executive(report: AdjustmentReplayAdmissionReport) -> dict[str, Any]:
         "audit_end": report.end_date.isoformat(),
         "factor_validation_cases": len(report.factor_validation_cases),
         "validation_outcomes": dict(sorted(outcomes.items())),
+        "residual_attribution_counts": residual.get("attribution_counts", {}),
         "evidence_quarantined_identities": reconciliation.get(
-            "evidence_quarantined_identity_count", len(evidence_ids)
+            "evidence_quarantined_identity_count",
+            len(evidence_ids),
         ),
         "admission_quarantined_identities": reconciliation.get(
             "admission_quarantined_identity_count",
@@ -117,13 +136,31 @@ def _executive(report: AdjustmentReplayAdmissionReport) -> dict[str, Any]:
         "mixed_basis_resolutions": dict(sorted(mixed.items())),
         "admission_state_counts": dict(sorted(admissions.items())),
         "economic_weight_measurement_state": reconciliation.get(
-            "economic_weight_measurement_state", "NOT_REPORTED"
+            "economic_weight_measurement_state",
+            "NOT_REPORTED",
         ),
         "pct_observed_tier_a_rows_quarantined": reconciliation.get(
             "pct_observed_tier_a_rows_quarantined"
         ),
         "pct_observed_tier_a_identity_sessions_quarantined": reconciliation.get(
             "pct_observed_tier_a_identity_sessions_quarantined"
+        ),
+        "governed_session_coverage_state": session_coverage.get("state"),
+        "governed_expected_session_count": session_coverage.get(
+            "expected_session_count",
+            0,
+        ),
+        "governed_observed_expected_session_count": session_coverage.get(
+            "observed_expected_session_count",
+            0,
+        ),
+        "governed_missing_expected_session_count": session_coverage.get(
+            "missing_expected_session_count",
+            0,
+        ),
+        "governed_session_coverage_ratio": session_coverage.get(
+            "coverage_ratio",
+            0.0,
         ),
         "population_window_fully_observed": report.population_reconciliation.get(
             "requested_window_fully_observed"
@@ -141,9 +178,12 @@ def _executive_markdown(payload: dict[str, Any]) -> str:
     blockers = payload.get("readiness_blockers") or []
     return "\n".join(
         (
-            "# HTR-010B1A Admission Contract Integrity Repair",
+            f"# {payload['contract_version']} Session Coverage and Residual Attribution",
             "",
             f"- Factor validation cases: {payload['factor_validation_cases']:,}",
+            f"- Validation outcomes: {_display(payload['validation_outcomes'])}",
+            "- Residual attribution: "
+            f"{_display(payload['residual_attribution_counts'])}",
             "- Evidence-quarantined identities: "
             f"{payload['evidence_quarantined_identities']:,}",
             "- Admission-quarantined identities: "
@@ -156,14 +196,22 @@ def _executive_markdown(payload: dict[str, Any]) -> str:
             f"{_display(payload['pct_observed_tier_a_rows_quarantined'])}",
             "- Observed Tier A identity-session weight quarantined: "
             f"{_display(payload['pct_observed_tier_a_identity_sessions_quarantined'])}",
+            "- Governed session coverage: "
+            f"{_display(payload['governed_session_coverage_state'])}",
+            "- Expected/observed/missing sessions: "
+            f"{payload['governed_expected_session_count']}/"
+            f"{payload['governed_observed_expected_session_count']}/"
+            f"{payload['governed_missing_expected_session_count']}",
+            "- Governed session coverage ratio: "
+            f"{payload['governed_session_coverage_ratio']:.6f}",
             f"- Replay readiness: {payload['replay_readiness']}",
             f"- Readiness blockers: {_display(blockers)}",
             f"- Report SHA-256: `{payload['report_sha256']}`",
             "- Full benchmark replays: 0",
             "- Production influence: false",
             "",
-            "Raw OHLCV remains immutable. Missing contracts and unknown economic "
-            "weights now fail readiness closed.",
+            "Raw OHLCV and official factors remain immutable. Boundary-only coverage "
+            "claims and market-derived factor autocorrection are prohibited.",
             "",
         )
     )
@@ -194,6 +242,10 @@ def _readiness_markdown(title: str, payload: dict[str, Any]) -> str:
             f"{payload.get('evidence_quarantined_identity_count', 0)}",
             f"Unresolved-case identities: {unresolved}",
             f"Silent mixed-basis intervals: {silent_mixed}",
+            "Governed session coverage: "
+            f"{payload.get('governed_session_coverage_state', 'UNKNOWN')}",
+            "Residual attribution: "
+            f"{_display(payload.get('residual_attribution_counts', {}))}",
             "",
             "PRODUCTION_INFLUENCE=false",
             "",
@@ -232,7 +284,8 @@ def _display(value: Any) -> str:
 
 def _write_json(path: Path, payload: Any) -> Path:
     path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
     )
     return path
 
@@ -249,7 +302,9 @@ def _write_csv(path: Path, rows: tuple[dict[str, Any], ...]) -> Path:
 
 def _csv_value(value: Any) -> Any:
     return (
-        json.dumps(value, sort_keys=True) if isinstance(value, (dict, list)) else value
+        json.dumps(value, sort_keys=True)
+        if isinstance(value, (dict, list))
+        else value
     )
 
 
