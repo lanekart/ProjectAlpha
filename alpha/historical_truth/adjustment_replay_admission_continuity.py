@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from collections.abc import Sequence
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -61,7 +61,9 @@ def recompute_factor_validation(
     event_by_id = {str(row["canonical_event_id"]): row for row in events}
     legacy_by_event = {
         str(
-            row.get("event_id") or row.get("canonical_event_id") or row.get("action_id")
+            row.get("event_id")
+            or row.get("canonical_event_id")
+            or row.get("action_id")
         ): row
         for row in legacy_continuity
     }
@@ -81,15 +83,21 @@ def recompute_factor_validation(
             if effective is None or not start_date <= effective <= end_date:
                 continue
             identity = str(
-                event.get("governed_identity_id") or factor.get("identity_key") or ""
+                event.get("governed_identity_id")
+                or factor.get("identity_key")
+                or ""
             )
             isin = str(event.get("isin") or "").strip().upper()
             series_values = tuple(
-                str(item).upper() for item in event.get("series_applicability") or ()
+                str(item).upper()
+                for item in event.get("series_applicability") or ()
             )
             series = series_values[0] if len(series_values) == 1 else None
             bars = _event_bars(connection, isin, series, effective)
-            metrics = _continuity_metrics(bars, _number(factor.get("price_factor")))
+            metrics = _continuity_metrics(
+                bars,
+                _number(factor.get("price_factor")),
+            )
             legacy = legacy_by_event.get(event_id, {})
             case = {
                 "case_id": stable_id("factor-case-recomputed", event_id),
@@ -114,7 +122,9 @@ def recompute_factor_validation(
                 "legacy_continuity_state": legacy.get("continuity_state"),
                 "legacy_raw_gap_atr": legacy.get("raw_gap_atr"),
                 "legacy_adjusted_gap_atr": legacy.get("adjusted_gap_atr"),
-                "continuity_source": "HTR010B_FACTOR_RECOMPUTED_FROM_CANONICAL_CANDLES",
+                "continuity_source": (
+                    "HTR010B_FACTOR_RECOMPUTED_FROM_CANONICAL_CANDLES"
+                ),
             }
             cases.append(case)
             results.append(_classify_recomputed_case(case))
@@ -122,11 +132,13 @@ def recompute_factor_validation(
     result_counts = Counter(str(row["validation_outcome"]) for row in results)
     legacy_disagreements = sum(
         bool(row.get("legacy_continuity_state"))
-        and row.get("legacy_continuity_state") != row.get("recomputed_continuity_state")
+        and row.get("legacy_continuity_state")
+        != row.get("recomputed_continuity_state")
         for row in results
     )
     orientation_candidates = sum(
-        row.get("implementation_defect_code") == "POSSIBLE_FACTOR_ORIENTATION_DEFECT"
+        row.get("implementation_defect_code")
+        == "POSSIBLE_FACTOR_ORIENTATION_DEFECT"
         for row in results
     )
     summary = {
@@ -185,15 +197,21 @@ def tier_a_quarantine_economic_weight(
         for identity, ranges in sorted(ranges_by_identity.items()):
             merged = _merge_ranges(ranges)
             isin = identity.removeprefix("nse:isin:")
-            predicates = " OR ".join("(trading_date BETWEEN ? AND ?)" for _ in merged)
-            params: list[Any] = [isin, *[item for pair in merged for item in pair]]
-            result = connection.execute(
-                "SELECT COUNT(*), COUNT(DISTINCT trading_date) FROM daily_candle "
-                "WHERE upper(isin)=? AND lower(exchange)='nse' AND ("
+            predicates = " OR ".join(
+                "(trading_date BETWEEN ? AND ?)" for _ in merged
+            )
+            params: list[Any] = [
+                isin,
+                *[item for pair in merged for item in pair],
+            ]
+            query = (
+                "SELECT COUNT(*), COUNT(DISTINCT trading_date) "
+                "FROM daily_candle WHERE upper(isin)=? "
+                "AND lower(exchange)='nse' AND ("
                 + predicates
-                + ")",
-                params,
-            ).fetchone()
+                + ")"
+            )
+            result = connection.execute(query, params).fetchone()
             affected_rows = int(result[0]) if result else 0
             affected_sessions = int(result[1]) if result else 0
             rows.append(
@@ -205,7 +223,8 @@ def tier_a_quarantine_economic_weight(
                     "affected_candle_rows": affected_rows,
                     "affected_identity_sessions": affected_sessions,
                     "pct_observed_tier_a_rows": _pct(
-                        affected_rows, population["observed_tier_a_candle_rows"]
+                        affected_rows,
+                        population["observed_tier_a_candle_rows"],
                     ),
                     "pct_observed_tier_a_identity_sessions": _pct(
                         affected_sessions,
@@ -221,7 +240,9 @@ def tier_a_quarantine_economic_weight(
     denominator_rows = int(population["observed_tier_a_candle_rows"])
     denominator_sessions = int(population["observed_tier_a_identity_sessions"])
     if measured_rows > denominator_rows or measured_sessions > denominator_sessions:
-        raise RuntimeError("quarantine numerator exceeds the closed Tier A denominator")
+        raise RuntimeError(
+            "quarantine numerator exceeds the closed Tier A denominator"
+        )
     summary = {
         "economic_weight_measurement_state": (
             "MEASURED_PARTIAL_WINDOW"
@@ -230,14 +251,20 @@ def tier_a_quarantine_economic_weight(
         ),
         "observed_quarantined_candle_rows": measured_rows,
         "observed_quarantined_identity_sessions": measured_sessions,
-        "pct_observed_tier_a_rows_quarantined": _pct(measured_rows, denominator_rows),
+        "pct_observed_tier_a_rows_quarantined": _pct(
+            measured_rows,
+            denominator_rows,
+        ),
         "pct_observed_tier_a_identity_sessions_quarantined": _pct(
-            measured_sessions, denominator_sessions
+            measured_sessions,
+            denominator_sessions,
         ),
         "tier_a_numerator_universe_closed": True,
         "quarantine_ranges_clipped_to_requested_window": True,
         "out_of_tier_a_evidence_identity_count": len(out_of_universe_ids),
-        "tier_a_evidence_identities_without_observed_rows": len(no_observed_rows_ids),
+        "tier_a_evidence_identities_without_observed_rows": len(
+            no_observed_rows_ids
+        ),
         "quarantine_evidence_rows_outside_requested_window": outside_window_rows,
     }
     return tuple(rows), summary
@@ -264,7 +291,9 @@ def _classify_recomputed_case(case: dict[str, Any]) -> dict[str, Any]:
         outcome = ValidationOutcome.FACTOR_INSUFFICIENT_EVIDENCE
     elif adjusted_gap <= 2.0 or adjusted_gap < raw_gap:
         outcome = ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP
-    elif inverse_gap is not None and (inverse_gap <= 2.0 or inverse_gap < raw_gap):
+    elif inverse_gap is not None and (
+        inverse_gap <= 2.0 or inverse_gap < raw_gap
+    ):
         outcome = ValidationOutcome.IMPLEMENTATION_DEFECT
         defect_code = "POSSIBLE_FACTOR_ORIENTATION_DEFECT"
     else:
@@ -272,20 +301,18 @@ def _classify_recomputed_case(case: dict[str, Any]) -> dict[str, Any]:
         defect_code = "FACTOR_DOES_NOT_RESTORE_CONTINUITY"
 
     admitted = outcome is ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP
-    recomputed_state = (
-        "CONTINUITY_RESTORED_OR_IMPROVED"
-        if admitted
-        else "INSUFFICIENT_CANDLE_CONTEXT"
-        if outcome is ValidationOutcome.FACTOR_INSUFFICIENT_EVIDENCE
-        else "FACTOR_REQUIRES_OFFICIAL_EVIDENCE"
-        if outcome
-        in {
-            ValidationOutcome.FACTOR_REQUIRES_REFERENCE_PRICE,
-            ValidationOutcome.FACTOR_CONFLICTING_OFFICIAL_EVIDENCE,
-            ValidationOutcome.FACTOR_NON_MULTIPLICATIVE,
-        }
-        else "FACTOR_TRANSFORMATION_DEFECT"
-    )
+    if admitted:
+        recomputed_state = "CONTINUITY_RESTORED_OR_IMPROVED"
+    elif outcome is ValidationOutcome.FACTOR_INSUFFICIENT_EVIDENCE:
+        recomputed_state = "INSUFFICIENT_CANDLE_CONTEXT"
+    elif outcome in {
+        ValidationOutcome.FACTOR_REQUIRES_REFERENCE_PRICE,
+        ValidationOutcome.FACTOR_CONFLICTING_OFFICIAL_EVIDENCE,
+        ValidationOutcome.FACTOR_NON_MULTIPLICATIVE,
+    }:
+        recomputed_state = "FACTOR_REQUIRES_OFFICIAL_EVIDENCE"
+    else:
+        recomputed_state = "FACTOR_TRANSFORMATION_DEFECT"
     return {
         **case,
         "validation_outcome": outcome.value,
@@ -313,16 +340,20 @@ def _event_bars(
     if series is not None:
         prior_params.append(series)
         current_params.append(series)
+    select = (
+        "SELECT trading_date, open_price, high_price, low_price, "
+        "close_price, volume FROM daily_candle "
+    )
     prior = connection.execute(
-        "SELECT trading_date, open_price, high_price, low_price, close_price, volume "
-        "FROM daily_candle WHERE trading_date < ? AND upper(isin)=?"
+        select
+        + "WHERE trading_date < ? AND upper(isin)=?"
         + series_clause
         + " ORDER BY trading_date DESC LIMIT 15",
         prior_params,
     ).fetchall()
     current = connection.execute(
-        "SELECT trading_date, open_price, high_price, low_price, close_price, volume "
-        "FROM daily_candle WHERE trading_date >= ? AND upper(isin)=?"
+        select
+        + "WHERE trading_date >= ? AND upper(isin)=?"
         + series_clause
         + " ORDER BY trading_date LIMIT 1",
         current_params,
@@ -331,7 +362,8 @@ def _event_bars(
 
 
 def _continuity_metrics(
-    bars: list[tuple[Any, ...]], factor: float | None
+    bars: list[tuple[Any, ...]],
+    factor: float | None,
 ) -> dict[str, Any]:
     previous = bars[:-1]
     current = bars[-1] if bars else None
@@ -343,6 +375,7 @@ def _continuity_metrics(
     adjusted_gap = _gap_atr(action_open, previous_close, atr, factor)
     inverse = 1.0 / factor if factor not in {None, 0.0} else None
     inverse_gap = _gap_atr(action_open, previous_close, atr, inverse)
+    context_available = bool(current and prior and atr)
     return {
         "previous_session": prior[0].isoformat() if prior else None,
         "action_session": current[0].isoformat() if current else None,
@@ -352,9 +385,9 @@ def _continuity_metrics(
         "raw_gap_atr": raw_gap,
         "adjusted_gap_atr": adjusted_gap,
         "inverse_adjusted_gap_atr": inverse_gap,
-        "candle_context_state": "AVAILABLE"
-        if current and prior and atr
-        else "INSUFFICIENT",
+        "candle_context_state": (
+            "AVAILABLE" if context_available else "INSUFFICIENT"
+        ),
     }
 
 
@@ -399,7 +432,7 @@ def _atr(rows: Sequence[tuple[Any, ...]]) -> float | None:
 def _merge_ranges(ranges: list[tuple[date, date]]) -> list[tuple[date, date]]:
     merged: list[tuple[date, date]] = []
     for start, end in sorted(ranges):
-        if not merged or start > merged[-1][1]:
+        if not merged or start > merged[-1][1] + timedelta(days=1):
             merged.append((start, end))
         else:
             merged[-1] = (merged[-1][0], max(merged[-1][1], end))
