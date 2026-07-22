@@ -10,6 +10,9 @@ def _historical_truth_app() -> typer.Typer:
         adjustment_replay_admission_certify,
     )
     from alpha.historical_truth.cli import historical_truth_app
+    from alpha.historical_truth.factor_transformation_bridge_forensics_cli import (
+        factor_transformation_bridge_forensics,
+    )
     from alpha.historical_truth.factor_transformation_forensics_cli import (
         factor_transformation_forensics,
     )
@@ -29,6 +32,10 @@ def _historical_truth_app() -> typer.Typer:
     if "factor-transformation-forensics" not in registered:
         historical_truth_app.command("factor-transformation-forensics")(
             factor_transformation_forensics
+        )
+    if "factor-transformation-bridge-forensics" not in registered:
+        historical_truth_app.command("factor-transformation-bridge-forensics")(
+            factor_transformation_bridge_forensics
         )
     return historical_truth_app
 
