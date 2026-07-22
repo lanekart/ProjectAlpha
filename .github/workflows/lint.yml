@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: write
+  pull-requests: read
+
 jobs:
   ruff:
     runs-on: ubuntu-latest
@@ -39,3 +43,118 @@ jobs:
 
       - name: Run Ruff format check
         run: ruff format --check .
+
+  format-pr36:
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 36 && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Apply verified source fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              'alpha/historical_truth/factor_transformation_bridge_forensics.py'
+          )
+          text = path.read_text(encoding='utf-8')
+          replacements = {
+              'from datetime import date, timedelta\n': 'from datetime import date\n',
+              '                abs(((_as_date(row.get("effective_date")) or effective) - effective).days),\n': (
+                  '                abs(\n'
+                  '                    (\n'
+                  '                        (_as_date(row.get("effective_date")) or effective)\n'
+                  '                        - effective\n'
+                  '                    ).days\n'
+                  '                ),\n'
+              ),
+              '    if not isinstance(payload, list) or not all(isinstance(row, dict) for row in payload):\n': (
+                  '    if not isinstance(payload, list) or not all(\n'
+                  '        isinstance(row, dict) for row in payload\n'
+                  '    ):\n'
+              ),
+              '            "Official factors remain immutable. Every case remains excluded from replay.",\n': (
+                  '            "Official factors remain immutable. Every case remains "\n'
+                  '            "excluded from replay.",\n'
+              ),
+          }
+          for old, new in replacements.items():
+              assert old in text, old
+              text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+
+          test_path = Path(
+              'tests/historical_truth/'
+              'test_factor_transformation_bridge_forensics.py'
+          )
+          test_text = test_path.read_text(encoding='utf-8')
+          replacements = {
+              '            (date(2025, 12, 30), "ALPHA", "BE", "INE000000001", 100, 105, 95, 100, 1000),\n': (
+                  '            (\n'
+                  '                date(2025, 12, 30),\n'
+                  '                "ALPHA",\n'
+                  '                "BE",\n'
+                  '                "INE000000001",\n'
+                  '                100,\n'
+                  '                105,\n'
+                  '                95,\n'
+                  '                100,\n'
+                  '                1000,\n'
+                  '            ),\n'
+              ),
+              '            (date(2025, 12, 30), "GAMMA", "EQ", "INE000000004", 100, 105, 95, 100, 1000),\n': (
+                  '            (\n'
+                  '                date(2025, 12, 30),\n'
+                  '                "GAMMA",\n'
+                  '                "EQ",\n'
+                  '                "INE000000004",\n'
+                  '                100,\n'
+                  '                105,\n'
+                  '                95,\n'
+                  '                100,\n'
+                  '                1000,\n'
+                  '            ),\n'
+              ),
+          }
+          for old, new in replacements.items():
+              assert old in test_text, old
+              test_text = test_text.replace(old, new, 1)
+          test_path.write_text(test_text, encoding='utf-8')
+          PY
+
+      - name: Format and commit PR36
+        run: |
+          pip install ruff==0.15.20
+          ruff check \
+            alpha/__main__.py \
+            alpha/historical_truth/factor_transformation_bridge_forensics.py \
+            alpha/historical_truth/factor_transformation_bridge_forensics_cli.py \
+            tests/historical_truth/test_factor_transformation_bridge_forensics.py \
+            --fix
+          ruff format \
+            alpha/__main__.py \
+            alpha/historical_truth/factor_transformation_bridge_forensics.py \
+            alpha/historical_truth/factor_transformation_bridge_forensics_cli.py \
+            tests/historical_truth/test_factor_transformation_bridge_forensics.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            alpha/__main__.py \
+            alpha/historical_truth/factor_transformation_bridge_forensics.py \
+            alpha/historical_truth/factor_transformation_bridge_forensics_cli.py \
+            tests/historical_truth/test_factor_transformation_bridge_forensics.py
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'Format HTR-010B1D1 bridge forensics'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
