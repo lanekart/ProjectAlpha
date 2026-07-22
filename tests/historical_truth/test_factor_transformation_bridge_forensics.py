@@ -77,7 +77,17 @@ def test_cross_series_pairing_is_classified_without_factor_mutation(
     _seed(
         warehouse,
         (
-            (date(2025, 12, 30), "ALPHA", "BE", "INE000000001", 100, 105, 95, 100, 1000),
+            (
+                date(2025, 12, 30),
+                "ALPHA",
+                "BE",
+                "INE000000001",
+                100,
+                105,
+                95,
+                100,
+                1000,
+            ),
             (date(2026, 1, 2), "ALPHA", "BE", "INE000000001", 102, 108, 98, 104, 1000),
             (date(2026, 1, 5), "ALPHA", "EQ", "INE000000001", 52, 55, 50, 53, 2000),
         ),
@@ -169,7 +179,17 @@ def test_noncomparable_identity_transition_remains_quarantined(tmp_path: Path) -
     _seed(
         warehouse,
         (
-            (date(2025, 12, 30), "GAMMA", "EQ", "INE000000004", 100, 105, 95, 100, 1000),
+            (
+                date(2025, 12, 30),
+                "GAMMA",
+                "EQ",
+                "INE000000004",
+                100,
+                105,
+                95,
+                100,
+                1000,
+            ),
             (date(2026, 1, 2), "GAMMA", "EQ", "INE000000004", 102, 108, 98, 104, 1000),
             (date(2026, 1, 5), "DELTA", "EQ", "INE000000005", 80, 85, 75, 82, 2000),
         ),

@@ -61,17 +61,13 @@ def factor_transformation_bridge_forensics(
         f"{report['cross_series_pairing_artifact_count']:,}"
     )
     print(
-        "Governed cross-ISIN bridges: "
-        f"{report['governed_cross_isin_bridge_count']:,}"
+        f"Governed cross-ISIN bridges: {report['governed_cross_isin_bridge_count']:,}"
     )
     print(
         "Non-comparable identity transitions: "
         f"{report['identity_transition_noncomparable_count']:,}"
     )
-    print(
-        "Missing candle-lineage bridges: "
-        f"{report['candle_lineage_missing_count']:,}"
-    )
+    print(f"Missing candle-lineage bridges: {report['candle_lineage_missing_count']:,}")
     print(f"Report SHA256: {report['report_sha256']}")
     print(f"Artifacts written: {len(paths)}")
     print("Full benchmark replays: 0")

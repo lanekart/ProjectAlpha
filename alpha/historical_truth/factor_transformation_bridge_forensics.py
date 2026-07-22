@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 import json
 from collections import Counter
-from datetime import date, timedelta
+from datetime import date
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
@@ -44,9 +44,7 @@ class FactorTransformationBridgeForensicsEngine:
             for case in selected:
                 dossiers.append(_bridge_case(connection, case, transitions))
 
-        classifications = Counter(
-            str(row["bridge_classification"]) for row in dossiers
-        )
+        classifications = Counter(str(row["bridge_classification"]) for row in dossiers)
         recommendations = Counter(
             str(row["recommended_repair_action"]) for row in dossiers
         )
@@ -56,9 +54,7 @@ class FactorTransformationBridgeForensicsEngine:
             "end_date": end_date.isoformat(),
             "case_count": len(dossiers),
             "classification_counts": dict(sorted(classifications.items())),
-            "recommended_repair_action_counts": dict(
-                sorted(recommendations.items())
-            ),
+            "recommended_repair_action_counts": dict(sorted(recommendations.items())),
             "cross_series_pairing_artifact_count": classifications[
                 "CROSS_SERIES_PAIRING_ARTIFACT"
             ],
@@ -231,7 +227,11 @@ def _matching_transitions(
         sorted(
             matches,
             key=lambda row: (
-                abs(((_as_date(row.get("effective_date")) or effective) - effective).days),
+                abs(
+                    (
+                        (_as_date(row.get("effective_date")) or effective) - effective
+                    ).days
+                ),
                 str(row.get("transition_id") or ""),
             ),
         )
@@ -364,9 +364,7 @@ def _boundary_rows(
         clauses.append("upper(isin) IN (" + ",".join("?" for _ in isins) + ")")
         params.extend(isins)
     if symbols:
-        clauses.append(
-            "upper(symbol) IN (" + ",".join("?" for _ in symbols) + ")"
-        )
+        clauses.append("upper(symbol) IN (" + ",".join("?" for _ in symbols) + ")")
         params.extend(symbols)
     if not clauses:
         return []
@@ -447,14 +445,24 @@ def _transition_for_pair(
         new_isin = str(row.get("new_isin") or "").upper()
         old_symbol = str(row.get("old_symbol") or "").upper()
         new_symbol = str(row.get("new_symbol") or "").upper()
-        if old_isin and new_isin and (old_isin, new_isin) == (
-            prior_isin,
-            current_isin,
+        if (
+            old_isin
+            and new_isin
+            and (old_isin, new_isin)
+            == (
+                prior_isin,
+                current_isin,
+            )
         ):
             return row
-        if old_symbol and new_symbol and (old_symbol, new_symbol) == (
-            prior_symbol,
-            current_symbol,
+        if (
+            old_symbol
+            and new_symbol
+            and (old_symbol, new_symbol)
+            == (
+                prior_symbol,
+                current_symbol,
+            )
         ):
             return row
     return None
@@ -563,7 +571,9 @@ def _gap_atr(
 
 def _records(path: Path) -> tuple[dict[str, Any], ...]:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, list) or not all(isinstance(row, dict) for row in payload):
+    if not isinstance(payload, list) or not all(
+        isinstance(row, dict) for row in payload
+    ):
         raise ValueError(f"expected JSON array of objects: {path}")
     return tuple(payload)
 
@@ -636,7 +646,8 @@ def _markdown(report: dict[str, Any]) -> str:
             "- Full benchmark replays: 0",
             "- Production influence: false",
             "",
-            "Official factors remain immutable. Every case remains excluded from replay.",
+            "Official factors remain immutable. Every case remains "
+            "excluded from replay.",
             "",
         )
     )
