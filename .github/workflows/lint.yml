@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: write
+  pull-requests: read
+
 jobs:
   ruff:
     runs-on: ubuntu-latest
@@ -39,3 +43,124 @@ jobs:
 
       - name: Run Ruff format check
         run: ruff format --check .
+
+  format-pr37:
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 37 && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Apply verified source wraps
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('alpha/historical_truth/bridge_aware_factor_validation_repair.py')
+          text = path.read_text(encoding='utf-8')
+          replacements = {
+              '        group_audits = tuple(_group_audit(key, rows) for key, rows in sorted(grouped.items()))\n': (
+                  '        group_audits = tuple(\n'
+                  '            _group_audit(key, rows)\n'
+                  '            for key, rows in sorted(grouped.items())\n'
+                  '        )\n'
+              ),
+              '    if not isinstance(payload, list) or not all(isinstance(row, dict) for row in payload):\n': (
+                  '    if not isinstance(payload, list) or not all(\n'
+                  '        isinstance(row, dict) for row in payload\n'
+                  '    ):\n'
+              ),
+              '            f"{json.dumps(report[\'proposed_validation_outcome_counts\'], sort_keys=True)}",\n': (
+                  '            f"{json.dumps(\n'
+                  '                report[\'proposed_validation_outcome_counts\'],\n'
+                  '                sort_keys=True,\n'
+                  '            )}",\n'
+              ),
+              '            f"- Factor-quality confirmed cases: {report[\'factor_confirmed_case_count\']}",\n': (
+                  '            "- Factor-quality confirmed cases: "\n'
+                  '            f"{report[\'factor_confirmed_case_count\']}",\n'
+              ),
+          }
+          for old, new in replacements.items():
+              assert old in text, old
+              text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+
+          cli = Path(
+              'alpha/historical_truth/bridge_aware_factor_validation_repair_cli.py'
+          )
+          cli_text = cli.read_text(encoding='utf-8')
+          old = '    print(f"Replay bridges uncertified: {report[\'replay_bridge_uncertified_case_count\']}")\n'
+          new = (
+              '    print(\n'
+              '        "Replay bridges uncertified: "\n'
+              '        f"{report[\'replay_bridge_uncertified_case_count\']}"\n'
+              '    )\n'
+          )
+          assert old in cli_text
+          cli.write_text(cli_text.replace(old, new, 1), encoding='utf-8')
+
+          tests = Path(
+              'tests/historical_truth/test_bridge_aware_factor_validation_repair.py'
+          )
+          test_text = tests.read_text(encoding='utf-8')
+          replacements = {
+              '    assert sum(command.name == command_name for command in first.registered_commands) == 1\n': (
+                  '    assert (\n'
+                  '        sum(\n'
+                  '            command.name == command_name\n'
+                  '            for command in first.registered_commands\n'
+                  '        )\n'
+                  '        == 1\n'
+                  '    )\n'
+              ),
+              '    assert sum(command.name == command_name for command in second.registered_commands) == 1\n': (
+                  '    assert (\n'
+                  '        sum(\n'
+                  '            command.name == command_name\n'
+                  '            for command in second.registered_commands\n'
+                  '        )\n'
+                  '        == 1\n'
+                  '    )\n'
+              ),
+          }
+          for old, new in replacements.items():
+              assert old in test_text, old
+              test_text = test_text.replace(old, new, 1)
+          tests.write_text(test_text, encoding='utf-8')
+          PY
+
+      - name: Format and commit PR37
+        run: |
+          pip install ruff==0.15.20
+          ruff check \
+            alpha/__main__.py \
+            alpha/historical_truth/bridge_aware_factor_validation_repair.py \
+            alpha/historical_truth/bridge_aware_factor_validation_repair_cli.py \
+            tests/historical_truth/test_bridge_aware_factor_validation_repair.py \
+            --fix
+          ruff format \
+            alpha/__main__.py \
+            alpha/historical_truth/bridge_aware_factor_validation_repair.py \
+            alpha/historical_truth/bridge_aware_factor_validation_repair_cli.py \
+            tests/historical_truth/test_bridge_aware_factor_validation_repair.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            alpha/__main__.py \
+            alpha/historical_truth/bridge_aware_factor_validation_repair.py \
+            alpha/historical_truth/bridge_aware_factor_validation_repair_cli.py \
+            tests/historical_truth/test_bridge_aware_factor_validation_repair.py
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'Format HTR-010B1D2 validation repair'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
