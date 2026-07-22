@@ -10,6 +10,9 @@ def _historical_truth_app() -> typer.Typer:
         adjustment_replay_admission_certify,
     )
     from alpha.historical_truth.cli import historical_truth_app
+    from alpha.historical_truth.factor_transformation_forensics_cli import (
+        factor_transformation_forensics,
+    )
     from alpha.historical_truth.session_calendar_extension_cli import (
         session_calendar_extend_certify,
     )
@@ -22,6 +25,10 @@ def _historical_truth_app() -> typer.Typer:
     if "session-calendar-extend-certify" not in registered:
         historical_truth_app.command("session-calendar-extend-certify")(
             session_calendar_extend_certify
+        )
+    if "factor-transformation-forensics" not in registered:
+        historical_truth_app.command("factor-transformation-forensics")(
+            factor_transformation_forensics
         )
     return historical_truth_app
 
