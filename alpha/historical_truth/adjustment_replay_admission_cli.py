@@ -42,7 +42,9 @@ def adjustment_replay_admission_certify(
         file_okay=False,
     ),
     session_calendar_report: Path = typer.Option(
-        Path("artifacts/htr007_historical_session_evidence/htr007_session_calendar.json"),
+        Path(
+            "artifacts/htr007_historical_session_evidence/htr007_session_calendar.json"
+        ),
         "--session-calendar-report",
     ),
     start: str = typer.Option("2016-01-01", "--start"),

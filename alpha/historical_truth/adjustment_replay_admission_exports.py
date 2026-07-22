@@ -302,9 +302,7 @@ def _write_csv(path: Path, rows: tuple[dict[str, Any], ...]) -> Path:
 
 def _csv_value(value: Any) -> Any:
     return (
-        json.dumps(value, sort_keys=True)
-        if isinstance(value, (dict, list))
-        else value
+        json.dumps(value, sort_keys=True) if isinstance(value, (dict, list)) else value
     )
 
 

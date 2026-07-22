@@ -168,7 +168,11 @@ def _best_date_offset(
     factor: float,
 ) -> dict[str, Any] | None:
     clause = "" if series is None else " AND upper(series)=?"
-    params: list[Any] = [effective - timedelta(days=10), effective + timedelta(days=10), isin]
+    params: list[Any] = [
+        effective - timedelta(days=10),
+        effective + timedelta(days=10),
+        isin,
+    ]
     if series is not None:
         params.append(series)
     dates = [

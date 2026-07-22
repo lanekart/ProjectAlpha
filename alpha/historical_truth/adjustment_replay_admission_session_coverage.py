@@ -120,9 +120,7 @@ def governed_session_coverage(
         "unexpected_observed_sessions": [item.isoformat() for item in unexpected],
         "unresolved_weekday_count": len(unresolved),
         "unresolved_weekdays": [item.isoformat() for item in sorted(unresolved)],
-        "calendar_database_disagreement_count": len(
-            governed_observation_disagreements
-        ),
+        "calendar_database_disagreement_count": len(governed_observation_disagreements),
         "calendar_database_disagreements": [
             item.isoformat() for item in governed_observation_disagreements
         ],

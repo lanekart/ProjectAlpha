@@ -199,8 +199,7 @@ def test_same_day_cumulative_factor_is_diagnostic_only(tmp_path: Path) -> None:
     )
 
     assert all(
-        row["residual_attribution"]
-        == "POSSIBLE_MULTIPLE_ACTION_CUMULATIVE_FACTOR"
+        row["residual_attribution"] == "POSSIBLE_MULTIPLE_ACTION_CUMULATIVE_FACTOR"
         for row in enriched
     )
     assert all(
