@@ -6,21 +6,37 @@ from pathlib import Path
 import typer
 
 from alpha.historical_truth.canonical import CanonicalPointInTimeWarehouse
+from alpha.historical_truth.event_sourced_universe_cli import (
+    event_sourced_universe_certify,
+)
 from alpha.historical_truth.integrity import HistoricalTruthIntegrityAudit
 from alpha.historical_truth.pilot import (
     DEFAULT_CROSS_ERA_DATES,
     HistoricalBackfillPilot,
 )
+from alpha.historical_truth.point_in_time_identity_cli import (
+    point_in_time_universe_certify,
+)
 from alpha.historical_truth.population import HistoricalPopulationEngine
+from alpha.historical_truth.replay_eligibility_integrity_cli import (
+    replay_eligibility_integrity_audit,
+)
 from alpha.historical_truth.resumable import HistoricalTruthWarehouse
 from alpha.historical_truth.snapshots import PointInTimeSnapshotEngine
 from alpha.historical_truth.special_session_recovery_cli import (
     session_calendar_build,
     special_session_candle_recover,
 )
+from alpha.historical_truth.special_session_snapshot_parity_cli import (
+    special_session_snapshot_repair,
+)
 
 historical_truth_app = typer.Typer(
     help="Build and audit official historical market truth."
+)
+
+historical_truth_app.command("event-sourced-universe-certify")(
+    event_sourced_universe_certify
 )
 
 
@@ -134,6 +150,15 @@ def populate(
 historical_truth_app.command("session-calendar-build")(session_calendar_build)
 historical_truth_app.command("special-session-candle-recover")(
     special_session_candle_recover
+)
+historical_truth_app.command("special-session-snapshot-repair")(
+    special_session_snapshot_repair
+)
+historical_truth_app.command("replay-eligibility-integrity-audit")(
+    replay_eligibility_integrity_audit
+)
+historical_truth_app.command("point-in-time-universe-certify")(
+    point_in_time_universe_certify
 )
 
 

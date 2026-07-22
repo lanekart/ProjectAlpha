@@ -14,6 +14,16 @@ from alpha.historical_truth.canonical import (
     CompletenessReport,
     MarketSnapshot,
 )
+from alpha.historical_truth.event_sourced_universe_engine import (
+    EventSourcedIntervalReconstructor,
+    EventSourcedUniverseCertificationEngine,
+)
+from alpha.historical_truth.event_sourced_universe_models import (
+    HTR009A2_CONTRACT_VERSION,
+    EventSourcedCertificationState,
+    MembershipCertificationState,
+    SecurityEventType,
+)
 from alpha.historical_truth.historical_session_evidence import (
     HTR007_HISTORICAL_SESSION_EVIDENCE_CONTRACT_VERSION,
     NSE_YEAR_PAGE_TEMPLATE,
@@ -55,6 +65,21 @@ from alpha.historical_truth.pilot import (
     HistoricalBackfillPilot,
 )
 from alpha.historical_truth.plugins import NseBhavcopyPlugin
+from alpha.historical_truth.point_in_time_identity_engine import (
+    PointInTimeIdentityCertificationEngine,
+)
+from alpha.historical_truth.point_in_time_identity_exports import (
+    PointInTimeIdentityArtifactExporter,
+)
+from alpha.historical_truth.point_in_time_identity_models import (
+    HTR009A_CONTRACT_VERSION,
+    IdentityState,
+    MembershipState,
+    PointInTimeIdentityReport,
+)
+from alpha.historical_truth.point_in_time_identity_models import (
+    CertificationState as PointInTimeCertificationState,
+)
 from alpha.historical_truth.population import (
     HistoricalPopulationEngine,
     PopulationRecord,
@@ -63,6 +88,20 @@ from alpha.historical_truth.population import (
 )
 from alpha.historical_truth.registry import ArchiveDatasetPlugin, DatasetRegistry
 from alpha.historical_truth.replay import HistoricalTruthReplayStore
+from alpha.historical_truth.replay_eligibility_integrity import (
+    ReplayEligibilityIntegrityEngine,
+)
+from alpha.historical_truth.replay_eligibility_models import (
+    CANONICAL_MINIMUM_HISTORY_SESSIONS,
+    HTR008_CONTRACT_VERSION,
+    CertificationState,
+    CorporateActionSeverity,
+    EligibilityAuditPolicy,
+    MissingSessionClassification,
+    ReplayEligibilityIntegrityReport,
+    ReplayReadinessClassification,
+    SurvivorshipRisk,
+)
 from alpha.historical_truth.resumable import (
     HistoricalTruthWarehouse,
     RawArchiveVerification,
@@ -103,6 +142,16 @@ from alpha.historical_truth.special_session_recovery import (
     SpecialSessionValidationFinding,
     SpecialSessionValidationStatus,
 )
+from alpha.historical_truth.special_session_snapshot_parity import (
+    HTR007C_CONTRACT_VERSION,
+    SnapshotFailureCode,
+    SnapshotParityRecord,
+    SnapshotParityReport,
+    SnapshotParityState,
+    SnapshotParityStatus,
+    SnapshotParitySummary,
+    SpecialSessionSnapshotParityEngine,
+)
 
 __all__ = [
     "AnnualSessionSummary",
@@ -128,6 +177,7 @@ __all__ = [
     "HTR007_BACKFILL_CONTRACT_VERSION",
     "HTR007_HISTORICAL_SESSION_EVIDENCE_CONTRACT_VERSION",
     "HTR007B_CONTRACT_VERSION",
+    "HTR007C_CONTRACT_VERSION",
     "HistoricalEvidenceRecord",
     "HistoricalEvidenceReport",
     "HistoricalEvidenceStatus",
@@ -162,6 +212,12 @@ __all__ = [
     "PopulationRecord",
     "PopulationStatus",
     "PopulationSummary",
+    "PointInTimeCertificationState",
+    "PointInTimeIdentityArtifactExporter",
+    "PointInTimeIdentityCertificationEngine",
+    "PointInTimeIdentityReport",
+    "IdentityState",
+    "MembershipState",
     "PRODUCTION_INFLUENCE",
     "RawArchiveVerification",
     "SecurityFinding",
@@ -171,6 +227,12 @@ __all__ = [
     "SnapshotAvailability",
     "SnapshotFinding",
     "SnapshotMetadata",
+    "SnapshotFailureCode",
+    "SnapshotParityRecord",
+    "SnapshotParityReport",
+    "SnapshotParityState",
+    "SnapshotParityStatus",
+    "SnapshotParitySummary",
     "SnapshotVerification",
     "SpecialSessionCandleRecoveryEngine",
     "SpecialSessionFailureCode",
@@ -183,8 +245,26 @@ __all__ = [
     "SpecialSessionSourceStatus",
     "SpecialSessionValidationFinding",
     "SpecialSessionValidationStatus",
+    "SpecialSessionSnapshotParityEngine",
+    "CANONICAL_MINIMUM_HISTORY_SESSIONS",
+    "HTR008_CONTRACT_VERSION",
+    "HTR009A_CONTRACT_VERSION",
+    "CertificationState",
+    "CorporateActionSeverity",
+    "EligibilityAuditPolicy",
+    "MissingSessionClassification",
+    "ReplayEligibilityIntegrityEngine",
+    "ReplayEligibilityIntegrityReport",
+    "ReplayReadinessClassification",
+    "SurvivorshipRisk",
     "TaskState",
     "UnavailableClassification",
     "ValidationIssue",
     "ValidationSeverity",
+    "HTR009A2_CONTRACT_VERSION",
+    "EventSourcedCertificationState",
+    "EventSourcedIntervalReconstructor",
+    "EventSourcedUniverseCertificationEngine",
+    "MembershipCertificationState",
+    "SecurityEventType",
 ]

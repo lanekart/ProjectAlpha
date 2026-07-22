@@ -18,8 +18,15 @@ import requests
 
 from alpha.historical_truth.canonical import CanonicalPointInTimeWarehouse
 from alpha.historical_truth.service import HistoricalTruthWarehouse
+from alpha.historical_truth.snapshots import PointInTimeSnapshotEngine
+from alpha.historical_truth.special_session_snapshot_parity import (
+    SnapshotFailureCode,
+    SnapshotParityRecord,
+    SnapshotParityStatus,
+    SpecialSessionSnapshotParityEngine,
+)
 
-HTR007B_CONTRACT_VERSION = "HTR-007B-v1.0.0"
+HTR007B_CONTRACT_VERSION = "HTR-007B-v1.1.0"
 PRODUCTION_INFLUENCE = False
 _OFFICIAL_HOST_SUFFIX = "nseindia.com"
 _LEGACY_DATE_COLUMNS = ("TIMESTAMP", "TRADE_DATE")
@@ -75,6 +82,7 @@ class SpecialSessionFailureCode(StrEnum):
     CANONICAL_CONFLICT = "CANONICAL_CONFLICT"
     IDENTITY_RESOLUTION_FAILED = "IDENTITY_RESOLUTION_FAILED"
     INGESTION_FAILED = "INGESTION_FAILED"
+    SNAPSHOT_PARITY_FAILED = "SNAPSHOT_PARITY_FAILED"
     UNKNOWN_FAILURE = "UNKNOWN_FAILURE"
 
 
@@ -141,6 +149,19 @@ class SpecialSessionRecoveryRecord:
     inserted_rows: int
     reused_rows: int
     lineage_rows: int
+    snapshot_path: str | None
+    snapshot_status: SnapshotParityStatus | None
+    snapshot_failure_code: SnapshotFailureCode | None
+    snapshot_failure_detail: str | None
+    snapshot_content_sha256: str | None
+    snapshot_symbol_count: int | None
+    snapshot_total_volume: int | None
+    snapshot_completeness_score: float | None
+    snapshot_verification_valid: bool
+    snapshot_created: bool
+    snapshot_reused: bool
+    canonical_snapshot_row_match: bool
+    canonical_snapshot_content_match: bool
     failure_code: SpecialSessionFailureCode | None
     failure_detail: str | None
 
@@ -229,12 +250,22 @@ class SpecialSessionCandleRecoveryEngine:
         timeout_seconds: float = 30.0,
         session: requests.Session | None = None,
         clock: Callable[[], datetime] | None = None,
+        snapshots: PointInTimeSnapshotEngine | None = None,
     ) -> None:
         self.root = root
         self.canonical = canonical
         self.timeout_seconds = timeout_seconds
         self.session = session or requests.Session()
         self.clock = clock or (lambda: datetime.now(UTC))
+        self.snapshots = snapshots or PointInTimeSnapshotEngine(
+            canonical,
+            root / "snapshots",
+        )
+        self.snapshot_parity = SpecialSessionSnapshotParityEngine(
+            canonical,
+            self.snapshots,
+            clock=self.clock,
+        )
 
     def recover(
         self,
@@ -329,7 +360,35 @@ class SpecialSessionCandleRecoveryEngine:
                     failure_code=code,
                     failure_detail=detail,
                 )
-            reused = ingestion.inserted_rows == 0
+            snapshot = self.snapshot_parity.ensure_snapshot(
+                target.trading_date,
+                source_ids=target.source_ids,
+            )
+            if not snapshot.valid:
+                return self._record(
+                    target,
+                    acquired=acquired,
+                    validated=validated,
+                    attempts=attempts,
+                    ingestion_status=(
+                        SpecialSessionIngestionStatus.REUSED
+                        if ingestion.inserted_rows == 0
+                        else SpecialSessionIngestionStatus.INGESTED
+                    ),
+                    inserted_rows=ingestion.inserted_rows,
+                    reused_rows=ingestion.reused_rows,
+                    lineage_rows=ingestion.lineage_rows,
+                    snapshot=snapshot,
+                    failure_code=SpecialSessionFailureCode.SNAPSHOT_PARITY_FAILED,
+                    failure_detail=(
+                        snapshot.snapshot_failure_detail
+                        or "immutable snapshot parity verification failed"
+                    ),
+                )
+            reused = (
+                ingestion.inserted_rows == 0
+                and snapshot.snapshot_status is not SnapshotParityStatus.CREATED
+            )
             return self._record(
                 target,
                 acquired=acquired,
@@ -348,6 +407,7 @@ class SpecialSessionCandleRecoveryEngine:
                 inserted_rows=ingestion.inserted_rows,
                 reused_rows=ingestion.reused_rows,
                 lineage_rows=ingestion.lineage_rows,
+                snapshot=snapshot,
             )
         except _RecoveryFailure as exc:
             attempts = exc.attempts or attempts
@@ -1270,6 +1330,7 @@ class SpecialSessionCandleRecoveryEngine:
         inserted_rows: int = 0,
         reused_rows: int = 0,
         lineage_rows: int = 0,
+        snapshot: SnapshotParityRecord | None = None,
         failure_code: SpecialSessionFailureCode | None = None,
         failure_detail: str | None = None,
     ) -> SpecialSessionRecoveryRecord:
@@ -1339,6 +1400,47 @@ class SpecialSessionCandleRecoveryEngine:
             inserted_rows=inserted_rows,
             reused_rows=reused_rows,
             lineage_rows=lineage_rows,
+            snapshot_path=(
+                snapshot.expected_snapshot_path if snapshot is not None else None
+            ),
+            snapshot_status=(
+                snapshot.snapshot_status if snapshot is not None else None
+            ),
+            snapshot_failure_code=(
+                snapshot.snapshot_failure_code if snapshot is not None else None
+            ),
+            snapshot_failure_detail=(
+                snapshot.snapshot_failure_detail if snapshot is not None else None
+            ),
+            snapshot_content_sha256=(
+                snapshot.snapshot_content_sha256 if snapshot is not None else None
+            ),
+            snapshot_symbol_count=(
+                snapshot.snapshot_symbol_count if snapshot is not None else None
+            ),
+            snapshot_total_volume=(
+                snapshot.snapshot_total_volume if snapshot is not None else None
+            ),
+            snapshot_completeness_score=(
+                snapshot.snapshot_completeness_score if snapshot is not None else None
+            ),
+            snapshot_verification_valid=(
+                snapshot.snapshot_verification_valid if snapshot is not None else False
+            ),
+            snapshot_created=(
+                snapshot.snapshot_created if snapshot is not None else False
+            ),
+            snapshot_reused=(
+                snapshot.snapshot_reused if snapshot is not None else False
+            ),
+            canonical_snapshot_row_match=(
+                snapshot.canonical_snapshot_row_match if snapshot is not None else False
+            ),
+            canonical_snapshot_content_match=(
+                snapshot.canonical_snapshot_content_match
+                if snapshot is not None
+                else False
+            ),
             failure_code=failure_code,
             failure_detail=failure_detail,
         )
@@ -1465,6 +1567,12 @@ class SpecialSessionCandleRecoveryEngine:
             "ingestion_status": item.ingestion_status.value,
             "recovery_status": item.recovery_status.value,
             "failure_code": item.failure_code.value if item.failure_code else None,
+            "snapshot_status": (
+                item.snapshot_status.value if item.snapshot_status else None
+            ),
+            "snapshot_failure_code": (
+                item.snapshot_failure_code.value if item.snapshot_failure_code else None
+            ),
             "calendar_source_ids": list(item.calendar_source_ids),
             "redirect_chain": list(item.redirect_chain),
         }
@@ -1498,6 +1606,16 @@ class SpecialSessionCandleRecoveryEngine:
             "recovery_status": item.recovery_status.value,
             "source_sha256": item.source_sha256,
             "normalized_path": item.normalized_path,
+            "snapshot_path": item.snapshot_path,
+            "snapshot_status": (
+                item.snapshot_status.value if item.snapshot_status else None
+            ),
+            "snapshot_failure_code": (
+                item.snapshot_failure_code.value if item.snapshot_failure_code else None
+            ),
+            "snapshot_content_sha256": item.snapshot_content_sha256,
+            "snapshot_verification_valid": item.snapshot_verification_valid,
+            "canonical_snapshot_content_match": (item.canonical_snapshot_content_match),
             "failure_code": item.failure_code.value if item.failure_code else None,
             "failure_detail": item.failure_detail,
         }
