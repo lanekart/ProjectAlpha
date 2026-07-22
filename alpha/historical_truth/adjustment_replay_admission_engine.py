@@ -740,9 +740,20 @@ def indicator_lookback_safety(
 def transformation_contract() -> dict[str, Any]:
     return {
         "contract_version": TRANSFORMATION_CONTRACT_VERSION,
-        "research_continuity_view": "May use all effective actions known by the research cutoff; never exposes event knowledge as a predictive feature before historical availability.",
-        "rolling_as_of_replay_view": "At replay date t, use only factors whose actions are effective on or before t and whose immutable evidence version is pinned to the replay contract.",
-        "event_knowledge_boundary": "Announcement and filing content may influence features only after its historical availability timestamp.",
+        "research_continuity_view": (
+            "May use all effective actions known by the research cutoff; "
+            "never exposes event knowledge as a predictive feature before "
+            "historical availability."
+        ),
+        "rolling_as_of_replay_view": (
+            "At replay date t, use only factors whose actions are effective "
+            "on or before t and whose immutable evidence version is pinned "
+            "to the replay contract."
+        ),
+        "event_knowledge_boundary": (
+            "Announcement and filing content may influence features only "
+            "after its historical availability timestamp."
+        ),
         "future_leakage_protection": True,
         "raw_candles_immutable": True,
         "candidate_ids_stable": True,
