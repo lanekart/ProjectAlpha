@@ -15,7 +15,9 @@ from alpha.historical_truth.session_calendar_extension import (
 
 def session_calendar_extend_certify(
     existing_calendar_report: Path = typer.Option(
-        Path("artifacts/htr007_historical_session_evidence/htr007_session_calendar.json"),
+        Path(
+            "artifacts/htr007_historical_session_evidence/htr007_session_calendar.json"
+        ),
         "--existing-calendar-report",
         exists=True,
         dir_okay=False,

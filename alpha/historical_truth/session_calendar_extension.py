@@ -11,7 +11,6 @@ from typing import Any
 
 from alpha.historical_truth.canonical import CanonicalPointInTimeWarehouse
 from alpha.historical_truth.session_calendar import (
-    CalendarCertificationState,
     OfficialCalendarSource,
     OfficialSessionCalendarEngine,
     SessionCalendarReport,
@@ -208,7 +207,9 @@ def _verified_existing_sources(
         expected = str(row.get("source_sha256") or "")
         observed = hashlib.sha256(source_path.read_bytes()).hexdigest()
         if expected != observed:
-            raise ValueError(f"governed calendar source checksum mismatch: {source_path}")
+            raise ValueError(
+                f"governed calendar source checksum mismatch: {source_path}"
+            )
         sources.append(OfficialSessionCalendarEngine.load_source(source_path))
     return tuple(sorted(sources, key=lambda item: item.source_id))
 
@@ -305,7 +306,10 @@ def _audit_markdown(audit: SessionCalendarExtensionAudit) -> str:
         (
             "# HTR-007C Governed Session Calendar Extension",
             "",
-            f"- Existing window: {audit.existing_window_start} to {audit.existing_window_end}",
+            (
+                f"- Existing window: {audit.existing_window_start} "
+                f"to {audit.existing_window_end}"
+            ),
             f"- Extended window end: {audit.extended_window_end}",
             f"- Appended years: {list(audit.appended_years)}",
             f"- Historical parity: {audit.historical_parity_state}",
@@ -314,12 +318,18 @@ def _audit_markdown(audit: SessionCalendarExtensionAudit) -> str:
             f"- Expected sessions: {audit.expected_session_count}",
             f"- Observed sessions: {audit.observed_session_count}",
             f"- Unresolved weekdays: {audit.unresolved_weekday_count}",
-            f"- Unconfirmed special sessions: {audit.unconfirmed_special_session_count}",
+            (
+                "- Unconfirmed special sessions: "
+                f"{audit.unconfirmed_special_session_count}"
+            ),
             f"- Missing special sessions: {audit.missing_special_session_count}",
             f"- Conflicts: {audit.conflict_count}",
             "- Production influence: false",
             "",
-            "Existing governed sources remain immutable; the new source is appended and year-scoped.",
+            (
+                "Existing governed sources remain immutable; "
+                "the new source is appended and year-scoped."
+            ),
             "",
         )
     )

@@ -84,9 +84,7 @@ def governed_session_coverage(
     observations_beyond_window = sorted(observed - observed_within_governed)
     missing = sorted(expected - observed_within_governed)
     unexpected_within_governed = sorted(observed_within_governed - expected)
-    observation_disagreements = sorted(
-        observed_within_governed ^ governed_observed
-    )
+    observation_disagreements = sorted(observed_within_governed ^ governed_observed)
     certification_state = str(payload.get("certification_state") or "")
     certified = certification_state == "certified"
 

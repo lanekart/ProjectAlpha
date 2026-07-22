@@ -193,12 +193,18 @@ def test_stale_calendar_reports_beyond_window_not_database_mismatch(
 
 
 def test_economic_weight_state_requires_governed_complete_window() -> None:
-    assert economic_weight_measurement_state(
-        {"state": "GOVERNED_SESSION_COVERAGE_INCOMPLETE"}
-    ) == "MEASURED_OBSERVED_DATABASE_WINDOW"
-    assert economic_weight_measurement_state(
-        {"state": "GOVERNED_SESSION_COVERAGE_COMPLETE"}
-    ) == "MEASURED_GOVERNED_COMPLETE_WINDOW"
+    assert (
+        economic_weight_measurement_state(
+            {"state": "GOVERNED_SESSION_COVERAGE_INCOMPLETE"}
+        )
+        == "MEASURED_OBSERVED_DATABASE_WINDOW"
+    )
+    assert (
+        economic_weight_measurement_state(
+            {"state": "GOVERNED_SESSION_COVERAGE_COMPLETE"}
+        )
+        == "MEASURED_GOVERNED_COMPLETE_WINDOW"
+    )
 
 
 def test_extension_command_is_visible_once() -> None:
