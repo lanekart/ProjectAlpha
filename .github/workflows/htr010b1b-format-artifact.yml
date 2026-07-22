@@ -1,0 +1,37 @@
+name: HTR010B1B Format Artifact
+
+on:
+  pull_request:
+    branches:
+      - feature/recovery-foundation-v1
+
+permissions:
+  contents: read
+
+jobs:
+  format-artifact:
+    if: github.event.pull_request.number == 32
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install locked Ruff
+        run: python -m pip install ruff==0.15.20
+      - name: Format HTR-010B1B files
+        run: |
+          ruff format \
+            alpha/historical_truth/adjustment_replay_admission_continuity.py \
+            alpha/historical_truth/adjustment_replay_admission_continuity_engine.py \
+            alpha/historical_truth/adjustment_replay_admission_cli.py \
+            tests/historical_truth/test_adjustment_replay_admission_continuity.py
+          tar -czf htr010b1b-formatted.tar.gz \
+            alpha/historical_truth/adjustment_replay_admission_continuity.py \
+            alpha/historical_truth/adjustment_replay_admission_continuity_engine.py \
+            alpha/historical_truth/adjustment_replay_admission_cli.py \
+            tests/historical_truth/test_adjustment_replay_admission_continuity.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: htr010b1b-formatted
+          path: htr010b1b-formatted.tar.gz
