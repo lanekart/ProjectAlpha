@@ -59,6 +59,54 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Apply verified source fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              'alpha/historical_truth/session_calendar_extension.py'
+          )
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              '    CalendarCertificationState,\n',
+              '',
+              1,
+          )
+          text = text.replace(
+              '            raise ValueError(f"governed calendar source checksum mismatch: {source_path}")\n',
+              '            raise ValueError(\n'
+              '                f"governed calendar source checksum mismatch: {source_path}"\n'
+              '            )\n',
+              1,
+          )
+          text = text.replace(
+              '            f"- Existing window: {audit.existing_window_start} to {audit.existing_window_end}",\n',
+              '            (\n'
+              '                f"- Existing window: {audit.existing_window_start} "\n'
+              '                f"to {audit.existing_window_end}"\n'
+              '            ),\n',
+              1,
+          )
+          text = text.replace(
+              '            f"- Unconfirmed special sessions: {audit.unconfirmed_special_session_count}",\n',
+              '            (\n'
+              '                "- Unconfirmed special sessions: "\n'
+              '                f"{audit.unconfirmed_special_session_count}"\n'
+              '            ),\n',
+              1,
+          )
+          text = text.replace(
+              '            "Existing governed sources remain immutable; the new source is appended and year-scoped.",\n',
+              '            (\n'
+              '                "Existing governed sources remain immutable; "\n'
+              '                "the new source is appended and year-scoped."\n'
+              '            ),\n',
+              1,
+          )
+          path.write_text(text, encoding='utf-8')
+          PY
+
       - name: Format and commit PR34
         run: |
           pip install ruff==0.15.20
