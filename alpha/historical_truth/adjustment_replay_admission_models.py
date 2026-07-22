@@ -10,6 +10,7 @@ from hashlib import sha256
 from typing import Any
 
 HTR010B1_CONTRACT_VERSION = "HTR-010B1-v1.0.0"
+HTR010B1A_CONTRACT_VERSION = "HTR-010B1A-v1.0.0"
 TRANSFORMATION_CONTRACT_VERSION = "HTR-010B1-TRANSFORM-v1.0.0"
 PRODUCTION_INFLUENCE = False
 
@@ -93,6 +94,9 @@ class AdjustmentReplayAdmissionReport:
     production_influence: bool
     start_date: date
     end_date: date
+    input_contract_diagnostics: dict[str, Any]
+    population_reconciliation: dict[str, Any]
+    quarantine_population_reconciliation: dict[str, Any]
     quarantine_census: tuple[dict[str, Any], ...]
     quarantine_economic_weight: tuple[dict[str, Any], ...]
     factor_validation_cases: tuple[dict[str, Any], ...]
