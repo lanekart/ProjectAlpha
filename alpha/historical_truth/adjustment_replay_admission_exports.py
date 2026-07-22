@@ -176,9 +176,13 @@ def _executive(report: AdjustmentReplayAdmissionReport) -> dict[str, Any]:
 
 def _executive_markdown(payload: dict[str, Any]) -> str:
     blockers = payload.get("readiness_blockers") or []
+    header = (
+        f"# {payload['contract_version']} "
+        "Session Coverage and Residual Attribution"
+    )
     return "\n".join(
         (
-            f"# {payload['contract_version']} Session Coverage and Residual Attribution",
+            header,
             "",
             f"- Factor validation cases: {payload['factor_validation_cases']:,}",
             f"- Validation outcomes: {_display(payload['validation_outcomes'])}",
