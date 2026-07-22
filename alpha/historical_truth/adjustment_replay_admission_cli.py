@@ -1,4 +1,4 @@
-"""CLI for HTR-010B1B continuity and admission integrity."""
+"""CLI for governed adjustment continuity and admission integrity."""
 
 from __future__ import annotations
 
@@ -7,11 +7,11 @@ from pathlib import Path
 
 import typer
 
-from alpha.historical_truth.adjustment_replay_admission_continuity_engine import (
-    AdjustmentReplayAdmissionContinuityEngine,
-)
 from alpha.historical_truth.adjustment_replay_admission_exports import (
     AdjustmentReplayAdmissionArtifactExporter,
+)
+from alpha.historical_truth.adjustment_replay_admission_integrity_engine import (
+    AdjustmentReplayAdmissionIntegrityEngine,
 )
 from alpha.historical_truth.adjustment_replay_admission_models import (
     AdjustmentReplayAdmissionReport,
@@ -41,10 +41,17 @@ def adjustment_replay_admission_certify(
         exists=True,
         file_okay=False,
     ),
+    session_calendar_report: Path = typer.Option(
+        Path(
+            "artifacts/htr007_historical_session_evidence/htr007_session_calendar.json"
+        ),
+        "--session-calendar-report",
+    ),
     start: str = typer.Option("2016-01-01", "--start"),
     end: str = typer.Option("2026-07-20", "--end"),
     output: Path = typer.Option(
-        Path("artifacts/htr010b1_adjustment_replay_admission"), "--output"
+        Path("artifacts/htr010b1_adjustment_replay_admission"),
+        "--output",
     ),
     refresh_sources: bool = typer.Option(False, "--refresh-sources"),
     verify_only: bool = typer.Option(False, "--verify-only"),
@@ -61,13 +68,12 @@ def adjustment_replay_admission_certify(
     only_quarantined: bool = typer.Option(False, "--only-quarantined"),
     only_tier_a: bool = typer.Option(False, "--only-tier-a"),
 ) -> None:
-    """Recompute continuity and produce closed-universe admission intervals."""
+    """Audit governed sessions, continuity causes and replay admission."""
 
     del root, only_tier_a
     if refresh_sources:
         raise typer.BadParameter(
-            "HTR-010B1B consumes pinned HTR-010A3/HTR-010B artifacts "
-            "and cannot refresh sources",
+            "This audit consumes pinned governed artifacts and cannot refresh sources",
             param_hint="--refresh-sources",
         )
     start_date = _date(start, "--start")
@@ -75,15 +81,17 @@ def adjustment_replay_admission_certify(
     if end_date < start_date:
         raise typer.BadParameter("must be on or after --start", param_hint="--end")
     try:
-        report = AdjustmentReplayAdmissionContinuityEngine().run(
+        report = AdjustmentReplayAdmissionIntegrityEngine().run(
             database_path=database,
             htr010a3_output=htr010a3_output,
             htr010b_output=htr010b_output,
+            session_calendar_report=session_calendar_report,
             start_date=start_date,
             end_date=end_date,
         )
     except InputContractError as exc:
         raise typer.BadParameter(str(exc), param_hint="--htr010b-output") from exc
+
     paths = AdjustmentReplayAdmissionArtifactExporter().export(report, output)
     selected = _selected_count(
         report,
@@ -100,8 +108,12 @@ def adjustment_replay_admission_certify(
         only_quarantined=only_quarantined,
     )
     reconciliation = report.quarantine_population_reconciliation
-    continuity = report.input_contract_diagnostics.get("continuity_recomputation", {})
-    print(f"{report.contract_version} Continuity and Admission Integrity")
+    diagnostics = report.input_contract_diagnostics
+    continuity = diagnostics.get("continuity_recomputation", {})
+    session_coverage = diagnostics.get("governed_session_coverage", {})
+    residual = diagnostics.get("residual_factor_attribution", {})
+
+    print(f"{report.contract_version} Session Coverage and Residual Attribution")
     print(f"Factor validation cases: {len(report.factor_validation_cases):,}")
     print(f"Quarantine evidence rows: {len(report.quarantine_census):,}")
     print(f"Segmented admission intervals: {len(report.replay_admission_intervals):,}")
@@ -117,14 +129,16 @@ def adjustment_replay_admission_certify(
         "Observed Tier A row weight quarantined: "
         f"{reconciliation.get('pct_observed_tier_a_rows_quarantined')}"
     )
+    print(f"Governed session coverage: {session_coverage.get('state')}")
+    print(
+        "Missing expected sessions: "
+        f"{session_coverage.get('missing_expected_session_count', 0):,}"
+    )
     print(
         "Legacy/recomputed continuity disagreements: "
         f"{continuity.get('legacy_recomputed_state_disagreement_count', 0):,}"
     )
-    print(
-        "Possible factor-orientation defects: "
-        f"{continuity.get('possible_factor_orientation_defect_count', 0):,}"
-    )
+    print(f"Residual attribution: {residual.get('attribution_counts', {})}")
     print(f"Diagnostic records selected: {selected:,}")
     print(f"Replay readiness: {report.replay_readiness['state']}")
     print(f"Readiness blockers: {report.replay_readiness.get('blockers', [])}")
