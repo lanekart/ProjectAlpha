@@ -171,6 +171,15 @@ def _executive_markdown(payload: dict[str, Any]) -> str:
 
 def _readiness_markdown(title: str, payload: dict[str, Any]) -> str:
     blockers = payload.get("blockers") or []
+    admission_quarantined = payload.get(
+        "admission_quarantined_identity_count",
+        payload.get("quarantined_identity_count", 0),
+    )
+    unresolved = payload.get(
+        "unresolved_case_identity_count",
+        payload.get("unresolved_factor_case_count", 0),
+    )
+    silent_mixed = payload.get("silent_mixed_basis_count", 0)
     return "\n".join(
         (
             f"# {title}",
@@ -180,13 +189,11 @@ def _readiness_markdown(title: str, payload: dict[str, Any]) -> str:
             "## Blockers",
             *([f"- {item}" for item in blockers] or ["- None"]),
             "",
-            "Admission-quarantined identities: "
-            f"{payload.get('admission_quarantined_identity_count', payload.get('quarantined_identity_count', 0))}",
+            f"Admission-quarantined identities: {admission_quarantined}",
             "Evidence-quarantined identities: "
             f"{payload.get('evidence_quarantined_identity_count', 0)}",
-            "Unresolved-case identities: "
-            f"{payload.get('unresolved_case_identity_count', payload.get('unresolved_factor_case_count', 0))}",
-            f"Silent mixed-basis intervals: {payload.get('silent_mixed_basis_count', 0)}",
+            f"Unresolved-case identities: {unresolved}",
+            f"Silent mixed-basis intervals: {silent_mixed}",
             "",
             "PRODUCTION_INFLUENCE=false",
             "",

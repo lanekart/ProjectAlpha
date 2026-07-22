@@ -64,7 +64,8 @@ def adjustment_replay_admission_certify(
     del root, only_tier_a
     if refresh_sources:
         raise typer.BadParameter(
-            "HTR-010B1A consumes pinned HTR-010A3/HTR-010B artifacts and cannot refresh sources",
+            "HTR-010B1A consumes pinned HTR-010A3/HTR-010B artifacts "
+            "and cannot refresh sources",
             param_hint="--refresh-sources",
         )
     start_date = _date(start, "--start")

@@ -249,7 +249,9 @@ def test_lookback_uses_exchange_sessions_not_calendar_approximation() -> None:
             "admission_interval_id": "interval:one",
             "start_date": "2020-01-03",
             "end_date": "2020-01-07",
-            "admission_state": AdmissionState.RAW_REPLAY_CERTIFIED_POST_EVENT_SEGMENT.value,
+            "admission_state": (
+                AdmissionState.RAW_REPLAY_CERTIFIED_POST_EVENT_SEGMENT.value
+            ),
             "reset_required": True,
         },
     )
