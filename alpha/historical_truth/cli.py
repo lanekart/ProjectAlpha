@@ -16,6 +16,9 @@ from alpha.historical_truth.event_sourced_universe_cli import (
     event_sourced_universe_certify,
 )
 from alpha.historical_truth.integrity import HistoricalTruthIntegrityAudit
+from alpha.historical_truth.lifecycle_session_cli import (
+    lifecycle_session_semantics_certify,
+)
 from alpha.historical_truth.pilot import (
     DEFAULT_CROSS_ERA_DATES,
     HistoricalBackfillPilot,
@@ -54,6 +57,9 @@ historical_truth_app.command("complete-security-dataset-certify")(
     complete_security_dataset_certify
 )
 historical_truth_app.command("security-population-repair")(security_population_repair)
+historical_truth_app.command("lifecycle-session-semantics-certify")(
+    lifecycle_session_semantics_certify
+)
 
 
 def _parse_date(value: str, option_name: str) -> date:
