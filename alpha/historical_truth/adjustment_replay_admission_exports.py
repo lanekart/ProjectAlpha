@@ -1,4 +1,4 @@
-"""Deterministic HTR-010B1 artifact exports."""
+"""Deterministic HTR-010B1 and HTR-010B1A artifact exports."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from alpha.historical_truth.adjustment_replay_admission_models import (
 
 
 class AdjustmentReplayAdmissionArtifactExporter:
-    """Write the governed HTR-010B1 evidence package."""
+    """Write the governed adjustment-validation evidence package."""
 
     def export(
         self, report: AdjustmentReplayAdmissionReport, output: Path
@@ -49,6 +49,21 @@ class AdjustmentReplayAdmissionArtifactExporter:
             paths.append(_write_json(output / f"htr010b1_{name}.json", list(rows)))
         reports = (
             (
+                "input_contract_diagnostics",
+                report.input_contract_diagnostics,
+                _mapping_markdown,
+            ),
+            (
+                "population_reconciliation",
+                report.population_reconciliation,
+                _mapping_markdown,
+            ),
+            (
+                "quarantine_population_reconciliation",
+                report.quarantine_population_reconciliation,
+                _mapping_markdown,
+            ),
+            (
                 "transformation_contract",
                 report.transformation_contract,
                 _mapping_markdown,
@@ -76,7 +91,9 @@ def _executive(report: AdjustmentReplayAdmissionReport) -> dict[str, Any]:
     mixed = Counter(
         str(row["resolution_state"]) for row in report.mixed_basis_resolution
     )
-    identities = {_identity(row) for row in report.quarantine_census}
+    evidence_ids = {_identity(row) for row in report.quarantine_census}
+    reconciliation = report.quarantine_population_reconciliation
+    readiness = report.replay_readiness
     return {
         "contract_version": report.contract_version,
         "transformation_contract_version": report.transformation_contract_version,
@@ -84,11 +101,35 @@ def _executive(report: AdjustmentReplayAdmissionReport) -> dict[str, Any]:
         "audit_end": report.end_date.isoformat(),
         "factor_validation_cases": len(report.factor_validation_cases),
         "validation_outcomes": dict(sorted(outcomes.items())),
-        "quarantined_identities": len(identities),
+        "evidence_quarantined_identities": reconciliation.get(
+            "evidence_quarantined_identity_count", len(evidence_ids)
+        ),
+        "admission_quarantined_identities": reconciliation.get(
+            "admission_quarantined_identity_count",
+            readiness.get("quarantined_identity_count", 0),
+        ),
+        "unresolved_case_identities": reconciliation.get(
+            "unresolved_case_identity_count",
+            readiness.get("unresolved_factor_case_count", 0),
+        ),
         "quarantined_intervals": len(report.quarantine_census),
+        "admission_intervals": len(report.replay_admission_intervals),
         "mixed_basis_resolutions": dict(sorted(mixed.items())),
         "admission_state_counts": dict(sorted(admissions.items())),
-        "replay_readiness": report.replay_readiness["state"],
+        "economic_weight_measurement_state": reconciliation.get(
+            "economic_weight_measurement_state", "NOT_REPORTED"
+        ),
+        "pct_observed_tier_a_rows_quarantined": reconciliation.get(
+            "pct_observed_tier_a_rows_quarantined"
+        ),
+        "pct_observed_tier_a_identity_sessions_quarantined": reconciliation.get(
+            "pct_observed_tier_a_identity_sessions_quarantined"
+        ),
+        "population_window_fully_observed": report.population_reconciliation.get(
+            "requested_window_fully_observed"
+        ),
+        "replay_readiness": readiness["state"],
+        "readiness_blockers": readiness.get("blockers", []),
         "report_sha256": report.report_sha256,
         "full_benchmark_replays": 0,
         "candidate_independent": True,
@@ -97,35 +138,56 @@ def _executive(report: AdjustmentReplayAdmissionReport) -> dict[str, Any]:
 
 
 def _executive_markdown(payload: dict[str, Any]) -> str:
+    blockers = payload.get("readiness_blockers") or []
     return "\n".join(
         (
-            "# HTR-010B1 Adjustment Validation and Replay Admission",
+            "# HTR-010B1A Admission Contract Integrity Repair",
             "",
             f"- Factor validation cases: {payload['factor_validation_cases']:,}",
-            f"- Quarantined identities: {payload['quarantined_identities']:,}",
-            f"- Quarantined intervals: {payload['quarantined_intervals']:,}",
+            "- Evidence-quarantined identities: "
+            f"{payload['evidence_quarantined_identities']:,}",
+            "- Admission-quarantined identities: "
+            f"{payload['admission_quarantined_identities']:,}",
+            f"- Unresolved-case identities: {payload['unresolved_case_identities']:,}",
+            f"- Quarantine evidence rows: {payload['quarantined_intervals']:,}",
+            f"- Segmented admission intervals: {payload['admission_intervals']:,}",
+            "- Economic-weight state: "
+            f"{payload['economic_weight_measurement_state']}",
+            "- Observed Tier A row weight quarantined: "
+            f"{_display(payload['pct_observed_tier_a_rows_quarantined'])}",
+            "- Observed Tier A identity-session weight quarantined: "
+            f"{_display(payload['pct_observed_tier_a_identity_sessions_quarantined'])}",
             f"- Replay readiness: {payload['replay_readiness']}",
+            f"- Readiness blockers: {_display(blockers)}",
             f"- Report SHA-256: `{payload['report_sha256']}`",
             "- Full benchmark replays: 0",
             "- Production influence: false",
             "",
-            "Raw OHLCV remains immutable. Unknown factors are never treated as one, "
-            "and no admitted interval may silently contain mixed price basis.",
+            "Raw OHLCV remains immutable. Missing contracts and unknown economic "
+            "weights now fail readiness closed.",
             "",
         )
     )
 
 
 def _readiness_markdown(title: str, payload: dict[str, Any]) -> str:
+    blockers = payload.get("blockers") or []
     return "\n".join(
         (
             f"# {title}",
             "",
             f"**Decision:** {payload['state']}",
             "",
-            f"Quarantined identities: {payload['quarantined_identity_count']}",
-            f"Silent mixed-basis intervals: {payload['silent_mixed_basis_count']}",
-            f"Unresolved factor cases: {payload['unresolved_factor_case_count']}",
+            "## Blockers",
+            *([f"- {item}" for item in blockers] or ["- None"]),
+            "",
+            "Admission-quarantined identities: "
+            f"{payload.get('admission_quarantined_identity_count', payload.get('quarantined_identity_count', 0))}",
+            "Evidence-quarantined identities: "
+            f"{payload.get('evidence_quarantined_identity_count', 0)}",
+            "Unresolved-case identities: "
+            f"{payload.get('unresolved_case_identity_count', payload.get('unresolved_factor_case_count', 0))}",
+            f"Silent mixed-basis intervals: {payload.get('silent_mixed_basis_count', 0)}",
             "",
             "PRODUCTION_INFLUENCE=false",
             "",
@@ -157,6 +219,8 @@ def _display(value: Any) -> str:
         return json.dumps(value, sort_keys=True)
     if isinstance(value, bool):
         return str(value).lower()
+    if value is None:
+        return "UNKNOWN"
     return str(value)
 
 
