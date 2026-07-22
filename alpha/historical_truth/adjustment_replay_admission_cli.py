@@ -13,6 +13,9 @@ from alpha.historical_truth.adjustment_replay_admission_engine import (
 from alpha.historical_truth.adjustment_replay_admission_exports import (
     AdjustmentReplayAdmissionArtifactExporter,
 )
+from alpha.historical_truth.adjustment_replay_admission_models import (
+    AdjustmentReplayAdmissionReport,
+)
 
 
 def adjustment_replay_admission_certify(
@@ -94,19 +97,27 @@ def adjustment_replay_admission_certify(
     print("PRODUCTION_INFLUENCE=false")
 
 
-def _selected_count(report: object, **filters: object) -> int:
-    from alpha.historical_truth.adjustment_replay_admission_models import (
-        AdjustmentReplayAdmissionReport,
-    )
-
-    if not isinstance(report, AdjustmentReplayAdmissionReport):
-        return 0
+def _selected_count(
+    report: AdjustmentReplayAdmissionReport,
+    *,
+    symbol: list[str],
+    isin: list[str],
+    action_type: list[str],
+    validation_outcome: list[str],
+    quarantine_reason: list[str],
+    admission_state: list[str],
+    year: list[int],
+    only_suspected_factors: bool,
+    only_mixed_basis: bool,
+    only_unknown_factors: bool,
+    only_quarantined: bool,
+) -> int:
     rows = list(report.factor_validation_results)
-    symbols = {str(item).upper() for item in filters["symbol"]}
-    isins = {str(item).upper() for item in filters["isin"]}
-    action_types = {str(item) for item in filters["action_type"]}
-    outcomes = {str(item) for item in filters["validation_outcome"]}
-    years = {int(item) for item in filters["year"]}
+    symbols = {item.upper() for item in symbol}
+    isins = {item.upper() for item in isin}
+    action_types = set(action_type)
+    outcomes = set(validation_outcome)
+    years = set(year)
     if symbols:
         rows = [row for row in rows if str(row.get("symbol", "")).upper() in symbols]
     if isins:
@@ -122,20 +133,20 @@ def _selected_count(report: object, **filters: object) -> int:
             if row.get("effective_date")
             and int(str(row["effective_date"])[:4]) in years
         ]
-    if filters["only_suspected_factors"]:
+    if only_suspected_factors:
         return len(rows)
-    if filters["only_mixed_basis"]:
+    if only_mixed_basis:
         return len(report.mixed_basis_resolution)
-    if filters["only_unknown_factors"]:
+    if only_unknown_factors:
         return len(report.unknown_factor_impact)
-    if filters["only_quarantined"] or filters["quarantine_reason"]:
-        wanted = {str(item) for item in filters["quarantine_reason"]}
+    if only_quarantined or quarantine_reason:
+        wanted = set(quarantine_reason)
         return sum(
             not wanted or str(row.get("quarantine_reason")) in wanted
             for row in report.quarantine_census
         )
-    if filters["admission_state"]:
-        wanted = {str(item) for item in filters["admission_state"]}
+    if admission_state:
+        wanted = set(admission_state)
         return sum(
             str(row.get("admission_state")) in wanted
             for row in report.replay_admission_intervals
