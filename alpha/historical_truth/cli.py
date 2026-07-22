@@ -6,6 +6,9 @@ from pathlib import Path
 import typer
 
 from alpha.historical_truth.canonical import CanonicalPointInTimeWarehouse
+from alpha.historical_truth.complete_corporate_action_cli import (
+    complete_corporate_action_dataset,
+)
 from alpha.historical_truth.complete_security_dataset_cli import (
     complete_security_dataset_certify,
 )
@@ -64,6 +67,9 @@ historical_truth_app.command("lifecycle-session-semantics-certify")(
     lifecycle_session_semantics_certify
 )
 historical_truth_app.command("tier-a-foundation-readiness")(tier_a_foundation_readiness)
+historical_truth_app.command("complete-corporate-action-dataset")(
+    complete_corporate_action_dataset
+)
 
 
 def _parse_date(value: str, option_name: str) -> date:
