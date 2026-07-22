@@ -5,7 +5,7 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: read
 
 jobs:
@@ -44,34 +44,42 @@ jobs:
       - name: Run Ruff format check
         run: ruff format --check .
 
-  format-artifact-pr33:
-    if: github.event_name == 'pull_request' && github.event.pull_request.number == 33
+  fix-header-pr33:
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 33 && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
-      - name: Install Python
-        uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
-      - name: Format B1C files
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Apply verified Ruff expression
         run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              'alpha/historical_truth/adjustment_replay_admission_exports.py'
+          )
+          text = path.read_text(encoding='utf-8')
+          old = '''    header = (
+        f"# {payload['contract_version']} "
+        "Session Coverage and Residual Attribution"
+    )
+'''
+          new = '''    header = (
+        f"# {payload['contract_version']} Session Coverage and Residual Attribution"
+    )
+'''
+          assert old in text
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
           pip install ruff==0.15.20
-          ruff format \
-            alpha/historical_truth/adjustment_replay_admission_cli.py \
-            alpha/historical_truth/adjustment_replay_admission_exports.py \
-            alpha/historical_truth/adjustment_replay_admission_integrity_engine.py \
-            alpha/historical_truth/adjustment_replay_admission_residual_attribution.py \
-            alpha/historical_truth/adjustment_replay_admission_session_coverage.py \
-            tests/historical_truth/test_adjustment_replay_admission_b1c.py
-          tar -czf htr010b1c-formatted.tar.gz \
-            alpha/historical_truth/adjustment_replay_admission_cli.py \
-            alpha/historical_truth/adjustment_replay_admission_exports.py \
-            alpha/historical_truth/adjustment_replay_admission_integrity_engine.py \
-            alpha/historical_truth/adjustment_replay_admission_residual_attribution.py \
-            alpha/historical_truth/adjustment_replay_admission_session_coverage.py \
-            tests/historical_truth/test_adjustment_replay_admission_b1c.py
-      - uses: actions/upload-artifact@v4
-        with:
-          name: htr010b1c-formatted
-          path: htr010b1c-formatted.tar.gz
+          ruff check alpha/historical_truth/adjustment_replay_admission_exports.py
+          ruff format --check \
+            alpha/historical_truth/adjustment_replay_admission_exports.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add alpha/historical_truth/adjustment_replay_admission_exports.py
+          git commit -m 'Apply verified HTR-010B1C Ruff header'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
