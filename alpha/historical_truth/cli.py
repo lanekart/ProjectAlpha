@@ -6,6 +6,9 @@ from pathlib import Path
 import typer
 
 from alpha.historical_truth.canonical import CanonicalPointInTimeWarehouse
+from alpha.historical_truth.corporate_action_price_cli import (
+    corporate_action_price_certify,
+)
 from alpha.historical_truth.event_sourced_universe_cli import (
     event_sourced_universe_certify,
 )
@@ -37,6 +40,9 @@ historical_truth_app = typer.Typer(
 
 historical_truth_app.command("event-sourced-universe-certify")(
     event_sourced_universe_certify
+)
+historical_truth_app.command("corporate-action-price-certify")(
+    corporate_action_price_certify
 )
 
 
