@@ -1,4 +1,4 @@
-"""CLI for HTR-010B1A adjustment-contract integrity repair."""
+"""CLI for HTR-010B1B continuity and admission integrity."""
 
 from __future__ import annotations
 
@@ -7,6 +7,9 @@ from pathlib import Path
 
 import typer
 
+from alpha.historical_truth.adjustment_replay_admission_continuity_engine import (
+    AdjustmentReplayAdmissionContinuityEngine,
+)
 from alpha.historical_truth.adjustment_replay_admission_exports import (
     AdjustmentReplayAdmissionArtifactExporter,
 )
@@ -14,7 +17,6 @@ from alpha.historical_truth.adjustment_replay_admission_models import (
     AdjustmentReplayAdmissionReport,
 )
 from alpha.historical_truth.adjustment_replay_admission_repair import (
-    AdjustmentReplayAdmissionRepairEngine,
     InputContractError,
 )
 
@@ -59,12 +61,12 @@ def adjustment_replay_admission_certify(
     only_quarantined: bool = typer.Option(False, "--only-quarantined"),
     only_tier_a: bool = typer.Option(False, "--only-tier-a"),
 ) -> None:
-    """Repair contracts and produce measured identity-date admission intervals."""
+    """Recompute continuity and produce closed-universe admission intervals."""
 
     del root, only_tier_a
     if refresh_sources:
         raise typer.BadParameter(
-            "HTR-010B1A consumes pinned HTR-010A3/HTR-010B artifacts "
+            "HTR-010B1B consumes pinned HTR-010A3/HTR-010B artifacts "
             "and cannot refresh sources",
             param_hint="--refresh-sources",
         )
@@ -73,7 +75,7 @@ def adjustment_replay_admission_certify(
     if end_date < start_date:
         raise typer.BadParameter("must be on or after --start", param_hint="--end")
     try:
-        report = AdjustmentReplayAdmissionRepairEngine().run(
+        report = AdjustmentReplayAdmissionContinuityEngine().run(
             database_path=database,
             htr010a3_output=htr010a3_output,
             htr010b_output=htr010b_output,
@@ -98,7 +100,8 @@ def adjustment_replay_admission_certify(
         only_quarantined=only_quarantined,
     )
     reconciliation = report.quarantine_population_reconciliation
-    print("HTR-010B1A Admission Contract Integrity Repair")
+    continuity = report.input_contract_diagnostics.get("continuity_recomputation", {})
+    print(f"{report.contract_version} Continuity and Admission Integrity")
     print(f"Factor validation cases: {len(report.factor_validation_cases):,}")
     print(f"Quarantine evidence rows: {len(report.quarantine_census):,}")
     print(f"Segmented admission intervals: {len(report.replay_admission_intervals):,}")
@@ -113,6 +116,14 @@ def adjustment_replay_admission_certify(
     print(
         "Observed Tier A row weight quarantined: "
         f"{reconciliation.get('pct_observed_tier_a_rows_quarantined')}"
+    )
+    print(
+        "Legacy/recomputed continuity disagreements: "
+        f"{continuity.get('legacy_recomputed_state_disagreement_count', 0):,}"
+    )
+    print(
+        "Possible factor-orientation defects: "
+        f"{continuity.get('possible_factor_orientation_defect_count', 0):,}"
     )
     print(f"Diagnostic records selected: {selected:,}")
     print(f"Replay readiness: {report.replay_readiness['state']}")
