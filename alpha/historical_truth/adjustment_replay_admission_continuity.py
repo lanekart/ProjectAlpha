@@ -61,9 +61,7 @@ def recompute_factor_validation(
     event_by_id = {str(row["canonical_event_id"]): row for row in events}
     legacy_by_event = {
         str(
-            row.get("event_id")
-            or row.get("canonical_event_id")
-            or row.get("action_id")
+            row.get("event_id") or row.get("canonical_event_id") or row.get("action_id")
         ): row
         for row in legacy_continuity
     }
@@ -83,14 +81,11 @@ def recompute_factor_validation(
             if effective is None or not start_date <= effective <= end_date:
                 continue
             identity = str(
-                event.get("governed_identity_id")
-                or factor.get("identity_key")
-                or ""
+                event.get("governed_identity_id") or factor.get("identity_key") or ""
             )
             isin = str(event.get("isin") or "").strip().upper()
             series_values = tuple(
-                str(item).upper()
-                for item in event.get("series_applicability") or ()
+                str(item).upper() for item in event.get("series_applicability") or ()
             )
             series = series_values[0] if len(series_values) == 1 else None
             bars = _event_bars(connection, isin, series, effective)
@@ -132,13 +127,11 @@ def recompute_factor_validation(
     result_counts = Counter(str(row["validation_outcome"]) for row in results)
     legacy_disagreements = sum(
         bool(row.get("legacy_continuity_state"))
-        and row.get("legacy_continuity_state")
-        != row.get("recomputed_continuity_state")
+        and row.get("legacy_continuity_state") != row.get("recomputed_continuity_state")
         for row in results
     )
     orientation_candidates = sum(
-        row.get("implementation_defect_code")
-        == "POSSIBLE_FACTOR_ORIENTATION_DEFECT"
+        row.get("implementation_defect_code") == "POSSIBLE_FACTOR_ORIENTATION_DEFECT"
         for row in results
     )
     summary = {
@@ -197,9 +190,7 @@ def tier_a_quarantine_economic_weight(
         for identity, ranges in sorted(ranges_by_identity.items()):
             merged = _merge_ranges(ranges)
             isin = identity.removeprefix("nse:isin:")
-            predicates = " OR ".join(
-                "(trading_date BETWEEN ? AND ?)" for _ in merged
-            )
+            predicates = " OR ".join("(trading_date BETWEEN ? AND ?)" for _ in merged)
             params: list[Any] = [
                 isin,
                 *[item for pair in merged for item in pair],
@@ -207,9 +198,7 @@ def tier_a_quarantine_economic_weight(
             query = (
                 "SELECT COUNT(*), COUNT(DISTINCT trading_date) "
                 "FROM daily_candle WHERE upper(isin)=? "
-                "AND lower(exchange)='nse' AND ("
-                + predicates
-                + ")"
+                "AND lower(exchange)='nse' AND (" + predicates + ")"
             )
             result = connection.execute(query, params).fetchone()
             affected_rows = int(result[0]) if result else 0
@@ -240,9 +229,7 @@ def tier_a_quarantine_economic_weight(
     denominator_rows = int(population["observed_tier_a_candle_rows"])
     denominator_sessions = int(population["observed_tier_a_identity_sessions"])
     if measured_rows > denominator_rows or measured_sessions > denominator_sessions:
-        raise RuntimeError(
-            "quarantine numerator exceeds the closed Tier A denominator"
-        )
+        raise RuntimeError("quarantine numerator exceeds the closed Tier A denominator")
     summary = {
         "economic_weight_measurement_state": (
             "MEASURED_PARTIAL_WINDOW"
@@ -262,9 +249,7 @@ def tier_a_quarantine_economic_weight(
         "tier_a_numerator_universe_closed": True,
         "quarantine_ranges_clipped_to_requested_window": True,
         "out_of_tier_a_evidence_identity_count": len(out_of_universe_ids),
-        "tier_a_evidence_identities_without_observed_rows": len(
-            no_observed_rows_ids
-        ),
+        "tier_a_evidence_identities_without_observed_rows": len(no_observed_rows_ids),
         "quarantine_evidence_rows_outside_requested_window": outside_window_rows,
     }
     return tuple(rows), summary
@@ -291,9 +276,7 @@ def _classify_recomputed_case(case: dict[str, Any]) -> dict[str, Any]:
         outcome = ValidationOutcome.FACTOR_INSUFFICIENT_EVIDENCE
     elif adjusted_gap <= 2.0 or adjusted_gap < raw_gap:
         outcome = ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP
-    elif inverse_gap is not None and (
-        inverse_gap <= 2.0 or inverse_gap < raw_gap
-    ):
+    elif inverse_gap is not None and (inverse_gap <= 2.0 or inverse_gap < raw_gap):
         outcome = ValidationOutcome.IMPLEMENTATION_DEFECT
         defect_code = "POSSIBLE_FACTOR_ORIENTATION_DEFECT"
     else:
@@ -385,9 +368,7 @@ def _continuity_metrics(
         "raw_gap_atr": raw_gap,
         "adjusted_gap_atr": adjusted_gap,
         "inverse_adjusted_gap_atr": inverse_gap,
-        "candle_context_state": (
-            "AVAILABLE" if context_available else "INSUFFICIENT"
-        ),
+        "candle_context_state": ("AVAILABLE" if context_available else "INSUFFICIENT"),
     }
 
 
