@@ -1,0 +1,274 @@
+name: HTR010B1B Push Integrate
+
+on:
+  push:
+    branches:
+      - feature/htr-010b1b-continuity-universe-closure
+    paths:
+      - '.github/HTR010B1B_PUSH_TRIGGER'
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-010b1b-continuity-universe-closure
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Integrate continuity and universe closure
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          repair = Path('alpha/historical_truth/adjustment_replay_admission_repair.py')
+          text = repair.read_text(encoding='utf-8')
+          import_anchor = '''import duckdb
+
+from alpha.historical_truth.adjustment_replay_admission_engine import ('''
+          import_replacement = '''import duckdb
+
+from alpha.historical_truth.adjustment_replay_admission_continuity import (
+    HTR010B1B_CONTRACT_VERSION,
+    recompute_factor_validation,
+    tier_a_quarantine_economic_weight,
+)
+from alpha.historical_truth.adjustment_replay_admission_engine import ('''
+          assert import_anchor in text
+          text = text.replace(import_anchor, import_replacement, 1)
+
+          old_cases = '''        cases = factor_validation_cases_repaired(
+            inputs["events"], inputs["factors"], inputs["continuity"]
+        )
+        results = tuple(classify_factor_case_repaired(row) for row in cases)
+'''
+          new_cases = '''        cases, results, continuity_summary = recompute_factor_validation(
+            database_path=database_path,
+            events=inputs["events"],
+            factors=inputs["factors"],
+            legacy_continuity=inputs["continuity"],
+            start_date=start_date,
+            end_date=end_date,
+        )
+        inputs["diagnostics"]["continuity_recomputation"] = continuity_summary
+'''
+          assert old_cases in text
+          text = text.replace(old_cases, new_cases, 1)
+
+          old_weight = '''        economic_weight, weight_summary = quarantine_economic_weight(
+            database_path=database_path,
+            quarantine=quarantine,
+            population=population,
+            start_date=start_date,
+            end_date=end_date,
+        )
+'''
+          new_weight = '''        economic_weight, weight_summary = tier_a_quarantine_economic_weight(
+            database_path=database_path,
+            quarantine=quarantine,
+            coverage=inputs["coverage"],
+            population=population,
+            start_date=start_date,
+            end_date=end_date,
+        )
+'''
+          assert old_weight in text
+          text = text.replace(old_weight, new_weight, 1)
+
+          old_intervals = '''        intervals = segmented_replay_admission_intervals(
+            coverage=inputs["coverage"],
+            factors=inputs["factors"],
+            sessions=population["sessions"],
+            start_date=start_date,
+            end_date=end_date,
+        )
+'''
+          new_intervals = '''        intervals = segmented_replay_admission_intervals(
+            coverage=inputs["coverage"],
+            factors=inputs["factors"],
+            validation_results=results,
+            sessions=population["sessions"],
+            start_date=start_date,
+            end_date=end_date,
+        )
+'''
+          assert old_intervals in text
+          text = text.replace(old_intervals, new_intervals, 1)
+
+          text = text.replace(
+              '            "active_replay_integration": False,\n',
+              '            "continuity_source": "HTR010B_FACTOR_RECOMPUTED_FROM_CANONICAL_CANDLES",\n'
+              '            "legacy_continuity_is_comparison_only": True,\n'
+              '            "market_derived_factor_autocorrection": False,\n'
+              '            "active_replay_integration": False,\n',
+              1,
+          )
+          text = text.replace(
+              '            contract_version=HTR010B1A_CONTRACT_VERSION,',
+              '            contract_version=HTR010B1B_CONTRACT_VERSION,',
+              1,
+          )
+
+          signature = '''def segmented_replay_admission_intervals(
+    *,
+    coverage: tuple[dict[str, Any], ...],
+    factors: tuple[dict[str, Any], ...],
+    sessions: tuple[date, ...],
+'''
+          replacement = '''def segmented_replay_admission_intervals(
+    *,
+    coverage: tuple[dict[str, Any], ...],
+    factors: tuple[dict[str, Any], ...],
+    validation_results: tuple[dict[str, Any], ...] = (),
+    sessions: tuple[date, ...],
+'''
+          assert signature in text
+          text = text.replace(signature, replacement, 1)
+
+          grouping_anchor = '''    factors_by_identity: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in factors:
+'''
+          grouping_replacement = '''    validation_by_event = {
+        str(row.get("event_id")): row for row in validation_results
+    }
+    factors_by_identity: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in factors:
+'''
+          assert grouping_anchor in text
+          text = text.replace(grouping_anchor, grouping_replacement, 1)
+
+          factor_append = '''        if effective and start_date <= effective <= end_date:
+            factors_by_identity[str(row["identity_key"])].append(row)
+'''
+          factor_replacement = '''        if effective and start_date <= effective <= end_date:
+            enriched = dict(row)
+            enriched["validation_outcome"] = validation_by_event.get(
+                str(row.get("canonical_event_id")), {}
+            ).get("validation_outcome")
+            factors_by_identity[str(row["identity_key"])].append(enriched)
+'''
+          assert factor_append in text
+          text = text.replace(factor_append, factor_replacement, 1)
+
+          state_anchor = '''            future_states = {str(row.get("factor_state")) for row in future_factors}
+            preceding_states = {str(row.get("factor_state")) for row in preceding}
+            if not identity_factors:
+'''
+          state_replacement = '''            future_states = {str(row.get("factor_state")) for row in future_factors}
+            preceding_states = {str(row.get("factor_state")) for row in preceding}
+            future_outcomes = {
+                str(row.get("validation_outcome")) for row in future_factors
+            }
+            preceding_outcomes = {
+                str(row.get("validation_outcome")) for row in preceding
+            }
+            if not identity_factors:
+'''
+          assert state_anchor in text
+          text = text.replace(state_anchor, state_replacement, 1)
+
+          branch_anchor = '''            elif future_states & AMBIGUOUS_FACTOR_STATES:
+                state = AdmissionState.FACTOR_AMBIGUOUS_QUARANTINED
+                admitted_view = "NONE"
+'''
+          branch_replacement = '''            elif ValidationOutcome.IMPLEMENTATION_DEFECT.value in future_outcomes:
+                state = AdmissionState.CONFLICTING_EVIDENCE_QUARANTINED
+                admitted_view = "NONE"
+            elif ValidationOutcome.FACTOR_INSUFFICIENT_EVIDENCE.value in future_outcomes:
+                state = AdmissionState.INSUFFICIENT_EVIDENCE_QUARANTINED
+                admitted_view = "NONE"
+            elif future_states & AMBIGUOUS_FACTOR_STATES:
+                state = AdmissionState.FACTOR_AMBIGUOUS_QUARANTINED
+                admitted_view = "NONE"
+'''
+          assert branch_anchor in text
+          text = text.replace(branch_anchor, branch_replacement, 1)
+
+          reset_anchor = '''            reset_required = bool(
+                preceding_states
+                & (
+                    UNKNOWN_FACTOR_STATES
+                    | AMBIGUOUS_FACTOR_STATES
+                    | NON_MULTIPLICATIVE_STATES
+                )
+            )
+'''
+          reset_replacement = '''            reset_required = bool(
+                preceding_states
+                & (
+                    UNKNOWN_FACTOR_STATES
+                    | AMBIGUOUS_FACTOR_STATES
+                    | NON_MULTIPLICATIVE_STATES
+                )
+                or preceding_outcomes
+                & {
+                    ValidationOutcome.IMPLEMENTATION_DEFECT.value,
+                    ValidationOutcome.FACTOR_INSUFFICIENT_EVIDENCE.value,
+                }
+            )
+'''
+          assert reset_anchor in text
+          text = text.replace(reset_anchor, reset_replacement, 1)
+
+          output_anchor = '''                    "preceding_boundary_factor_states": sorted(preceding_states),
+                    "future_bridge_factor_states": sorted(future_states),
+'''
+          output_replacement = '''                    "preceding_boundary_factor_states": sorted(preceding_states),
+                    "future_bridge_factor_states": sorted(future_states),
+                    "preceding_boundary_validation_outcomes": sorted(preceding_outcomes),
+                    "future_bridge_validation_outcomes": sorted(future_outcomes),
+'''
+          assert output_anchor in text
+          text = text.replace(output_anchor, output_replacement, 1)
+          repair.write_text(text, encoding='utf-8')
+
+          cli = Path('alpha/historical_truth/adjustment_replay_admission_cli.py')
+          text = cli.read_text(encoding='utf-8')
+          text = text.replace(
+              '    print("HTR-010B1A Admission Contract Integrity Repair")',
+              '    print(f"{report.contract_version} Continuity and Admission Integrity")',
+              1,
+          )
+          cli.write_text(text, encoding='utf-8')
+
+          exports = Path('alpha/historical_truth/adjustment_replay_admission_exports.py')
+          text = exports.read_text(encoding='utf-8')
+          text = text.replace(
+              '            "# HTR-010B1A Admission Contract Integrity Repair",',
+              '            f"# {payload[\'contract_version\']} Continuity and Admission Integrity",',
+              1,
+          )
+          exports.write_text(text, encoding='utf-8')
+          PY
+      - name: Format and commit
+        run: |
+          python -m pip install ruff==0.15.20
+          ruff check \
+            alpha/historical_truth/adjustment_replay_admission_continuity.py \
+            alpha/historical_truth/adjustment_replay_admission_repair.py \
+            alpha/historical_truth/adjustment_replay_admission_cli.py \
+            alpha/historical_truth/adjustment_replay_admission_exports.py \
+            tests/historical_truth/test_adjustment_replay_admission_continuity.py \
+            --fix || true
+          ruff format \
+            alpha/historical_truth/adjustment_replay_admission_continuity.py \
+            alpha/historical_truth/adjustment_replay_admission_repair.py \
+            alpha/historical_truth/adjustment_replay_admission_cli.py \
+            alpha/historical_truth/adjustment_replay_admission_exports.py \
+            tests/historical_truth/test_adjustment_replay_admission_continuity.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            alpha/historical_truth/adjustment_replay_admission_continuity.py \
+            alpha/historical_truth/adjustment_replay_admission_repair.py \
+            alpha/historical_truth/adjustment_replay_admission_cli.py \
+            alpha/historical_truth/adjustment_replay_admission_exports.py \
+            tests/historical_truth/test_adjustment_replay_admission_continuity.py
+          git commit -m 'Integrate HTR-010B1B continuity and universe closure'
+          git push origin HEAD:feature/htr-010b1b-continuity-universe-closure
