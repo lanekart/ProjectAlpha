@@ -6,6 +6,9 @@ from pathlib import Path
 import typer
 
 from alpha.historical_truth.canonical import CanonicalPointInTimeWarehouse
+from alpha.historical_truth.event_sourced_universe_cli import (
+    event_sourced_universe_certify,
+)
 from alpha.historical_truth.integrity import HistoricalTruthIntegrityAudit
 from alpha.historical_truth.pilot import (
     DEFAULT_CROSS_ERA_DATES,
@@ -30,6 +33,10 @@ from alpha.historical_truth.special_session_snapshot_parity_cli import (
 
 historical_truth_app = typer.Typer(
     help="Build and audit official historical market truth."
+)
+
+historical_truth_app.command("event-sourced-universe-certify")(
+    event_sourced_universe_certify
 )
 
 

@@ -14,6 +14,16 @@ from alpha.historical_truth.canonical import (
     CompletenessReport,
     MarketSnapshot,
 )
+from alpha.historical_truth.event_sourced_universe_engine import (
+    EventSourcedIntervalReconstructor,
+    EventSourcedUniverseCertificationEngine,
+)
+from alpha.historical_truth.event_sourced_universe_models import (
+    HTR009A2_CONTRACT_VERSION,
+    EventSourcedCertificationState,
+    MembershipCertificationState,
+    SecurityEventType,
+)
 from alpha.historical_truth.historical_session_evidence import (
     HTR007_HISTORICAL_SESSION_EVIDENCE_CONTRACT_VERSION,
     NSE_YEAR_PAGE_TEMPLATE,
@@ -251,4 +261,10 @@ __all__ = [
     "UnavailableClassification",
     "ValidationIssue",
     "ValidationSeverity",
+    "HTR009A2_CONTRACT_VERSION",
+    "EventSourcedCertificationState",
+    "EventSourcedIntervalReconstructor",
+    "EventSourcedUniverseCertificationEngine",
+    "MembershipCertificationState",
+    "SecurityEventType",
 ]
