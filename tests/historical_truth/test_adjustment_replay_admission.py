@@ -95,8 +95,7 @@ def test_non_multiplicative_transition_segments_identity() -> None:
         (_factor(factor_state="FACTOR_NOT_MULTIPLICATIVE", price_factor=None),),
     )
     assert (
-        rows[0]["replay_impact"]
-        == ReplayImpact.IDENTITY_TRANSITION_NONCOMPARABLE.value
+        rows[0]["replay_impact"] == ReplayImpact.IDENTITY_TRANSITION_NONCOMPARABLE.value
     )
 
 
@@ -116,9 +115,7 @@ def test_mixed_basis_with_unknown_factor_is_segmented() -> None:
                 "adjusted_row_count": 50,
             },
         ),
-        (
-            _factor(factor_state="FACTOR_UNKNOWN_MISSING_TERMS"),
-        ),
+        (_factor(factor_state="FACTOR_UNKNOWN_MISSING_TERMS"),),
         (),
     )
     assert (
@@ -186,9 +183,7 @@ def test_unknown_rights_factor_is_quarantined_from_replay() -> None:
                 "start_date": "2020-01-09",
             },
         ),
-        factors=(
-            _factor(factor_state="FACTOR_UNKNOWN_MISSING_TERMS"),
-        ),
+        factors=(_factor(factor_state="FACTOR_UNKNOWN_MISSING_TERMS"),),
         mixed_rows=(),
         unknown_rows=(
             {
@@ -199,10 +194,7 @@ def test_unknown_rights_factor_is_quarantined_from_replay() -> None:
         start_date=date(2016, 1, 1),
         end_date=date(2026, 7, 20),
     )
-    assert (
-        rows[0]["admission_state"]
-        == AdmissionState.FACTOR_UNKNOWN_QUARANTINED.value
-    )
+    assert rows[0]["admission_state"] == AdmissionState.FACTOR_UNKNOWN_QUARANTINED.value
 
 
 def test_segment_boundary_resets_all_indicator_lookbacks() -> None:

@@ -4,17 +4,18 @@ from __future__ import annotations
 
 import json
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from dataclasses import replace
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from alpha.historical_truth.adjustment_replay_admission_models import (
     HTR010B1_CONTRACT_VERSION,
     PRODUCTION_INFLUENCE,
     TRANSFORMATION_CONTRACT_VERSION,
-    AdmissionState,
     AdjustmentReplayAdmissionReport,
+    AdmissionState,
     MixedBasisResolution,
     ReplayImpact,
     ReplayReadiness,
@@ -59,19 +60,32 @@ class AdjustmentReplayAdmissionEngine:
         coverage = _records(htr010b_output / "htr010b_identity_coverage_matrix.json")
         transitions = _records(htr010b_output / "htr010b_identity_transitions.json")
 
-        event_by_id = {str(row.get("canonical_event_id") or row.get("event_id")): row for row in events}
+        event_by_id = {
+            str(row.get("canonical_event_id") or row.get("event_id")): row
+            for row in events
+        }
         factor_by_event = {
-            str(row.get("canonical_event_id") or row.get("event_id") or row.get("action_id")): row
+            str(
+                row.get("canonical_event_id")
+                or row.get("event_id")
+                or row.get("action_id")
+            ): row
             for row in factors
         }
         continuity_by_event = {
-            str(row.get("canonical_event_id") or row.get("event_id") or row.get("action_id")): row
+            str(
+                row.get("canonical_event_id")
+                or row.get("event_id")
+                or row.get("action_id")
+            ): row
             for row in continuity
         }
 
         cases = factor_validation_cases(events, factors, continuity)
         results = tuple(
-            classify_factor_case(case, event_by_id, factor_by_event, continuity_by_event)
+            classify_factor_case(
+                case, event_by_id, factor_by_event, continuity_by_event
+            )
             for case in cases
         )
         unknown_impact = unknown_factor_impact(events, factors)
@@ -102,7 +116,10 @@ class AdjustmentReplayAdmissionEngine:
         matrix = coverage_matrix(coverage, admission, quarantine, lookbacks)
         readiness = adjusted_replay_readiness(admission, results, mixed)
         rejected = tuple(
-            row for row in results if row["validation_outcome"] in {
+            row
+            for row in results
+            if row["validation_outcome"]
+            in {
                 ValidationOutcome.FACTOR_CONFLICTING_OFFICIAL_EVIDENCE.value,
                 ValidationOutcome.FACTOR_INSUFFICIENT_EVIDENCE.value,
                 ValidationOutcome.IMPLEMENTATION_DEFECT.value,
@@ -142,9 +159,13 @@ def factor_validation_cases(
     factors: Iterable[dict[str, Any]],
     continuity: Iterable[dict[str, Any]],
 ) -> tuple[dict[str, Any], ...]:
-    event_map = {str(row.get("canonical_event_id") or row.get("event_id")): row for row in events}
+    event_map = {
+        str(row.get("canonical_event_id") or row.get("event_id")): row for row in events
+    }
     factor_map = {
-        str(row.get("canonical_event_id") or row.get("event_id") or row.get("action_id")): row
+        str(
+            row.get("canonical_event_id") or row.get("event_id") or row.get("action_id")
+        ): row
         for row in factors
     }
     rows: list[dict[str, Any]] = []
@@ -152,7 +173,11 @@ def factor_validation_cases(
         state = str(item.get("continuity_state") or "")
         if state != "FACTOR_LIKELY_INCORRECT":
             continue
-        event_id = str(item.get("canonical_event_id") or item.get("event_id") or item.get("action_id"))
+        event_id = str(
+            item.get("canonical_event_id")
+            or item.get("event_id")
+            or item.get("action_id")
+        )
         event = event_map.get(event_id, {})
         factor = factor_map.get(event_id, {})
         rows.append(
@@ -214,7 +239,10 @@ def classify_factor_case(
         outcome = ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP
     elif continuity.get("insufficient_adjacent_observations"):
         outcome = ValidationOutcome.FACTOR_INSUFFICIENT_EVIDENCE
-    elif event.get("multiple_action_count", 1) and int(event.get("multiple_action_count", 1)) > 1:
+    elif (
+        event.get("multiple_action_count", 1)
+        and int(event.get("multiple_action_count", 1)) > 1
+    ):
         outcome = ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MULTIPLE_ACTIONS
     else:
         outcome = ValidationOutcome.UNRESOLVED
@@ -222,13 +250,15 @@ def classify_factor_case(
     return {
         **case,
         "validation_outcome": outcome.value,
-        "admitted_to_replay": outcome in {
+        "admitted_to_replay": outcome
+        in {
             ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP,
             ValidationOutcome.FACTOR_CONFIRMED_CORRECT_THIN_TRADING,
             ValidationOutcome.FACTOR_CONFIRMED_CORRECT_EVENT_DATE_OFFSET,
             ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MULTIPLE_ACTIONS,
         },
-        "requires_quarantine": outcome in {
+        "requires_quarantine": outcome
+        in {
             ValidationOutcome.FACTOR_CONFLICTING_OFFICIAL_EVIDENCE,
             ValidationOutcome.FACTOR_INSUFFICIENT_EVIDENCE,
             ValidationOutcome.IMPLEMENTATION_DEFECT,
@@ -241,13 +271,24 @@ def classify_factor_case(
 def unknown_factor_impact(
     events: Iterable[dict[str, Any]], factors: Iterable[dict[str, Any]]
 ) -> tuple[dict[str, Any], ...]:
-    event_map = {str(row.get("canonical_event_id") or row.get("event_id")): row for row in events}
+    event_map = {
+        str(row.get("canonical_event_id") or row.get("event_id")): row for row in events
+    }
     rows: list[dict[str, Any]] = []
     for factor in factors:
         state = str(factor.get("factor_state") or "")
-        if state not in UNKNOWN_FACTOR_STATES | AMBIGUOUS_FACTOR_STATES | NON_MULTIPLICATIVE_STATES:
+        if (
+            state
+            not in UNKNOWN_FACTOR_STATES
+            | AMBIGUOUS_FACTOR_STATES
+            | NON_MULTIPLICATIVE_STATES
+        ):
             continue
-        event_id = str(factor.get("canonical_event_id") or factor.get("event_id") or factor.get("action_id"))
+        event_id = str(
+            factor.get("canonical_event_id")
+            or factor.get("event_id")
+            or factor.get("action_id")
+        )
         event = event_map.get(event_id, {})
         action_type = str(event.get("action_type") or factor.get("action_type") or "")
         if state in NON_MULTIPLICATIVE_STATES:
@@ -295,16 +336,22 @@ def mixed_basis_resolutions(
     }
     rows: list[dict[str, Any]] = []
     for identity in sorted(identities):
-        states = {str(item.get("factor_state")) for item in factors_by_identity[identity]}
+        states = {
+            str(item.get("factor_state")) for item in factors_by_identity[identity]
+        }
         summary = summary_by_identity.get(identity, {})
-        expected = int(summary.get("raw_row_count") or summary.get("action_exposed_raw_rows") or 0)
+        expected = int(
+            summary.get("raw_row_count") or summary.get("action_exposed_raw_rows") or 0
+        )
         adjusted = int(summary.get("adjusted_row_count") or 0)
         if identity in transition_ids:
             resolution = MixedBasisResolution.IDENTITY_TRANSITION_SEGMENTED
         elif states & AMBIGUOUS_FACTOR_STATES:
             resolution = MixedBasisResolution.MIXED_BASIS_QUARANTINED
         elif states & UNKNOWN_FACTOR_STATES:
-            resolution = MixedBasisResolution.ADJUSTED_WITH_SEGMENTED_UNCERTIFIED_INTERVAL
+            resolution = (
+                MixedBasisResolution.ADJUSTED_WITH_SEGMENTED_UNCERTIFIED_INTERVAL
+            )
         elif expected > 0 and expected == adjusted:
             resolution = MixedBasisResolution.FULLY_ADJUSTED_CERTIFIED
         elif expected > 0 and adjusted == 0:
@@ -338,45 +385,71 @@ def quarantine_census(
     raw: list[dict[str, Any]] = []
     for row in basis:
         state = str(row.get("price_basis_state") or "")
-        if state in {"FACTOR_UNKNOWN", "FACTOR_AMBIGUOUS", "MIXED_PRICE_BASIS", "CONFLICTING_OFFICIAL_EVIDENCE"}:
-            raw.append({
-                "identity_key": _identity(row),
-                "interval_start": row.get("start_date") or row.get("interval_start"),
-                "interval_end": row.get("end_date") or row.get("interval_end"),
-                "quarantine_reason": state,
-                "action_ids": row.get("action_ids") or [],
-            })
+        if state in {
+            "FACTOR_UNKNOWN",
+            "FACTOR_AMBIGUOUS",
+            "MIXED_PRICE_BASIS",
+            "CONFLICTING_OFFICIAL_EVIDENCE",
+        }:
+            raw.append(
+                {
+                    "identity_key": _identity(row),
+                    "interval_start": row.get("start_date")
+                    or row.get("interval_start"),
+                    "interval_end": row.get("end_date") or row.get("interval_end"),
+                    "quarantine_reason": state,
+                    "action_ids": row.get("action_ids") or [],
+                }
+            )
     for row in results:
         if row.get("requires_quarantine"):
-            raw.append({
-                "identity_key": _identity(row),
-                "interval_start": row.get("effective_date"),
-                "interval_end": row.get("effective_date"),
-                "quarantine_reason": row.get("validation_outcome"),
-                "action_ids": [row.get("event_id")],
-            })
+            raw.append(
+                {
+                    "identity_key": _identity(row),
+                    "interval_start": row.get("effective_date"),
+                    "interval_end": row.get("effective_date"),
+                    "quarantine_reason": row.get("validation_outcome"),
+                    "action_ids": [row.get("event_id")],
+                }
+            )
     for row in unknown_impact_rows:
-        if row.get("replay_impact") in {ReplayImpact.REQUIRE_CERTIFIED_FACTOR.value, ReplayImpact.QUARANTINE_INTERVAL.value}:
-            raw.append({
-                "identity_key": _identity(row),
-                "interval_start": row.get("effective_date"),
-                "interval_end": row.get("effective_date"),
-                "quarantine_reason": row.get("replay_impact"),
-                "action_ids": [row.get("event_id")],
-            })
+        if row.get("replay_impact") in {
+            ReplayImpact.REQUIRE_CERTIFIED_FACTOR.value,
+            ReplayImpact.QUARANTINE_INTERVAL.value,
+        }:
+            raw.append(
+                {
+                    "identity_key": _identity(row),
+                    "interval_start": row.get("effective_date"),
+                    "interval_end": row.get("effective_date"),
+                    "quarantine_reason": row.get("replay_impact"),
+                    "action_ids": [row.get("event_id")],
+                }
+            )
     for row in mixed_rows:
-        if row.get("resolution_state") == MixedBasisResolution.MIXED_BASIS_QUARANTINED.value:
-            raw.append({
-                "identity_key": _identity(row),
-                "interval_start": None,
-                "interval_end": None,
-                "quarantine_reason": "MIXED_PRICE_BASIS",
-                "action_ids": [],
-            })
+        if (
+            row.get("resolution_state")
+            == MixedBasisResolution.MIXED_BASIS_QUARANTINED.value
+        ):
+            raw.append(
+                {
+                    "identity_key": _identity(row),
+                    "interval_start": None,
+                    "interval_end": None,
+                    "quarantine_reason": "MIXED_PRICE_BASIS",
+                    "action_ids": [],
+                }
+            )
     dedup: dict[str, dict[str, Any]] = {}
     for row in raw:
         identity = _identity(row)
-        key = stable_id("quarantine", identity, row.get("interval_start"), row.get("interval_end"), row.get("quarantine_reason"))
+        key = stable_id(
+            "quarantine",
+            identity,
+            row.get("interval_start"),
+            row.get("interval_end"),
+            row.get("quarantine_reason"),
+        )
         summary = summary_by_identity.get(identity, {})
         dedup[key] = {
             "quarantine_id": key,
@@ -384,8 +457,14 @@ def quarantine_census(
             "symbol": summary.get("symbol"),
             "series": summary.get("series"),
             "isin": summary.get("isin"),
-            "affected_candle_rows": int(summary.get("raw_row_count") or summary.get("action_exposed_raw_rows") or 0),
-            "affected_identity_sessions": int(summary.get("identity_session_count") or 0),
+            "affected_candle_rows": int(
+                summary.get("raw_row_count")
+                or summary.get("action_exposed_raw_rows")
+                or 0
+            ),
+            "affected_identity_sessions": int(
+                summary.get("identity_session_count") or 0
+            ),
             "production_influence": False,
         }
     return tuple(dedup.values())
@@ -396,31 +475,53 @@ def quarantine_weight(
     summaries: Iterable[dict[str, Any]],
     coverage: Iterable[dict[str, Any]],
 ) -> tuple[dict[str, Any], ...]:
-    total_rows = sum(int(row.get("raw_row_count") or row.get("action_exposed_raw_rows") or 0) for row in summaries)
-    total_sessions = sum(int(row.get("identity_session_count") or row.get("expected_identity_sessions") or 0) for row in coverage)
+    total_rows = sum(
+        int(row.get("raw_row_count") or row.get("action_exposed_raw_rows") or 0)
+        for row in summaries
+    )
+    total_sessions = sum(
+        int(
+            row.get("identity_session_count")
+            or row.get("expected_identity_sessions")
+            or 0
+        )
+        for row in coverage
+    )
     by_identity: dict[str, dict[str, Any]] = {}
     for row in quarantine:
         identity = _identity(row)
-        current = by_identity.setdefault(identity, {
-            "identity_key": identity,
-            "symbol": row.get("symbol"),
-            "quarantine_interval_count": 0,
-            "affected_candle_rows": 0,
-            "affected_identity_sessions": 0,
-            "reasons": set(),
-        })
+        current = by_identity.setdefault(
+            identity,
+            {
+                "identity_key": identity,
+                "symbol": row.get("symbol"),
+                "quarantine_interval_count": 0,
+                "affected_candle_rows": 0,
+                "affected_identity_sessions": 0,
+                "reasons": set(),
+            },
+        )
         current["quarantine_interval_count"] += 1
-        current["affected_candle_rows"] = max(current["affected_candle_rows"], int(row.get("affected_candle_rows") or 0))
-        current["affected_identity_sessions"] = max(current["affected_identity_sessions"], int(row.get("affected_identity_sessions") or 0))
+        current["affected_candle_rows"] = max(
+            current["affected_candle_rows"], int(row.get("affected_candle_rows") or 0)
+        )
+        current["affected_identity_sessions"] = max(
+            current["affected_identity_sessions"],
+            int(row.get("affected_identity_sessions") or 0),
+        )
         current["reasons"].add(str(row.get("quarantine_reason")))
     result = []
     for row in by_identity.values():
-        result.append({
-            **row,
-            "reasons": sorted(row["reasons"]),
-            "pct_tier_a_rows": _pct(row["affected_candle_rows"], total_rows),
-            "pct_tier_a_identity_sessions": _pct(row["affected_identity_sessions"], total_sessions),
-        })
+        result.append(
+            {
+                **row,
+                "reasons": sorted(row["reasons"]),
+                "pct_tier_a_rows": _pct(row["affected_candle_rows"], total_rows),
+                "pct_tier_a_identity_sessions": _pct(
+                    row["affected_identity_sessions"], total_sessions
+                ),
+            }
+        )
     return tuple(result)
 
 
@@ -428,45 +529,68 @@ def event_boundaries(events: Iterable[dict[str, Any]]) -> tuple[dict[str, Any], 
     rows = []
     for row in events:
         effective = _date(row.get("effective_date") or row.get("ex_date"))
-        rows.append({
-            "event_id": row.get("canonical_event_id") or row.get("event_id"),
-            "identity_key": _identity(row),
-            "official_ex_date": row.get("ex_date"),
-            "record_date": row.get("record_date"),
-            "effective_date": effective.isoformat() if effective else None,
-            "previous_calendar_date": (effective - timedelta(days=1)).isoformat() if effective else None,
-            "first_activity_row_on_or_after_ex_date": row.get("first_activity_row_on_or_after_ex_date"),
-            "boundary_confidence": "HIGH" if row.get("ex_date") else "MODERATE",
-        })
+        rows.append(
+            {
+                "event_id": row.get("canonical_event_id") or row.get("event_id"),
+                "identity_key": _identity(row),
+                "official_ex_date": row.get("ex_date"),
+                "record_date": row.get("record_date"),
+                "effective_date": effective.isoformat() if effective else None,
+                "previous_calendar_date": (effective - timedelta(days=1)).isoformat()
+                if effective
+                else None,
+                "first_activity_row_on_or_after_ex_date": row.get(
+                    "first_activity_row_on_or_after_ex_date"
+                ),
+                "boundary_confidence": "HIGH" if row.get("ex_date") else "MODERATE",
+            }
+        )
     return tuple(rows)
 
 
-def multiple_action_cases(events: Iterable[dict[str, Any]]) -> tuple[dict[str, Any], ...]:
+def multiple_action_cases(
+    events: Iterable[dict[str, Any]],
+) -> tuple[dict[str, Any], ...]:
     groups: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in events:
         groups[(_identity(row), str(row.get("effective_date")))].append(row)
-    return tuple({
-        "case_id": stable_id("multi-action", identity, effective),
-        "identity_key": identity,
-        "effective_date": effective,
-        "event_count": len(items),
-        "event_ids": sorted(str(item.get("canonical_event_id") or item.get("event_id")) for item in items),
-        "action_types": sorted(str(item.get("action_type")) for item in items),
-        "requires_order_validation": len(items) > 1,
-    } for (identity, effective), items in groups.items() if len(items) > 1)
+    return tuple(
+        {
+            "case_id": stable_id("multi-action", identity, effective),
+            "identity_key": identity,
+            "effective_date": effective,
+            "event_count": len(items),
+            "event_ids": sorted(
+                str(item.get("canonical_event_id") or item.get("event_id"))
+                for item in items
+            ),
+            "action_types": sorted(str(item.get("action_type")) for item in items),
+            "requires_order_validation": len(items) > 1,
+        }
+        for (identity, effective), items in groups.items()
+        if len(items) > 1
+    )
 
 
-def series_applicability(events: Iterable[dict[str, Any]]) -> tuple[dict[str, Any], ...]:
+def series_applicability(
+    events: Iterable[dict[str, Any]],
+) -> tuple[dict[str, Any], ...]:
     rows = []
     for row in events:
-        series = row.get("series_applicability") or ([row.get("series")] if row.get("series") else [])
-        rows.append({
-            "event_id": row.get("canonical_event_id") or row.get("event_id"),
-            "identity_key": _identity(row),
-            "series_applicability": sorted(str(item) for item in series),
-            "applicability_state": "IDENTITY_WIDE" if len(series) != 1 else "SERIES_SPECIFIC",
-            "duplicate_factor_risk": False,
-        })
+        series = row.get("series_applicability") or (
+            [row.get("series")] if row.get("series") else []
+        )
+        rows.append(
+            {
+                "event_id": row.get("canonical_event_id") or row.get("event_id"),
+                "identity_key": _identity(row),
+                "series_applicability": sorted(str(item) for item in series),
+                "applicability_state": "IDENTITY_WIDE"
+                if len(series) != 1
+                else "SERIES_SPECIFIC",
+                "duplicate_factor_risk": False,
+            }
+        )
     return tuple(rows)
 
 
@@ -478,20 +602,28 @@ def adjusted_row_audit(
         basis_by_identity[_identity(row)].add(str(row.get("price_basis_state")))
     rows = []
     for summary in summaries:
-        raw = int(summary.get("raw_row_count") or summary.get("action_exposed_raw_rows") or 0)
+        raw = int(
+            summary.get("raw_row_count") or summary.get("action_exposed_raw_rows") or 0
+        )
         adjusted = int(summary.get("adjusted_row_count") or 0)
-        rows.append({
-            "identity_key": _identity(summary),
-            "symbol": summary.get("symbol"),
-            "expected_adjusted_row_count": raw,
-            "actual_adjusted_row_count": adjusted,
-            "row_parity": raw == adjusted,
-            "missing_adjusted_rows": max(raw - adjusted, 0),
-            "duplicate_adjusted_rows": max(adjusted - raw, 0),
-            "factor_lineage_complete": bool(summary.get("factor_lineage_complete", adjusted == 0 or adjusted <= raw)),
-            "price_basis_states": sorted(basis_by_identity[_identity(summary)]),
-            "raw_candles_unchanged": True,
-        })
+        rows.append(
+            {
+                "identity_key": _identity(summary),
+                "symbol": summary.get("symbol"),
+                "expected_adjusted_row_count": raw,
+                "actual_adjusted_row_count": adjusted,
+                "row_parity": raw == adjusted,
+                "missing_adjusted_rows": max(raw - adjusted, 0),
+                "duplicate_adjusted_rows": max(adjusted - raw, 0),
+                "factor_lineage_complete": bool(
+                    summary.get(
+                        "factor_lineage_complete", adjusted == 0 or adjusted <= raw
+                    )
+                ),
+                "price_basis_states": sorted(basis_by_identity[_identity(summary)]),
+                "raw_candles_unchanged": True,
+            }
+        )
     return tuple(rows)
 
 
@@ -511,7 +643,9 @@ def replay_admission_intervals(
     factor_states: dict[str, set[str]] = defaultdict(set)
     for row in factors:
         factor_states[_identity(row)].add(str(row.get("factor_state")))
-    mixed_state = {_identity(row): str(row.get("resolution_state")) for row in mixed_rows}
+    mixed_state = {
+        _identity(row): str(row.get("resolution_state")) for row in mixed_rows
+    }
     unknown_impact_by_identity: dict[str, set[str]] = defaultdict(set)
     for row in unknown_rows:
         unknown_impact_by_identity[_identity(row)].add(str(row.get("replay_impact")))
@@ -524,7 +658,10 @@ def replay_admission_intervals(
         impact = unknown_impact_by_identity[identity]
         if not basis_rows or basis_states <= {"RAW_NO_ACTION_EXPOSURE"}:
             admission = AdmissionState.RAW_REPLAY_CERTIFIED_NO_ACTION_EXPOSURE
-        elif mixed_state.get(identity) == MixedBasisResolution.MIXED_BASIS_QUARANTINED.value:
+        elif (
+            mixed_state.get(identity)
+            == MixedBasisResolution.MIXED_BASIS_QUARANTINED.value
+        ):
             admission = AdmissionState.MIXED_PRICE_BASIS_QUARANTINED
         elif states & AMBIGUOUS_FACTOR_STATES:
             admission = AdmissionState.FACTOR_AMBIGUOUS_QUARANTINED
@@ -538,22 +675,32 @@ def replay_admission_intervals(
             admission = AdmissionState.ADJUSTED_REPLAY_CERTIFIED_TRADABILITY_PARTIAL
         else:
             admission = AdmissionState.RAW_REPLAY_CERTIFIED_POST_EVENT_SEGMENT
-        rows.append({
-            "admission_interval_id": stable_id("replay-admission", identity, start_date, end_date, admission.value),
-            "identity_key": identity,
-            "symbol": identity_row.get("symbol"),
-            "series": identity_row.get("series"),
-            "isin": identity_row.get("isin"),
-            "start_date": start_date.isoformat(),
-            "end_date": end_date.isoformat(),
-            "admission_state": admission.value,
-            "admitted_price_view": "ADJUSTED" if admission.value.startswith("ADJUSTED") else "RAW",
-            "prohibited_price_view": "MIXED",
-            "event_boundaries": sorted(str(row.get("start_date") or row.get("interval_start")) for row in basis_rows if row.get("start_date") or row.get("interval_start")),
-            "factor_states": sorted(states),
-            "minimum_safe_indicator_start_date": start_date.isoformat(),
-            "production_influence": False,
-        })
+        rows.append(
+            {
+                "admission_interval_id": stable_id(
+                    "replay-admission", identity, start_date, end_date, admission.value
+                ),
+                "identity_key": identity,
+                "symbol": identity_row.get("symbol"),
+                "series": identity_row.get("series"),
+                "isin": identity_row.get("isin"),
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "admission_state": admission.value,
+                "admitted_price_view": "ADJUSTED"
+                if admission.value.startswith("ADJUSTED")
+                else "RAW",
+                "prohibited_price_view": "MIXED",
+                "event_boundaries": sorted(
+                    str(row.get("start_date") or row.get("interval_start"))
+                    for row in basis_rows
+                    if row.get("start_date") or row.get("interval_start")
+                ),
+                "factor_states": sorted(states),
+                "minimum_safe_indicator_start_date": start_date.isoformat(),
+                "production_influence": False,
+            }
+        )
     return tuple(rows)
 
 
@@ -574,13 +721,19 @@ def indicator_lookback_safety(
                 AdmissionState.UNRESOLVED.value,
             }
             earliest = start + timedelta(days=lookback * 2) if start and safe else None
-            rows.append({
-                "identity_key": _identity(item),
-                "lookback_sessions": lookback,
-                "safety_state": "SAFE_AFTER_RESET" if safe else "QUARANTINED",
-                "earliest_safe_date": earliest.isoformat() if earliest else None,
-                "reset_required": state in {AdmissionState.SEGMENT_BOUNDARY_REQUIRED.value, AdmissionState.IDENTITY_TRANSITION_NONCOMPARABLE.value},
-            })
+            rows.append(
+                {
+                    "identity_key": _identity(item),
+                    "lookback_sessions": lookback,
+                    "safety_state": "SAFE_AFTER_RESET" if safe else "QUARANTINED",
+                    "earliest_safe_date": earliest.isoformat() if earliest else None,
+                    "reset_required": state
+                    in {
+                        AdmissionState.SEGMENT_BOUNDARY_REQUIRED.value,
+                        AdmissionState.IDENTITY_TRANSITION_NONCOMPARABLE.value,
+                    },
+                }
+            )
     return tuple(rows)
 
 
@@ -609,15 +762,22 @@ def coverage_matrix(
     lookback_counts: dict[str, Counter[str]] = defaultdict(Counter)
     for row in lookbacks:
         lookback_counts[_identity(row)][str(row.get("safety_state"))] += 1
-    return tuple({
-        "identity_key": _identity(row),
-        "symbol": row.get("symbol"),
-        "isin": row.get("isin"),
-        "admission_state": admission_by_identity.get(_identity(row), {}).get("admission_state", AdmissionState.UNRESOLVED.value),
-        "quarantine_interval_count": quarantine_count[_identity(row)],
-        "safe_lookback_count": lookback_counts[_identity(row)]["SAFE_AFTER_RESET"],
-        "quarantined_lookback_count": lookback_counts[_identity(row)]["QUARANTINED"],
-    } for row in coverage)
+    return tuple(
+        {
+            "identity_key": _identity(row),
+            "symbol": row.get("symbol"),
+            "isin": row.get("isin"),
+            "admission_state": admission_by_identity.get(_identity(row), {}).get(
+                "admission_state", AdmissionState.UNRESOLVED.value
+            ),
+            "quarantine_interval_count": quarantine_count[_identity(row)],
+            "safe_lookback_count": lookback_counts[_identity(row)]["SAFE_AFTER_RESET"],
+            "quarantined_lookback_count": lookback_counts[_identity(row)][
+                "QUARANTINED"
+            ],
+        }
+        for row in coverage
+    )
 
 
 def adjusted_replay_readiness(
@@ -627,7 +787,10 @@ def adjusted_replay_readiness(
 ) -> dict[str, Any]:
     admission_rows = tuple(admission)
     states = Counter(str(row.get("admission_state")) for row in admission_rows)
-    unresolved_factors = sum(row.get("validation_outcome") == ValidationOutcome.UNRESOLVED.value for row in results)
+    unresolved_factors = sum(
+        row.get("validation_outcome") == ValidationOutcome.UNRESOLVED.value
+        for row in results
+    )
     silent_mixed = sum(bool(row.get("silent_mixed_basis")) for row in mixed)
     quarantine_states = {
         AdmissionState.FACTOR_UNKNOWN_QUARANTINED.value,
@@ -683,9 +846,18 @@ def _first(*rows: dict[str, Any], key: str) -> Any:
 
 
 def _row_key(row: dict[str, Any]) -> tuple[str, ...]:
-    return tuple(str(row.get(key) or "") for key in (
-        "identity_key", "effective_date", "start_date", "event_id", "case_id", "quarantine_id", "lookback_sessions"
-    ))
+    return tuple(
+        str(row.get(key) or "")
+        for key in (
+            "identity_key",
+            "effective_date",
+            "start_date",
+            "event_id",
+            "case_id",
+            "quarantine_id",
+            "lookback_sessions",
+        )
+    )
 
 
 def _number(value: Any) -> float | None:
