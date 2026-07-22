@@ -10,13 +10,22 @@ def _historical_truth_app() -> typer.Typer:
         adjustment_replay_admission_certify,
     )
     from alpha.historical_truth.cli import historical_truth_app
+    from alpha.historical_truth.session_calendar_extension_cli import (
+        session_calendar_extend_certify,
+    )
 
-    command_name = "adjustment-replay-admission-certify"
-    if not any(
-        command.name == command_name
-        for command in historical_truth_app.registered_commands
-    ):
-        historical_truth_app.command(command_name)(adjustment_replay_admission_certify)
+    commands = {
+        "adjustment-replay-admission-certify": (
+            adjustment_replay_admission_certify
+        ),
+        "session-calendar-extend-certify": session_calendar_extend_certify,
+    }
+    registered = {
+        command.name for command in historical_truth_app.registered_commands
+    }
+    for command_name, callback in commands.items():
+        if command_name not in registered:
+            historical_truth_app.command(command_name)(callback)
     return historical_truth_app
 
 
