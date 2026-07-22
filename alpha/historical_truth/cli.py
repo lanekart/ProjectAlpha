@@ -11,6 +11,9 @@ from alpha.historical_truth.pilot import (
     DEFAULT_CROSS_ERA_DATES,
     HistoricalBackfillPilot,
 )
+from alpha.historical_truth.point_in_time_identity_cli import (
+    point_in_time_universe_certify,
+)
 from alpha.historical_truth.population import HistoricalPopulationEngine
 from alpha.historical_truth.replay_eligibility_integrity_cli import (
     replay_eligibility_integrity_audit,
@@ -146,6 +149,9 @@ historical_truth_app.command("special-session-snapshot-repair")(
 )
 historical_truth_app.command("replay-eligibility-integrity-audit")(
     replay_eligibility_integrity_audit
+)
+historical_truth_app.command("point-in-time-universe-certify")(
+    point_in_time_universe_certify
 )
 
 

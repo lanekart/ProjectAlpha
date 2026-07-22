@@ -55,6 +55,21 @@ from alpha.historical_truth.pilot import (
     HistoricalBackfillPilot,
 )
 from alpha.historical_truth.plugins import NseBhavcopyPlugin
+from alpha.historical_truth.point_in_time_identity_engine import (
+    PointInTimeIdentityCertificationEngine,
+)
+from alpha.historical_truth.point_in_time_identity_exports import (
+    PointInTimeIdentityArtifactExporter,
+)
+from alpha.historical_truth.point_in_time_identity_models import (
+    HTR009A_CONTRACT_VERSION,
+    IdentityState,
+    MembershipState,
+    PointInTimeIdentityReport,
+)
+from alpha.historical_truth.point_in_time_identity_models import (
+    CertificationState as PointInTimeCertificationState,
+)
 from alpha.historical_truth.population import (
     HistoricalPopulationEngine,
     PopulationRecord,
@@ -187,6 +202,12 @@ __all__ = [
     "PopulationRecord",
     "PopulationStatus",
     "PopulationSummary",
+    "PointInTimeCertificationState",
+    "PointInTimeIdentityArtifactExporter",
+    "PointInTimeIdentityCertificationEngine",
+    "PointInTimeIdentityReport",
+    "IdentityState",
+    "MembershipState",
     "PRODUCTION_INFLUENCE",
     "RawArchiveVerification",
     "SecurityFinding",
@@ -217,6 +238,7 @@ __all__ = [
     "SpecialSessionSnapshotParityEngine",
     "CANONICAL_MINIMUM_HISTORY_SESSIONS",
     "HTR008_CONTRACT_VERSION",
+    "HTR009A_CONTRACT_VERSION",
     "CertificationState",
     "CorporateActionSeverity",
     "EligibilityAuditPolicy",
