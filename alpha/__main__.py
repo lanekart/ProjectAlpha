@@ -14,14 +14,15 @@ def _historical_truth_app() -> typer.Typer:
         session_calendar_extend_certify,
     )
 
-    commands = {
-        "adjustment-replay-admission-certify": (adjustment_replay_admission_certify),
-        "session-calendar-extend-certify": session_calendar_extend_certify,
-    }
     registered = {command.name for command in historical_truth_app.registered_commands}
-    for command_name, callback in commands.items():
-        if command_name not in registered:
-            historical_truth_app.command(command_name)(callback)
+    if "adjustment-replay-admission-certify" not in registered:
+        historical_truth_app.command("adjustment-replay-admission-certify")(
+            adjustment_replay_admission_certify
+        )
+    if "session-calendar-extend-certify" not in registered:
+        historical_truth_app.command("session-calendar-extend-certify")(
+            session_calendar_extend_certify
+        )
     return historical_truth_app
 
 
