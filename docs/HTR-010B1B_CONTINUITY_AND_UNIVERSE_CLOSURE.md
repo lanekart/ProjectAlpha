@@ -7,6 +7,7 @@ HTR-010B1B repairs two fail-closed diagnostics exposed by the HTR-010B1A governe
 - Recompute price continuity from the exact HTR-010B canonical event and factor.
 - Join candles by governed ISIN and applicable series.
 - Treat HTR-009B continuity records as comparison evidence only.
+- Never let legacy continuity records drive replay readiness.
 - Calculate both the official-factor result and an inverse-factor diagnostic.
 - Never replace an official factor from market behavior alone.
 - Quarantine implementation-defect and insufficient-evidence bridge intervals.
