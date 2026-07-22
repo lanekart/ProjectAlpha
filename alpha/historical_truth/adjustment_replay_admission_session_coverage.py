@@ -21,7 +21,7 @@ def governed_session_coverage(
     start_date: date,
     end_date: date,
 ) -> dict[str, Any]:
-    """Compare every governed expected session with canonical observations."""
+    """Compare governed expected sessions with canonical observations."""
 
     if not calendar_report.exists():
         return _unavailable(
@@ -76,9 +76,17 @@ def governed_session_coverage(
             governed_observed.add(trading_date)
 
     observed = _observed_sessions(database_path, start_date, end_date)
-    missing = sorted(expected - observed)
-    unexpected = sorted(observed - expected)
-    governed_observation_disagreements = sorted(observed ^ governed_observed)
+    observed_within_governed = _within_report_window(
+        observed,
+        report_start,
+        report_end,
+    )
+    observations_beyond_window = sorted(observed - observed_within_governed)
+    missing = sorted(expected - observed_within_governed)
+    unexpected_within_governed = sorted(observed_within_governed - expected)
+    observation_disagreements = sorted(
+        observed_within_governed ^ governed_observed
+    )
     certification_state = str(payload.get("certification_state") or "")
     certified = certification_state == "certified"
 
@@ -87,23 +95,29 @@ def governed_session_coverage(
         blockers.append("GOVERNED_SESSION_CALENDAR_CHECKSUM_INVALID")
     if not window_covered:
         blockers.append("GOVERNED_SESSION_CALENDAR_WINDOW_INCOMPLETE")
+    if observations_beyond_window:
+        blockers.append("OBSERVATIONS_BEYOND_GOVERNED_CALENDAR_WINDOW")
     if not certified:
         blockers.append("GOVERNED_SESSION_CALENDAR_NOT_CERTIFIED")
     if unresolved:
         blockers.append("UNRESOLVED_GOVERNED_WEEKDAYS")
     if missing:
         blockers.append("MISSING_EXPECTED_TRADING_SESSIONS")
-    if governed_observation_disagreements:
+    if unexpected_within_governed:
+        blockers.append("UNEXPECTED_OBSERVED_SESSIONS_WITHIN_GOVERNED_WINDOW")
+    if observation_disagreements:
         blockers.append("CALENDAR_DATABASE_OBSERVATION_MISMATCH")
 
     complete = not blockers
     expected_count = len(expected)
-    observed_expected_count = len(expected & observed)
+    observed_expected_count = len(expected & observed_within_governed)
     return {
         "contract_version": HTR010B1C_CONTRACT_VERSION,
-        "state": "GOVERNED_SESSION_COVERAGE_COMPLETE"
-        if complete
-        else "GOVERNED_SESSION_COVERAGE_INCOMPLETE",
+        "state": (
+            "GOVERNED_SESSION_COVERAGE_COMPLETE"
+            if complete
+            else "GOVERNED_SESSION_COVERAGE_INCOMPLETE"
+        ),
         "calendar_report": str(calendar_report),
         "calendar_report_sha256": payload.get("report_sha256"),
         "calendar_checksum_valid": checksum_valid,
@@ -114,21 +128,44 @@ def governed_session_coverage(
         "expected_session_count": expected_count,
         "observed_expected_session_count": observed_expected_count,
         "observed_database_session_count": len(observed),
+        "observed_within_governed_window_count": len(observed_within_governed),
         "missing_expected_session_count": len(missing),
         "missing_expected_sessions": [item.isoformat() for item in missing],
-        "unexpected_observed_session_count": len(unexpected),
-        "unexpected_observed_sessions": [item.isoformat() for item in unexpected],
+        "unexpected_observed_session_count": len(unexpected_within_governed),
+        "unexpected_observed_sessions": [
+            item.isoformat() for item in unexpected_within_governed
+        ],
+        "observations_beyond_governed_calendar_window_count": len(
+            observations_beyond_window
+        ),
+        "observations_beyond_governed_calendar_window": [
+            item.isoformat() for item in observations_beyond_window
+        ],
         "unresolved_weekday_count": len(unresolved),
         "unresolved_weekdays": [item.isoformat() for item in sorted(unresolved)],
-        "calendar_database_disagreement_count": len(governed_observation_disagreements),
+        "calendar_database_disagreement_count": len(observation_disagreements),
         "calendar_database_disagreements": [
-            item.isoformat() for item in governed_observation_disagreements
+            item.isoformat() for item in observation_disagreements
         ],
         "coverage_ratio": (
             observed_expected_count / expected_count if expected_count else 0.0
         ),
         "blockers": sorted(set(blockers)),
         "production_influence": False,
+    }
+
+
+def _within_report_window(
+    observed: set[date],
+    report_start: date | None,
+    report_end: date | None,
+) -> set[date]:
+    if report_start is None or report_end is None:
+        return set()
+    return {
+        trading_date
+        for trading_date in observed
+        if report_start <= trading_date <= report_end
     }
 
 
@@ -176,6 +213,7 @@ def _unavailable(
         "expected_session_count": 0,
         "observed_expected_session_count": 0,
         "missing_expected_session_count": 0,
+        "observations_beyond_governed_calendar_window_count": 0,
         "unresolved_weekday_count": 0,
         "coverage_ratio": 0.0,
         "blockers": [blocker],
