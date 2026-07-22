@@ -177,8 +177,7 @@ def _executive(report: AdjustmentReplayAdmissionReport) -> dict[str, Any]:
 def _executive_markdown(payload: dict[str, Any]) -> str:
     blockers = payload.get("readiness_blockers") or []
     header = (
-        f"# {payload['contract_version']} "
-        "Session Coverage and Residual Attribution"
+        f"# {payload['contract_version']} Session Coverage and Residual Attribution"
     )
     return "\n".join(
         (
