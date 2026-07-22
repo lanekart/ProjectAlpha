@@ -167,7 +167,9 @@ def _database(path: Path) -> Path:
                     ),
                 ]
             )
-        connection.executemany("INSERT INTO daily_candle VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
+        connection.executemany(
+            "INSERT INTO daily_candle VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows
+        )
     return path
 
 
@@ -232,7 +234,10 @@ def test_intervals_are_segmented_at_observed_sessions() -> None:
         ("2020-01-03", "2020-01-05"),
     ]
     assert rows[0]["admission_state"] == AdmissionState.FACTOR_UNKNOWN_QUARANTINED.value
-    assert rows[1]["admission_state"] == AdmissionState.RAW_REPLAY_CERTIFIED_POST_EVENT_SEGMENT.value
+    assert (
+        rows[1]["admission_state"]
+        == AdmissionState.RAW_REPLAY_CERTIFIED_POST_EVENT_SEGMENT.value
+    )
     assert rows[1]["reset_required"] is True
 
 
@@ -255,7 +260,9 @@ def test_lookback_uses_exchange_sessions_not_calendar_approximation() -> None:
     assert rows[0]["calendar_day_approximation"] is False
 
 
-def test_engine_measures_nonzero_weight_and_fails_readiness_closed(tmp_path: Path) -> None:
+def test_engine_measures_nonzero_weight_and_fails_readiness_closed(
+    tmp_path: Path,
+) -> None:
     htr010a3, htr010b = _artifacts(tmp_path)
     database = _database(tmp_path / "truth.duckdb")
 
@@ -270,15 +277,19 @@ def test_engine_measures_nonzero_weight_and_fails_readiness_closed(tmp_path: Pat
     assert report.contract_version == "HTR-010B1A-v1.0.0"
     assert report.input_contract_diagnostics["state"] == "INPUT_CONTRACT_VALID"
     assert report.population_reconciliation["observed_tier_a_candle_rows"] == 10
-    assert report.quarantine_population_reconciliation[
-        "observed_quarantined_candle_rows"
-    ] == 1
+    assert (
+        report.quarantine_population_reconciliation["observed_quarantined_candle_rows"]
+        == 1
+    )
     assert report.quarantine_population_reconciliation[
         "pct_observed_tier_a_rows_quarantined"
     ] == pytest.approx(10.0)
     assert len(report.replay_admission_intervals) == 3
-    assert report.replay_readiness["state"] == "NOT_READY_FOR_ADJUSTED_REPLAY_INTEGRATION"
-    assert "FACTOR_TRANSFORMATION_IMPLEMENTATION_DEFECTS" in report.replay_readiness[
-        "blockers"
-    ]
+    assert (
+        report.replay_readiness["state"] == "NOT_READY_FOR_ADJUSTED_REPLAY_INTEGRATION"
+    )
+    assert (
+        "FACTOR_TRANSFORMATION_IMPLEMENTATION_DEFECTS"
+        in report.replay_readiness["blockers"]
+    )
     assert report.replay_readiness["calendar_day_lookback_approximation"] is False

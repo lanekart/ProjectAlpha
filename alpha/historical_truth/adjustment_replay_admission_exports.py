@@ -151,8 +151,7 @@ def _executive_markdown(payload: dict[str, Any]) -> str:
             f"- Unresolved-case identities: {payload['unresolved_case_identities']:,}",
             f"- Quarantine evidence rows: {payload['quarantined_intervals']:,}",
             f"- Segmented admission intervals: {payload['admission_intervals']:,}",
-            "- Economic-weight state: "
-            f"{payload['economic_weight_measurement_state']}",
+            f"- Economic-weight state: {payload['economic_weight_measurement_state']}",
             "- Observed Tier A row weight quarantined: "
             f"{_display(payload['pct_observed_tier_a_rows_quarantined'])}",
             "- Observed Tier A identity-session weight quarantined: "

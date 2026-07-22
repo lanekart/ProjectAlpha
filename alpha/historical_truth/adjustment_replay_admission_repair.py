@@ -193,7 +193,9 @@ class HTR010BInputAdapter:
         if tier_a != coverage_ids:
             diagnostics["errors"].append("HTR010A3_HTR010B_IDENTITY_SET_MISMATCH")
         diagnostics["state"] = (
-            "INPUT_CONTRACT_VALID" if not diagnostics["errors"] else "INPUT_CONTRACT_INVALID"
+            "INPUT_CONTRACT_VALID"
+            if not diagnostics["errors"]
+            else "INPUT_CONTRACT_INVALID"
         )
         if diagnostics["errors"]:
             raise InputContractError(
@@ -323,7 +325,10 @@ class AdjustmentReplayAdmissionRepairEngine:
             factor_validation_cases=tuple(sorted(cases, key=_row_key)),
             factor_validation_results=tuple(sorted(results, key=_row_key)),
             event_boundaries=tuple(
-                sorted(event_boundaries_repaired(inputs["events"], population["sessions"]), key=_row_key)
+                sorted(
+                    event_boundaries_repaired(inputs["events"], population["sessions"]),
+                    key=_row_key,
+                )
             ),
             multiple_action_cases=tuple(
                 sorted(multiple_action_cases(inputs["events"]), key=_row_key)
@@ -334,7 +339,10 @@ class AdjustmentReplayAdmissionRepairEngine:
             unknown_factor_impact=tuple(sorted(unknown, key=_row_key)),
             mixed_basis_resolution=tuple(sorted(mixed, key=_row_key)),
             adjusted_row_audit=tuple(
-                sorted(adjusted_row_audit_repaired(inputs["summaries"], population), key=_row_key)
+                sorted(
+                    adjusted_row_audit_repaired(inputs["summaries"], population),
+                    key=_row_key,
+                )
             ),
             replay_admission_intervals=tuple(sorted(intervals, key=_row_key)),
             indicator_lookback_safety=tuple(sorted(lookbacks, key=_row_key)),
@@ -373,7 +381,9 @@ def candle_population(
                 + ", ".join(sorted(required - columns))
             )
         connection.execute("CREATE TEMP TABLE tier_a_isin(isin VARCHAR PRIMARY KEY)")
-        connection.executemany("INSERT INTO tier_a_isin VALUES (?)", [(item,) for item in isins])
+        connection.executemany(
+            "INSERT INTO tier_a_isin VALUES (?)", [(item,) for item in isins]
+        )
         grouped = connection.execute(
             "SELECT c.isin, COUNT(*) AS candle_rows, "
             "COUNT(DISTINCT c.trading_date) AS identity_sessions "
@@ -448,11 +458,11 @@ def factor_validation_cases_repaired(
                 "case_id": stable_id("factor-case", event_id),
                 "event_id": event_id,
                 "identity_key": _identity(event, factor, item),
-                "symbol": _first(event, factor, item, "symbol"),
-                "series": _first(event, factor, item, "series"),
-                "isin": _first(event, factor, item, "isin"),
-                "action_type": _first(event, factor, item, "action_type"),
-                "effective_date": _first(event, factor, item, "effective_date"),
+                "symbol": _first(event, factor, item, key="symbol"),
+                "series": _first(event, factor, item, key="series"),
+                "isin": _first(event, factor, item, key="isin"),
+                "action_type": _first(event, factor, item, key="action_type"),
+                "effective_date": _first(event, factor, item, key="effective_date"),
                 "factor_state": factor.get("factor_state"),
                 "price_factor": factor.get("price_factor"),
                 "raw_gap_atr": _number(item.get("raw_gap_atr")),
@@ -663,7 +673,9 @@ def segmented_replay_admission_intervals(
     end_date: date,
 ) -> tuple[dict[str, Any], ...]:
     if not sessions:
-        raise InputContractError("no governed NSE sessions available for interval segmentation")
+        raise InputContractError(
+            "no governed NSE sessions available for interval segmentation"
+        )
     factors_by_identity: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in factors:
         effective = _date(row.get("effective_date"))
@@ -724,7 +736,12 @@ def segmented_replay_admission_intervals(
                 state = AdmissionState.UNRESOLVED
                 admitted_view = "NONE"
             reset_required = bool(
-                preceding_states & (UNKNOWN_FACTOR_STATES | AMBIGUOUS_FACTOR_STATES | NON_MULTIPLICATIVE_STATES)
+                preceding_states
+                & (
+                    UNKNOWN_FACTOR_STATES
+                    | AMBIGUOUS_FACTOR_STATES
+                    | NON_MULTIPLICATIVE_STATES
+                )
             )
             rows.append(
                 {
@@ -773,9 +790,17 @@ def session_based_lookback_safety(
                 safety = "QUARANTINED"
             elif interval.get("reset_required"):
                 candidate_index = start_index + lookback - 1
-                candidate = sessions[candidate_index] if candidate_index < len(sessions) else None
+                candidate = (
+                    sessions[candidate_index]
+                    if candidate_index < len(sessions)
+                    else None
+                )
                 earliest = candidate if candidate and candidate <= end else None
-                safety = "SAFE_AFTER_SESSION_RESET" if earliest else "INSUFFICIENT_SEGMENT_SESSIONS"
+                safety = (
+                    "SAFE_AFTER_SESSION_RESET"
+                    if earliest
+                    else "INSUFFICIENT_SEGMENT_SESSIONS"
+                )
             else:
                 earliest = start
                 safety = "SAFE_WITHOUT_RESET"
@@ -955,9 +980,14 @@ def coverage_matrix_repaired(
             "identity_key": row["identity_key"],
             "symbol": row.get("symbol"),
             "isin": row.get("isin"),
-            "admission_interval_count": len(intervals_by_identity[str(row["identity_key"])]),
+            "admission_interval_count": len(
+                intervals_by_identity[str(row["identity_key"])]
+            ),
             "admission_states": sorted(
-                {str(item["admission_state"]) for item in intervals_by_identity[str(row["identity_key"])]}
+                {
+                    str(item["admission_state"])
+                    for item in intervals_by_identity[str(row["identity_key"])]
+                }
             ),
             "quarantine_interval_count": quarantine_count[str(row["identity_key"])],
             "safe_lookback_count": sum(
@@ -984,7 +1014,9 @@ def _require_rows(
     normalized = tuple(rows)
     fields = sorted({str(key) for row in normalized for key in row})
     missing = sorted(
-        key for key in required if normalized and any(key not in row for row in normalized)
+        key
+        for key in required
+        if normalized and any(key not in row for row in normalized)
     )
     if not normalized and not allow_empty:
         diagnostics["errors"].append(f"{dataset.upper()}_EMPTY")
