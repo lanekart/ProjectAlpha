@@ -1,0 +1,51 @@
+name: HTR010B1A MyPy Fix
+
+on:
+  pull_request:
+    branches:
+      - feature/recovery-foundation-v1
+    paths:
+      - '.github/HTR010B1A_MYPY_FIX_TRIGGER'
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  fix:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Add explicit collection types
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('alpha/historical_truth/adjustment_replay_admission_repair.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              '    by_identity = {\n        f"nse:isin:{row[0]}": {',
+              '    by_identity: dict[str, dict[str, int | str]] = {\n        f"nse:isin:{row[0]}": {',
+          )
+          text = text.replace(
+              '    rows = []\n    with duckdb.connect(str(database_path), read_only=True) as connection:\n        for identity, ranges in sorted(ranges_by_identity.items()):',
+              '    rows: list[dict[str, Any]] = []\n    with duckdb.connect(str(database_path), read_only=True) as connection:\n        for identity, ranges in sorted(ranges_by_identity.items()):',
+          )
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Format and commit
+        run: |
+          python -m pip install ruff==0.15.20
+          ruff format alpha/historical_truth/adjustment_replay_admission_repair.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add alpha/historical_truth/adjustment_replay_admission_repair.py
+          git commit -m 'Fix HTR-010B1A MyPy collection types'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
