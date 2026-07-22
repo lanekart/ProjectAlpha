@@ -1,36 +1,30 @@
 from __future__ import annotations
 
-import sys
-from collections.abc import Callable
+from typer.testing import CliRunner
 
-import pytest
-import typer
+from alpha.__main__ import _historical_truth_app
 
-from alpha.__main__ import main
-from alpha.historical_truth.adjustment_replay_admission_cli import (
-    adjustment_replay_admission_certify,
-)
+COMMAND_NAME = "adjustment-replay-admission-certify"
 
 
-def test_module_cli_routes_htr010b1_command(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[Callable[..., object]] = []
+def test_htr010b1_command_is_listed_in_historical_truth_help() -> None:
+    result = CliRunner().invoke(_historical_truth_app(), ["--help"])
 
-    def fake_run(command: Callable[..., object]) -> None:
-        calls.append(command)
+    assert result.exit_code == 0
+    assert COMMAND_NAME in result.stdout
 
-    monkeypatch.setattr(typer, "run", fake_run)
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "alpha",
-            "historical-truth",
-            "adjustment-replay-admission-certify",
-            "--verify-only",
-        ],
+
+def test_htr010b1_registration_is_idempotent() -> None:
+    app = _historical_truth_app()
+    before = sum(
+        command.name == COMMAND_NAME for command in app.registered_commands
     )
 
-    main()
+    same_app = _historical_truth_app()
+    after = sum(
+        command.name == COMMAND_NAME for command in same_app.registered_commands
+    )
 
-    assert calls == [adjustment_replay_admission_certify]
-    assert sys.argv == ["alpha", "--verify-only"]
+    assert same_app is app
+    assert before == 1
+    assert after == 1
