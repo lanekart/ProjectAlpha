@@ -1,4 +1,4 @@
-"""CLI for HTR-010B1 adjustment validation and replay admission."""
+"""CLI for HTR-010B1A adjustment-contract integrity repair."""
 
 from __future__ import annotations
 
@@ -7,14 +7,15 @@ from pathlib import Path
 
 import typer
 
-from alpha.historical_truth.adjustment_replay_admission_engine import (
-    AdjustmentReplayAdmissionEngine,
-)
 from alpha.historical_truth.adjustment_replay_admission_exports import (
     AdjustmentReplayAdmissionArtifactExporter,
 )
 from alpha.historical_truth.adjustment_replay_admission_models import (
     AdjustmentReplayAdmissionReport,
+)
+from alpha.historical_truth.adjustment_replay_admission_repair import (
+    AdjustmentReplayAdmissionRepairEngine,
+    InputContractError,
 )
 
 
@@ -58,18 +59,28 @@ def adjustment_replay_admission_certify(
     only_quarantined: bool = typer.Option(False, "--only-quarantined"),
     only_tier_a: bool = typer.Option(False, "--only-tier-a"),
 ) -> None:
-    """Validate factors and produce identity-date replay admission intervals."""
+    """Repair contracts and produce measured identity-date admission intervals."""
 
-    del database, root, htr010a3_output, refresh_sources, verify_only, only_tier_a
+    del root, only_tier_a
+    if refresh_sources:
+        raise typer.BadParameter(
+            "HTR-010B1A consumes pinned HTR-010A3/HTR-010B artifacts and cannot refresh sources",
+            param_hint="--refresh-sources",
+        )
     start_date = _date(start, "--start")
     end_date = _date(end, "--end")
     if end_date < start_date:
         raise typer.BadParameter("must be on or after --start", param_hint="--end")
-    report = AdjustmentReplayAdmissionEngine().run(
-        htr010b_output=htr010b_output,
-        start_date=start_date,
-        end_date=end_date,
-    )
+    try:
+        report = AdjustmentReplayAdmissionRepairEngine().run(
+            database_path=database,
+            htr010a3_output=htr010a3_output,
+            htr010b_output=htr010b_output,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    except InputContractError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--htr010b-output") from exc
     paths = AdjustmentReplayAdmissionArtifactExporter().export(report, output)
     selected = _selected_count(
         report,
@@ -85,14 +96,29 @@ def adjustment_replay_admission_certify(
         only_unknown_factors=only_unknown_factors,
         only_quarantined=only_quarantined,
     )
-    print("HTR-010B1 Adjustment Validation and Replay Admission")
+    reconciliation = report.quarantine_population_reconciliation
+    print("HTR-010B1A Admission Contract Integrity Repair")
     print(f"Factor validation cases: {len(report.factor_validation_cases):,}")
-    print(f"Quarantine intervals: {len(report.quarantine_census):,}")
-    print(f"Replay admission intervals: {len(report.replay_admission_intervals):,}")
+    print(f"Quarantine evidence rows: {len(report.quarantine_census):,}")
+    print(f"Segmented admission intervals: {len(report.replay_admission_intervals):,}")
+    print(
+        "Evidence-quarantined identities: "
+        f"{reconciliation.get('evidence_quarantined_identity_count', 0):,}"
+    )
+    print(
+        "Admission-quarantined identities: "
+        f"{reconciliation.get('admission_quarantined_identity_count', 0):,}"
+    )
+    print(
+        "Observed Tier A row weight quarantined: "
+        f"{reconciliation.get('pct_observed_tier_a_rows_quarantined')}"
+    )
     print(f"Diagnostic records selected: {selected:,}")
     print(f"Replay readiness: {report.replay_readiness['state']}")
+    print(f"Readiness blockers: {report.replay_readiness.get('blockers', [])}")
     print(f"Report SHA256: {report.report_sha256}")
     print(f"Artifacts written: {len(paths)}")
+    print(f"Verify-only mode: {str(verify_only).lower()}")
     print("Full benchmark replays: 0")
     print("PRODUCTION_INFLUENCE=false")
 
