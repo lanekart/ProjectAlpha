@@ -70,7 +70,7 @@ def _gap(
 
 def _run(tmp_path: Path, cases: list[dict[str, object]]) -> dict[str, object]:
     source = tmp_path / "b1d1"
-    source.mkdir()
+    source.mkdir(parents=True)
     (source / "htr010b1d1_bridge_cases.json").write_text(
         json.dumps(cases, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
