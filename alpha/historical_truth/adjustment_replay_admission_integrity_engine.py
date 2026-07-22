@@ -63,11 +63,7 @@ class AdjustmentReplayAdmissionIntegrityEngine:
         coverage_complete = (
             session_coverage["state"] == "GOVERNED_SESSION_COVERAGE_COMPLETE"
         )
-        economic_state = (
-            "MEASURED_GOVERNED_COMPLETE_WINDOW"
-            if coverage_complete
-            else "MEASURED_OBSERVED_DATABASE_WINDOW"
-        )
+        economic_state = economic_weight_measurement_state(session_coverage)
         population = {
             **base.population_reconciliation,
             "requested_window_fully_observed": coverage_complete,
@@ -143,6 +139,14 @@ class AdjustmentReplayAdmissionIntegrityEngine:
         return replace(report, report_sha256=report.calculated_sha256())
 
 
+def economic_weight_measurement_state(
+    session_coverage: dict[str, Any],
+) -> str:
+    if session_coverage.get("state") == "GOVERNED_SESSION_COVERAGE_COMPLETE":
+        return "MEASURED_GOVERNED_COMPLETE_WINDOW"
+    return "MEASURED_OBSERVED_DATABASE_WINDOW"
+
+
 def _readiness(
     base: dict[str, Any],
     results: tuple[dict[str, Any], ...],
@@ -205,4 +209,7 @@ def _sorted(rows: tuple[dict[str, Any], ...]) -> tuple[dict[str, Any], ...]:
     )
 
 
-__all__ = ["AdjustmentReplayAdmissionIntegrityEngine"]
+__all__ = [
+    "AdjustmentReplayAdmissionIntegrityEngine",
+    "economic_weight_measurement_state",
+]
