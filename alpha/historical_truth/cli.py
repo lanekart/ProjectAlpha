@@ -6,6 +6,9 @@ from pathlib import Path
 import typer
 
 from alpha.historical_truth.canonical import CanonicalPointInTimeWarehouse
+from alpha.historical_truth.complete_security_dataset_cli import (
+    complete_security_dataset_certify,
+)
 from alpha.historical_truth.corporate_action_price_cli import (
     corporate_action_price_certify,
 )
@@ -43,6 +46,9 @@ historical_truth_app.command("event-sourced-universe-certify")(
 )
 historical_truth_app.command("corporate-action-price-certify")(
     corporate_action_price_certify
+)
+historical_truth_app.command("complete-security-dataset-certify")(
+    complete_security_dataset_certify
 )
 
 
