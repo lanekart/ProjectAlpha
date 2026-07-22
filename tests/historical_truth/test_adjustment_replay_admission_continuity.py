@@ -46,7 +46,9 @@ def _insert_series(path: Path, isin: str, *, ex_open: float) -> None:
             )
         )
     with duckdb.connect(str(path)) as connection:
-        connection.executemany("INSERT INTO daily_candle VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
+        connection.executemany(
+            "INSERT INTO daily_candle VALUES (?,?,?,?,?,?,?,?,?,?)", rows
+        )
 
 
 def _event(isin: str) -> dict[str, object]:
@@ -122,7 +124,10 @@ def test_inverse_factor_is_diagnostic_not_autocorrection(tmp_path: Path) -> None
         end_date=date(2026, 1, 31),
     )
 
-    assert results[0]["validation_outcome"] == ValidationOutcome.IMPLEMENTATION_DEFECT.value
+    assert (
+        results[0]["validation_outcome"]
+        == ValidationOutcome.IMPLEMENTATION_DEFECT.value
+    )
     assert results[0]["implementation_defect_code"] == (
         "POSSIBLE_FACTOR_ORIENTATION_DEFECT"
     )

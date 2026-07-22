@@ -132,9 +132,7 @@ class AdjustmentReplayAdmissionContinuityEngine:
             "session_calendar_source": "daily_candle_distinct_trading_date",
             "calendar_day_lookback_approximation": False,
             "identity_date_segmentation": True,
-            "continuity_source": (
-                "HTR010B_FACTOR_RECOMPUTED_FROM_CANONICAL_CANDLES"
-            ),
+            "continuity_source": ("HTR010B_FACTOR_RECOMPUTED_FROM_CANONICAL_CANDLES"),
             "legacy_continuity_is_comparison_only": True,
             "market_derived_factor_autocorrection": False,
             "tier_a_weight_universe_closed": True,
@@ -208,9 +206,7 @@ def segmented_admission_with_validation(
 
     if not sessions:
         raise ValueError("no governed NSE sessions available for interval segmentation")
-    validation_by_event = {
-        str(row.get("event_id")): row for row in validation_results
-    }
+    validation_by_event = {str(row.get("event_id")): row for row in validation_results}
     factors_by_identity: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in factors:
         effective = _as_date(row.get("effective_date"))

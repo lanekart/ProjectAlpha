@@ -60,7 +60,9 @@ def recompute_factor_validation(
 
     event_by_id = {str(row["canonical_event_id"]): row for row in events}
     legacy_by_event = {
-        str(row.get("event_id") or row.get("canonical_event_id") or row.get("action_id")): row
+        str(
+            row.get("event_id") or row.get("canonical_event_id") or row.get("action_id")
+        ): row
         for row in legacy_continuity
     }
     cases: list[dict[str, Any]] = []
@@ -78,9 +80,13 @@ def recompute_factor_validation(
             effective = _as_date(event.get("effective_date"))
             if effective is None or not start_date <= effective <= end_date:
                 continue
-            identity = str(event.get("governed_identity_id") or factor.get("identity_key") or "")
+            identity = str(
+                event.get("governed_identity_id") or factor.get("identity_key") or ""
+            )
             isin = str(event.get("isin") or "").strip().upper()
-            series_values = tuple(str(item).upper() for item in event.get("series_applicability") or ())
+            series_values = tuple(
+                str(item).upper() for item in event.get("series_applicability") or ()
+            )
             series = series_values[0] if len(series_values) == 1 else None
             bars = _event_bars(connection, isin, series, effective)
             metrics = _continuity_metrics(bars, _number(factor.get("price_factor")))
@@ -183,7 +189,9 @@ def tier_a_quarantine_economic_weight(
             params: list[Any] = [isin, *[item for pair in merged for item in pair]]
             result = connection.execute(
                 "SELECT COUNT(*), COUNT(DISTINCT trading_date) FROM daily_candle "
-                "WHERE upper(isin)=? AND lower(exchange)='nse' AND (" + predicates + ")",
+                "WHERE upper(isin)=? AND lower(exchange)='nse' AND ("
+                + predicates
+                + ")",
                 params,
             ).fetchone()
             affected_rows = int(result[0]) if result else 0
@@ -344,7 +352,9 @@ def _continuity_metrics(
         "raw_gap_atr": raw_gap,
         "adjusted_gap_atr": adjusted_gap,
         "inverse_adjusted_gap_atr": inverse_gap,
-        "candle_context_state": "AVAILABLE" if current and prior and atr else "INSUFFICIENT",
+        "candle_context_state": "AVAILABLE"
+        if current and prior and atr
+        else "INSUFFICIENT",
     }
 
 
