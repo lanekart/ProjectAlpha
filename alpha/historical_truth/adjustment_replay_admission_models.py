@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import date
 from enum import StrEnum
 from hashlib import sha256
 from typing import Any
 
 HTR010B1_CONTRACT_VERSION = "HTR-010B1-v1.0.0"
+HTR010B1A_CONTRACT_VERSION = "HTR-010B1A-v1.0.0"
 TRANSFORMATION_CONTRACT_VERSION = "HTR-010B1-TRANSFORM-v1.0.0"
 PRODUCTION_INFLUENCE = False
 
@@ -110,6 +111,9 @@ class AdjustmentReplayAdmissionReport:
     replay_readiness: dict[str, Any]
     rejected_evidence: tuple[dict[str, Any], ...]
     report_sha256: str
+    input_contract_diagnostics: dict[str, Any] = field(default_factory=dict)
+    population_reconciliation: dict[str, Any] = field(default_factory=dict)
+    quarantine_population_reconciliation: dict[str, Any] = field(default_factory=dict)
 
     def payload(self, *, include_hash: bool = True) -> dict[str, Any]:
         payload = _jsonable(asdict(self))
