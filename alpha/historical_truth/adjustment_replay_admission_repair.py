@@ -407,7 +407,7 @@ def candle_population(
             "AND trading_date BETWEEN ? AND ?",
             [start_date, end_date],
         ).fetchone()
-    by_identity = {
+    by_identity: dict[str, dict[str, int | str]] = {
         f"nse:isin:{row[0]}": {
             "identity_key": f"nse:isin:{row[0]}",
             "observed_candle_rows": int(row[1]),
@@ -605,7 +605,7 @@ def quarantine_economic_weight(
         ranges_by_identity[identity].append((start, end))
         reasons_by_identity[identity].add(str(row.get("quarantine_reason")))
         symbols[identity] = row.get("symbol")
-    rows = []
+    rows: list[dict[str, Any]] = []
     with duckdb.connect(str(database_path), read_only=True) as connection:
         for identity, ranges in sorted(ranges_by_identity.items()):
             merged = _merge_ranges(ranges)
