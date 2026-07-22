@@ -57,6 +57,7 @@ artifacts/htr009b_*/
 artifacts/htr010a_*/
 artifacts/htr010a1_*/
 artifacts/htr010a2_*/
+artifacts/htr010a3_*/
 
 # Runtime market data and local databases
 data/raw/
