@@ -30,9 +30,7 @@ class FactorTransformationForensicsEngine:
         start_date: date,
         end_date: date,
     ) -> dict[str, Any]:
-        results = _records(
-            htr010b1c_output / "htr010b1_factor_validation_results.json"
-        )
+        results = _records(htr010b1c_output / "htr010b1_factor_validation_results.json")
         events = _records(htr010b_output / "htr010b_canonical_events.json")
         factors = _records(htr010b_output / "htr010b_adjustment_factors.json")
         cumulative = _records(htr010b_output / "htr010b_cumulative_factors.json")
@@ -45,16 +43,18 @@ class FactorTransformationForensicsEngine:
         duplicate_by_event = {
             str(row["canonical_event_id"]): row for row in duplicate_groups
         }
-        lineage_by_event = {
-            str(row["canonical_event_id"]): row for row in lineage
-        }
+        lineage_by_event = {str(row["canonical_event_id"]): row for row in lineage}
         same_day = _same_day_factors(factors)
 
         selected = tuple(
             row
             for row in results
             if str(row.get("validation_outcome")) == _IMPLEMENTATION_DEFECT
-            and start_date <= (_as_date(row.get("effective_date")) or date.min) <= end_date
+            and (
+                start_date
+                <= (_as_date(row.get("effective_date")) or date.min)
+                <= end_date
+            )
         )
         dossiers: list[dict[str, Any]] = []
         with duckdb.connect(str(database_path), read_only=True) as connection:
@@ -84,7 +84,9 @@ class FactorTransformationForensicsEngine:
         classification_counts = Counter(
             str(row["forensic_classification"]) for row in dossiers
         )
-        action_counts = Counter(str(row.get("action_type") or "UNKNOWN") for row in dossiers)
+        action_counts = Counter(
+            str(row.get("action_type") or "UNKNOWN") for row in dossiers
+        )
         recommendation_counts = Counter(
             str(row["recommended_repair_action"]) for row in dossiers
         )
@@ -175,13 +177,17 @@ def _case_diagnostics(
     lineage: dict[str, Any] | None,
     same_day_factors: tuple[dict[str, Any], ...],
 ) -> dict[str, Any]:
-    identity = str(result.get("identity_key") or event.get("governed_identity_id") or "")
+    identity = str(
+        result.get("identity_key") or event.get("governed_identity_id") or ""
+    )
     event_id = str(result.get("event_id") or event.get("canonical_event_id") or "")
     effective = _as_date(result.get("effective_date") or event.get("effective_date"))
     isin = str(result.get("isin") or event.get("isin") or "").upper()
     selected_series = str(result.get("series") or "").upper() or None
     official_factor = _number(result.get("price_factor") or factor.get("price_factor"))
-    action_type = str(result.get("action_type") or event.get("action_type") or "UNKNOWN")
+    action_type = str(
+        result.get("action_type") or event.get("action_type") or "UNKNOWN"
+    )
 
     term_factor, term_formula = _official_term_factor(event, action_type)
     term_match = _nearly_equal(official_factor, term_factor)
@@ -189,7 +195,9 @@ def _case_diagnostics(
     selected_metrics = _selected_series_metrics(series_metrics, selected_series)
     best_series = _best_metric(series_metrics, "open_adjusted_gap_atr")
     close_basis = _best_metric(series_metrics, "close_adjusted_gap_atr")
-    inverse_factor = 1.0 / official_factor if official_factor and official_factor > 0 else None
+    inverse_factor = (
+        1.0 / official_factor if official_factor and official_factor > 0 else None
+    )
     best_inverse = _best_metric(
         _series_metrics(connection, isin, effective, inverse_factor),
         "open_adjusted_gap_atr",
@@ -622,7 +630,9 @@ def _records(path: Path) -> tuple[dict[str, Any], ...]:
     if not path.exists():
         raise ValueError(f"required forensic input is missing: {path}")
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, list) or not all(isinstance(row, dict) for row in payload):
+    if not isinstance(payload, list) or not all(
+        isinstance(row, dict) for row in payload
+    ):
         raise ValueError(f"forensic input must be a JSON object list: {path}")
     return tuple(payload)
 
@@ -675,23 +685,29 @@ def _markdown(report: dict[str, Any]) -> str:
             "# HTR-010B1D Factor Transformation Forensics",
             "",
             f"- Cases audited: {report['case_count']}",
-            f"- Classifications: {json.dumps(report['classification_counts'], sort_keys=True)}",
+            "- Classifications: "
+            f"{json.dumps(report['classification_counts'], sort_keys=True)}",
             "- Recommended repairs: "
             f"{json.dumps(report['recommended_repair_action_counts'], sort_keys=True)}",
             f"- Orientation candidates: {report['orientation_candidate_count']}",
-            f"- Official-term arithmetic mismatches: {report['term_arithmetic_mismatch_count']}",
-            f"- Series-selection mismatches: {report['series_selection_mismatch_count']}",
-            f"- Series-selection ambiguities: {report['series_selection_ambiguity_count']}",
+            "- Official-term arithmetic mismatches: "
+            f"{report['term_arithmetic_mismatch_count']}",
+            "- Series-selection mismatches: "
+            f"{report['series_selection_mismatch_count']}",
+            "- Series-selection ambiguities: "
+            f"{report['series_selection_ambiguity_count']}",
             f"- Close-basis restorations: {report['close_basis_count']}",
             f"- Event-date mismatches: {report['date_basis_mismatch_count']}",
-            f"- Multiple-action compositions: {report['multiple_action_composition_count']}",
+            "- Multiple-action compositions: "
+            f"{report['multiple_action_composition_count']}",
             f"- Residual market gaps: {report['market_gap_not_factor_error_count']}",
             f"- Unresolved forensic cases: {report['unresolved_count']}",
             f"- Report SHA-256: `{report['report_sha256']}`",
             "- Full benchmark replays: 0",
             "- Production influence: false",
             "",
-            "Official factors remain immutable. Diagnostic alternatives never alter replay admission.",
+            "Official factors remain immutable. Diagnostic alternatives "
+            "never alter replay admission.",
             "",
         )
     )

@@ -146,7 +146,9 @@ def _inputs(root: Path) -> tuple[Path, Path]:
     return htr010b, htr010b1c
 
 
-def test_forensics_identifies_orientation_without_mutating_factor(tmp_path: Path) -> None:
+def test_forensics_identifies_orientation_without_mutating_factor(
+    tmp_path: Path,
+) -> None:
     database = _database(tmp_path / "truth.duckdb")
     htr010b, htr010b1c = _inputs(tmp_path)
 
