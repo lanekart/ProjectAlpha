@@ -61,9 +61,7 @@ def recompute_factor_validation(
     event_by_id = {str(row["canonical_event_id"]): row for row in events}
     legacy_by_event = {
         str(
-            row.get("event_id")
-            or row.get("canonical_event_id")
-            or row.get("action_id")
+            row.get("event_id") or row.get("canonical_event_id") or row.get("action_id")
         ): row
         for row in legacy_continuity
     }
@@ -84,14 +82,11 @@ def recompute_factor_validation(
                 continue
 
             identity = str(
-                event.get("governed_identity_id")
-                or factor.get("identity_key")
-                or ""
+                event.get("governed_identity_id") or factor.get("identity_key") or ""
             )
             isin = str(event.get("isin") or "").strip().upper()
             applicable = tuple(
-                str(item).upper()
-                for item in event.get("series_applicability") or ()
+                str(item).upper() for item in event.get("series_applicability") or ()
             )
             series = applicable[0] if len(applicable) == 1 else None
             metrics = _continuity_metrics(
@@ -124,13 +119,11 @@ def recompute_factor_validation(
     outcome_counts = Counter(str(row["validation_outcome"]) for row in results)
     disagreements = sum(
         bool(row.get("legacy_continuity_state"))
-        and row.get("legacy_continuity_state")
-        != row.get("recomputed_continuity_state")
+        and row.get("legacy_continuity_state") != row.get("recomputed_continuity_state")
         for row in results
     )
     orientation_defects = sum(
-        row.get("implementation_defect_code")
-        == "POSSIBLE_FACTOR_ORIENTATION_DEFECT"
+        row.get("implementation_defect_code") == "POSSIBLE_FACTOR_ORIENTATION_DEFECT"
         for row in results
     )
     summary = {
@@ -167,9 +160,7 @@ def _classify(case: dict[str, Any]) -> dict[str, Any]:
         outcome = ValidationOutcome.FACTOR_INSUFFICIENT_EVIDENCE
     elif adjusted_gap <= 2.0 or adjusted_gap < raw_gap:
         outcome = ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP
-    elif inverse_gap is not None and (
-        inverse_gap <= 2.0 or inverse_gap < raw_gap
-    ):
+    elif inverse_gap is not None and (inverse_gap <= 2.0 or inverse_gap < raw_gap):
         outcome = ValidationOutcome.IMPLEMENTATION_DEFECT
         defect_code = "POSSIBLE_FACTOR_ORIENTATION_DEFECT"
     else:

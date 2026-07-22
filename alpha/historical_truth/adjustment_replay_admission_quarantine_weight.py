@@ -53,9 +53,7 @@ def tier_a_quarantine_economic_weight(
         for identity, ranges in sorted(ranges_by_identity.items()):
             merged = _merge_ranges(ranges)
             isin = identity.removeprefix("nse:isin:")
-            predicates = " OR ".join(
-                "(trading_date BETWEEN ? AND ?)" for _ in merged
-            )
+            predicates = " OR ".join("(trading_date BETWEEN ? AND ?)" for _ in merged)
             params: list[Any] = [
                 isin,
                 *[item for pair in merged for item in pair],
@@ -63,9 +61,7 @@ def tier_a_quarantine_economic_weight(
             query = (
                 "SELECT COUNT(*), COUNT(DISTINCT trading_date) "
                 "FROM daily_candle WHERE upper(isin)=? "
-                "AND lower(exchange)='nse' AND ("
-                + predicates
-                + ")"
+                "AND lower(exchange)='nse' AND (" + predicates + ")"
             )
             result = connection.execute(query, params).fetchone()
             affected_rows = int(result[0]) if result else 0
@@ -92,15 +88,11 @@ def tier_a_quarantine_economic_weight(
             )
 
     measured_rows = sum(int(row["affected_candle_rows"]) for row in rows)
-    measured_sessions = sum(
-        int(row["affected_identity_sessions"]) for row in rows
-    )
+    measured_sessions = sum(int(row["affected_identity_sessions"]) for row in rows)
     denominator_rows = int(population["observed_tier_a_candle_rows"])
     denominator_sessions = int(population["observed_tier_a_identity_sessions"])
     if measured_rows > denominator_rows or measured_sessions > denominator_sessions:
-        raise RuntimeError(
-            "quarantine numerator exceeds the closed Tier A denominator"
-        )
+        raise RuntimeError("quarantine numerator exceeds the closed Tier A denominator")
 
     summary = {
         "economic_weight_measurement_state": (
@@ -121,9 +113,7 @@ def tier_a_quarantine_economic_weight(
         "tier_a_numerator_universe_closed": True,
         "quarantine_ranges_clipped_to_requested_window": True,
         "out_of_tier_a_evidence_identity_count": len(out_of_universe_ids),
-        "tier_a_evidence_identities_without_observed_rows": len(
-            no_observed_rows_ids
-        ),
+        "tier_a_evidence_identities_without_observed_rows": len(no_observed_rows_ids),
         "quarantine_evidence_rows_outside_requested_window": outside_window_rows,
     }
     return tuple(rows), summary
