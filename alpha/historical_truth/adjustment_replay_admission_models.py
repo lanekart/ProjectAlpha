@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import date
 from enum import StrEnum
 from hashlib import sha256
@@ -94,9 +94,6 @@ class AdjustmentReplayAdmissionReport:
     production_influence: bool
     start_date: date
     end_date: date
-    input_contract_diagnostics: dict[str, Any]
-    population_reconciliation: dict[str, Any]
-    quarantine_population_reconciliation: dict[str, Any]
     quarantine_census: tuple[dict[str, Any], ...]
     quarantine_economic_weight: tuple[dict[str, Any], ...]
     factor_validation_cases: tuple[dict[str, Any], ...]
@@ -114,6 +111,9 @@ class AdjustmentReplayAdmissionReport:
     replay_readiness: dict[str, Any]
     rejected_evidence: tuple[dict[str, Any], ...]
     report_sha256: str
+    input_contract_diagnostics: dict[str, Any] = field(default_factory=dict)
+    population_reconciliation: dict[str, Any] = field(default_factory=dict)
+    quarantine_population_reconciliation: dict[str, Any] = field(default_factory=dict)
 
     def payload(self, *, include_hash: bool = True) -> dict[str, Any]:
         payload = _jsonable(asdict(self))
