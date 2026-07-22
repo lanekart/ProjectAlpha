@@ -17,6 +17,7 @@ from alpha.historical_truth.session_calendar import (
     CalendarCertificationState,
     OfficialSessionCalendarEngine,
 )
+from alpha.historical_truth.snapshots import ImmutableMarketSnapshot
 from alpha.historical_truth.special_session_recovery import (
     PRODUCTION_INFLUENCE,
     SpecialSessionCandleRecoveryEngine,
@@ -24,6 +25,10 @@ from alpha.historical_truth.special_session_recovery import (
     SpecialSessionIngestionStatus,
     SpecialSessionRecoveryStatus,
     SpecialSessionValidationStatus,
+)
+from alpha.historical_truth.special_session_snapshot_parity import (
+    SnapshotFailureCode,
+    SnapshotParityStatus,
 )
 
 SPECIAL_SESSIONS = (
@@ -218,6 +223,10 @@ def test_missing_official_weekend_session_is_acquired_and_ingested(
     assert record.source_sha256
     assert record.raw_archive_path and Path(record.raw_archive_path).exists()
     assert record.normalized_path and Path(record.normalized_path).exists()
+    assert record.snapshot_path and Path(record.snapshot_path).exists()
+    assert record.snapshot_status is SnapshotParityStatus.CREATED
+    assert record.snapshot_verification_valid
+    assert record.canonical_snapshot_content_match
     assert canonical.snapshot(trading_date).symbol_count == 1
 
 
@@ -318,6 +327,9 @@ def test_identical_existing_rows_are_idempotently_reused(tmp_path: Path) -> None
     assert second.records[0].recovery_status is SpecialSessionRecoveryStatus.REUSED
     assert second.records[0].reused_rows == 1
     assert second.records[0].lineage_rows == 0
+    assert first.records[0].snapshot_created
+    assert second.records[0].snapshot_reused
+    assert second.records[0].snapshot_status is SnapshotParityStatus.REUSED
     assert len(session.calls) == 1
     assert canonical.snapshot(trading_date).symbol_count == 1
 
@@ -399,6 +411,30 @@ def test_all_four_special_sessions_recover_and_export_exact_audit_set(
         "htr007b_special_session_ingestion.csv",
     }
     assert all(canonical.snapshot(item).symbol_count == 1 for item in SPECIAL_SESSIONS)
+    assert all(record.snapshot_verification_valid for record in report.records)
+
+
+def test_snapshot_persist_failure_blocks_recovery_but_preserves_canonical_rows(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trading_date = SPECIAL_SESSIONS[0]
+    calendar = _calendar_report(tmp_path)
+    session = _successful_session((trading_date,))
+    engine, canonical = _engine(tmp_path, session)
+
+    def fail_persist(snapshot: ImmutableMarketSnapshot) -> Path:
+        del snapshot
+        raise OSError("fixture snapshot filesystem failure")
+
+    monkeypatch.setattr(engine.snapshots, "persist", fail_persist)
+    record = engine.recover(calendar).records[0]
+
+    assert record.recovery_status is SpecialSessionRecoveryStatus.FAILED
+    assert record.failure_code is SpecialSessionFailureCode.SNAPSHOT_PARITY_FAILED
+    assert record.snapshot_failure_code is (SnapshotFailureCode.SNAPSHOT_PERSIST_FAILED)
+    assert canonical.snapshot(trading_date).symbol_count == 1
+    assert record.inserted_rows == 1
 
 
 def test_calendar_certification_changes_only_after_canonical_ingestion(

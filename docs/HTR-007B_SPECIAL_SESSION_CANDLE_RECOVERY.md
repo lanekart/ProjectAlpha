@@ -67,6 +67,13 @@ Canonical ingestion compares the complete incoming date against existing rows
 before opening its write transaction. Identical rows are reused. Any differing
 OHLCV or incompatible identity fails closed, and no existing row is overwritten.
 
+Beginning with contract `HTR-007B-v1.1.0`, successful recovery also requires
+immutable snapshot parity. After canonical ingestion or valid canonical reuse,
+the workflow uses `PointInTimeSnapshotEngine` to create an absent snapshot or
+verify an existing one. Recovery cannot report `complete` or `reused` unless the
+snapshot checksum, metadata, row count, and candle content match canonical data.
+Existing immutable snapshots are never overwritten.
+
 ## Outputs
 
 The output directory contains exactly these governed reports:
@@ -85,8 +92,10 @@ the recovery engine cannot edit or certify a calendar report directly.
 
 ## Failure Policy
 
-Network, format, checksum, date, identity, candle, and canonical conflicts use
-typed failure codes. Partial recovery is reported per session and exits nonzero.
-Unknown or conflicting evidence remains unresolved. No synthetic candles,
-third-party prices, calendar-policy changes, or manual database inserts are
-permitted by this workflow.
+Network, format, checksum, date, identity, candle, canonical, and snapshot
+conflicts use typed failure codes. Partial recovery is reported per session and
+exits nonzero. If snapshot persistence fails, trusted canonical rows are retained
+and replay remains blocked until the rerunnable HTR-007C repair succeeds. Unknown
+or conflicting evidence remains unresolved. No synthetic candles, synthetic
+snapshots, third-party prices, calendar-policy changes, or manual database
+inserts are permitted by this workflow.

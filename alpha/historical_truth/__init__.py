@@ -103,6 +103,16 @@ from alpha.historical_truth.special_session_recovery import (
     SpecialSessionValidationFinding,
     SpecialSessionValidationStatus,
 )
+from alpha.historical_truth.special_session_snapshot_parity import (
+    HTR007C_CONTRACT_VERSION,
+    SnapshotFailureCode,
+    SnapshotParityRecord,
+    SnapshotParityReport,
+    SnapshotParityState,
+    SnapshotParityStatus,
+    SnapshotParitySummary,
+    SpecialSessionSnapshotParityEngine,
+)
 
 __all__ = [
     "AnnualSessionSummary",
@@ -128,6 +138,7 @@ __all__ = [
     "HTR007_BACKFILL_CONTRACT_VERSION",
     "HTR007_HISTORICAL_SESSION_EVIDENCE_CONTRACT_VERSION",
     "HTR007B_CONTRACT_VERSION",
+    "HTR007C_CONTRACT_VERSION",
     "HistoricalEvidenceRecord",
     "HistoricalEvidenceReport",
     "HistoricalEvidenceStatus",
@@ -171,6 +182,12 @@ __all__ = [
     "SnapshotAvailability",
     "SnapshotFinding",
     "SnapshotMetadata",
+    "SnapshotFailureCode",
+    "SnapshotParityRecord",
+    "SnapshotParityReport",
+    "SnapshotParityState",
+    "SnapshotParityStatus",
+    "SnapshotParitySummary",
     "SnapshotVerification",
     "SpecialSessionCandleRecoveryEngine",
     "SpecialSessionFailureCode",
@@ -183,6 +200,7 @@ __all__ = [
     "SpecialSessionSourceStatus",
     "SpecialSessionValidationFinding",
     "SpecialSessionValidationStatus",
+    "SpecialSessionSnapshotParityEngine",
     "TaskState",
     "UnavailableClassification",
     "ValidationIssue",
