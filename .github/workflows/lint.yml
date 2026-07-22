@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: write
+  pull-requests: read
+
 jobs:
   ruff:
     runs-on: ubuntu-latest
@@ -39,3 +43,133 @@ jobs:
 
       - name: Run Ruff format check
         run: ruff format --check .
+
+  format-pr35:
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 35 && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Apply verified line wraps
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('alpha/historical_truth/factor_transformation_forensics.py')
+          text = path.read_text(encoding='utf-8')
+          replacements = {
+              '            and start_date <= (_as_date(row.get("effective_date")) or date.min) <= end_date\n': (
+                  '            and (\n'
+                  '                start_date\n'
+                  '                <= (_as_date(row.get("effective_date")) or date.min)\n'
+                  '                <= end_date\n'
+                  '            )\n'
+              ),
+              '        action_counts = Counter(str(row.get("action_type") or "UNKNOWN") for row in dossiers)\n': (
+                  '        action_counts = Counter(\n'
+                  '            str(row.get("action_type") or "UNKNOWN") for row in dossiers\n'
+                  '        )\n'
+              ),
+              '    identity = str(result.get("identity_key") or event.get("governed_identity_id") or "")\n': (
+                  '    identity = str(\n'
+                  '        result.get("identity_key")\n'
+                  '        or event.get("governed_identity_id")\n'
+                  '        or ""\n'
+                  '    )\n'
+              ),
+              '    action_type = str(result.get("action_type") or event.get("action_type") or "UNKNOWN")\n': (
+                  '    action_type = str(\n'
+                  '        result.get("action_type")\n'
+                  '        or event.get("action_type")\n'
+                  '        or "UNKNOWN"\n'
+                  '    )\n'
+              ),
+              '    inverse_factor = 1.0 / official_factor if official_factor and official_factor > 0 else None\n': (
+                  '    inverse_factor = (\n'
+                  '        1.0 / official_factor\n'
+                  '        if official_factor and official_factor > 0\n'
+                  '        else None\n'
+                  '    )\n'
+              ),
+              '    if not isinstance(payload, list) or not all(isinstance(row, dict) for row in payload):\n': (
+                  '    if not isinstance(payload, list) or not all(\n'
+                  '        isinstance(row, dict) for row in payload\n'
+                  '    ):\n'
+              ),
+              '            f"- Classifications: {json.dumps(report[\'classification_counts\'], sort_keys=True)}",\n': (
+                  '            "- Classifications: "\n'
+                  '            f"{json.dumps(report[\'classification_counts\'], sort_keys=True)}",\n'
+              ),
+              '            f"- Official-term arithmetic mismatches: {report[\'term_arithmetic_mismatch_count\']}",\n': (
+                  '            "- Official-term arithmetic mismatches: "\n'
+                  '            f"{report[\'term_arithmetic_mismatch_count\']}",\n'
+              ),
+              '            f"- Series-selection mismatches: {report[\'series_selection_mismatch_count\']}",\n': (
+                  '            "- Series-selection mismatches: "\n'
+                  '            f"{report[\'series_selection_mismatch_count\']}",\n'
+              ),
+              '            f"- Series-selection ambiguities: {report[\'series_selection_ambiguity_count\']}",\n': (
+                  '            "- Series-selection ambiguities: "\n'
+                  '            f"{report[\'series_selection_ambiguity_count\']}",\n'
+              ),
+              '            f"- Multiple-action compositions: {report[\'multiple_action_composition_count\']}",\n': (
+                  '            "- Multiple-action compositions: "\n'
+                  '            f"{report[\'multiple_action_composition_count\']}",\n'
+              ),
+              '            "Official factors remain immutable. Diagnostic alternatives never alter replay admission.",\n': (
+                  '            "Official factors remain immutable. Diagnostic alternatives "\n'
+                  '            "never alter replay admission.",\n'
+              ),
+          }
+          for old, new in replacements.items():
+              assert old in text, old
+              text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+
+          test_path = Path('tests/historical_truth/test_factor_transformation_forensics.py')
+          test_text = test_path.read_text(encoding='utf-8')
+          old = 'def test_forensics_identifies_orientation_without_mutating_factor(tmp_path: Path) -> None:\n'
+          new = (
+              'def test_forensics_identifies_orientation_without_mutating_factor(\n'
+              '    tmp_path: Path,\n'
+              ') -> None:\n'
+          )
+          assert old in test_text
+          test_path.write_text(test_text.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Format and commit PR35
+        run: |
+          pip install ruff==0.15.20
+          ruff check \
+            alpha/__main__.py \
+            alpha/historical_truth/factor_transformation_forensics.py \
+            alpha/historical_truth/factor_transformation_forensics_cli.py \
+            tests/historical_truth/test_factor_transformation_forensics.py \
+            --fix
+          ruff format \
+            alpha/__main__.py \
+            alpha/historical_truth/factor_transformation_forensics.py \
+            alpha/historical_truth/factor_transformation_forensics_cli.py \
+            tests/historical_truth/test_factor_transformation_forensics.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            alpha/__main__.py \
+            alpha/historical_truth/factor_transformation_forensics.py \
+            alpha/historical_truth/factor_transformation_forensics_cli.py \
+            tests/historical_truth/test_factor_transformation_forensics.py
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'Format HTR-010B1D forensics'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
