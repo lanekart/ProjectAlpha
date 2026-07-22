@@ -15,6 +15,9 @@ from alpha.historical_truth.corporate_action_price_cli import (
 from alpha.historical_truth.event_sourced_universe_cli import (
     event_sourced_universe_certify,
 )
+from alpha.historical_truth.foundation_readiness_cli import (
+    tier_a_foundation_readiness,
+)
 from alpha.historical_truth.integrity import HistoricalTruthIntegrityAudit
 from alpha.historical_truth.lifecycle_session_cli import (
     lifecycle_session_semantics_certify,
@@ -60,6 +63,7 @@ historical_truth_app.command("security-population-repair")(security_population_r
 historical_truth_app.command("lifecycle-session-semantics-certify")(
     lifecycle_session_semantics_certify
 )
+historical_truth_app.command("tier-a-foundation-readiness")(tier_a_foundation_readiness)
 
 
 def _parse_date(value: str, option_name: str) -> date:
