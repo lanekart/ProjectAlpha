@@ -9,6 +9,9 @@ def _historical_truth_app() -> typer.Typer:
     from alpha.historical_truth.adjustment_replay_admission_cli import (
         adjustment_replay_admission_certify,
     )
+    from alpha.historical_truth.bridge_aware_admission_reconciliation_cli import (
+        bridge_aware_admission_reconcile,
+    )
     from alpha.historical_truth.bridge_aware_factor_validation_repair_cli import (
         bridge_aware_factor_validation_repair,
     )
@@ -43,6 +46,10 @@ def _historical_truth_app() -> typer.Typer:
     if "bridge-aware-factor-validation-repair" not in registered:
         historical_truth_app.command("bridge-aware-factor-validation-repair")(
             bridge_aware_factor_validation_repair
+        )
+    if "bridge-aware-admission-reconcile" not in registered:
+        historical_truth_app.command("bridge-aware-admission-reconcile")(
+            bridge_aware_admission_reconcile
         )
     return historical_truth_app
 
