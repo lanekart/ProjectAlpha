@@ -80,9 +80,7 @@ def _historical_truth_app() -> typer.Typer:
             official_bridge_evidence_materialize
         )
     if "official-bridge-certify" not in registered:
-        historical_truth_app.command("official-bridge-certify")(
-            official_bridge_certify
-        )
+        historical_truth_app.command("official-bridge-certify")(official_bridge_certify)
     return historical_truth_app
 
 
