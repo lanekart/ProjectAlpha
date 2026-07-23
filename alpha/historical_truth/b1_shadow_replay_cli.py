@@ -89,6 +89,14 @@ def main() -> int:
         finally:
             source.close()
 
+    def adjusted_builder(repository: object) -> HistoricalObservationFactory:
+        return HistoricalObservationFactory(
+            price_repository=B1UniverseFilteredPriceRepository(
+                repository,
+                admission.admitted_symbols,
+            )
+        )
+
     def adjusted_leg() -> tuple[ReplayRunRecord, ...]:
         run = execute_governed_historical_replay(
             from_date=arguments.start,
@@ -99,12 +107,7 @@ def main() -> int:
             replay_repository=adjusted_replay_repository,
             database_path=arguments.database,
             output=arguments.output / "adjusted_governed_replay",
-            observation_builder_factory=lambda repository: HistoricalObservationFactory(
-                price_repository=B1UniverseFilteredPriceRepository(
-                    repository,
-                    admission.admitted_symbols,
-                )
-            ),
+            observation_builder_factory=adjusted_builder,
         )
         return run.replay_runs
 
