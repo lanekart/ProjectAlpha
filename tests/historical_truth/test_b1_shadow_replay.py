@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -81,7 +81,7 @@ def test_shadow_replay_accepts_real_frozen_replay_run_records() -> None:
         outcome_windows_available=("1D",),
         data_gaps=0,
         runtime_seconds=Decimal("0.10"),
-        created_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        created_at=datetime(2026, 1, 2, tzinfo=UTC),
     )
 
     def replay_leg() -> tuple[ReplayRunRecord, ...]:
