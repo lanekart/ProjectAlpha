@@ -8,7 +8,9 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 import pytest
+from typer.testing import CliRunner
 
+from alpha.application.benchmark_cli import benchmark_app
 from alpha.benchmark_replay.governed_adjusted import (
     build_governed_benchmark_stores,
 )
@@ -170,6 +172,13 @@ def _pair(tmp_path: Path):
         adjusted_universe=artifacts["adjusted_universe"],
         output=tmp_path / "contracts",
     )
+
+
+def test_b2_command_is_registered() -> None:
+    result = CliRunner().invoke(benchmark_app, ["--help"])
+
+    assert result.exit_code == 0, result.output
+    assert "governed-adjusted-replay" in result.output
 
 
 def test_adjusted_history_is_rebased_as_of_replay_date(tmp_path: Path) -> None:
