@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/htr-010b2-governed-adjusted-benchmark-integration
+  pull_request:
 
 permissions:
   contents: read
