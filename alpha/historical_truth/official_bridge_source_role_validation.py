@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 HTR010B1F_SOURCE_ROLE_CONTRACT_VERSION = "HTR-010B1F-SOURCE-ROLE-v1.0.0"
 
@@ -26,6 +26,7 @@ def validate_source_role_url(role: str, source_url: str) -> tuple[bool, str]:
     parsed = urlparse(source_url)
     host = (parsed.hostname or "").lower()
     path = parsed.path.lower()
+    query = parse_qs(parsed.query)
     official = parsed.scheme == "https" and any(
         host == suffix or host.endswith("." + suffix)
         for suffix in _ALLOWED_HOST_SUFFIXES
@@ -41,13 +42,25 @@ def validate_source_role_url(role: str, source_url: str) -> tuple[bool, str]:
     is_security_master = host == "nsearchives.nseindia.com" and path.endswith(
         "/content/equities/equity_l.csv"
     )
-    is_generic_actions = path.startswith("/companies-listing/corporate-filings-actions")
+    is_action_api = (
+        host == "www.nseindia.com"
+        and path == "/api/corporates-corporateactions"
+        and query.get("index") == ["equities"]
+        and bool(query.get("symbol"))
+        and bool(query.get("from_date"))
+        and bool(query.get("to_date"))
+    )
+    is_generic_actions = path.startswith(
+        "/companies-listing/corporate-filings-actions"
+    )
 
     if normalized_role == "CORPORATE_ACTION":
         if is_generic_actions:
             return False, "GENERIC_DYNAMIC_ACTION_TABLE_NOT_ROLE_EVIDENCE"
-        if is_quote_page or is_xbrl:
+        if is_action_api:
             return True, "ROLE_SOURCE_STRUCTURALLY_VALID"
+        if is_quote_page or is_xbrl:
+            return True, "ROLE_SOURCE_REQUIRES_API_RESOLUTION"
         return False, "ACTION_SOURCE_PATTERN_NOT_APPROVED"
 
     if normalized_role == "PRE_IDENTITY":
