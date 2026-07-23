@@ -28,7 +28,7 @@ from alpha.historical_truth.b1_shadow_replay import (
     B1ShadowReplayRunner,
 )
 from alpha.historical_truth.b1_shadow_universe import (
-    B1UniverseFilteredPriceRepository,
+    B1IdentityFilteredPriceRepository,
     load_b1_shadow_admission,
 )
 from alpha.historical_truth.replay import HistoricalTruthReplayStore
@@ -94,18 +94,16 @@ def main() -> int:
         if not source_dates:
             raise ValueError("population parity audit found no replay sessions")
 
-        raw_repository = B1UniverseFilteredPriceRepository(
-            source,
-            admission.admitted_symbols,
-        )
-        canonical = CanonicalReplayPriceRepository(
+        governed_source = B1IdentityFilteredPriceRepository(
             source,
             governed_inputs.identities,
-            governed_inputs.actions,
+            admission.admitted_security_ids,
         )
-        adjusted_repository = B1UniverseFilteredPriceRepository(
-            canonical,
-            admission.admitted_symbols,
+        raw_repository = governed_source
+        adjusted_repository = CanonicalReplayPriceRepository(
+            governed_source,
+            governed_inputs.identities,
+            governed_inputs.actions,
         )
 
         raw_counts: list[tuple[date, int]] = []
