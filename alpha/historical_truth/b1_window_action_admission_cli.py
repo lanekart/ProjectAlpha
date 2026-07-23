@@ -55,14 +55,8 @@ def main() -> int:
     print(f"Admitted identities: {report['admitted_identity_count']}")
     print(f"Excluded identities: {report['excluded_identity_count']}")
     print(f"Orphan material actions: {orphan_count}")
-    print(
-        "Admitted unresolved actions: "
-        f"{report['admitted_unresolved_action_count']}"
-    )
-    print(
-        "Universe differences: "
-        f"{report['raw_adjusted_universe_difference_count']}"
-    )
+    print(f"Admitted unresolved actions: {report['admitted_unresolved_action_count']}")
+    print(f"Universe differences: {report['raw_adjusted_universe_difference_count']}")
     print(f"Shadow replay ready: {report['shadow_replay_ready']}")
     print(f"Report SHA256: {report['report_sha256']}")
     print("PRODUCTION_INFLUENCE=false")

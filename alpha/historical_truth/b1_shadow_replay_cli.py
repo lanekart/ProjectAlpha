@@ -125,8 +125,7 @@ def main() -> int:
     print(f"Session sets match: {result.comparison['session_sets_match']}")
     print(f"Universe counts match: {result.comparison['universe_counts_match']}")
     print(
-        "Unexplained divergences: "
-        f"{result.comparison['unexplained_divergence_count']}"
+        f"Unexplained divergences: {result.comparison['unexplained_divergence_count']}"
     )
     print(f"Admission SHA256: {admission.admission_contract_sha256}")
     print(f"Report SHA256: {report['report_sha256']}")

@@ -37,19 +37,17 @@ def test_shadow_replay_accepts_equal_metrics_from_distinct_sources(
 
     assert result.raw_summary["price_view"] == "RAW"
     assert result.adjusted_summary["price_view"] == "ADJUSTED"
-    assert result.raw_summary["source_contract"] != result.adjusted_summary[
-        "source_contract"
-    ]
+    assert (
+        result.raw_summary["source_contract"]
+        != result.adjusted_summary["source_contract"]
+    )
     assert result.comparison["unexplained_divergence_count"] == 0
     assert result.comparison["source_contracts_distinct"] is True
 
     paths = shadow_replay.B1ShadowReplayRunner.export(result, tmp_path)
     assert len(paths) == 4
     report = json.loads(paths[2].read_text(encoding="utf-8"))
-    assert (
-        report["contract_version"]
-        == shadow_replay.HTR010B1_SHADOW_CONTRACT_VERSION
-    )
+    assert report["contract_version"] == shadow_replay.HTR010B1_SHADOW_CONTRACT_VERSION
     assert report["production_influence"] is False
 
 

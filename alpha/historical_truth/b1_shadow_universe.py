@@ -69,9 +69,8 @@ def load_b1_shadow_admission(
             raise ValueError(f"B1H admission contract has nonzero {key}")
 
     expected_report_sha = str(contract.get("report_sha256") or "")
-    if (
-        len(expected_report_sha) != 64
-        or expected_report_sha != _digest_mapping(contract)
+    if len(expected_report_sha) != 64 or expected_report_sha != _digest_mapping(
+        contract
     ):
         raise ValueError("B1H admission contract digest mismatch")
     if raw_universe != adjusted_universe:
@@ -88,8 +87,7 @@ def load_b1_shadow_admission(
     admitted_rows = tuple(
         row
         for row in admissions
-        if row.get("raw_admitted") is True
-        and row.get("adjusted_admitted") is True
+        if row.get("raw_admitted") is True and row.get("adjusted_admitted") is True
     )
     admitted_by_id: dict[str, str] = {}
     for row in admitted_rows:
@@ -124,13 +122,7 @@ class B1UniverseFilteredPriceRepository:
 
     def __init__(self, repository: Any, symbols: tuple[str, ...]) -> None:
         normalized = tuple(
-            sorted(
-                {
-                    item.strip().upper()
-                    for item in symbols
-                    if item.strip()
-                }
-            )
+            sorted({item.strip().upper() for item in symbols if item.strip()})
         )
         if not normalized:
             raise ValueError("shadow replay requires at least one admitted symbol")
@@ -225,9 +217,7 @@ def _mapping(path: Path) -> dict[str, Any]:
 
 def _rows(path: Path) -> tuple[dict[str, Any], ...]:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    valid = isinstance(payload, list) and all(
-        isinstance(row, dict) for row in payload
-    )
+    valid = isinstance(payload, list) and all(isinstance(row, dict) for row in payload)
     if not valid:
         raise ValueError(f"artifact must contain record mappings: {path}")
     return tuple(dict(row) for row in payload)
@@ -235,9 +225,7 @@ def _rows(path: Path) -> tuple[dict[str, Any], ...]:
 
 def _string_list(path: Path) -> tuple[str, ...]:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    valid = isinstance(payload, list) and all(
-        isinstance(item, str) for item in payload
-    )
+    valid = isinstance(payload, list) and all(isinstance(item, str) for item in payload)
     if not valid:
         raise ValueError(f"artifact must contain string values: {path}")
     return tuple(payload)

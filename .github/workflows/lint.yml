@@ -4,21 +4,12 @@ on:
   push:
   pull_request:
 
-permissions:
-  contents: write
-
 jobs:
   ruff:
-    if: >-
-      github.event_name == 'push' &&
-      github.event.head_commit.message == 'Apply exact locked Ruff normalization v2'
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: feature/htr-010b1-final-governed-adjusted-replay-closure
-          fetch-depth: 0
 
       - name: Install Python
         uses: actions/setup-python@v5
@@ -28,21 +19,23 @@ jobs:
       - name: Install locked Ruff
         run: pip install ruff==0.15.20
 
-      - name: Apply locked normalization
-        run: |
-          ruff check . --fix
-          ruff format .
-          ruff check .
-          ruff format --check .
+      - name: Show Ruff version
+        run: ruff --version
 
-      - name: Restore normal lint workflow
+      - name: Run Ruff check
         run: |
-          git show 866aa8c7c9c4c3d709251e1401a0bd01322fa0ce:.github/workflows/lint.yml > .github/workflows/lint.yml
+          set +e
+          ruff check . 2>&1 | tee ruff-check.txt
+          status=${PIPESTATUS[0]}
+          exit "$status"
 
-      - name: Commit normalized files
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .github/workflows/lint.yml alpha/historical_truth tests/historical_truth
-          git commit -m 'Apply locked Ruff normalization'
-          git push origin HEAD:feature/htr-010b1-final-governed-adjusted-replay-closure
+      - name: Upload Ruff diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruff-diagnostics
+          path: ruff-check.txt
+          if-no-files-found: error
+
+      - name: Run Ruff format check
+        run: ruff format --check .

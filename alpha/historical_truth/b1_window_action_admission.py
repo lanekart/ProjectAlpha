@@ -280,8 +280,7 @@ def _bridge_quarantine_reasons(
                 "action_type": "IDENTITY_BRIDGE",
                 "effective_date": row.get("effective_from"),
                 "detail": (
-                    row.get("continuity_decision")
-                    or row.get("quarantine_reason")
+                    row.get("continuity_decision") or row.get("quarantine_reason")
                 ),
             }
         )
@@ -319,7 +318,8 @@ def _overlaps(row: dict[str, Any], start: date, end: date) -> bool:
 
 def _covers_dependency_start(rows: tuple[dict[str, Any], ...], start: date) -> bool:
     return any(
-        (_optional_date(row.get("effective_from")) or date.min) <= start
+        (_optional_date(row.get("effective_from")) or date.min)
+        <= start
         <= (_optional_date(row.get("effective_to")) or date.max)
         for row in rows
     )
