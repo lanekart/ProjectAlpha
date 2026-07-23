@@ -46,11 +46,12 @@ The engine accepts only evidence classified as one of:
 
 Every accepted evidence row must include:
 
+- bridge case ID;
 - official source class;
 - official document ID;
 - official document date;
 - effective date;
-- SHA-256 provenance;
+- valid hexadecimal SHA-256 provenance;
 - predecessor and successor identity fields;
 - explicit continuity conclusions.
 
@@ -83,11 +84,13 @@ review_notes
 production_influence
 ```
 
+Evidence carrying a bridge-case ID cannot certify a different case. Evidence without a bridge-case ID must still match the exact effective date and predecessor/successor identity pair.
+
 ## Cross-ISIN rules
 
 A cross-ISIN bridge is certified only when official effective-dated evidence explicitly links the predecessor and successor identities.
 
-Certification of identity continuity does not by itself prove price-series continuity. Adjusted-replay certification additionally requires official price-series continuity and a confirmed factor basis.
+Certification of identity continuity does not by itself prove price-series continuity. Adjusted-replay certification additionally requires official price-series continuity and an independently confirmed factor basis from B1D2.
 
 ## Cross-series rules
 
@@ -98,7 +101,7 @@ The KOTYARK `EQ → BE` case separates four questions:
 3. Is tradability continuous across the series transition?
 4. Is adjusted replay eligible across the boundary?
 
-Cross-series adjusted-replay eligibility requires all three continuity dimensions. An identity-continuous but tradability-discontinuous transition remains replay-ineligible and should be segmented in the later reconciliation milestone.
+Cross-series adjusted-replay eligibility requires all three continuity dimensions and a confirmed factor basis. An identity-continuous but tradability-discontinuous transition remains replay-ineligible and should be segmented in the later reconciliation milestone.
 
 ## CLI
 
@@ -110,6 +113,14 @@ poetry run python -m alpha historical-truth \
   --htr010b1d2-output artifacts/htr010b1d2_bridge_aware_validation_repair_2026 \
   --output artifacts/htr010b1f_official_bridge_evidence_manifest_2026
 ```
+
+The manifest command writes:
+
+- `htr010b1f_evidence_manifest.json`
+- `htr010b1f_evidence_requests.json`
+- `htr010b1f_evidence_requests.csv`
+- `htr010b1f_official_evidence_template.json`
+- `htr010b1f_evidence_manifest.md`
 
 Run certification with no evidence to verify deterministic fail-closed behavior:
 
@@ -128,11 +139,13 @@ Run certification after governed official evidence is populated:
 poetry run python -m alpha historical-truth \
   official-bridge-certify \
   --htr010b1d2-output artifacts/htr010b1d2_bridge_aware_validation_repair_2026 \
-  --official-evidence artifacts/htr010b1f_official_bridge_evidence_manifest_2026/htr010b1f_official_evidence.json \
+  --official-evidence artifacts/htr010b1f_official_bridge_evidence.json \
   --start 2026-01-01 \
   --end 2026-07-20 \
   --output artifacts/htr010b1f_official_bridge_certification_2026
 ```
+
+Certification writes a separate unresolved-evidence artifact so missing and conflicting official evidence remain actionable without being hidden.
 
 ## Acceptance invariants
 
