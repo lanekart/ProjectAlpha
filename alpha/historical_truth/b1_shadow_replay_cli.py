@@ -21,7 +21,10 @@ from alpha.historical_replay.governed_price_repository import (
     CanonicalReplayPriceRepository,
 )
 from alpha.historical_replay.models import ReplayRunRecord
-from alpha.historical_truth.b1_shadow_replay import B1ShadowReplayRunner
+from alpha.historical_truth.b1_shadow_replay import (
+    B1ShadowReplayLegResult,
+    B1ShadowReplayRunner,
+)
 from alpha.historical_truth.b1_shadow_universe import (
     B1UniverseFilteredPriceRepository,
     load_b1_shadow_admission,
@@ -76,7 +79,7 @@ def main() -> int:
         arguments.output / "adjusted_replay_ledger.json"
     )
 
-    def raw_leg() -> tuple[ReplayRunRecord, ...]:
+    def raw_leg() -> B1ShadowReplayLegResult:
         source = MarketTruthPriceRepository(database_path=arguments.database)
         try:
             filtered = B1UniverseFilteredPriceRepository(
@@ -89,7 +92,7 @@ def main() -> int:
                 from_date=arguments.start,
                 to_date=arguments.end,
             )
-            return HistoricalReplayEngine(
+            runs: tuple[ReplayRunRecord, ...] = HistoricalReplayEngine(
                 replay_repository=raw_replay_repository,
                 learning_repository=raw_learning_repository,
             ).run(
@@ -97,10 +100,27 @@ def main() -> int:
                 to_date=arguments.end,
                 observations=build.observations,
             )
+            _write_json(
+                arguments.output / "raw_observation_manifest.json",
+                {
+                    "replay_dates": [item.isoformat() for item in build.replay_dates],
+                    "observation_count": len(build.observations),
+                    "skipped_dates": list(build.skipped_dates),
+                    "admitted_identity_count": len(admission.admitted_security_ids),
+                    "production_influence": False,
+                },
+            )
+            return B1ShadowReplayLegResult(
+                runs=runs,
+                replay_dates=build.replay_dates,
+                eligible_security_count=len(admission.admitted_security_ids),
+                observation_count=len(build.observations),
+                skipped_dates=build.skipped_dates,
+            )
         finally:
             source.close()
 
-    def adjusted_leg() -> tuple[ReplayRunRecord, ...]:
+    def adjusted_leg() -> B1ShadowReplayLegResult:
         source = MarketTruthPriceRepository(database_path=arguments.database)
         try:
             canonical = CanonicalReplayPriceRepository(
@@ -131,13 +151,20 @@ def main() -> int:
                 governed_output / "governed_observation_manifest.json",
                 governed_build.as_dict(),
             )
-            return HistoricalReplayEngine(
+            runs: tuple[ReplayRunRecord, ...] = HistoricalReplayEngine(
                 replay_repository=adjusted_replay_repository,
                 learning_repository=adjusted_learning_repository,
             ).run(
                 from_date=arguments.start,
                 to_date=arguments.end,
                 observations=governed_build.observations,
+            )
+            return B1ShadowReplayLegResult(
+                runs=runs,
+                replay_dates=governed_build.replay_dates,
+                eligible_security_count=len(admission.admitted_security_ids),
+                observation_count=len(governed_build.observations),
+                skipped_dates=governed_build.skipped_dates,
             )
         finally:
             source.close()
@@ -151,10 +178,27 @@ def main() -> int:
     report = result.as_dict()
     print("HTR-010B1 Governed Shadow Replay")
     print(f"Admitted identities: {len(admission.admitted_security_ids)}")
-    print(f"Raw sessions: {result.raw_summary['session_count']}")
-    print(f"Adjusted sessions: {result.adjusted_summary['session_count']}")
+    print(f"Raw source sessions: {result.raw_summary['session_count']}")
+    print(f"Adjusted source sessions: {result.adjusted_summary['session_count']}")
+    print(f"Raw executed sessions: {result.raw_summary['executed_session_count']}")
+    print(
+        "Adjusted executed sessions: "
+        f"{result.adjusted_summary['executed_session_count']}"
+    )
+    print(f"Raw observations: {result.raw_summary['observation_count']}")
+    print(f"Adjusted observations: {result.adjusted_summary['observation_count']}")
+    print(f"Raw skipped dates: {result.raw_summary['skipped_date_count']}")
+    print(f"Adjusted skipped dates: {result.adjusted_summary['skipped_date_count']}")
     print(f"Session sets match: {result.comparison['session_sets_match']}")
+    print(
+        "Executed session sets match: "
+        f"{result.comparison['executed_session_sets_match']}"
+    )
     print(f"Universe counts match: {result.comparison['universe_counts_match']}")
+    print(
+        "Replay population nonempty: "
+        f"{result.comparison['replay_population_nonempty']}"
+    )
     print(
         f"Unexplained divergences: {result.comparison['unexplained_divergence_count']}"
     )
