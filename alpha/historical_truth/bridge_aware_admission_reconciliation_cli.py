@@ -13,8 +13,8 @@ from alpha.historical_truth.adjustment_replay_admission_exports import (
 from alpha.historical_truth.adjustment_replay_admission_repair import (
     InputContractError,
 )
-from alpha.historical_truth.bridge_aware_admission_reconciliation_integrity import (
-    BridgeAwareAdmissionReconciliationIntegrityEngine,
+from alpha.historical_truth.bridge_aware_admission_report_integrity import (
+    BridgeAwareAdmissionReportIntegrityEngine,
 )
 
 
@@ -66,7 +66,7 @@ def bridge_aware_admission_reconcile(
     if end_date < start_date:
         raise typer.BadParameter("must be on or after --start", param_hint="--end")
     try:
-        report = BridgeAwareAdmissionReconciliationIntegrityEngine().run(
+        report = BridgeAwareAdmissionReportIntegrityEngine().run(
             database_path=database,
             htr010a3_output=htr010a3_output,
             htr010b_output=htr010b_output,
@@ -84,12 +84,12 @@ def bridge_aware_admission_reconcile(
         {},
     )
     interval_diagnostics = report.input_contract_diagnostics.get(
-        "admission_interval_quarantine_augmentation",
+        "b1e1_interval_state_integrity",
         {},
     )
     reconciliation = report.quarantine_population_reconciliation
     readiness = report.replay_readiness
-    print("HTR-010B1E Bridge-Aware Admission Reconciliation")
+    print("HTR-010B1E1 Report and Interval Integrity")
     print(f"Factor validation cases: {len(report.factor_validation_results):,}")
     print(f"Corrected B1D2 cases: {diagnostics.get('corrected_case_count', 0):,}")
     print(
@@ -105,8 +105,12 @@ def bridge_aware_admission_reconcile(
         f"{diagnostics.get('implementation_defect_count', 0):,}"
     )
     print(
-        "Admission interval quarantine rows added: "
-        f"{interval_diagnostics.get('admission_interval_rows_added', 0):,}"
+        "Unresolved intervals repaired: "
+        f"{interval_diagnostics.get('pre_repair_unresolved_interval_count', 0):,}"
+    )
+    print(
+        "Unresolved intervals remaining: "
+        f"{interval_diagnostics.get('post_repair_unresolved_interval_count', 0):,}"
     )
     print(f"Validation outcomes: {readiness.get('validation_outcomes', {})}")
     print(f"Admission states: {readiness.get('admission_state_counts', {})}")
