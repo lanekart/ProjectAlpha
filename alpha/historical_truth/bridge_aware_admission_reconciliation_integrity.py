@@ -20,8 +20,8 @@ from alpha.historical_truth.bridge_aware_admission_quarantine import (
     augment_quarantine_with_admission_intervals,
 )
 from alpha.historical_truth.bridge_aware_admission_reconciliation import (
-    BridgeAwareAdmissionReconciliationEngine,
     HTR010B1E_CONTRACT_VERSION,
+    BridgeAwareAdmissionReconciliationEngine,
 )
 
 

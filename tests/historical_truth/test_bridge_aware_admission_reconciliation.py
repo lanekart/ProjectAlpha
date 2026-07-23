@@ -214,9 +214,7 @@ def test_readiness_replaces_false_factor_blockers_with_bridge_blockers() -> None
     )
 
     assert readiness["implementation_defect_count"] == 0
-    assert "FACTOR_TRANSFORMATION_IMPLEMENTATION_DEFECTS" not in readiness[
-        "blockers"
-    ]
+    assert "FACTOR_TRANSFORMATION_IMPLEMENTATION_DEFECTS" not in readiness["blockers"]
     assert "POSSIBLE_FACTOR_ORIENTATION_DEFECTS" not in readiness["blockers"]
     assert "UNCERTIFIED_CROSS_ISIN_BRIDGES" in readiness["blockers"]
     assert "UNCERTIFIED_CROSS_SERIES_BRIDGES" in readiness["blockers"]
@@ -246,14 +244,18 @@ def test_admission_interval_quarantine_is_economically_measurable() -> None:
             "symbol": "ALPHA",
             "start_date": "2026-01-03",
             "end_date": "2026-01-05",
-            "admission_state": AdmissionState.RAW_REPLAY_CERTIFIED_POST_EVENT_SEGMENT.value,
+            "admission_state": (
+                AdmissionState.RAW_REPLAY_CERTIFIED_POST_EVENT_SEGMENT.value
+            ),
         },
     )
 
     rows = augment_quarantine_with_admission_intervals(evidence, intervals)
 
     assert len(rows) == 2
-    interval_row = next(row for row in rows if row.get("source") == "REPLAY_ADMISSION_INTERVAL")
+    interval_row = next(
+        row for row in rows if row.get("source") == "REPLAY_ADMISSION_INTERVAL"
+    )
     assert interval_row["interval_start"] == "2026-01-01"
     assert interval_row["interval_end"] == "2026-01-02"
     assert interval_row["quarantine_reason"] == (

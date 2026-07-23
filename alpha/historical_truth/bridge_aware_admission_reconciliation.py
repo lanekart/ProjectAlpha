@@ -77,9 +77,7 @@ class BridgeAwareAdmissionReconciliationEngine:
             start_date=start_date,
             end_date=end_date,
         )
-        repair_rows = _records(
-            htr010b1d2_output / "htr010b1d2_reclassified_cases.json"
-        )
+        repair_rows = _records(htr010b1d2_output / "htr010b1d2_reclassified_cases.json")
         repaired_results, repair_summary = overlay_bridge_aware_results(
             base.factor_validation_results,
             repair_rows,
@@ -241,10 +239,14 @@ def overlay_bridge_aware_results(
         try:
             ValidationOutcome(proposed)
         except ValueError as exc:
-            raise ValueError(f"invalid proposed validation outcome: {proposed}") from exc
+            raise ValueError(
+                f"invalid proposed validation outcome: {proposed}"
+            ) from exc
         factor_confirmed = bool(repair.get("factor_quality_confirmed"))
         bridge_certified = bool(repair.get("bridge_certified_for_replay"))
-        admitted = factor_confirmed and bridge_certified and proposed in _CONFIRMED_OUTCOMES
+        admitted = (
+            factor_confirmed and bridge_certified and proposed in _CONFIRMED_OUTCOMES
+        )
         corrected.append(
             {
                 **row,
@@ -342,9 +344,7 @@ def segmented_admission_with_bridge_reconciliation(
                 "bridge_certified_for_replay": validation.get(
                     "bridge_certified_for_replay"
                 ),
-                "factor_quality_confirmed": validation.get(
-                    "factor_quality_confirmed"
-                ),
+                "factor_quality_confirmed": validation.get("factor_quality_confirmed"),
             }
             factors_by_identity[str(row["identity_key"])].append(enriched)
 
@@ -401,15 +401,15 @@ def segmented_admission_with_bridge_reconciliation(
                 if row.get("bridge_dependency_state")
             }
             reset_required = bool(
-                any(row.get("bridge_certified_for_replay") is False for row in preceding)
+                any(
+                    row.get("bridge_certified_for_replay") is False for row in preceding
+                )
                 or preceding_outcomes
                 & {
                     ValidationOutcome.IMPLEMENTATION_DEFECT.value,
                     ValidationOutcome.FACTOR_INSUFFICIENT_EVIDENCE.value,
                 }
-                or {
-                    str(row.get("factor_state")) for row in preceding
-                }
+                or {str(row.get("factor_state")) for row in preceding}
                 & (
                     UNKNOWN_FACTOR_STATES
                     | AMBIGUOUS_FACTOR_STATES
@@ -437,9 +437,7 @@ def segmented_admission_with_bridge_reconciliation(
                     "preceding_boundary_validation_outcomes": sorted(
                         preceding_outcomes
                     ),
-                    "preceding_boundary_bridge_dependencies": sorted(
-                        preceding_bridges
-                    ),
+                    "preceding_boundary_bridge_dependencies": sorted(preceding_bridges),
                     "future_bridge_validation_outcomes": sorted(future_outcomes),
                     "future_bridge_dependencies": sorted(future_bridges),
                     "future_bridge_certified_for_replay": all(
@@ -477,7 +475,11 @@ def _bridge_admission_state(
         return AdmissionState.FACTOR_UNKNOWN_QUARANTINED, "NONE"
     if states & NON_MULTIPLICATIVE_STATES:
         return AdmissionState.IDENTITY_TRANSITION_NONCOMPARABLE, "RAW"
-    if states <= CERTIFIED_FACTOR_STATES and outcomes and outcomes <= _CONFIRMED_OUTCOMES:
+    if (
+        states <= CERTIFIED_FACTOR_STATES
+        and outcomes
+        and outcomes <= _CONFIRMED_OUTCOMES
+    ):
         return AdmissionState.ADJUSTED_REPLAY_CERTIFIED_TRADABILITY_PARTIAL, "ADJUSTED"
     return AdmissionState.UNRESOLVED, "NONE"
 

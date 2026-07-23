@@ -91,10 +91,7 @@ def bridge_aware_admission_reconcile(
     readiness = report.replay_readiness
     print("HTR-010B1E Bridge-Aware Admission Reconciliation")
     print(f"Factor validation cases: {len(report.factor_validation_results):,}")
-    print(
-        "Corrected B1D2 cases: "
-        f"{diagnostics.get('corrected_case_count', 0):,}"
-    )
+    print(f"Corrected B1D2 cases: {diagnostics.get('corrected_case_count', 0):,}")
     print(
         "Factor-quality confirmed: "
         f"{diagnostics.get('factor_quality_confirmed_count', 0):,}"
