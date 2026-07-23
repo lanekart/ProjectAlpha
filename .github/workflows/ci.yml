@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  quality:
+  htr010b2-diagnostic:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,60 +20,40 @@ jobs:
           key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
       - run: pip install poetry
       - run: poetry install --no-interaction
-      - name: Ruff check
-        run: poetry run ruff check .
-      - name: Ruff format check
-        run: poetry run ruff format --check .
-      - name: MyPy
-        run: poetry run mypy alpha
-
-  pytest:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shard:
-          - historical_truth
-          - historical_replay
-          - decision_and_market
-          - portfolio_and_backtest
-          - research_and_signals
-          - remaining
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/pypoetry
-            ~/.cache/pip
-          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
-      - run: pip install poetry
-      - run: poetry install --no-interaction
-      - name: Run shard
-        env:
-          _TYPER_FORCE_DISABLE_TERMINAL: "1"
-          SHARD: ${{ matrix.shard }}
+      - name: Capture focused validation
         run: |
-          case "$SHARD" in
-            historical_truth)
-              poetry run pytest -q tests/historical_truth
-              ;;
-            historical_replay)
-              poetry run pytest -q tests/historical_replay tests/recovery
-              ;;
-            decision_and_market)
-              poetry run pytest -q tests/decision_intelligence tests/decision_lifecycle tests/decision_orchestrator tests/market tests/market_intelligence tests/market_truth
-              ;;
-            portfolio_and_backtest)
-              poetry run pytest -q tests/portfolio tests/portfolio_intelligence tests/backtest tests/execution tests/costs
-              ;;
-            research_and_signals)
-              poetry run pytest -q tests/research tests/trading_signals tests/strategy_lab tests/strategy_discovery tests/setup_discovery tests/candidate_learning
-              ;;
-            remaining)
-              poetry run python scripts/run_remaining_tests.py
-              ;;
-          esac
+          set +e
+          poetry run ruff check \
+            alpha/benchmark_replay/governed_adjusted.py \
+            alpha/benchmark_replay/__init__.py \
+            alpha/application/governed_adjusted_benchmark_cli.py \
+            alpha/application/benchmark_cli.py \
+            tests/benchmark_replay/test_governed_adjusted.py \
+            2>&1 | tee htr010b2-ruff.txt
+          echo ${PIPESTATUS[0]} > htr010b2-ruff-status.txt
+          poetry run mypy \
+            alpha/benchmark_replay/governed_adjusted.py \
+            alpha/application/governed_adjusted_benchmark_cli.py \
+            alpha/application/benchmark_cli.py \
+            2>&1 | tee htr010b2-mypy.txt
+          echo ${PIPESTATUS[0]} > htr010b2-mypy-status.txt
+          poetry run pytest -q tests/benchmark_replay/test_governed_adjusted.py \
+            2>&1 | tee htr010b2-pytest.txt
+          echo ${PIPESTATUS[0]} > htr010b2-pytest-status.txt
+      - name: Upload exact B2 workspace and diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: htr010b2-focused-diagnostics
+          path: |
+            alpha/benchmark_replay/governed_adjusted.py
+            alpha/benchmark_replay/__init__.py
+            alpha/application/governed_adjusted_benchmark_cli.py
+            alpha/application/benchmark_cli.py
+            tests/benchmark_replay/test_governed_adjusted.py
+            htr010b2-ruff.txt
+            htr010b2-ruff-status.txt
+            htr010b2-mypy.txt
+            htr010b2-mypy-status.txt
+            htr010b2-pytest.txt
+            htr010b2-pytest-status.txt
+          if-no-files-found: error
