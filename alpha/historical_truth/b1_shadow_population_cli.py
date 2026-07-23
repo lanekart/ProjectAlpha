@@ -7,17 +7,6 @@ import json
 from datetime import date
 from pathlib import Path
 
-from rich.console import Console
-from rich.progress import (
-    BarColumn,
-    MofNCompleteColumn,
-    Progress,
-    SpinnerColumn,
-    TextColumn,
-    TimeElapsedColumn,
-    TimeRemainingColumn,
-)
-
 from alpha.historical_replay.governed_artifacts import load_governed_replay_inputs
 from alpha.historical_replay.governed_price_repository import (
     CanonicalReplayPriceRepository,
@@ -32,6 +21,16 @@ from alpha.historical_truth.b1_shadow_universe import (
     load_b1_shadow_admission,
 )
 from alpha.historical_truth.replay import HistoricalTruthReplayStore
+from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 
 _CONSOLE = Console()
 
@@ -219,7 +218,7 @@ def main() -> int:
             f"{result.comparison['session_observation_counts_match']}"
         )
         _CONSOLE.print(
-            f"Unexplained divergences: "
+            "Unexplained divergences: "
             f"{result.comparison['unexplained_divergence_count']}"
         )
         _CONSOLE.print(f"Report SHA256: {report['report_sha256']}")
