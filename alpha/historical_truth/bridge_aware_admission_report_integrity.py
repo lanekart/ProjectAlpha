@@ -199,7 +199,8 @@ def repair_unresolved_intervals(
             }
         )
     remaining = sum(
-        row.get("admission_state") == AdmissionState.UNRESOLVED.value for row in repaired
+        row.get("admission_state") == AdmissionState.UNRESOLVED.value
+        for row in repaired
     )
     summary = {
         "contract_version": HTR010B1E1_CONTRACT_VERSION,
