@@ -117,7 +117,7 @@ def test_replay_store_exposes_exact_trade_dates_and_ranges(tmp_path: Path) -> No
         )
 
     assert dates == (date(2026, 7, 17), date(2026, 7, 20))
-    assert frame["trade_date"].tolist() == [date(2026, 7, 20)]
+    assert frame["trade_date"].dt.date.tolist() == [date(2026, 7, 20)]
     assert frame["close"].tolist() == [109.0]
 
 
