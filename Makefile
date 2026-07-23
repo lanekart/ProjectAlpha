@@ -28,7 +28,8 @@ test-b1-final:
 	$(PYTEST) -q \
 		tests/historical_truth/test_b1_final_closure.py \
 		tests/historical_truth/test_b1_shadow_replay.py \
-		tests/historical_truth/test_b1_canonical_action_materializer.py
+		tests/historical_truth/test_b1_canonical_action_materializer.py \
+		tests/historical_truth/test_b1_canonical_identity_materializer.py
 
 test-full:
 	$(PYTEST) -q
