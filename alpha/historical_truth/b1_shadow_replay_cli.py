@@ -11,9 +11,15 @@ from alpha.application.governed_historical_replay_cli import (
 )
 from alpha.candidate_learning.repository import LearningLedgerRepository
 from alpha.historical_replay import (
-    HistoricalObservationFactory,
     HistoricalReplayEngine,
     HistoricalReplayRepository,
+)
+from alpha.historical_replay.governed_factory import (
+    HistoricalObservationBuilder,
+    create_historical_observation_builder,
+)
+from alpha.historical_replay.governed_price_repository import (
+    CanonicalReplayPriceRepository,
 )
 from alpha.historical_replay.models import ReplayRunRecord
 from alpha.historical_truth.b1_shadow_replay import B1ShadowReplayRunner
@@ -74,7 +80,9 @@ def main() -> int:
                 source,
                 admission.admitted_symbols,
             )
-            build = HistoricalObservationFactory(price_repository=filtered).build(
+            build = create_historical_observation_builder(
+                price_repository=filtered
+            ).build(
                 from_date=arguments.start,
                 to_date=arguments.end,
             )
@@ -89,8 +97,10 @@ def main() -> int:
         finally:
             source.close()
 
-    def adjusted_builder(repository: object) -> HistoricalObservationFactory:
-        return HistoricalObservationFactory(
+    def adjusted_builder(
+        repository: CanonicalReplayPriceRepository,
+    ) -> HistoricalObservationBuilder:
+        return create_historical_observation_builder(
             price_repository=B1UniverseFilteredPriceRepository(
                 repository,
                 admission.admitted_symbols,
