@@ -10,6 +10,10 @@ from typing import Any
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
+from alpha.historical_truth.official_bridge_source_role_validation import (
+    validate_source_role_url,
+)
+
 HTR010B1F_DOWNLOAD_CONTRACT_VERSION = "HTR-010B1F-DOWNLOAD-v1.0.0"
 
 _ALLOWED_HOST_SUFFIXES = (
@@ -37,7 +41,7 @@ class DownloadResult:
 
 
 class OfficialBridgeDocumentDownloader:
-    """Download only allowlisted official-source documents, fail closed otherwise."""
+    """Download only role-valid official-source documents, fail closed otherwise."""
 
     def run(
         self,
@@ -56,6 +60,10 @@ class OfficialBridgeDocumentDownloader:
             ),
             "rejected_source_count": sum(
                 row.download_state == "REJECTED_NON_OFFICIAL_SOURCE" for row in results
+            ),
+            "rejected_role_source_count": sum(
+                row.download_state == "REJECTED_ROLE_SOURCE_MISMATCH"
+                for row in results
             ),
             "failed_download_count": sum(
                 row.download_state == "DOWNLOAD_FAILED" for row in results
@@ -88,6 +96,7 @@ class OfficialBridgeDocumentDownloader:
     def _download(self, row: dict[str, Any], output_root: Path) -> DownloadResult:
         dossier_id = str(row.get("dossier_id") or "")
         source_url = str(row.get("source_url") or "")
+        evidence_role = str(row.get("evidence_role") or "")
         if not source_url:
             return DownloadResult(
                 dossier_id=dossier_id,
@@ -112,6 +121,23 @@ class OfficialBridgeDocumentDownloader:
                 download_state="REJECTED_NON_OFFICIAL_SOURCE",
                 error="SOURCE_HOST_NOT_ALLOWLISTED",
             )
+        if evidence_role:
+            role_valid, role_reason = validate_source_role_url(
+                evidence_role,
+                source_url,
+            )
+            if not role_valid:
+                return DownloadResult(
+                    dossier_id=dossier_id,
+                    source_url=source_url,
+                    final_url=None,
+                    relative_path=None,
+                    source_sha256=None,
+                    file_size_bytes=None,
+                    content_type=None,
+                    download_state="REJECTED_ROLE_SOURCE_MISMATCH",
+                    error=role_reason,
+                )
         try:
             request = Request(
                 source_url,
@@ -121,6 +147,13 @@ class OfficialBridgeDocumentDownloader:
                 final_url = response.geturl()
                 if not _official_url(final_url):
                     raise ValueError("redirected outside official-source allowlist")
+                if evidence_role:
+                    final_valid, final_reason = validate_source_role_url(
+                        evidence_role,
+                        final_url,
+                    )
+                    if not final_valid:
+                        raise ValueError(final_reason)
                 payload = response.read()
                 content_type = response.headers.get_content_type()
         except Exception as exc:  # pragma: no cover - network dependent
