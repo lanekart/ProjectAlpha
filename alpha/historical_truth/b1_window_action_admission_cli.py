@@ -136,7 +136,9 @@ def _rows(path: Path) -> list[dict[str, Any]]:
             None,
         )
         payload = nested if nested is not None else [payload]
-    if not isinstance(payload, list) or not all(isinstance(row, dict) for row in payload):
+    if not isinstance(payload, list) or not all(
+        isinstance(row, dict) for row in payload
+    ):
         raise ValueError(f"artifact must contain record mappings: {path}")
     return [dict(row) for row in payload]
 
