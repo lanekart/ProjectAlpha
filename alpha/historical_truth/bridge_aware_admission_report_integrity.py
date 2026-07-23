@@ -165,8 +165,12 @@ def repair_unresolved_intervals(
         if row.get("admission_state") != AdmissionState.UNRESOLVED.value:
             repaired.append(row)
             continue
-        outcomes = set(str(item) for item in row.get("future_bridge_validation_outcomes", []))
-        dependencies = set(str(item) for item in row.get("future_bridge_dependencies", []))
+        outcomes = set(
+            str(item) for item in row.get("future_bridge_validation_outcomes", [])
+        )
+        dependencies = set(
+            str(item) for item in row.get("future_bridge_dependencies", [])
+        )
         state, view, cause = _state_from_future_evidence(outcomes, dependencies)
         causes[cause] += 1
         repaired.append(
@@ -255,14 +259,16 @@ def _event_quarantine_only(
     return tuple(
         row
         for row in rows
-        if str(row.get("source_type") or "") != "ADMISSION_INTERVAL"
+        if str(row.get("source") or "") != "REPLAY_ADMISSION_INTERVAL"
     )
 
 
 def _final_residual_summary(
     results: tuple[dict[str, Any], ...],
 ) -> dict[str, Any]:
-    counts = Counter(str(row.get("residual_attribution") or "NOT_APPLICABLE") for row in results)
+    counts = Counter(
+        str(row.get("residual_attribution") or "NOT_APPLICABLE") for row in results
+    )
     return {
         "contract_version": HTR010B1E1_CONTRACT_VERSION,
         "case_count": len(results),
@@ -294,16 +300,20 @@ def _synchronized_readiness(
         "admission_state_counts": dict(sorted(admissions.items())),
         "residual_attribution_counts": residual_summary["attribution_counts"],
         "admission_quarantined_identity_count": reporting.get(
-            "admission_quarantined_identity_count", 0
+            "admission_quarantined_identity_count",
+            0,
         ),
         "evidence_quarantined_identity_count": reporting.get(
-            "evidence_quarantined_identity_count", 0
+            "evidence_quarantined_identity_count",
+            0,
         ),
         "unresolved_case_identity_count": reporting.get(
-            "unresolved_case_identity_count", 0
+            "unresolved_case_identity_count",
+            0,
         ),
         "quarantined_identity_count": reporting.get(
-            "admission_quarantined_identity_count", 0
+            "admission_quarantined_identity_count",
+            0,
         ),
         "bridge_uncertified_count": bridge_uncertified,
         "bridge_uncertified_case_count": bridge_uncertified,
