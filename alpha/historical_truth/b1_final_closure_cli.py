@@ -8,7 +8,11 @@ from pathlib import Path
 from typing import Any
 
 from alpha.historical_truth.b1_final_closure import B1FinalClosureEngine
-from alpha.historical_truth.b1_shadow_replay import HTR010B1_SHADOW_CONTRACT_VERSION
+from alpha.historical_truth.b1_shadow_replay import (
+    FULL_DIAGNOSTIC_REPLAY_SCOPE,
+    HTR010B1_SHADOW_CONTRACT_VERSION,
+    POPULATION_PARITY_SCOPE,
+)
 
 
 def main() -> int:
@@ -70,10 +74,15 @@ def _validate_shadow_population(
         return
     if raw_path is None or adjusted_path is None:
         raise ValueError("both RAW and ADJUSTED shadow summaries are required")
+    payloads: dict[str, dict[str, Any]] = {}
     for label, path in (("RAW", raw_path), ("ADJUSTED", adjusted_path)):
         payload = _mapping(path)
+        payloads[label] = payload
         if payload.get("contract_version") != HTR010B1_SHADOW_CONTRACT_VERSION:
             raise ValueError(f"{label} shadow summary uses a stale contract")
+        scope = payload.get("analysis_scope")
+        if scope not in {FULL_DIAGNOSTIC_REPLAY_SCOPE, POPULATION_PARITY_SCOPE}:
+            raise ValueError(f"{label} shadow summary uses an unsupported scope")
         session_count = int(payload.get("session_count", 0))
         eligible_count = int(payload.get("eligible_security_count", 0))
         replay_dates = payload.get("replay_dates")
@@ -83,8 +92,32 @@ def _validate_shadow_population(
             raise ValueError(
                 f"{label} shadow session count does not match replay dates"
             )
+        if scope == POPULATION_PARITY_SCOPE:
+            observation_count = int(payload.get("eligible_observation_count", 0))
+            session_counts = payload.get("session_observation_counts")
+            if observation_count <= 0:
+                raise ValueError(
+                    f"{label} population parity summary has no eligible observations"
+                )
+            if not isinstance(session_counts, list) or len(session_counts) != session_count:
+                raise ValueError(
+                    f"{label} population parity counts do not match sessions"
+                )
         if payload.get("production_influence") is not False:
             raise ValueError(f"{label} shadow summary must remain diagnostic-only")
+
+    raw = payloads["RAW"]
+    adjusted = payloads["ADJUSTED"]
+    if raw.get("analysis_scope") != adjusted.get("analysis_scope"):
+        raise ValueError("RAW and ADJUSTED shadow scopes differ")
+    if raw.get("replay_dates") != adjusted.get("replay_dates"):
+        raise ValueError("RAW and ADJUSTED shadow session sets differ")
+    if raw.get("eligible_security_count") != adjusted.get("eligible_security_count"):
+        raise ValueError("RAW and ADJUSTED eligible security counts differ")
+    if raw.get("analysis_scope") == POPULATION_PARITY_SCOPE and raw.get(
+        "session_observation_counts"
+    ) != adjusted.get("session_observation_counts"):
+        raise ValueError("RAW and ADJUSTED session observation counts differ")
 
 
 def _mapping(path: Path) -> dict[str, Any]:
