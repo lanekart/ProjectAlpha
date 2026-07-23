@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
 from hashlib import sha256
@@ -180,17 +181,22 @@ class OfficialBridgeEvidenceCertificationBundle:
 def _merge_downloads(
     findings: list[dict[str, Any]], downloads: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    keyed = {
-        (str(row.get("dossier_id") or ""), str(row.get("source_url") or "")): row
-        for row in downloads
-    }
+    keyed: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for row in downloads:
+        key = (
+            str(row.get("dossier_id") or ""),
+            str(row.get("source_url") or ""),
+        )
+        keyed[key].append(row)
+
     merged = []
     for finding in findings:
         key = (
             str(finding.get("dossier_id") or ""),
             str(finding.get("source_url") or ""),
         )
-        download = keyed.get(key, {})
+        matches = keyed.get(key, [])
+        download = matches.pop(0) if matches else {}
         merged.append(
             {
                 **finding,
