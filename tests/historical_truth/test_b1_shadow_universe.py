@@ -30,6 +30,8 @@ def _artifacts(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
         "contract_version": "HTR-010B1H-v1.0.0",
         "replay_start": "2026-01-01",
         "replay_end": "2026-07-20",
+        "dependency_start": "2025-01-01",
+        "dependency_end": "2026-09-30",
         "admitted_identity_count": 2,
         "admitted_unresolved_action_count": 0,
         "raw_adjusted_universe_difference_count": 0,
@@ -84,6 +86,8 @@ def test_loads_verified_b1h_admission(tmp_path: Path) -> None:
     assert result.admitted_symbols == ("AAA", "BBB")
     assert result.replay_start == date(2026, 1, 1)
     assert result.replay_end == date(2026, 7, 20)
+    assert result.dependency_start == date(2025, 1, 1)
+    assert result.dependency_end == date(2026, 9, 30)
 
 
 def test_rejects_tampered_universe(tmp_path: Path) -> None:
@@ -91,6 +95,26 @@ def test_rejects_tampered_universe(tmp_path: Path) -> None:
     adjusted.write_text(json.dumps(["nse:isin:INE1"]), encoding="utf-8")
 
     with pytest.raises(ValueError, match="universes differ"):
+        load_b1_shadow_admission(
+            contract_path=contract,
+            identity_admission_path=admissions,
+            raw_universe_path=raw,
+            adjusted_universe_path=adjusted,
+        )
+
+
+def test_rejects_dependency_window_that_does_not_cover_replay(
+    tmp_path: Path,
+) -> None:
+    contract, admissions, raw, adjusted = _artifacts(tmp_path)
+    payload = json.loads(contract.read_text(encoding="utf-8"))
+    payload["dependency_start"] = "2026-02-01"
+    payload["report_sha256"] = _digest(
+        {key: value for key, value in payload.items() if key != "report_sha256"}
+    )
+    contract.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="does not cover replay window"):
         load_b1_shadow_admission(
             contract_path=contract,
             identity_admission_path=admissions,
