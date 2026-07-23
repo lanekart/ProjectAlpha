@@ -7,6 +7,8 @@ import inspect
 import json
 import pathlib
 
+import pytest
+
 import alpha.historical_replay.models as replay_models
 import alpha.historical_truth.b1_shadow_population_cli as population_cli
 import alpha.historical_truth.b1_shadow_replay as shadow_replay
