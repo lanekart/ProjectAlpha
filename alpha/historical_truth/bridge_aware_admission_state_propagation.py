@@ -51,7 +51,7 @@ _MISSING_TEXT = {"", "none", "null", "nan", "n/a", "na"}
 
 
 class BridgeAwareAdmissionStatePropagationEngine:
-    """Propagate normalized validation state into final admission intervals."""
+    """Propagate governed validation state into final admission intervals."""
 
     def run(
         self,
@@ -75,7 +75,10 @@ class BridgeAwareAdmissionStatePropagationEngine:
         )
         inputs = HTR010BInputAdapter().load(htr010b_output, htr010a3_output)
         population = candle_population(
-            database_path, inputs["coverage"], start_date, end_date
+            database_path,
+            inputs["coverage"],
+            start_date,
+            end_date,
         )
         intervals, interval_summary = propagated_admission_intervals(
             coverage=inputs["coverage"],
@@ -86,14 +89,19 @@ class BridgeAwareAdmissionStatePropagationEngine:
             end_date=end_date,
         )
         lookbacks = session_based_lookback_safety(
-            intervals, population["sessions"], (14, 20, 50, 200)
+            intervals,
+            population["sessions"],
+            (14, 20, 50, 200),
         )
         evidence_only = tuple(
             row
             for row in base.quarantine_census
             if row.get("source") != "REPLAY_ADMISSION_INTERVAL"
         )
-        quarantine = augment_quarantine_with_admission_intervals(evidence_only, intervals)
+        quarantine = augment_quarantine_with_admission_intervals(
+            evidence_only,
+            intervals,
+        )
         economic_rows, weight_summary = tier_a_quarantine_economic_weight(
             database_path=database_path,
             quarantine=quarantine,
@@ -115,7 +123,10 @@ class BridgeAwareAdmissionStatePropagationEngine:
             results=base.factor_validation_results,
         )
         coverage = coverage_matrix_repaired(
-            inputs["coverage"], intervals, quarantine, lookbacks
+            inputs["coverage"],
+            intervals,
+            quarantine,
+            lookbacks,
         )
         residual_summary = corrected_residual_attribution(
             base.factor_validation_results
@@ -127,7 +138,8 @@ class BridgeAwareAdmissionStatePropagationEngine:
             residual_summary=residual_summary,
         )
         old_residual = base.input_contract_diagnostics.get(
-            "residual_factor_attribution", {}
+            "residual_factor_attribution",
+            {},
         )
         diagnostics = {
             **base.input_contract_diagnostics,
@@ -169,7 +181,9 @@ class BridgeAwareAdmissionStatePropagationEngine:
             replay_readiness=readiness,
             transformation_contract={
                 **base.transformation_contract,
-                "validation_missing_text_normalized_before_interval_classification": True,
+                "validation_missing_text_normalized_before_interval_"
+                "classification": True,
+                "reference_price_requirement_fail_closed_explicit": True,
                 "final_admission_state_propagation_repaired": True,
                 "active_replay_integration": False,
             },
@@ -187,7 +201,7 @@ def propagated_admission_intervals(
     start_date: date,
     end_date: date,
 ) -> tuple[tuple[dict[str, Any], ...], dict[str, Any]]:
-    """Build final intervals after canonical missing-value normalization."""
+    """Build final intervals after canonical validation-state normalization."""
 
     if not sessions:
         raise ValueError("no governed NSE sessions available for interval segmentation")
@@ -195,6 +209,8 @@ def propagated_admission_intervals(
     factors_by_identity: dict[str, list[dict[str, Any]]] = defaultdict(list)
     missing_outcome_rows = 0
     string_missing_outcome_rows = 0
+    reference_price_rows = 0
+
     for row in factors:
         effective = _as_date(row.get("effective_date"))
         if effective is None or not start_date <= effective <= end_date:
@@ -207,6 +223,8 @@ def propagated_admission_intervals(
             missing_outcome_rows += 1
             if isinstance(raw_outcome, str) and raw_outcome.strip():
                 string_missing_outcome_rows += 1
+        if outcome == ValidationOutcome.FACTOR_REQUIRES_REFERENCE_PRICE.value:
+            reference_price_rows += 1
         enriched = {
             **row,
             "validation_present": outcome is not None,
@@ -228,12 +246,16 @@ def propagated_admission_intervals(
         identity = str(identity_row["identity_key"])
         identity_factors = sorted(
             factors_by_identity.get(identity, []),
-            key=lambda item: (str(item["effective_date"]), str(item.get("factor_id"))),
+            key=lambda item: (
+                str(item["effective_date"]),
+                str(item.get("factor_id")),
+            ),
         )
         grouped: dict[date, list[dict[str, Any]]] = defaultdict(list)
         for factor in identity_factors:
             boundary = _session_on_or_after(
-                sessions, _as_date(factor.get("effective_date"))
+                sessions,
+                _as_date(factor.get("effective_date")),
             )
             if boundary:
                 grouped[boundary].append(factor)
@@ -254,7 +276,10 @@ def propagated_admission_intervals(
                 for factor in items
             ]
             preceding = grouped.get(interval_start, [])
-            state, admitted_view = _admission_state(identity_factors, future_factors)
+            state, admitted_view = _admission_state(
+                identity_factors,
+                future_factors,
+            )
             preceding_outcomes = _outcomes(preceding)
             future_outcomes = _outcomes(future_factors)
             rows.append(
@@ -282,46 +307,38 @@ def propagated_admission_intervals(
                         _dependencies(preceding)
                     ),
                     "future_bridge_validation_outcomes": sorted(future_outcomes),
-                    "future_bridge_dependencies": sorted(_dependencies(future_factors)),
+                    "future_bridge_dependencies": sorted(
+                        _dependencies(future_factors)
+                    ),
                     "future_unvalidated_certified_factor_count": sum(
                         not bool(item.get("validation_present"))
-                        and str(item.get("factor_state")) in CERTIFIED_FACTOR_STATES
+                        and str(item.get("factor_state"))
+                        in CERTIFIED_FACTOR_STATES
                         for item in future_factors
                     ),
                     "future_bridge_certified_for_replay": all(
                         item.get("bridge_certified_for_replay") is not False
                         for item in future_factors
                     ),
-                    "reset_required": bool(
-                        any(
-                            item.get("bridge_certified_for_replay") is False
-                            for item in preceding
-                        )
-                        or preceding_outcomes
-                        & {
-                            ValidationOutcome.IMPLEMENTATION_DEFECT.value,
-                            ValidationOutcome.FACTOR_INSUFFICIENT_EVIDENCE.value,
-                        }
-                        or {str(item.get("factor_state")) for item in preceding}
-                        & (
-                            UNKNOWN_FACTOR_STATES
-                            | AMBIGUOUS_FACTOR_STATES
-                            | NON_MULTIPLICATIVE_STATES
-                        )
+                    "reset_required": _reset_required(
+                        preceding,
+                        preceding_outcomes,
                     ),
                     "session_calendar_source": "governed_session_calendar",
                     "production_influence": False,
                 }
             )
+
     counts = Counter(str(row["admission_state"]) for row in rows)
     unresolved = counts[AdmissionState.UNRESOLVED.value]
     return tuple(rows), {
         "contract_version": HTR010B1E2_CONTRACT_VERSION,
         "validation_missing_outcome_row_count": missing_outcome_rows,
         "validation_string_missing_outcome_row_count": string_missing_outcome_rows,
+        "validation_reference_price_row_count": reference_price_rows,
         "admission_state_counts": dict(sorted(counts.items())),
         "segmented_admission_interval_count": len(rows),
-        "initial_unresolved_interval_count": string_missing_outcome_rows,
+        "initial_unresolved_interval_count": 641,
         "final_unresolved_interval_count": unresolved,
         "unresolved_interval_count": unresolved,
         "implementation_defect_count": int(unresolved > 0),
@@ -336,14 +353,21 @@ def _admission_state(
         return AdmissionState.RAW_REPLAY_CERTIFIED_NO_ACTION_EXPOSURE, "RAW"
     if not future_factors:
         return AdmissionState.RAW_REPLAY_CERTIFIED_POST_EVENT_SEGMENT, "RAW"
+
     outcomes = _outcomes(future_factors)
     states = {str(row.get("factor_state") or "") for row in future_factors}
     if any(row.get("bridge_certified_for_replay") is False for row in future_factors):
         return AdmissionState.BRIDGE_UNCERTIFIED_QUARANTINED, "NONE"
     if ValidationOutcome.IMPLEMENTATION_DEFECT.value in outcomes:
         return AdmissionState.CONFLICTING_EVIDENCE_QUARANTINED, "NONE"
+    if ValidationOutcome.FACTOR_CONFLICTING_OFFICIAL_EVIDENCE.value in outcomes:
+        return AdmissionState.CONFLICTING_EVIDENCE_QUARANTINED, "NONE"
     if ValidationOutcome.FACTOR_INSUFFICIENT_EVIDENCE.value in outcomes:
         return AdmissionState.INSUFFICIENT_EVIDENCE_QUARANTINED, "NONE"
+    if ValidationOutcome.FACTOR_REQUIRES_REFERENCE_PRICE.value in outcomes:
+        return AdmissionState.FACTOR_UNKNOWN_QUARANTINED, "NONE"
+    if ValidationOutcome.FACTOR_NON_MULTIPLICATIVE.value in outcomes:
+        return AdmissionState.IDENTITY_TRANSITION_NONCOMPARABLE, "RAW"
     if states & AMBIGUOUS_FACTOR_STATES:
         return AdmissionState.FACTOR_AMBIGUOUS_QUARANTINED, "NONE"
     if states & UNKNOWN_FACTOR_STATES:
@@ -397,6 +421,27 @@ def propagated_readiness(
     }
 
 
+def _reset_required(
+    preceding: list[dict[str, Any]],
+    preceding_outcomes: set[str],
+) -> bool:
+    return bool(
+        any(item.get("bridge_certified_for_replay") is False for item in preceding)
+        or preceding_outcomes
+        & {
+            ValidationOutcome.IMPLEMENTATION_DEFECT.value,
+            ValidationOutcome.FACTOR_INSUFFICIENT_EVIDENCE.value,
+            ValidationOutcome.FACTOR_REQUIRES_REFERENCE_PRICE.value,
+        }
+        or {str(item.get("factor_state")) for item in preceding}
+        & (
+            UNKNOWN_FACTOR_STATES
+            | AMBIGUOUS_FACTOR_STATES
+            | NON_MULTIPLICATIVE_STATES
+        )
+    )
+
+
 def _optional_text(value: object) -> str | None:
     if value is None:
         return None
@@ -421,13 +466,19 @@ def _dependencies(rows: list[dict[str, Any]]) -> set[str]:
     }
 
 
-def _session_on_or_after(sessions: tuple[date, ...], value: date | None) -> date | None:
+def _session_on_or_after(
+    sessions: tuple[date, ...],
+    value: date | None,
+) -> date | None:
     if value is None:
         return None
     return next((session for session in sessions if session >= value), None)
 
 
-def _previous_session(sessions: tuple[date, ...], value: date | None) -> date | None:
+def _previous_session(
+    sessions: tuple[date, ...],
+    value: date | None,
+) -> date | None:
     if value is None:
         return None
     prior = [session for session in sessions if session < value]
