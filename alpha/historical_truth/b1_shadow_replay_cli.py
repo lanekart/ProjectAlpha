@@ -9,7 +9,7 @@ from pathlib import Path
 from alpha.application.governed_historical_replay_cli import (
     execute_governed_historical_replay,
 )
-from alpha.candidate_learning import NightlyLearningLoop
+from alpha.candidate_learning.repository import LearningLedgerRepository
 from alpha.historical_replay import (
     HistoricalObservationFactory,
     HistoricalReplayEngine,
@@ -17,6 +17,10 @@ from alpha.historical_replay import (
 )
 from alpha.historical_replay.models import ReplayRunRecord
 from alpha.historical_truth.b1_shadow_replay import B1ShadowReplayRunner
+from alpha.historical_truth.b1_shadow_universe import (
+    B1UniverseFilteredPriceRepository,
+    load_b1_shadow_admission,
+)
 from alpha.market_truth.consumer_repository import MarketTruthPriceRepository
 
 
@@ -29,23 +33,54 @@ def main() -> int:
     parser.add_argument("--database", type=Path, required=True)
     parser.add_argument("--identity-artifact", type=Path, required=True)
     parser.add_argument("--corporate-action-artifact", type=Path, required=True)
+    parser.add_argument("--admission-contract", type=Path, required=True)
+    parser.add_argument("--identity-admission", type=Path, required=True)
+    parser.add_argument("--raw-universe", type=Path, required=True)
+    parser.add_argument("--adjusted-universe", type=Path, required=True)
     parser.add_argument("--start", type=_date, required=True)
     parser.add_argument("--end", type=_date, required=True)
     parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args()
 
-    learning_repository = NightlyLearningLoop.from_path().repository
+    admission = load_b1_shadow_admission(
+        contract_path=arguments.admission_contract,
+        identity_admission_path=arguments.identity_admission,
+        raw_universe_path=arguments.raw_universe,
+        adjusted_universe_path=arguments.adjusted_universe,
+    )
+    if arguments.start != admission.replay_start:
+        raise ValueError("shadow replay start does not match B1H admission contract")
+    if arguments.end != admission.replay_end:
+        raise ValueError("shadow replay end does not match B1H admission contract")
+
+    arguments.output.mkdir(parents=True, exist_ok=True)
+    raw_learning_repository = LearningLedgerRepository(
+        arguments.output / "raw_learning_ledger.json"
+    )
+    adjusted_learning_repository = LearningLedgerRepository(
+        arguments.output / "adjusted_learning_ledger.json"
+    )
+    raw_replay_repository = HistoricalReplayRepository(
+        arguments.output / "raw_replay_ledger.json"
+    )
+    adjusted_replay_repository = HistoricalReplayRepository(
+        arguments.output / "adjusted_replay_ledger.json"
+    )
 
     def raw_leg() -> tuple[ReplayRunRecord, ...]:
         source = MarketTruthPriceRepository(database_path=arguments.database)
         try:
-            build = HistoricalObservationFactory(price_repository=source).build(
+            filtered = B1UniverseFilteredPriceRepository(
+                source,
+                admission.admitted_symbols,
+            )
+            build = HistoricalObservationFactory(price_repository=filtered).build(
                 from_date=arguments.start,
                 to_date=arguments.end,
             )
             return HistoricalReplayEngine(
-                replay_repository=HistoricalReplayRepository(),
-                learning_repository=learning_repository,
+                replay_repository=raw_replay_repository,
+                learning_repository=raw_learning_repository,
             ).run(
                 from_date=arguments.start,
                 to_date=arguments.end,
@@ -60,26 +95,37 @@ def main() -> int:
             to_date=arguments.end,
             identity_artifact=arguments.identity_artifact,
             corporate_action_artifact=arguments.corporate_action_artifact,
-            learning_repository=learning_repository,
-            replay_repository=HistoricalReplayRepository(),
+            learning_repository=adjusted_learning_repository,
+            replay_repository=adjusted_replay_repository,
             database_path=arguments.database,
             output=arguments.output / "adjusted_governed_replay",
+            observation_builder_factory=lambda repository: HistoricalObservationFactory(
+                price_repository=B1UniverseFilteredPriceRepository(
+                    repository,
+                    admission.admitted_symbols,
+                )
+            ),
         )
         return run.replay_runs
 
     result = B1ShadowReplayRunner(
         raw_leg=raw_leg,
         adjusted_leg=adjusted_leg,
+        admission_contract=admission.as_dict(),
     ).run()
     B1ShadowReplayRunner.export(result, arguments.output)
     report = result.as_dict()
     print("HTR-010B1 Governed Shadow Replay")
+    print(f"Admitted identities: {len(admission.admitted_security_ids)}")
     print(f"Raw sessions: {result.raw_summary['session_count']}")
     print(f"Adjusted sessions: {result.adjusted_summary['session_count']}")
+    print(f"Session sets match: {result.comparison['session_sets_match']}")
+    print(f"Universe counts match: {result.comparison['universe_counts_match']}")
     print(
         "Unexplained divergences: "
         f"{result.comparison['unexplained_divergence_count']}"
     )
+    print(f"Admission SHA256: {admission.admission_contract_sha256}")
     print(f"Report SHA256: {report['report_sha256']}")
     print("PRODUCTION_INFLUENCE=false")
     return 0
