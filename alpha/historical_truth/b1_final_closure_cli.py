@@ -99,7 +99,11 @@ def _validate_shadow_population(
                 raise ValueError(
                     f"{label} population parity summary has no eligible observations"
                 )
-            if not isinstance(session_counts, list) or len(session_counts) != session_count:
+            valid_session_counts = (
+                isinstance(session_counts, list)
+                and len(session_counts) == session_count
+            )
+            if not valid_session_counts:
                 raise ValueError(
                     f"{label} population parity counts do not match sessions"
                 )
