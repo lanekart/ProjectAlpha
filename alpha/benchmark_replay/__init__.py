@@ -4,6 +4,15 @@ from alpha.benchmark_replay.exporting import (
     BenchmarkArtifactExporter,
     load_manifest,
 )
+from alpha.benchmark_replay.governed_adjusted import (
+    HTR010B2_CONTRACT_VERSION,
+    GovernedAdjustedBenchmarkEngine,
+    GovernedAdjustedBenchmarkResult,
+    GovernedBenchmarkStore,
+    GovernedBenchmarkStorePair,
+    build_governed_benchmark_stores,
+    export_governed_adjusted_benchmark,
+)
 from alpha.benchmark_replay.models import (
     BASELINE_ID,
     BENCHMARK_VERSION,
@@ -34,9 +43,16 @@ __all__ = [
     "BenchmarkReplayReport",
     "CanonicalBenchmarkReplayEngine",
     "ExecutionCandidate",
+    "GovernedAdjustedBenchmarkEngine",
+    "GovernedAdjustedBenchmarkResult",
+    "GovernedBenchmarkStore",
+    "GovernedBenchmarkStorePair",
+    "HTR010B2_CONTRACT_VERSION",
     "MarketBar",
     "PortfolioReplayEngine",
     "ReplayRequest",
+    "build_governed_benchmark_stores",
+    "export_governed_adjusted_benchmark",
     "load_manifest",
     "render_executive_report",
     "render_replay_summary",
