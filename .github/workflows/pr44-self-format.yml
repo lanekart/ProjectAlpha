@@ -1,0 +1,41 @@
+name: PR44 Self Format
+
+on:
+  push:
+    branches: [feature/htr-010b1-final-governed-adjusted-replay-closure]
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.event.head_commit.message == 'Run PR44 self-format'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-010b1-final-governed-adjusted-replay-closure
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install Ruff
+        run: pip install ruff
+
+      - name: Normalize and verify
+        run: |
+          ruff check . --fix
+          ruff format .
+          ruff check .
+          ruff format --check .
+
+      - name: Commit fixes and remove helper
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/pr44-self-format.yml
+          git add alpha/historical_truth tests/historical_truth
+          git commit -m 'Normalize HTR-010B1 final formatting'
+          git push origin HEAD:feature/htr-010b1-final-governed-adjusted-replay-closure
