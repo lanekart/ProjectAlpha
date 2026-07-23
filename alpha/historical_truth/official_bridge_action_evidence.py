@@ -75,33 +75,11 @@ def match_corporate_action_payload(
     try:
         decoded = json.loads(payload.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
-        return CorporateActionMatch(
-            proved=False,
-            state="ACTION_PAYLOAD_NOT_VALID_JSON",
-            candidate_row_count=0,
-            symbol_match_count=0,
-            date_match_count=0,
-            action_term_match_count=0,
-            matched_row_count=0,
-            matched_rows=(),
-            schema_keys=(),
-            payload_sha256=digest,
-        )
+        return _empty_match("ACTION_PAYLOAD_NOT_VALID_JSON", digest)
 
     rows = tuple(_extract_rows(decoded))
     if not rows:
-        return CorporateActionMatch(
-            proved=False,
-            state="ACTION_API_RETURNED_NO_ROWS",
-            candidate_row_count=0,
-            symbol_match_count=0,
-            date_match_count=0,
-            action_term_match_count=0,
-            matched_row_count=0,
-            matched_rows=(),
-            schema_keys=(),
-            payload_sha256=digest,
-        )
+        return _empty_match("ACTION_API_RETURNED_NO_ROWS", digest)
 
     target_symbol = symbol.strip().upper()
     target_date = _parse_date(effective_date)
@@ -114,20 +92,29 @@ def match_corporate_action_payload(
         if target_date is not None and target_date in _row_dates(row)
     )
     action_rows = tuple(row for row in date_rows if _row_has_action_term(row))
+    signatures = {_evidence_signature(row) for row in action_rows}
 
     if len(action_rows) == 1:
+        proved = True
         state = "ACTION_ROW_VERIFIED"
+    elif len(action_rows) > 1 and len(signatures) == 1:
+        proved = True
+        state = "ACTION_ROWS_EQUIVALENT_DUPLICATES"
     elif len(action_rows) > 1:
-        state = "ACTION_ROWS_CONFLICTING_OR_DUPLICATE"
+        proved = False
+        state = "ACTION_ROWS_CONFLICTING"
     elif not symbol_rows:
+        proved = False
         state = "ACTION_SYMBOL_NOT_FOUND"
     elif not date_rows:
+        proved = False
         state = "ACTION_EFFECTIVE_DATE_NOT_FOUND"
     else:
+        proved = False
         state = "ACTION_PURPOSE_NOT_SUPPORTED"
 
     return CorporateActionMatch(
-        proved=len(action_rows) == 1,
+        proved=proved,
         state=state,
         candidate_row_count=len(rows),
         symbol_match_count=len(symbol_rows),
@@ -150,6 +137,21 @@ def match_corporate_action_file(
         payload=path.read_bytes(),
         symbol=symbol,
         effective_date=effective_date,
+    )
+
+
+def _empty_match(state: str, digest: str) -> CorporateActionMatch:
+    return CorporateActionMatch(
+        proved=False,
+        state=state,
+        candidate_row_count=0,
+        symbol_match_count=0,
+        date_match_count=0,
+        action_term_match_count=0,
+        matched_row_count=0,
+        matched_rows=(),
+        schema_keys=(),
+        payload_sha256=digest,
     )
 
 
@@ -180,8 +182,9 @@ def _looks_like_action_row(row: dict[str, Any]) -> bool:
 
 
 def _row_symbol(row: dict[str, Any]) -> str:
+    accepted = {candidate.lower() for candidate in _SYMBOL_KEYS}
     for key, value in row.items():
-        if str(key).lower() in {candidate.lower() for candidate in _SYMBOL_KEYS}:
+        if str(key).lower() in accepted:
             return str(value or "").strip().upper()
     return ""
 
@@ -198,16 +201,29 @@ def _row_dates(row: dict[str, Any]) -> set[date]:
     return parsed
 
 
-def _row_has_action_term(row: dict[str, Any]) -> bool:
+def _row_purpose(row: dict[str, Any]) -> str:
     accepted = {candidate.lower() for candidate in _PURPOSE_KEYS}
     values = [
-        str(value or "").lower()
+        str(value or "")
         for key, value in row.items()
         if str(key).lower() in accepted
     ]
     if not values:
-        values = [json.dumps(row, sort_keys=True, default=str).lower()]
-    return any(term in text for text in values for term in _ACTION_TERMS)
+        values = [json.dumps(row, sort_keys=True, default=str)]
+    return " ".join(" ".join(values).lower().split())
+
+
+def _row_has_action_term(row: dict[str, Any]) -> bool:
+    purpose = _row_purpose(row)
+    return any(term in purpose for term in _ACTION_TERMS)
+
+
+def _evidence_signature(row: dict[str, Any]) -> tuple[str, tuple[str, ...], str]:
+    return (
+        _row_symbol(row),
+        tuple(sorted(value.isoformat() for value in _row_dates(row))),
+        _row_purpose(row),
+    )
 
 
 def _parse_date(value: object) -> date | None:
