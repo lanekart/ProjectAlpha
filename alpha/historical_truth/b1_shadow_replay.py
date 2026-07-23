@@ -50,17 +50,12 @@ class B1ShadowReplayRunner:
     adjusted_leg: ReplayLeg
 
     def run(self) -> B1ShadowReplayResult:
-        raw_runs = self.raw_leg()
-        adjusted_runs = self.adjusted_leg()
-        raw = _summary("RAW", raw_runs)
-        adjusted = _summary("ADJUSTED", adjusted_runs)
-        if raw["run_sha256"] == adjusted["run_sha256"]:
-            raise ValueError("raw and adjusted shadow replay legs are not independent")
-        comparison = _compare(raw, adjusted)
+        raw = _summary("RAW", self.raw_leg())
+        adjusted = _summary("ADJUSTED", self.adjusted_leg())
         return B1ShadowReplayResult(
             raw_summary=raw,
             adjusted_summary=adjusted,
-            comparison=comparison,
+            comparison=_compare(raw, adjusted),
         )
 
     @staticmethod
@@ -89,9 +84,15 @@ class B1ShadowReplayRunner:
 
 def _summary(price_view: str, runs: tuple[ReplayRunLike, ...]) -> dict[str, Any]:
     replay_dates = tuple(sorted({run.replay_date.isoformat() for run in runs}))
+    source_contract = (
+        "RAW_MARKET_TRUTH_REPOSITORY"
+        if price_view == "RAW"
+        else "HTR005_CANONICAL_REPLAY_REPOSITORY"
+    )
     payload: dict[str, Any] = {
         "contract_version": HTR010B1_SHADOW_CONTRACT_VERSION,
         "price_view": price_view,
+        "source_contract": source_contract,
         "session_count": len(replay_dates),
         "eligible_security_count": max(
             (int(run.symbols_scanned) for run in runs),
@@ -112,6 +113,12 @@ def _summary(price_view: str, runs: tuple[ReplayRunLike, ...]) -> dict[str, Any]
 
 
 def _compare(raw: dict[str, Any], adjusted: dict[str, Any]) -> dict[str, Any]:
+    if raw.get("price_view") != "RAW":
+        raise ValueError("raw shadow leg must attest RAW price view")
+    if adjusted.get("price_view") != "ADJUSTED":
+        raise ValueError("adjusted shadow leg must attest ADJUSTED price view")
+    if raw.get("source_contract") == adjusted.get("source_contract"):
+        raise ValueError("raw and adjusted shadow legs must use distinct source contracts")
     metrics = (
         "session_count",
         "eligible_security_count",
@@ -135,6 +142,7 @@ def _compare(raw: dict[str, Any], adjusted: dict[str, Any]) -> dict[str, Any]:
         "unexplained_divergence_count": unexplained,
         "raw_run_sha256": raw["run_sha256"],
         "adjusted_run_sha256": adjusted["run_sha256"],
+        "source_contracts_distinct": True,
         "production_influence": False,
     }
 
