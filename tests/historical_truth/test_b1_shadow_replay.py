@@ -3,11 +3,13 @@ from __future__ import annotations
 import dataclasses
 import datetime
 import decimal
+import inspect
 import json
 import pathlib
 
 import alpha.historical_replay.models as replay_models
 import alpha.historical_truth.b1_shadow_replay as shadow_replay
+import alpha.historical_truth.b1_shadow_replay_cli as shadow_replay_cli
 
 
 @dataclasses.dataclass(frozen=True)
@@ -93,3 +95,11 @@ def test_shadow_replay_accepts_real_frozen_replay_run_records() -> None:
     assert result.raw_summary["session_count"] == 1
     assert result.raw_summary["eligible_security_count"] == 10
     assert result.adjusted_summary["institutional_approval_count"] == 1
+
+
+def test_shadow_cli_keeps_diagnostic_leg_outside_full_readiness_wrapper() -> None:
+    source = inspect.getsource(shadow_replay_cli)
+
+    assert "execute_governed_historical_replay" not in source
+    assert "GovernedHistoricalObservationFactory" in source
+    assert source.count("HistoricalReplayEngine(") == 2
