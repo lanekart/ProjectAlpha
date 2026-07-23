@@ -88,7 +88,9 @@ def test_readiness_counts_refresh_after_quarantine_augmentation() -> None:
             "admission_state": AdmissionState.BRIDGE_UNCERTIFIED_QUARANTINED.value,
         },
         {
-            "admission_state": AdmissionState.RAW_REPLAY_CERTIFIED_POST_EVENT_SEGMENT.value,
+            "admission_state": (
+                AdmissionState.RAW_REPLAY_CERTIFIED_POST_EVENT_SEGMENT.value
+            ),
         },
     )
     residual = {
@@ -167,6 +169,6 @@ def test_corrected_residual_attribution_supersedes_b1c_labels() -> None:
         "FACTOR_CONFIRMED_BRIDGE_UNCERTIFIED": 1,
         "NOT_APPLICABLE": 1,
     }
-    assert "UNEXPLAINED_FACTOR_TRANSFORMATION_DEFECT" not in summary[
-        "attribution_counts"
-    ]
+    assert (
+        "UNEXPLAINED_FACTOR_TRANSFORMATION_DEFECT" not in summary["attribution_counts"]
+    )

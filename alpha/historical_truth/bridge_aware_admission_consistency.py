@@ -277,8 +277,7 @@ def consistent_admission_intervals(
             future_bridges = _dependencies(future_factors)
             reset_required = bool(
                 any(
-                    row.get("bridge_certified_for_replay") is False
-                    for row in preceding
+                    row.get("bridge_certified_for_replay") is False for row in preceding
                 )
                 or preceding_outcomes
                 & {
@@ -313,9 +312,7 @@ def consistent_admission_intervals(
                     "preceding_boundary_validation_outcomes": sorted(
                         preceding_outcomes
                     ),
-                    "preceding_boundary_bridge_dependencies": sorted(
-                        preceding_bridges
-                    ),
+                    "preceding_boundary_bridge_dependencies": sorted(preceding_bridges),
                     "future_bridge_validation_outcomes": sorted(future_outcomes),
                     "future_bridge_dependencies": sorted(future_bridges),
                     "future_unvalidated_certified_factor_count": sum(
@@ -378,7 +375,9 @@ def corrected_residual_attribution(
     counts = Counter(
         str(row.get("residual_attribution") or "NOT_REPORTED") for row in results
     )
-    corrected = sum(bool(row.get("bridge_aware_reconciliation_applied")) for row in results)
+    corrected = sum(
+        bool(row.get("bridge_aware_reconciliation_applied")) for row in results
+    )
     return {
         "contract_version": HTR010B1E1_CONTRACT_VERSION,
         "attribution_counts": dict(sorted(counts.items())),
