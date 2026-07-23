@@ -25,7 +25,9 @@ test-b1g:
 		tests/historical_truth/test_official_bridge_reconciliation_integration.py
 
 test-b1-final:
-	$(PYTEST) -q tests/historical_truth/test_b1_final_closure.py
+	$(PYTEST) -q \
+		tests/historical_truth/test_b1_final_closure.py \
+		tests/historical_truth/test_b1_shadow_replay.py
 
 test-full:
 	$(PYTEST) -q
