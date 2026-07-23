@@ -51,9 +51,7 @@ def _git_lines(*args: str, check: bool = True) -> tuple[str, ...]:
     )
     if result.returncode != 0:
         return ()
-    return tuple(
-        line.strip() for line in result.stdout.splitlines() if line.strip()
-    )
+    return tuple(line.strip() for line in result.stdout.splitlines() if line.strip())
 
 
 def _ref_exists(ref: str) -> bool:
@@ -80,9 +78,7 @@ def resolve_base(explicit_base: str | None) -> str | None:
 
 def changed_files(base: str | None) -> tuple[str, ...]:
     tracked = (
-        _git_lines("diff", "--name-only", f"{base}...HEAD", check=False)
-        if base
-        else ()
+        _git_lines("diff", "--name-only", f"{base}...HEAD", check=False) if base else ()
     )
     staged = _git_lines("diff", "--name-only", "--cached", check=False)
     unstaged = _git_lines("diff", "--name-only", check=False)
