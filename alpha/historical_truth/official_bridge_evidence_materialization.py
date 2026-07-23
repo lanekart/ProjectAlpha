@@ -241,6 +241,7 @@ def _write_csv(path: Path, rows: tuple[dict[str, Any], ...]) -> None:
 
 
 def _markdown(report: dict[str, Any]) -> str:
+    materialized_count = report["materialized_case_evidence_count"]
     return "\n".join(
         [
             "# HTR-010B1F Case-Level Evidence Materialization",
@@ -248,10 +249,7 @@ def _markdown(report: dict[str, Any]) -> str:
             f"- Contract Version: {report['contract_version']}",
             f"- Input Dossiers: {report['input_dossier_count']}",
             f"- Verified Documents: {report['input_verified_document_count']}",
-            (
-                "- Materialized Evidence Rows: "
-                f"{report['materialized_case_evidence_count']}"
-            ),
+            f"- Materialized Evidence Rows: {materialized_count}",
             f"- Covered Bridge Cases: {report['covered_bridge_case_count']}",
             f"- Rejected Documents: {report['rejected_document_count']}",
             f"- Implementation Defects: {report['implementation_defect_count']}",
