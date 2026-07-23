@@ -62,8 +62,7 @@ class OfficialBridgeDocumentDownloader:
                 row.download_state == "REJECTED_NON_OFFICIAL_SOURCE" for row in results
             ),
             "rejected_role_source_count": sum(
-                row.download_state == "REJECTED_ROLE_SOURCE_MISMATCH"
-                for row in results
+                row.download_state == "REJECTED_ROLE_SOURCE_MISMATCH" for row in results
             ),
             "failed_download_count": sum(
                 row.download_state == "DOWNLOAD_FAILED" for row in results

@@ -64,9 +64,7 @@ def test_downloader_rejects_wrong_role_before_network(tmp_path: Path) -> None:
 
     assert report["downloaded_document_count"] == 0
     assert report["rejected_role_source_count"] == 1
-    assert report["downloads"][0]["download_state"] == (
-        "REJECTED_ROLE_SOURCE_MISMATCH"
-    )
+    assert report["downloads"][0]["download_state"] == ("REJECTED_ROLE_SOURCE_MISMATCH")
     assert report["downloads"][0]["error"] == (
         "GENERIC_DYNAMIC_ACTION_TABLE_NOT_ROLE_EVIDENCE"
     )

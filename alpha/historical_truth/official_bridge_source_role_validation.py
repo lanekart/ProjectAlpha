@@ -38,13 +38,10 @@ def validate_source_role_url(role: str, source_url: str) -> tuple[bool, str]:
         "/get-quotes/equity"
     )
     is_xbrl = host == "nsearchives.nseindia.com" and "/corporate/ixbrl/" in path
-    is_security_master = (
-        host == "nsearchives.nseindia.com"
-        and path.endswith("/content/equities/equity_l.csv")
+    is_security_master = host == "nsearchives.nseindia.com" and path.endswith(
+        "/content/equities/equity_l.csv"
     )
-    is_generic_actions = path.startswith(
-        "/companies-listing/corporate-filings-actions"
-    )
+    is_generic_actions = path.startswith("/companies-listing/corporate-filings-actions")
 
     if normalized_role == "CORPORATE_ACTION":
         if is_generic_actions:

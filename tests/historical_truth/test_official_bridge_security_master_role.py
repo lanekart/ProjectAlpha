@@ -4,18 +4,14 @@ from alpha.historical_truth.official_bridge_source_role_validation import (
     validate_source_role_url,
 )
 
-_SECURITY_MASTER = (
-    "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv"
-)
+_SECURITY_MASTER = "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv"
 
 
 def test_security_master_is_allowed_only_for_post_identity() -> None:
     post_valid, post_reason = validate_source_role_url(
         "POST_IDENTITY", _SECURITY_MASTER
     )
-    pre_valid, pre_reason = validate_source_role_url(
-        "PRE_IDENTITY", _SECURITY_MASTER
-    )
+    pre_valid, pre_reason = validate_source_role_url("PRE_IDENTITY", _SECURITY_MASTER)
 
     assert post_valid is True
     assert post_reason == "ROLE_SOURCE_STRUCTURALLY_VALID"
