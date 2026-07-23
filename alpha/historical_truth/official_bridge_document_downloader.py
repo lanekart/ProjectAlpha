@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import date, timedelta
 from hashlib import sha256
+from http.cookiejar import CookieJar
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.parse import urlencode, urlparse
+from urllib.request import HTTPCookieProcessor, Request, build_opener, urlopen
 
 from alpha.historical_truth.official_bridge_source_role_validation import (
     validate_source_role_url,
@@ -25,6 +27,19 @@ _ALLOWED_HOST_SUFFIXES = (
     "nsdl.co.in",
     "cdslindia.com",
 )
+_NSE_ACTION_LANDING_URL = (
+    "https://www.nseindia.com/companies-listing/corporate-filings-actions"
+)
+_BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/150.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json,text/plain,*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": _NSE_ACTION_LANDING_URL,
+}
 
 
 @dataclass(frozen=True)
@@ -137,24 +152,18 @@ class OfficialBridgeDocumentDownloader:
                     download_state="REJECTED_ROLE_SOURCE_MISMATCH",
                     error=role_reason,
                 )
+        request_url = _resolved_request_url(row, source_url)
         try:
-            request = Request(
-                source_url,
-                headers={"User-Agent": "ProjectAlpha-HTR010B1F/1.0"},
-            )
-            with urlopen(request, timeout=30) as response:  # noqa: S310
-                final_url = response.geturl()
-                if not _official_url(final_url):
-                    raise ValueError("redirected outside official-source allowlist")
-                if evidence_role:
-                    final_valid, final_reason = validate_source_role_url(
-                        evidence_role,
-                        final_url,
-                    )
-                    if not final_valid:
-                        raise ValueError(final_reason)
-                payload = response.read()
-                content_type = response.headers.get_content_type()
+            payload, final_url, content_type = _fetch(request_url)
+            if not _official_url(final_url):
+                raise ValueError("redirected outside official-source allowlist")
+            if evidence_role:
+                final_valid, final_reason = validate_source_role_url(
+                    evidence_role,
+                    final_url,
+                )
+                if not final_valid:
+                    raise ValueError(final_reason)
         except Exception as exc:  # pragma: no cover - network dependent
             return DownloadResult(
                 dossier_id=dossier_id,
@@ -188,6 +197,57 @@ class OfficialBridgeDocumentDownloader:
         )
 
 
+def _resolved_request_url(row: dict[str, Any], source_url: str) -> str:
+    role = str(row.get("evidence_role") or "").upper()
+    parsed = urlparse(source_url)
+    if role != "CORPORATE_ACTION" or parsed.path.lower().startswith("/api/"):
+        return source_url
+
+    symbol = str(row.get("post_symbol") or row.get("pre_symbol") or "").upper()
+    effective = _as_date(row.get("effective_date"))
+    if not symbol or effective is None:
+        return source_url
+    parameters = {
+        "index": "equities",
+        "symbol": symbol,
+        "from_date": (effective - timedelta(days=10)).strftime("%d-%m-%Y"),
+        "to_date": (effective + timedelta(days=10)).strftime("%d-%m-%Y"),
+    }
+    return (
+        "https://www.nseindia.com/api/corporates-corporateActions?"
+        + urlencode(parameters)
+    )
+
+
+def _fetch(source_url: str) -> tuple[bytes, str, str | None]:
+    parsed = urlparse(source_url)
+    is_nse_action_api = (
+        (parsed.hostname or "").lower() == "www.nseindia.com"
+        and parsed.path.lower() == "/api/corporates-corporateactions"
+    )
+    if is_nse_action_api:
+        opener = build_opener(HTTPCookieProcessor(CookieJar()))
+        landing = Request(_NSE_ACTION_LANDING_URL, headers=_BROWSER_HEADERS)
+        with opener.open(landing, timeout=30):  # noqa: S310
+            pass
+        request = Request(source_url, headers=_BROWSER_HEADERS)
+        with opener.open(request, timeout=30) as response:  # noqa: S310
+            payload = response.read()
+            return payload, response.geturl(), response.headers.get_content_type()
+
+    request = Request(source_url, headers=_BROWSER_HEADERS)
+    with urlopen(request, timeout=30) as response:  # noqa: S310
+        payload = response.read()
+        return payload, response.geturl(), response.headers.get_content_type()
+
+
+def _as_date(value: object) -> date | None:
+    try:
+        return date.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
 def _official_url(url: str) -> bool:
     parsed = urlparse(url)
     host = (parsed.hostname or "").lower()
@@ -200,6 +260,10 @@ def _official_url(url: str) -> bool:
 def _suffix(content_type: str | None, url: str) -> str:
     if content_type == "application/pdf":
         return ".pdf"
+    if content_type in {"application/json", "text/json"}:
+        return ".json"
+    if content_type in {"text/csv", "application/csv"}:
+        return ".csv"
     if content_type in {"text/html", "application/xhtml+xml"}:
         return ".html"
     path_suffix = Path(urlparse(url).path).suffix.lower()
