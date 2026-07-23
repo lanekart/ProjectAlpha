@@ -80,7 +80,9 @@ def _validate_shadow_population(
         if session_count <= 0 or eligible_count <= 0:
             raise ValueError(f"{label} shadow summary has a vacuous replay population")
         if not isinstance(replay_dates, list) or len(replay_dates) != session_count:
-            raise ValueError(f"{label} shadow session count does not match replay dates")
+            raise ValueError(
+                f"{label} shadow session count does not match replay dates"
+            )
         if payload.get("production_influence") is not False:
             raise ValueError(f"{label} shadow summary must remain diagnostic-only")
 
