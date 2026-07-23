@@ -17,9 +17,7 @@ from alpha.benchmark_replay.models import BenchmarkPolicy
 from alpha.config.settings import settings
 from alpha.historical_truth.replay import HistoricalTruthReplayStore
 
-DEFAULT_HTR010B2_OUTPUT = Path(
-    ".alpha/benchmark/htr010b2_governed_adjusted_benchmark"
-)
+DEFAULT_HTR010B2_OUTPUT = Path(".alpha/benchmark/htr010b2_governed_adjusted_benchmark")
 
 
 def register_governed_adjusted_benchmark_command(app: typer.Typer) -> None:
@@ -120,10 +118,7 @@ def governed_adjusted_benchmark(
     typer.echo(f"Adjusted sessions: {adjusted['session_count']}")
     typer.echo(f"Raw candidates: {raw['technical_candidate_count']}")
     typer.echo(f"Adjusted candidates: {adjusted['technical_candidate_count']}")
-    typer.echo(
-        "Unexplained divergences: "
-        f"{comparison['unexplained_divergence_count']}"
-    )
+    typer.echo(f"Unexplained divergences: {comparison['unexplained_divergence_count']}")
     typer.echo(f"Report SHA256: {report['report_sha256']}")
     typer.echo("ACTIVE_REPLAY_INTEGRATION=false")
     typer.echo("PRODUCTION_INFLUENCE=false")
