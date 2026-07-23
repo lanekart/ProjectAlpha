@@ -117,7 +117,9 @@ def load_b1_shadow_admission(
         dependency_start = date.fromisoformat(str(contract["dependency_start"]))
         dependency_end = date.fromisoformat(str(contract["dependency_end"]))
     except (KeyError, ValueError) as error:
-        raise ValueError("B1H contract requires valid replay and dependency dates") from error
+        raise ValueError(
+            "B1H contract requires valid replay and dependency dates"
+        ) from error
     if replay_end < replay_start:
         raise ValueError("B1H replay window is inverted")
     if dependency_end < dependency_start:
