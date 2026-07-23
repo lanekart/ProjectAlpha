@@ -72,6 +72,7 @@ def _population() -> list[dict[str, object]]:
 def _official_evidence(**overrides: object) -> dict[str, object]:
     row: dict[str, object] = {
         "evidence_id": "evidence-1",
+        "bridge_case_id": "isin-0",
         "source_class": "NSE_SYMBOL_CHANGE_NOTICE",
         "document_id": "NSE/2026/001",
         "document_date": "2026-01-30",
@@ -82,6 +83,7 @@ def _official_evidence(**overrides: object) -> dict[str, object]:
         "identity_continuity_certified": True,
         "price_series_continuity_certified": True,
         "tradability_continuity_certified": True,
+        "production_influence": False,
     }
     row.update(overrides)
     return row
@@ -186,6 +188,7 @@ def test_cross_series_requires_tradability_continuity(tmp_path: Path) -> None:
             [
                 _official_evidence(
                     evidence_id="kotyark",
+                    bridge_case_id="kotyark-series",
                     source_class="NSE_SECURITY_MASTER",
                     pre_isin="INE0J0B01017",
                     post_isin="INE0J0B01017",
