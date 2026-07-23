@@ -92,7 +92,7 @@ def test_action_match_distinguishes_symbol_date_and_purpose_failures() -> None:
     assert purpose_missing.state == "ACTION_PURPOSE_NOT_SUPPORTED"
 
 
-def test_action_match_rejects_duplicate_or_conflicting_rows() -> None:
+def test_action_match_accepts_equivalent_duplicate_rows() -> None:
     row = {
         "symbol": "AJMERA",
         "exDate": "14-Jan-2026",
@@ -104,8 +104,57 @@ def test_action_match_rejects_duplicate_or_conflicting_rows() -> None:
         effective_date="2026-01-14",
     )
 
+    assert match.proved is True
+    assert match.state == "ACTION_ROWS_EQUIVALENT_DUPLICATES"
+    assert match.matched_row_count == 2
+
+
+def test_action_match_accepts_metadata_only_duplicate_rows() -> None:
+    rows = [
+        {
+            "symbol": "AJMERA",
+            "exDate": "14-Jan-2026",
+            "purpose": "Face Value Split",
+            "companyName": "Ajmera Realty",
+        },
+        {
+            "symbol": "AJMERA",
+            "exDate": "14-Jan-2026",
+            "purpose": "Face Value Split",
+            "companyName": "AJMERA REALTY & INFRA INDIA LIMITED",
+        },
+    ]
+    match = match_corporate_action_payload(
+        payload=json.dumps(rows).encode(),
+        symbol="AJMERA",
+        effective_date="2026-01-14",
+    )
+
+    assert match.proved is True
+    assert match.state == "ACTION_ROWS_EQUIVALENT_DUPLICATES"
+
+
+def test_action_match_rejects_materially_conflicting_rows() -> None:
+    rows = [
+        {
+            "symbol": "AJMERA",
+            "exDate": "14-Jan-2026",
+            "purpose": "Face Value Split",
+        },
+        {
+            "symbol": "AJMERA",
+            "recordDate": "14-Jan-2026",
+            "purpose": "Bonus 1:1",
+        },
+    ]
+    match = match_corporate_action_payload(
+        payload=json.dumps(rows).encode(),
+        symbol="AJMERA",
+        effective_date="2026-01-14",
+    )
+
     assert match.proved is False
-    assert match.state == "ACTION_ROWS_CONFLICTING_OR_DUPLICATE"
+    assert match.state == "ACTION_ROWS_CONFLICTING"
     assert match.matched_row_count == 2
 
 
