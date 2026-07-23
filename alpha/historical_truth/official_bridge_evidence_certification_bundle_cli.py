@@ -11,7 +11,9 @@ from alpha.historical_truth.official_bridge_evidence_certification_bundle import
     OfficialBridgeEvidenceCertificationBundle,
 )
 
-_DEFAULT_CATALOG = Path(__file__).with_name("official_bridge_evidence_source_catalog.json")
+_DEFAULT_CATALOG = Path(__file__).with_name(
+    "official_bridge_evidence_source_catalog.json"
+)
 
 
 def official_bridge_evidence_certify_all(
@@ -66,8 +68,7 @@ def official_bridge_evidence_certify_all(
         f"{report['insufficient_semantic_package_count']:,}"
     )
     print(
-        "Verified official documents: "
-        f"{report['verified_official_document_count']:,}"
+        f"Verified official documents: {report['verified_official_document_count']:,}"
     )
     print(f"Covered bridge cases: {report['covered_bridge_case_count']:,}")
     print(

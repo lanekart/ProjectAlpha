@@ -19,9 +19,7 @@ def _dossiers(path: Path) -> Path:
                 "effective_date": f"2026-01-{index + 1:02d}",
                 "pre_isin": f"INE000000{index:03d}",
                 "post_isin": (
-                    f"INE000000{index:03d}"
-                    if index == 19
-                    else f"INE100000{index:03d}"
+                    f"INE000000{index:03d}" if index == 19 else f"INE100000{index:03d}"
                 ),
                 "pre_symbol": f"SYM{index}",
                 "post_symbol": f"SYM{index}",
@@ -42,9 +40,7 @@ def _catalog(path: Path, *, missing_pre: bool = False) -> Path:
                 "effective_date": f"2026-01-{index + 1:02d}",
                 "pre_isin": f"INE000000{index:03d}",
                 "post_isin": (
-                    f"INE000000{index:03d}"
-                    if index == 19
-                    else f"INE100000{index:03d}"
+                    f"INE000000{index:03d}" if index == 19 else f"INE100000{index:03d}"
                 ),
                 "pre_identity_url": (
                     None
@@ -92,12 +88,16 @@ def test_missing_pre_source_remains_explicitly_incomplete(tmp_path: Path) -> Non
     assert report["complete_source_package_count"] == 19
     assert report["incomplete_source_package_count"] == 1
     incomplete = next(
-        row for row in report["packages"] if row["package_state"] != "READY_FOR_GOVERNED_DOWNLOAD"
+        row
+        for row in report["packages"]
+        if row["package_state"] != "READY_FOR_GOVERNED_DOWNLOAD"
     )
     assert incomplete["missing_roles"] == ["PRE_IDENTITY"]
 
 
-def _review_inputs(tmp_path: Path, *, action_has_date: bool = True) -> tuple[Path, Path, Path]:
+def _review_inputs(
+    tmp_path: Path, *, action_has_date: bool = True
+) -> tuple[Path, Path, Path]:
     dossiers_path = _dossiers(tmp_path / "dossiers.json")
     root = tmp_path / "raw"
     discoveries = []
@@ -183,8 +183,7 @@ def test_semantic_review_fails_closed_when_action_date_is_missing(
     failed = next(
         row
         for row in report["package_results"]
-        if row["semantic_package_state"]
-        == "INSUFFICIENT_SEMANTIC_PACKAGE_EVIDENCE"
+        if row["semantic_package_state"] == "INSUFFICIENT_SEMANTIC_PACKAGE_EVIDENCE"
     )
     assert failed["corporate_action_proved"] is False
     assert all(

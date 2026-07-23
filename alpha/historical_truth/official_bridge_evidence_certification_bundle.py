@@ -287,7 +287,9 @@ def _report(
         ),
         "readiness_blockers": blockers,
         "milestone_status": (
-            "EVIDENCE_CERTIFICATION_COMPLETE" if not blockers else "EVIDENCE_GAPS_REMAIN"
+            "EVIDENCE_CERTIFICATION_COMPLETE"
+            if not blockers
+            else "EVIDENCE_GAPS_REMAIN"
         ),
         "benchmark_replay_count": 0,
         "adjusted_replay_integration_enabled": False,

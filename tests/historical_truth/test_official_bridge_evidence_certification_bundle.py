@@ -17,9 +17,7 @@ from alpha.historical_truth.official_bridge_evidence_certification_bundle import
     OfficialBridgeEvidenceCertificationBundle,
 )
 
-_CATALOG = Path(
-    "alpha/historical_truth/official_bridge_evidence_source_catalog.json"
-)
+_CATALOG = Path("alpha/historical_truth/official_bridge_evidence_source_catalog.json")
 _DUPLICATED = {"BESTAGRO", "DELPHIFX", "SILVERTUC", "RNBDENIMS"}
 
 

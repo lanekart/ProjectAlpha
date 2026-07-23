@@ -206,9 +206,7 @@ class OfficialBridgeEvidencePackageEngine:
             json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
         reviewed_path.write_text(
-            json.dumps(
-                report.get("reviewed_discoveries", []), indent=2, sort_keys=True
-            )
+            json.dumps(report.get("reviewed_discoveries", []), indent=2, sort_keys=True)
             + "\n",
             encoding="utf-8",
         )
@@ -275,7 +273,9 @@ def _package_proof(
     symbol = str(dossier.get("post_symbol") or dossier.get("pre_symbol") or "").lower()
     effective_date = str(dossier.get("effective_date") or "")
     date_tokens = _date_tokens(effective_date)
-    pre_proved = bool(pre_isin and any(pre_isin in text for text in texts["PRE_IDENTITY"]))
+    pre_proved = bool(
+        pre_isin and any(pre_isin in text for text in texts["PRE_IDENTITY"])
+    )
     post_proved = bool(
         post_isin and any(post_isin in text for text in texts["POST_IDENTITY"])
     )
