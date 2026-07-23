@@ -1,0 +1,102 @@
+"""Select conservative pytest targets from changed Project Alpha files."""
+
+from __future__ import annotations
+
+import argparse
+import subprocess
+import sys
+from pathlib import Path
+
+_SHARED_FILES = {
+    "pyproject.toml",
+    "poetry.lock",
+    "alpha/__main__.py",
+    "alpha/config.py",
+}
+_SHARED_PREFIXES = (
+    "alpha/application/",
+    "alpha/data/",
+    "alpha/historical_truth/adjustment_replay_admission_models.py",
+)
+_SUBSYSTEMS = {
+    "historical_truth": "tests/historical_truth",
+    "historical_replay": "tests/historical_replay",
+    "market_intelligence": "tests/market_intelligence",
+    "decision_intelligence": "tests/decision_intelligence",
+    "portfolio": "tests/portfolio",
+    "backtest": "tests/backtest",
+    "research": "tests/research",
+    "trading_signals": "tests/trading_signals",
+}
+
+
+def _git_lines(*args: str) -> tuple[str, ...]:
+    result = subprocess.run(
+        ["git", *args],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return tuple(line.strip() for line in result.stdout.splitlines() if line.strip())
+
+
+def changed_files(base: str) -> tuple[str, ...]:
+    tracked = _git_lines("diff", "--name-only", f"{base}...HEAD")
+    staged = _git_lines("diff", "--name-only", "--cached")
+    unstaged = _git_lines("diff", "--name-only")
+    return tuple(sorted(set((*tracked, *staged, *unstaged))))
+
+
+def select_targets(paths: tuple[str, ...]) -> tuple[str, ...]:
+    if not paths:
+        return ("tests",)
+    if any(path in _SHARED_FILES for path in paths):
+        return ("tests",)
+    if any(path.startswith(prefix) for path in paths for prefix in _SHARED_PREFIXES):
+        return ("tests",)
+
+    targets: set[str] = set()
+    for path in paths:
+        file_path = Path(path)
+        if path.startswith("tests/") and file_path.suffix == ".py":
+            targets.add(path)
+            continue
+        if path.startswith("alpha/") and file_path.suffix == ".py":
+            relative = file_path.relative_to("alpha")
+            subsystem = relative.parts[0] if relative.parts else ""
+            target = _SUBSYSTEMS.get(subsystem)
+            if target:
+                targets.add(target)
+                candidate = Path("tests") / relative.parent / f"test_{relative.name}"
+                if candidate.is_file():
+                    targets.add(candidate.as_posix())
+                continue
+            return ("tests",)
+        if path.startswith(("docs/", ".github/")) or file_path.suffix in {
+            ".md",
+            ".txt",
+        }:
+            continue
+        return ("tests",)
+
+    return tuple(sorted(targets)) or ("tests",)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--base", default="origin/main")
+    parser.add_argument("--run", action="store_true")
+    arguments = parser.parse_args()
+
+    targets = select_targets(changed_files(arguments.base))
+    print("Selected pytest targets:")
+    for target in targets:
+        print(f"  {target}")
+
+    if not arguments.run:
+        return 0
+    return subprocess.call([sys.executable, "-m", "pytest", "-q", *targets])
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
