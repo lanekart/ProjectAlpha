@@ -134,17 +134,44 @@ def test_action_match_accepts_metadata_only_duplicate_rows() -> None:
     assert match.state == "ACTION_ROWS_EQUIVALENT_DUPLICATES"
 
 
-def test_action_match_rejects_materially_conflicting_rows() -> None:
+def test_action_match_accepts_compatible_compound_actions() -> None:
+    rows = [
+        {
+            "symbol": "DELPHIFX",
+            "exDate": "13-Feb-2026",
+            "subject": "Bonus 2:1",
+        },
+        {
+            "symbol": "DELPHIFX",
+            "exDate": "13-Feb-2026",
+            "subject": (
+                "Face Value Split (Sub-Division) - From Rs 10/- Per Share "
+                "To Rs 2/- Per Share"
+            ),
+        },
+    ]
+    match = match_corporate_action_payload(
+        payload=json.dumps(rows).encode(),
+        symbol="DELPHIFX",
+        effective_date="2026-02-13",
+    )
+
+    assert match.proved is True
+    assert match.state == "ACTION_ROWS_COMPATIBLE_COMPOUND"
+    assert match.matched_row_count == 2
+
+
+def test_action_match_rejects_two_different_actions_in_same_family() -> None:
     rows = [
         {
             "symbol": "AJMERA",
             "exDate": "14-Jan-2026",
-            "purpose": "Face Value Split",
+            "purpose": "Face Value Split From Rs 10 To Rs 5",
         },
         {
             "symbol": "AJMERA",
             "recordDate": "14-Jan-2026",
-            "purpose": "Bonus 1:1",
+            "purpose": "Face Value Split From Rs 10 To Rs 2",
         },
     ]
     match = match_corporate_action_payload(
