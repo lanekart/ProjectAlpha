@@ -279,7 +279,10 @@ def _bridge_quarantine_reasons(
                 "action_id": row.get("bridge_case_id"),
                 "action_type": "IDENTITY_BRIDGE",
                 "effective_date": row.get("effective_from"),
-                "detail": row.get("continuity_decision") or row.get("quarantine_reason"),
+                "detail": (
+                    row.get("continuity_decision")
+                    or row.get("quarantine_reason")
+                ),
             }
         )
     return {key: tuple(value) for key, value in sorted(reasons.items())}
@@ -322,17 +325,27 @@ def _covers_dependency_start(rows: tuple[dict[str, Any], ...], start: date) -> b
     )
 
 
-def _records(path: Path | None, *, allow_empty: bool = False) -> tuple[dict[str, Any], ...]:
+def _records(
+    path: Path | None,
+    *,
+    allow_empty: bool = False,
+) -> tuple[dict[str, Any], ...]:
     if path is None or not path.exists() or not path.is_file():
         raise FileNotFoundError(path)
     payload = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(payload, dict):
         nested = next(
-            (payload.get(key) for key in ("records", "data", "timeline", "rows") if isinstance(payload.get(key), list)),
+            (
+                payload.get(key)
+                for key in ("records", "data", "timeline", "rows")
+                if isinstance(payload.get(key), list)
+            ),
             None,
         )
         payload = nested if nested is not None else [payload]
-    if not isinstance(payload, list) or not all(isinstance(row, dict) for row in payload):
+    if not isinstance(payload, list) or not all(
+        isinstance(row, dict) for row in payload
+    ):
         raise ValueError(f"artifact must contain record mappings: {path}")
     if not payload and not allow_empty:
         raise ValueError(f"artifact contains no records: {path}")
@@ -345,7 +358,10 @@ def _optional_date(value: object) -> date | None:
 
 
 def _write_json(path: Path, payload: object) -> None:
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _digest(value: object) -> str:
@@ -358,7 +374,10 @@ def _markdown(report: dict[str, Any]) -> str:
         [
             "# HTR-010B1H Window-Scoped Action Admission",
             "",
-            f"- Dependency window: `{report['dependency_start']}` to `{report['dependency_end']}`",
+            (
+                f"- Dependency window: `{report['dependency_start']}` "
+                f"to `{report['dependency_end']}`"
+            ),
             f"- Admitted identities: `{report['admitted_identity_count']}`",
             f"- Excluded identities: `{report['excluded_identity_count']}`",
             f"- Shadow replay ready: `{report['shadow_replay_ready']}`",
