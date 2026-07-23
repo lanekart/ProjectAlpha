@@ -80,16 +80,20 @@ def bridge_aware_admission_reconcile(
 
     paths = AdjustmentReplayAdmissionArtifactExporter().export(report, output)
     diagnostics = report.input_contract_diagnostics.get(
-        "bridge_aware_admission_reconciliation", {}
+        "bridge_aware_admission_reconciliation",
+        {},
     )
     consistency = report.input_contract_diagnostics.get(
-        "bridge_aware_admission_consistency", {}
+        "bridge_aware_admission_consistency",
+        {},
     )
     residual = report.input_contract_diagnostics.get(
-        "residual_factor_attribution", {}
+        "residual_factor_attribution",
+        {},
     )
     reconciliation = report.quarantine_population_reconciliation
     readiness = report.replay_readiness
+
     print("HTR-010B1E2 Final Admission State Propagation Repair")
     print(f"Contract: {report.contract_version}")
     print(f"Factor validation cases: {len(report.factor_validation_results):,}")
@@ -113,6 +117,10 @@ def bridge_aware_admission_reconcile(
     print(
         "String missing outcomes normalized: "
         f"{consistency.get('validation_string_missing_outcome_row_count', 0):,}"
+    )
+    print(
+        "Reference-price outcomes fail-closed: "
+        f"{consistency.get('validation_reference_price_row_count', 0):,}"
     )
     print(
         "Final unresolved admission intervals: "
