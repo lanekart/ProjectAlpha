@@ -81,10 +81,12 @@ class CanonicalReplayFrameAdapter:
         for record in records:
             raw_symbol = str(record["symbol"]).strip().upper()
             exchange = _optional_exchange(record.get("exchange"))
-            identity = self._identities.resolve(
+            identity = self._identities.resolve_source_identity(
                 raw_symbol,
                 trading_date=trade_date,
                 exchange=exchange,
+                security_id=_optional_text(record.get("security_id")),
+                isin=_optional_text(record.get("isin")),
             )
             if identity is None:
                 unresolved_symbols.add(raw_symbol or "<EMPTY>")
@@ -219,12 +221,22 @@ def _optional_exchange(value: object) -> str | None:
     return text or None
 
 
+def _optional_text(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 def _decimal(record: Mapping[str, object], key: str) -> Decimal:
     value = record.get(key)
     try:
         result = Decimal(str(value))
-    except (InvalidOperation, ValueError) as error:
-        raise ValueError(f"invalid {key} value: {value!r}") from error
+    except (InvalidOperation, ValueError) as exc:
+        raise ValueError(f"invalid {key} value: {value!r}") from exc
     if not result.is_finite():
         raise ValueError(f"invalid {key} value: {value!r}")
     return result
+
+
+__all__ = ["CanonicalReplayFrameAdapter", "CanonicalReplayFrameResult"]
