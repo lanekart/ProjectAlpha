@@ -132,15 +132,11 @@ def _artifacts(tmp_path: Path, *, ready: bool = True) -> dict[str, Path]:
         ],
     )
     raw_universe = _write_json(tmp_path / "raw_universe.json", list(universe))
-    adjusted_universe = _write_json(
-        tmp_path / "adjusted_universe.json", list(universe)
-    )
+    adjusted_universe = _write_json(tmp_path / "adjusted_universe.json", list(universe))
     closure_payload = {
         "contract_version": "HTR-010B1-FINAL-v1.0.0",
         "final_readiness_decision": (
-            "READY_WITH_GOVERNED_EXCLUSIONS"
-            if ready
-            else "BLOCKED_BY_DATA_GAPS"
+            "READY_WITH_GOVERNED_EXCLUSIONS" if ready else "BLOCKED_BY_DATA_GAPS"
         ),
         "contract_contradiction_count": 0,
         "implementation_defect_count": 0,
