@@ -122,10 +122,7 @@ def bridge_aware_admission_reconcile(
     )
     print(f"Validation outcomes: {readiness.get('validation_outcomes', {})}")
     print(f"Admission states: {readiness.get('admission_state_counts', {})}")
-    print(
-        "Corrected residual attribution: "
-        f"{residual.get('attribution_counts', {})}"
-    )
+    print(f"Corrected residual attribution: {residual.get('attribution_counts', {})}")
     print(
         "Admission-quarantined identities: "
         f"{readiness.get('admission_quarantined_identity_count', 0):,}"
