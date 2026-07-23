@@ -26,7 +26,7 @@ from alpha.historical_truth.b1_shadow_replay import (
     B1ShadowReplayRunner,
 )
 from alpha.historical_truth.b1_shadow_universe import (
-    B1UniverseFilteredPriceRepository,
+    B1IdentityFilteredPriceRepository,
     load_b1_shadow_admission,
 )
 from alpha.historical_truth.replay import HistoricalTruthReplayStore
@@ -92,12 +92,13 @@ def main() -> int:
             end=admission.dependency_end,
         )
         try:
-            filtered = B1UniverseFilteredPriceRepository(
+            governed_source = B1IdentityFilteredPriceRepository(
                 source,
-                admission.admitted_symbols,
+                governed_inputs.identities,
+                admission.admitted_security_ids,
             )
             build = create_historical_observation_builder(
-                price_repository=filtered
+                price_repository=governed_source
             ).build(
                 from_date=arguments.start,
                 to_date=arguments.end,
@@ -144,16 +145,18 @@ def main() -> int:
             end=admission.dependency_end,
         )
         try:
-            canonical = CanonicalReplayPriceRepository(
+            governed_source = B1IdentityFilteredPriceRepository(
                 source,
+                governed_inputs.identities,
+                admission.admitted_security_ids,
+            )
+            canonical = CanonicalReplayPriceRepository(
+                governed_source,
                 governed_inputs.identities,
                 governed_inputs.actions,
             )
             filtered_builder = create_historical_observation_builder(
-                price_repository=B1UniverseFilteredPriceRepository(
-                    canonical,
-                    admission.admitted_symbols,
-                )
+                price_repository=canonical
             )
             governed_build = GovernedHistoricalObservationFactory(
                 price_repository=canonical,
