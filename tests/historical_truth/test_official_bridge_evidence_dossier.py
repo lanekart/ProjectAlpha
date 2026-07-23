@@ -36,7 +36,7 @@ def _request(
 
 
 def _write_manifest(root: Path, rows: list[dict[str, object]]) -> None:
-    root.mkdir(parents=True)
+    root.mkdir(parents=True, exist_ok=True)
     (root / "htr010b1f_evidence_requests.json").write_text(
         json.dumps(rows), encoding="utf-8"
     )
