@@ -4,11 +4,18 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
-  htr010b2-diagnostic:
+  htr010b2-repair:
+    if: github.event_name == 'push' && github.event.head_commit.message == 'Apply HTR-010B2 focused repair'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-010b2-governed-adjusted-benchmark-integration
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
@@ -20,40 +27,143 @@ jobs:
           key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
       - run: pip install poetry
       - run: poetry install --no-interaction
-      - name: Capture focused validation
+
+      - name: Apply exact B2 repairs and registration
         run: |
-          set +e
+          python - <<'PY'
+          from pathlib import Path
+
+          core = Path('alpha/benchmark_replay/governed_adjusted.py')
+          text = core.read_text(encoding='utf-8')
+          old = '    dates = tuple(sorted({_as_date(value) for value in frame["trade_date"]}))\n    valid_dates = tuple(item for item in dates if item is not None)\n'
+          new = '    parsed_dates = {_as_date(value) for value in frame["trade_date"]}\n    valid_dates = tuple(\n        sorted(item for item in parsed_dates if item is not None)\n    )\n'
+          if old not in text:
+              raise SystemExit('manifest date anchor missing')
+          text = text.replace(old, new, 1)
+          old = 'def _as_date(value: object) -> date | None:\n    if isinstance(value, date):\n        return value\n    if isinstance(value, pd.Timestamp):\n        return value.date()\n'
+          new = 'def _as_date(value: object) -> date | None:\n    if isinstance(value, pd.Timestamp):\n        return value.date()\n    if isinstance(value, date):\n        return value\n'
+          if old not in text:
+              raise SystemExit('date normalization anchor missing')
+          text = text.replace(old, new, 1)
+          old = '            f"- Unexplained divergences: `{comparison[\'unexplained_divergence_count\']}`",\n'
+          new = (
+              '            (\n'
+              '                "- Unexplained divergences: "\n'
+              '                f"`{comparison[\'unexplained_divergence_count\']}`"\n'
+              '            ),\n'
+          )
+          if old not in text:
+              raise SystemExit('report line anchor missing')
+          text = text.replace(old, new, 1)
+          core.write_text(text, encoding='utf-8')
+
+          benchmark_cli = Path('alpha/application/benchmark_cli.py')
+          text = benchmark_cli.read_text(encoding='utf-8')
+          import_anchor = 'from alpha.application.gate_truth_cli import gate_app\n'
+          registration_import = (
+              'from alpha.application.governed_adjusted_benchmark_cli import (\n'
+              '    register_governed_adjusted_benchmark_command,\n'
+              ')\n'
+          )
+          if registration_import not in text:
+              if import_anchor not in text:
+                  raise SystemExit('benchmark CLI import anchor missing')
+              text = text.replace(import_anchor, import_anchor + registration_import, 1)
+          app_anchor = (
+              'benchmark_app = typer.Typer(\n'
+              '    help="Run and inspect the immutable Canonical Alpha Benchmark Replay.",\n'
+              '    no_args_is_help=True,\n'
+              ')\n'
+          )
+          registration = '\nregister_governed_adjusted_benchmark_command(benchmark_app)\n'
+          if registration not in text:
+              if app_anchor not in text:
+                  raise SystemExit('benchmark CLI app anchor missing')
+              text = text.replace(app_anchor, app_anchor + registration, 1)
+          benchmark_cli.write_text(text, encoding='utf-8')
+
+          package = Path('alpha/benchmark_replay/__init__.py')
+          text = package.read_text(encoding='utf-8')
+          import_block = (
+              'from alpha.benchmark_replay.governed_adjusted import (\n'
+              '    HTR010B2_CONTRACT_VERSION,\n'
+              '    GovernedAdjustedBenchmarkEngine,\n'
+              '    GovernedAdjustedBenchmarkResult,\n'
+              '    GovernedBenchmarkStore,\n'
+              '    GovernedBenchmarkStorePair,\n'
+              '    build_governed_benchmark_stores,\n'
+              '    export_governed_adjusted_benchmark,\n'
+              ')\n'
+          )
+          if import_block not in text:
+              anchor = 'from alpha.benchmark_replay.engine import CanonicalBenchmarkReplayEngine\n'
+              if anchor not in text:
+                  raise SystemExit('benchmark package import anchor missing')
+              text = text.replace(anchor, anchor + import_block, 1)
+          exports = (
+              '    "HTR010B2_CONTRACT_VERSION",\n'
+              '    "GovernedAdjustedBenchmarkEngine",\n'
+              '    "GovernedAdjustedBenchmarkResult",\n'
+              '    "GovernedBenchmarkStore",\n'
+              '    "GovernedBenchmarkStorePair",\n'
+              '    "build_governed_benchmark_stores",\n'
+              '    "export_governed_adjusted_benchmark",\n'
+          )
+          if '    "HTR010B2_CONTRACT_VERSION",\n' not in text:
+              anchor = '    "ExecutionCandidate",\n'
+              if anchor not in text:
+                  raise SystemExit('benchmark package export anchor missing')
+              text = text.replace(anchor, anchor + exports, 1)
+          package.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Validate focused B2 scope
+        run: |
           poetry run ruff check \
             alpha/benchmark_replay/governed_adjusted.py \
             alpha/benchmark_replay/__init__.py \
             alpha/application/governed_adjusted_benchmark_cli.py \
             alpha/application/benchmark_cli.py \
             tests/benchmark_replay/test_governed_adjusted.py \
-            2>&1 | tee htr010b2-ruff.txt
-          echo ${PIPESTATUS[0]} > htr010b2-ruff-status.txt
+            --fix
+          poetry run ruff format \
+            alpha/benchmark_replay/governed_adjusted.py \
+            alpha/benchmark_replay/__init__.py \
+            alpha/application/governed_adjusted_benchmark_cli.py \
+            alpha/application/benchmark_cli.py \
+            tests/benchmark_replay/test_governed_adjusted.py
+          poetry run ruff check \
+            alpha/benchmark_replay/governed_adjusted.py \
+            alpha/benchmark_replay/__init__.py \
+            alpha/application/governed_adjusted_benchmark_cli.py \
+            alpha/application/benchmark_cli.py \
+            tests/benchmark_replay/test_governed_adjusted.py
+          poetry run ruff format --check \
+            alpha/benchmark_replay/governed_adjusted.py \
+            alpha/benchmark_replay/__init__.py \
+            alpha/application/governed_adjusted_benchmark_cli.py \
+            alpha/application/benchmark_cli.py \
+            tests/benchmark_replay/test_governed_adjusted.py
           poetry run mypy \
             alpha/benchmark_replay/governed_adjusted.py \
             alpha/application/governed_adjusted_benchmark_cli.py \
-            alpha/application/benchmark_cli.py \
-            2>&1 | tee htr010b2-mypy.txt
-          echo ${PIPESTATUS[0]} > htr010b2-mypy-status.txt
-          poetry run pytest -q tests/benchmark_replay/test_governed_adjusted.py \
-            2>&1 | tee htr010b2-pytest.txt
-          echo ${PIPESTATUS[0]} > htr010b2-pytest-status.txt
-      - name: Upload exact B2 workspace and diagnostics
-        uses: actions/upload-artifact@v4
-        with:
-          name: htr010b2-focused-diagnostics
-          path: |
-            alpha/benchmark_replay/governed_adjusted.py
-            alpha/benchmark_replay/__init__.py
-            alpha/application/governed_adjusted_benchmark_cli.py
             alpha/application/benchmark_cli.py
+          poetry run pytest -q tests/benchmark_replay/test_governed_adjusted.py
+          poetry run python -m alpha benchmark --help | grep governed-adjusted-replay
+
+      - name: Restore full CI and commit validated repair
+        run: |
+          git fetch origin feature/recovery-foundation-v1
+          git show origin/feature/recovery-foundation-v1:.github/workflows/ci.yml > .github/workflows/ci.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/htr010b2-focused-repair.yml
+          git add \
+            .github/workflows/ci.yml \
+            alpha/benchmark_replay/governed_adjusted.py \
+            alpha/benchmark_replay/__init__.py \
+            alpha/application/governed_adjusted_benchmark_cli.py \
+            alpha/application/benchmark_cli.py \
             tests/benchmark_replay/test_governed_adjusted.py
-            htr010b2-ruff.txt
-            htr010b2-ruff-status.txt
-            htr010b2-mypy.txt
-            htr010b2-mypy-status.txt
-            htr010b2-pytest.txt
-            htr010b2-pytest-status.txt
-          if-no-files-found: error
+          git commit -m 'Repair and register HTR-010B2 benchmark integration'
+          git push origin HEAD:feature/htr-010b2-governed-adjusted-benchmark-integration
