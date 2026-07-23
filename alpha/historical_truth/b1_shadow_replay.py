@@ -161,9 +161,7 @@ def _summary(price_view: str, leg: B1ShadowReplayLegResult) -> dict[str, Any]:
         "institutional_approval_count": sum(
             int(run.approved_recommendations) for run in leg.runs
         ),
-        "trade_count": sum(
-            int(run.approved_recommendations) for run in leg.runs
-        ),
+        "trade_count": sum(int(run.approved_recommendations) for run in leg.runs),
         "data_gap_count": sum(int(run.data_gaps) for run in leg.runs),
         "skipped_date_count": len(leg.skipped_dates),
         "skipped_dates": list(leg.skipped_dates),
@@ -260,10 +258,7 @@ def _markdown(report: dict[str, Any]) -> str:
         f"- Raw observations: {raw['observation_count']}",
         f"- Adjusted observations: {adjusted['observation_count']}",
         f"- Session sets match: {comparison['session_sets_match']}",
-        (
-            "- Executed session sets match: "
-            f"{comparison['executed_session_sets_match']}"
-        ),
+        (f"- Executed session sets match: {comparison['executed_session_sets_match']}"),
         f"- Universe counts match: {comparison['universe_counts_match']}",
         f"- Replay population nonempty: {comparison['replay_population_nonempty']}",
         f"- Unexplained divergences: {comparison['unexplained_divergence_count']}",
