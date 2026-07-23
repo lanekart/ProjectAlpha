@@ -14,6 +14,8 @@ HTR010B1_SHADOW_CONTRACT_VERSION = "HTR-010B1-SHADOW-v1.1.0"
 
 
 class ReplayRunLike(Protocol):
+    """Read-only structural contract for immutable replay-run records."""
+
     @property
     def replay_date(self) -> date: ...
 
