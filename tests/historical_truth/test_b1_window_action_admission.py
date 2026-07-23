@@ -19,7 +19,9 @@ def _write(path: Path, payload: object) -> Path:
     return path
 
 
-def test_quarantines_unresolved_and_unsupported_material_actions(tmp_path: Path) -> None:
+def test_quarantines_unresolved_and_unsupported_material_actions(
+    tmp_path: Path,
+) -> None:
     identities = _write(
         tmp_path / "identities.json",
         [
@@ -101,7 +103,9 @@ def test_quarantines_unresolved_and_unsupported_material_actions(tmp_path: Path)
     assert raw == adjusted == ["nse:isin:INE3"]
 
 
-def test_symbol_only_material_rejection_requires_unique_identity(tmp_path: Path) -> None:
+def test_symbol_only_material_rejection_requires_unique_identity(
+    tmp_path: Path,
+) -> None:
     identities = _write(
         tmp_path / "identities.json",
         [
