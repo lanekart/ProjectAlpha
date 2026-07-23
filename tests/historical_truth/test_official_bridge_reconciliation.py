@@ -56,7 +56,9 @@ def test_reconciliation_propagates_certified_and_quarantines_unresolved(
         )
 
     report = OfficialBridgeReconciliationEngine().run(
-        bridge_certifications_path=_write(tmp_path / "certifications.json", certifications),
+        bridge_certifications_path=_write(
+            tmp_path / "certifications.json", certifications
+        ),
         validation_results_path=_write(tmp_path / "validations.json", validations),
         admission_intervals_path=_write(tmp_path / "intervals.json", intervals),
     )
@@ -71,7 +73,9 @@ def test_reconciliation_propagates_certified_and_quarantines_unresolved(
     assert report["production_influence"] is False
 
 
-def test_reconciliation_detects_stale_and_unsafe_downstream_state(tmp_path: Path) -> None:
+def test_reconciliation_detects_stale_and_unsafe_downstream_state(
+    tmp_path: Path,
+) -> None:
     certifications = [
         {
             "bridge_case_id": f"case-{index}",
@@ -98,7 +102,9 @@ def test_reconciliation_detects_stale_and_unsafe_downstream_state(tmp_path: Path
     ]
 
     report = OfficialBridgeReconciliationEngine().run(
-        bridge_certifications_path=_write(tmp_path / "certifications.json", certifications),
+        bridge_certifications_path=_write(
+            tmp_path / "certifications.json", certifications
+        ),
         validation_results_path=_write(tmp_path / "validations.json", validations),
         admission_intervals_path=_write(tmp_path / "intervals.json", intervals),
     )
