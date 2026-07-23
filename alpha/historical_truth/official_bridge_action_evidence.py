@@ -9,9 +9,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
-HTR010B1F_ACTION_EVIDENCE_CONTRACT_VERSION = (
-    "HTR-010B1F-ACTION-EVIDENCE-v1.0.0"
-)
+HTR010B1F_ACTION_EVIDENCE_CONTRACT_VERSION = "HTR-010B1F-ACTION-EVIDENCE-v1.0.0"
 
 _ACTION_TERMS = (
     "stock split",
@@ -111,7 +109,9 @@ def match_corporate_action_payload(
 
     symbol_rows = tuple(row for row in rows if _row_symbol(row) == target_symbol)
     date_rows = tuple(
-        row for row in symbol_rows if target_date is not None and target_date in _row_dates(row)
+        row
+        for row in symbol_rows
+        if target_date is not None and target_date in _row_dates(row)
     )
     action_rows = tuple(row for row in date_rows if _row_has_action_term(row))
 
