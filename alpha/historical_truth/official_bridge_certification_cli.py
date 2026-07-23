@@ -244,8 +244,7 @@ def official_bridge_certify(
     print(f"Cross-series cases: {report['cross_series_case_count']:,}")
     print(f"Certified continuous: {report['certified_continuous_identity_count']:,}")
     print(
-        "Certified noncontinuous: "
-        f"{report['certified_noncontinuous_identity_count']:,}"
+        f"Certified noncontinuous: {report['certified_noncontinuous_identity_count']:,}"
     )
     print(
         "Insufficient official evidence: "
