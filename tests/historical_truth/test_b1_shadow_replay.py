@@ -97,9 +97,54 @@ def test_shadow_replay_accepts_real_frozen_replay_run_records() -> None:
     assert result.adjusted_summary["institutional_approval_count"] == 1
 
 
+def test_shadow_replay_counts_source_sessions_without_candidates() -> None:
+    replay_dates = (
+        datetime.date(2026, 1, 2),
+        datetime.date(2026, 1, 5),
+    )
+
+    def empty_leg() -> shadow_replay.B1ShadowReplayLegResult:
+        return shadow_replay.B1ShadowReplayLegResult(
+            runs=(),
+            replay_dates=replay_dates,
+            eligible_security_count=10,
+            observation_count=0,
+        )
+
+    result = shadow_replay.B1ShadowReplayRunner(
+        raw_leg=empty_leg,
+        adjusted_leg=empty_leg,
+    ).run()
+
+    assert result.raw_summary["session_count"] == 2
+    assert result.raw_summary["executed_session_count"] == 0
+    assert result.raw_summary["observation_count"] == 0
+    assert result.comparison["replay_population_nonempty"] is True
+    assert result.comparison["unexplained_divergence_count"] == 0
+
+
+def test_shadow_replay_blocks_vacuous_zero_population_parity() -> None:
+    def empty_population() -> shadow_replay.B1ShadowReplayLegResult:
+        return shadow_replay.B1ShadowReplayLegResult(
+            runs=(),
+            replay_dates=(),
+            eligible_security_count=10,
+            observation_count=0,
+        )
+
+    result = shadow_replay.B1ShadowReplayRunner(
+        raw_leg=empty_population,
+        adjusted_leg=empty_population,
+    ).run()
+
+    assert result.comparison["replay_population_nonempty"] is False
+    assert result.comparison["unexplained_divergence_count"] == 1
+
+
 def test_shadow_cli_keeps_diagnostic_leg_outside_full_readiness_wrapper() -> None:
     source = inspect.getsource(shadow_replay_cli)
 
     assert "execute_governed_historical_replay" not in source
     assert "GovernedHistoricalObservationFactory" in source
     assert source.count("HistoricalReplayEngine(") == 2
+    assert "B1ShadowReplayLegResult" in source
