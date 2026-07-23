@@ -1,21 +1,18 @@
 from __future__ import annotations
 
-import datetime as dt
+import dataclasses
+import datetime
+import decimal
 import json
-from dataclasses import dataclass
-from decimal import Decimal
-from pathlib import Path
+import pathlib
 
-from alpha.historical_replay.models import ReplayRunRecord
-from alpha.historical_truth.b1_shadow_replay import (
-    B1ShadowReplayRunner,
-    HTR010B1_SHADOW_CONTRACT_VERSION,
-)
+import alpha.historical_replay.models as replay_models
+import alpha.historical_truth.b1_shadow_replay as shadow_replay
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class _Run:
-    replay_date: dt.date
+    replay_date: datetime.date
     symbols_scanned: int
     candidates_stored: int
     emitted_decisions: int
@@ -25,15 +22,15 @@ class _Run:
 
 def _runs(*, symbols: int = 10, candidates: int = 2) -> tuple[_Run, ...]:
     return (
-        _Run(dt.date(2026, 1, 2), symbols, candidates, 1, 0, 0),
-        _Run(dt.date(2026, 1, 5), symbols, candidates, 1, 1, 0),
+        _Run(datetime.date(2026, 1, 2), symbols, candidates, 1, 0, 0),
+        _Run(datetime.date(2026, 1, 5), symbols, candidates, 1, 1, 0),
     )
 
 
 def test_shadow_replay_accepts_equal_metrics_from_distinct_sources(
-    tmp_path: Path,
+    tmp_path: pathlib.Path,
 ) -> None:
-    result = B1ShadowReplayRunner(
+    result = shadow_replay.B1ShadowReplayRunner(
         raw_leg=_runs,
         adjusted_leg=_runs,
     ).run()
@@ -46,18 +43,21 @@ def test_shadow_replay_accepts_equal_metrics_from_distinct_sources(
     assert result.comparison["unexplained_divergence_count"] == 0
     assert result.comparison["source_contracts_distinct"] is True
 
-    paths = B1ShadowReplayRunner.export(result, tmp_path)
+    paths = shadow_replay.B1ShadowReplayRunner.export(result, tmp_path)
     assert len(paths) == 4
     report = json.loads(paths[2].read_text(encoding="utf-8"))
-    assert report["contract_version"] == HTR010B1_SHADOW_CONTRACT_VERSION
+    assert (
+        report["contract_version"]
+        == shadow_replay.HTR010B1_SHADOW_CONTRACT_VERSION
+    )
     assert report["production_influence"] is False
 
 
 def test_shadow_replay_flags_session_and_universe_divergence() -> None:
     raw = _runs(symbols=10)
-    adjusted = (_Run(dt.date(2026, 1, 2), 9, 2, 1, 0, 0),)
+    adjusted = (_Run(datetime.date(2026, 1, 2), 9, 2, 1, 0, 0),)
 
-    result = B1ShadowReplayRunner(
+    result = shadow_replay.B1ShadowReplayRunner(
         raw_leg=lambda: raw,
         adjusted_leg=lambda: adjusted,
     ).run()
@@ -68,26 +68,26 @@ def test_shadow_replay_flags_session_and_universe_divergence() -> None:
 
 
 def test_shadow_replay_accepts_real_frozen_replay_run_records() -> None:
-    replay_run = ReplayRunRecord(
+    replay_run = replay_models.ReplayRunRecord(
         replay_run_id="run-1",
-        replay_date=dt.date(2026, 1, 2),
+        replay_date=datetime.date(2026, 1, 2),
         symbols_scanned=10,
         candidates_stored=2,
         emitted_decisions=1,
         approved_recommendations=1,
         market_regime="BULL",
         long_trade_permission=True,
-        data_cutoff_date=dt.date(2026, 1, 2),
+        data_cutoff_date=datetime.date(2026, 1, 2),
         outcome_windows_available=("1D",),
         data_gaps=0,
-        runtime_seconds=Decimal("0.10"),
-        created_at=dt.datetime(2026, 1, 2, tzinfo=dt.UTC),
+        runtime_seconds=decimal.Decimal("0.10"),
+        created_at=datetime.datetime(2026, 1, 2, tzinfo=datetime.UTC),
     )
 
-    def replay_leg() -> tuple[ReplayRunRecord, ...]:
+    def replay_leg() -> tuple[replay_models.ReplayRunRecord, ...]:
         return (replay_run,)
 
-    result = B1ShadowReplayRunner(
+    result = shadow_replay.B1ShadowReplayRunner(
         raw_leg=replay_leg,
         adjusted_leg=replay_leg,
     ).run()
