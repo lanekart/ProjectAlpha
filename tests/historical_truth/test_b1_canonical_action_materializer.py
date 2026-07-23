@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from alpha.historical_replay.governed_artifacts import load_governed_replay_inputs
 from alpha.historical_truth.b1_canonical_action_materializer import (
     B1CanonicalActionMaterializer,
 )
@@ -62,14 +63,19 @@ def test_materializes_resolved_split_and_unresolved_rights(tmp_path: Path) -> No
         output=tmp_path / "out",
     )
 
-    assert report["htr005_contract_loadable"] is True
+    timeline_path = tmp_path / "out" / "htr010b1_canonical_action_timeline.json"
+    direct_inputs = load_governed_replay_inputs(
+        identity_path=identity,
+        corporate_action_path=timeline_path,
+    )
+
+    assert report["htr005_contract_loadable"] is True, report["loader_error"]
+    assert len(direct_inputs.actions.events) == 2
     assert report["resolved_event_count"] == 1
     assert report["unresolved_event_count"] == 1
     assert report["shadow_replay_safe"] is False
 
-    timeline = json.loads(
-        (tmp_path / "out" / "htr010b1_canonical_action_timeline.json").read_text()
-    )
+    timeline = json.loads(timeline_path.read_text())
     split = next(row for row in timeline if row["event_id"] == "split-1")
     rights = next(row for row in timeline if row["event_id"] == "rights-1")
     assert split["price_factor"] == "0.5"
