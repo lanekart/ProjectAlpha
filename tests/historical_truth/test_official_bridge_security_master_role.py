@@ -19,11 +19,11 @@ def test_security_master_is_allowed_only_for_post_identity() -> None:
     assert pre_reason == "PRE_IDENTITY_SOURCE_PATTERN_NOT_APPROVED"
 
 
-def test_server_rendered_quotes_page_is_allowed_for_corporate_action() -> None:
+def test_server_rendered_quotes_page_requires_action_api_resolution() -> None:
     valid, reason = validate_source_role_url(
         "CORPORATE_ACTION",
         "https://www.nseindia.com/get-quotes/equity?symbol=AJMERA",
     )
 
     assert valid is True
-    assert reason == "ROLE_SOURCE_STRUCTURALLY_VALID"
+    assert reason == "ROLE_SOURCE_REQUIRES_API_RESOLUTION"
