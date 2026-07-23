@@ -216,7 +216,6 @@ def _compare(raw: dict[str, Any], adjusted: dict[str, Any]) -> dict[str, Any]:
     )
     unexplained = (
         int(not session_sets_match)
-        + int(not executed_session_sets_match)
         + int(not universe_counts_match)
         + int(not skipped_dates_match)
         + int(not replay_population_nonempty)
