@@ -87,10 +87,6 @@ def bridge_aware_admission_reconcile(
         "bridge_aware_admission_consistency",
         {},
     )
-    interval_diagnostics = report.input_contract_diagnostics.get(
-        "admission_interval_quarantine_augmentation",
-        {},
-    )
     residual = report.input_contract_diagnostics.get(
         "residual_factor_attribution",
         {},
@@ -121,8 +117,8 @@ def bridge_aware_admission_reconcile(
         f"{consistency.get('unresolved_interval_count', 0):,}"
     )
     print(
-        "Admission interval quarantine rows added: "
-        f"{interval_diagnostics.get('admission_interval_rows_added', 0):,}"
+        "Consistency quarantine rows: "
+        f"{consistency.get('post_consistency_quarantine_row_count', 0):,}"
     )
     print(f"Validation outcomes: {readiness.get('validation_outcomes', {})}")
     print(f"Admission states: {readiness.get('admission_state_counts', {})}")
