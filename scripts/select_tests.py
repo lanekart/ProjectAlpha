@@ -14,6 +14,10 @@ _SHARED_FILES = {
     "alpha/__main__.py",
     "alpha/config.py",
 }
+_TEST_SELECTION_FILES = {
+    "Makefile",
+    "scripts/select_tests.py",
+}
 _SHARED_PREFIXES = (
     "alpha/application/",
     "alpha/data/",
@@ -94,6 +98,9 @@ def select_targets(paths: tuple[str, ...]) -> tuple[str, ...]:
     targets: set[str] = set()
     for path in paths:
         file_path = Path(path)
+        if path in _TEST_SELECTION_FILES:
+            targets.add("tests/test_test_selection.py")
+            continue
         if path.startswith("tests/") and file_path.suffix == ".py":
             targets.add(path)
             continue
