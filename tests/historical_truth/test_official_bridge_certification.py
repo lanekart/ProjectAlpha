@@ -124,7 +124,9 @@ def test_official_effective_dated_lineage_certifies_identity(tmp_path: Path) -> 
         end_date=date(2026, 7, 20),
     )
 
-    certified = next(row for row in report["cases"] if row["bridge_case_id"] == "isin-0")
+    certified = next(
+        row for row in report["cases"] if row["bridge_case_id"] == "isin-0"
+    )
     assert certified["continuity_decision"] == (
         BridgeCertificationDecision.CERTIFIED_CONTINUOUS_IDENTITY.value
     )
@@ -137,7 +139,9 @@ def test_unofficial_or_unhashed_evidence_cannot_certify(tmp_path: Path) -> None:
     _write_cases(source, _population())
     evidence = tmp_path / "evidence.json"
     evidence.write_text(
-        json.dumps([_official_evidence(source_class="PRICE_SIMILARITY", source_sha256="")]),
+        json.dumps(
+            [_official_evidence(source_class="PRICE_SIMILARITY", source_sha256="")]
+        ),
         encoding="utf-8",
     )
 

@@ -58,7 +58,9 @@ def official_bridge_complete(
     print(f"Populated official sources: {report['populated_official_source_count']:,}")
     print(f"Pending official sources: {report['pending_official_source_count']:,}")
     print(f"Downloaded documents: {report['downloaded_document_count']:,}")
-    print(f"Verified official documents: {report['verified_official_document_count']:,}")
+    print(
+        f"Verified official documents: {report['verified_official_document_count']:,}"
+    )
     print(f"Covered bridge cases: {report['covered_bridge_case_count']:,}")
     print(
         "Certified continuous identities: "

@@ -128,7 +128,9 @@ class OfficialBridgeCompletionEngine:
         acquisition = acquisition_engine.run(
             dossiers_path=dossiers_path,
             discoveries_path=acquisition_discoveries_path,
-            downloaded_documents_root=(paths.raw_documents if download_documents else None),
+            downloaded_documents_root=(
+                paths.raw_documents if download_documents else None
+            ),
         )
         acquisition_engine.export(acquisition, paths.acquisition)
         admissible_path = (
@@ -235,8 +237,7 @@ def _merge_downloads_into_discoveries(
         merged.append(
             {
                 **discovery,
-                "source_url": download.get("final_url")
-                or discovery.get("source_url"),
+                "source_url": download.get("final_url") or discovery.get("source_url"),
                 "relative_path": download.get("relative_path"),
                 "source_sha256": download.get("source_sha256"),
                 "download_state": download.get("download_state"),
@@ -321,7 +322,9 @@ def _completion_report(
             "adjusted_replay_certified_case_count", 0
         ),
         "stage_implementation_defect_counts": stage_defects,
-        "implementation_defect_count": sum(int(value) for value in stage_defects.values()),
+        "implementation_defect_count": sum(
+            int(value) for value in stage_defects.values()
+        ),
         "replay_readiness": (
             "READY_FOR_B1G_RECONCILIATION"
             if ready

@@ -51,7 +51,9 @@ class OfficialBridgeCertificationEngine:
             row
             for row in cases
             if _is_bridge_case(row)
-            and start_date <= (_as_date(row.get("effective_date")) or date.min) <= end_date
+            and start_date
+            <= (_as_date(row.get("effective_date")) or date.min)
+            <= end_date
         )
         evidence = _records(official_evidence_path) if official_evidence_path else ()
         certifications = tuple(_certify_case(case, evidence) for case in selected)

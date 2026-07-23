@@ -23,8 +23,7 @@ class OfficialBridgeEvidenceDossierBuilder:
             grouped[_signature(row)].append(row)
 
         dossiers = tuple(
-            _dossier(signature, rows)
-            for signature, rows in sorted(grouped.items())
+            _dossier(signature, rows) for signature, rows in sorted(grouped.items())
         )
         duplicate_sizes = Counter(len(row["bridge_case_ids"]) for row in dossiers)
         defects = _defects(requests, dossiers)
@@ -58,8 +57,7 @@ class OfficialBridgeEvidenceDossierBuilder:
             encoding="utf-8",
         )
         queue_path.write_text(
-            json.dumps(report.get("dossiers", []), indent=2, sort_keys=True)
-            + "\n",
+            json.dumps(report.get("dossiers", []), indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
         markdown.write_text(_markdown(report), encoding="utf-8")
@@ -79,12 +77,17 @@ def _signature(row: dict[str, Any]) -> tuple[str, ...]:
     )
 
 
-def _dossier(
-    signature: tuple[str, ...], rows: list[dict[str, Any]]
-) -> dict[str, Any]:
-    bridge_type, effective_date, pre_isin, post_isin, pre_symbol, post_symbol, (
-        pre_series
-    ), post_series = signature
+def _dossier(signature: tuple[str, ...], rows: list[dict[str, Any]]) -> dict[str, Any]:
+    (
+        bridge_type,
+        effective_date,
+        pre_isin,
+        post_isin,
+        pre_symbol,
+        post_symbol,
+        (pre_series),
+        post_series,
+    ) = signature
     case_ids = sorted(str(row.get("bridge_case_id") or "") for row in rows)
     material = "|".join(signature)
     return {
@@ -100,9 +103,7 @@ def _dossier(
         "bridge_case_ids": case_ids,
         "bridge_case_count": len(case_ids),
         "preferred_source_classes": rows[0].get("preferred_source_classes", []),
-        "required_official_questions": rows[0].get(
-            "required_official_questions", []
-        ),
+        "required_official_questions": rows[0].get("required_official_questions", []),
         "search_terms": rows[0].get("search_terms", []),
         "evidence_status": "PENDING_OFFICIAL_EVIDENCE",
         "evidence_reuse_policy": (

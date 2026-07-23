@@ -16,9 +16,7 @@ def _case(index: int, *, bridge_type: str = "CROSS_ISIN") -> dict[str, object]:
         "effective_date": "2026-02-01",
         "bridge_type": bridge_type,
         "bridge_dependency_state": (
-            "UNCERTIFIED_CROSS_ISIN"
-            if cross_isin
-            else "UNCERTIFIED_CROSS_SERIES"
+            "UNCERTIFIED_CROSS_ISIN" if cross_isin else "UNCERTIFIED_CROSS_SERIES"
         ),
         "prior_isin": f"INE000000{index:03d}",
         "current_isin": (
@@ -44,9 +42,7 @@ def test_manifest_builds_exact_governed_24_case_population(tmp_path: Path) -> No
     cases.append(_case(23, bridge_type="CROSS_SERIES"))
     _write_cases(source, cases)
 
-    report = OfficialBridgeEvidenceManifestBuilder().run(
-        htr010b1d2_output=source
-    )
+    report = OfficialBridgeEvidenceManifestBuilder().run(htr010b1d2_output=source)
 
     assert report["contract_version"] == HTR010B1F_EVIDENCE_MANIFEST_VERSION
     assert report["input_bridge_case_count"] == 24
@@ -64,9 +60,7 @@ def test_cross_series_manifest_requests_tradability_evidence(tmp_path: Path) -> 
     cases.append(_case(23, bridge_type="CROSS_SERIES"))
     _write_cases(source, cases)
 
-    report = OfficialBridgeEvidenceManifestBuilder().run(
-        htr010b1d2_output=source
-    )
+    report = OfficialBridgeEvidenceManifestBuilder().run(htr010b1d2_output=source)
     request = next(
         row for row in report["requests"] if row["bridge_type"] == "CROSS_SERIES"
     )
@@ -85,9 +79,7 @@ def test_manifest_export_produces_blank_evidence_template(tmp_path: Path) -> Non
     cases = [_case(index) for index in range(23)]
     cases.append(_case(23, bridge_type="CROSS_SERIES"))
     _write_cases(source, cases)
-    report = OfficialBridgeEvidenceManifestBuilder().run(
-        htr010b1d2_output=source
-    )
+    report = OfficialBridgeEvidenceManifestBuilder().run(htr010b1d2_output=source)
 
     output = tmp_path / "out"
     paths = OfficialBridgeEvidenceManifestBuilder.export(report, output)
@@ -106,9 +98,7 @@ def test_manifest_reports_population_contract_defect(tmp_path: Path) -> None:
     source = tmp_path / "d2"
     _write_cases(source, [_case(1)])
 
-    report = OfficialBridgeEvidenceManifestBuilder().run(
-        htr010b1d2_output=source
-    )
+    report = OfficialBridgeEvidenceManifestBuilder().run(htr010b1d2_output=source)
 
     assert report["implementation_defect_count"] > 0
     assert "EXPECTED_24_BRIDGE_CASES_FOUND_1" in report["implementation_defects"]

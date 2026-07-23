@@ -153,6 +153,7 @@ def test_export_separates_only_verified_evidence(tmp_path: Path) -> None:
     )
     assert len(paths) == 5
     assert len(admissible) == 1
-    assert admissible[0]["source_sha256"] == sha256(
-        b"official exchange document"
-    ).hexdigest()
+    assert (
+        admissible[0]["source_sha256"]
+        == sha256(b"official exchange document").hexdigest()
+    )

@@ -49,9 +49,7 @@ class OfficialBridgeEvidenceAcquisitionEngine:
             "contract_version": HTR010B1F_ACQUISITION_CONTRACT_VERSION,
             "input_dossier_count": len(dossiers),
             "input_discovery_count": len(discoveries),
-            "verified_official_document_count": states[
-                "VERIFIED_OFFICIAL_DOCUMENT"
-            ],
+            "verified_official_document_count": states["VERIFIED_OFFICIAL_DOCUMENT"],
             "pending_download_count": states["PENDING_DOWNLOAD"],
             "invalid_discovery_count": states["INVALID_DISCOVERY"],
             "hash_mismatch_count": states["HASH_MISMATCH"],
@@ -170,15 +168,11 @@ def _admissible_evidence(row: dict[str, Any]) -> dict[str, Any]:
         "post_symbol": row.get("post_symbol"),
         "pre_series": row.get("pre_series"),
         "post_series": row.get("post_series"),
-        "identity_continuity_certified": row.get(
-            "identity_continuity_certified"
-        ),
+        "identity_continuity_certified": row.get("identity_continuity_certified"),
         "price_series_continuity_certified": row.get(
             "price_series_continuity_certified"
         ),
-        "tradability_continuity_certified": row.get(
-            "tradability_continuity_certified"
-        ),
+        "tradability_continuity_certified": row.get("tradability_continuity_certified"),
         "official_evidence_excerpt": row.get("official_evidence_excerpt"),
         "review_notes": row.get("review_notes"),
         "production_influence": False,

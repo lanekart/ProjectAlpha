@@ -32,9 +32,7 @@ def build_discovery_registry(*, dossiers_path: Path) -> dict[str, Any]:
     return report
 
 
-def export_discovery_registry(
-    report: dict[str, Any], output: Path
-) -> tuple[Path, ...]:
+def export_discovery_registry(report: dict[str, Any], output: Path) -> tuple[Path, ...]:
     output.mkdir(parents=True, exist_ok=True)
     rows = tuple(report.get("discoveries", ()))
     report_path = output / "htr010b1f_discovery_registry_report.json"

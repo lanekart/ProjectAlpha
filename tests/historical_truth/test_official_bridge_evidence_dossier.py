@@ -59,9 +59,7 @@ def test_dossiers_collapse_duplicate_factor_cases(tmp_path: Path) -> None:
         ("SILVERTUC", "2026-03-06", "INE625X01018", "INE625X01026"),
         ("RNBDENIMS", "2026-04-02", "INE012Q01021", "INE012Q01039"),
     ]
-    for index, (symbol, effective, pre_isin, post_isin) in enumerate(
-        duplicate_pairs
-    ):
+    for index, (symbol, effective, pre_isin, post_isin) in enumerate(duplicate_pairs):
         rows.extend(
             [
                 _request(
@@ -118,9 +116,7 @@ def test_dossier_preserves_independent_case_ids(tmp_path: Path) -> None:
     dossier = report["dossiers"][0]
 
     assert dossier["bridge_case_ids"] == ["case-a", "case-b"]
-    assert "INDEPENDENT_CERTIFICATION_DECISION" in dossier[
-        "evidence_reuse_policy"
-    ]
+    assert "INDEPENDENT_CERTIFICATION_DECISION" in dossier["evidence_reuse_policy"]
     assert report["implementation_defect_count"] > 0
 
 

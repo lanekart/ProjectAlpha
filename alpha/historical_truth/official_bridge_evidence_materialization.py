@@ -43,9 +43,7 @@ class OfficialBridgeEvidenceMaterializationEngine:
                 )
                 continue
             case_ids = tuple(
-                str(value)
-                for value in dossier.get("bridge_case_ids", ())
-                if str(value)
+                str(value) for value in dossier.get("bridge_case_ids", ()) if str(value)
             )
             if not case_ids:
                 rejected.append(

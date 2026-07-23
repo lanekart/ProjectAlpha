@@ -89,7 +89,9 @@ class OfficialBridgeEvidenceDiscoveryPopulationEngine:
 
         populated_rows = tuple(_sorted(populated))
         rejected_rows = tuple(_sorted(rejected))
-        states = Counter(str(row.get("discovery_state") or "") for row in populated_rows)
+        states = Counter(
+            str(row.get("discovery_state") or "") for row in populated_rows
+        )
         defects = _defects(registry, populated_rows, rejected_rows)
         report = {
             "contract_version": HTR010B1F_DISCOVERY_POPULATION_CONTRACT_VERSION,

@@ -89,9 +89,7 @@ def test_completion_bundle_runs_all_stages_fail_closed(tmp_path: Path) -> None:
     assert report["covered_bridge_case_count"] == 0
     assert report["insufficient_official_evidence_count"] == 24
     assert report["implementation_defect_count"] == 0
-    assert report["replay_readiness"] == (
-        "NOT_READY_FOR_ADJUSTED_REPLAY_INTEGRATION"
-    )
+    assert report["replay_readiness"] == ("NOT_READY_FOR_ADJUSTED_REPLAY_INTEGRATION")
     assert report["readiness_blockers"] == [
         "INSUFFICIENT_OFFICIAL_BRIDGE_EVIDENCE",
         "INCOMPLETE_CASE_LEVEL_EVIDENCE_COVERAGE",
@@ -127,9 +125,7 @@ def test_download_metadata_merges_back_into_governed_discovery() -> None:
     rows = _merge_downloads_into_discoveries(discoveries, downloads)
 
     assert rows[0]["document_id"] == "NSE/1"
-    assert rows[0]["source_url"] == (
-        "https://nsearchives.nseindia.com/source.pdf"
-    )
+    assert rows[0]["source_url"] == ("https://nsearchives.nseindia.com/source.pdf")
     assert rows[0]["relative_path"] == "dossier-1/hash.pdf"
     assert rows[0]["source_sha256"] == "a" * 64
     assert rows[0]["production_influence"] is False
