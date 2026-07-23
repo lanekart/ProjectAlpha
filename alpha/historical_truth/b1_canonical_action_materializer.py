@@ -216,7 +216,9 @@ def _records(path: Path) -> tuple[dict[str, Any], ...]:
             None,
         )
         payload = nested if nested is not None else [payload]
-    if not isinstance(payload, list) or not all(isinstance(row, dict) for row in payload):
+    if not isinstance(payload, list) or not all(
+        isinstance(row, dict) for row in payload
+    ):
         raise ValueError("HTR-009B action artifact must contain record mappings")
     return tuple(dict(row) for row in payload)
 
