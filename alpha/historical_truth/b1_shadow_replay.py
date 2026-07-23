@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from hashlib import sha256
@@ -22,7 +22,7 @@ class ReplayRunLike(Protocol):
     data_gaps: int
 
 
-ReplayLeg = Callable[[], tuple[ReplayRunLike, ...]]
+ReplayLeg = Callable[[], Sequence[ReplayRunLike]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,7 +86,7 @@ class B1ShadowReplayRunner:
         return raw_path, adjusted_path, report_path, markdown_path
 
 
-def _summary(price_view: str, runs: tuple[ReplayRunLike, ...]) -> dict[str, Any]:
+def _summary(price_view: str, runs: Sequence[ReplayRunLike]) -> dict[str, Any]:
     replay_dates = tuple(sorted({run.replay_date.isoformat() for run in runs}))
     source_contract = (
         "RAW_MARKET_TRUTH_REPOSITORY"
