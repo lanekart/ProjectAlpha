@@ -28,6 +28,7 @@ def _historical_truth_app() -> typer.Typer:
         official_bridge_evidence_discovery_registry,
         official_bridge_evidence_dossiers,
         official_bridge_evidence_manifest,
+        official_bridge_evidence_materialize,
     )
     from alpha.historical_truth.session_calendar_extension_cli import (
         session_calendar_extend_certify,
@@ -73,6 +74,10 @@ def _historical_truth_app() -> typer.Typer:
     if "official-bridge-evidence-acquire" not in registered:
         historical_truth_app.command("official-bridge-evidence-acquire")(
             official_bridge_evidence_acquire
+        )
+    if "official-bridge-evidence-materialize" not in registered:
+        historical_truth_app.command("official-bridge-evidence-materialize")(
+            official_bridge_evidence_materialize
         )
     if "official-bridge-certify" not in registered:
         historical_truth_app.command("official-bridge-certify")(
