@@ -3,19 +3,18 @@
 from __future__ import annotations
 
 import argparse
+import json
 from datetime import date
 from pathlib import Path
 
-from alpha.application.governed_historical_replay_cli import (
-    execute_governed_historical_replay,
-)
 from alpha.candidate_learning.repository import LearningLedgerRepository
 from alpha.historical_replay import (
     HistoricalReplayEngine,
     HistoricalReplayRepository,
 )
+from alpha.historical_replay.governed_artifacts import load_governed_replay_inputs
 from alpha.historical_replay.governed_factory import (
-    HistoricalObservationBuilder,
+    GovernedHistoricalObservationFactory,
     create_historical_observation_builder,
 )
 from alpha.historical_replay.governed_price_repository import (
@@ -59,6 +58,10 @@ def main() -> int:
     if arguments.end != admission.replay_end:
         raise ValueError("shadow replay end does not match B1H admission contract")
 
+    governed_inputs = load_governed_replay_inputs(
+        identity_path=arguments.identity_artifact,
+        corporate_action_path=arguments.corporate_action_artifact,
+    )
     arguments.output.mkdir(parents=True, exist_ok=True)
     raw_learning_repository = LearningLedgerRepository(
         arguments.output / "raw_learning_ledger.json"
@@ -97,29 +100,47 @@ def main() -> int:
         finally:
             source.close()
 
-    def adjusted_builder(
-        repository: CanonicalReplayPriceRepository,
-    ) -> HistoricalObservationBuilder:
-        return create_historical_observation_builder(
-            price_repository=B1UniverseFilteredPriceRepository(
-                repository,
-                admission.admitted_symbols,
-            )
-        )
-
     def adjusted_leg() -> tuple[ReplayRunRecord, ...]:
-        run = execute_governed_historical_replay(
-            from_date=arguments.start,
-            to_date=arguments.end,
-            identity_artifact=arguments.identity_artifact,
-            corporate_action_artifact=arguments.corporate_action_artifact,
-            learning_repository=adjusted_learning_repository,
-            replay_repository=adjusted_replay_repository,
-            database_path=arguments.database,
-            output=arguments.output / "adjusted_governed_replay",
-            observation_builder_factory=adjusted_builder,
-        )
-        return run.replay_runs
+        source = MarketTruthPriceRepository(database_path=arguments.database)
+        try:
+            canonical = CanonicalReplayPriceRepository(
+                source,
+                governed_inputs.identities,
+                governed_inputs.actions,
+            )
+            filtered_builder = create_historical_observation_builder(
+                price_repository=B1UniverseFilteredPriceRepository(
+                    canonical,
+                    admission.admitted_symbols,
+                )
+            )
+            governed_build = GovernedHistoricalObservationFactory(
+                price_repository=canonical,
+                builder=filtered_builder,
+            ).build(
+                from_date=arguments.start,
+                to_date=arguments.end,
+            )
+            governed_output = arguments.output / "adjusted_governed_replay"
+            governed_output.mkdir(parents=True, exist_ok=True)
+            _write_json(
+                governed_output / "governed_input_manifest.json",
+                governed_inputs.manifest.as_dict(),
+            )
+            _write_json(
+                governed_output / "governed_observation_manifest.json",
+                governed_build.as_dict(),
+            )
+            return HistoricalReplayEngine(
+                replay_repository=adjusted_replay_repository,
+                learning_repository=adjusted_learning_repository,
+            ).run(
+                from_date=arguments.start,
+                to_date=arguments.end,
+                observations=governed_build.observations,
+            )
+        finally:
+            source.close()
 
     result = B1ShadowReplayRunner(
         raw_leg=raw_leg,
@@ -141,6 +162,13 @@ def main() -> int:
     print(f"Report SHA256: {report['report_sha256']}")
     print("PRODUCTION_INFLUENCE=false")
     return 0
+
+
+def _write_json(path: Path, payload: object) -> None:
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 if __name__ == "__main__":
