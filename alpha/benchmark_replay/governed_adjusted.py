@@ -627,8 +627,8 @@ def _price_view(frame: pd.DataFrame, *, adjusted: bool) -> pd.DataFrame:
 
 
 def _manifest(frame: pd.DataFrame) -> DatasetManifest:
-    dates = tuple(sorted({_as_date(value) for value in frame["trade_date"]}))
-    valid_dates = tuple(item for item in dates if item is not None)
+    parsed_dates = {_as_date(value) for value in frame["trade_date"]}
+    valid_dates = tuple(sorted(item for item in parsed_dates if item is not None))
     if not valid_dates:
         raise ValueError("B2 manifest has no valid dates")
     exchanges = ", ".join(
@@ -829,10 +829,10 @@ def _number(value: object) -> Decimal:
 
 
 def _as_date(value: object) -> date | None:
-    if isinstance(value, date):
-        return value
     if isinstance(value, pd.Timestamp):
         return value.date()
+    if isinstance(value, date):
+        return value
     text = str(value or "").strip()
     return date.fromisoformat(text) if text else None
 
@@ -850,7 +850,10 @@ def _markdown(report: dict[str, Any]) -> str:
             f"- Adjusted sessions: `{adjusted['session_count']}`",
             f"- Raw candidates: `{raw['technical_candidate_count']}`",
             f"- Adjusted candidates: `{adjusted['technical_candidate_count']}`",
-            f"- Unexplained divergences: `{comparison['unexplained_divergence_count']}`",
+            (
+                "- Unexplained divergences: "
+                f"`{comparison['unexplained_divergence_count']}`"
+            ),
             f"- Report SHA-256: `{report['report_sha256']}`",
             "- ACTIVE_REPLAY_INTEGRATION=false",
             "- PRODUCTION_INFLUENCE=false",
