@@ -20,6 +20,9 @@ _ALLOWED_HOST_SUFFIXES = (
 def validate_source_role_url(role: str, source_url: str) -> tuple[bool, str]:
     """Validate whether an official URL is structurally suitable for its role."""
 
+    if not source_url:
+        return False, "MISSING_SOURCE_URL"
+
     parsed = urlparse(source_url)
     host = (parsed.hostname or "").lower()
     path = parsed.path.lower()
@@ -29,12 +32,16 @@ def validate_source_role_url(role: str, source_url: str) -> tuple[bool, str]:
     )
     if not official:
         return False, "SOURCE_URL_NOT_OFFICIAL_HTTPS"
-    if not source_url:
-        return False, "MISSING_SOURCE_URL"
 
     normalized_role = role.upper()
-    is_quote_page = path.startswith("/get-quote/equity/")
+    is_quote_page = path.startswith("/get-quote/equity/") or path.startswith(
+        "/get-quotes/equity"
+    )
     is_xbrl = host == "nsearchives.nseindia.com" and "/corporate/ixbrl/" in path
+    is_security_master = (
+        host == "nsearchives.nseindia.com"
+        and path.endswith("/content/equities/equity_l.csv")
+    )
     is_generic_actions = path.startswith(
         "/companies-listing/corporate-filings-actions"
     )
@@ -46,10 +53,15 @@ def validate_source_role_url(role: str, source_url: str) -> tuple[bool, str]:
             return True, "ROLE_SOURCE_STRUCTURALLY_VALID"
         return False, "ACTION_SOURCE_PATTERN_NOT_APPROVED"
 
-    if normalized_role in {"PRE_IDENTITY", "POST_IDENTITY"}:
-        if is_xbrl or is_quote_page:
+    if normalized_role == "PRE_IDENTITY":
+        if is_xbrl:
             return True, "ROLE_SOURCE_STRUCTURALLY_VALID"
-        return False, "IDENTITY_SOURCE_PATTERN_NOT_APPROVED"
+        return False, "PRE_IDENTITY_SOURCE_PATTERN_NOT_APPROVED"
+
+    if normalized_role == "POST_IDENTITY":
+        if is_xbrl or is_quote_page or is_security_master:
+            return True, "ROLE_SOURCE_STRUCTURALLY_VALID"
+        return False, "POST_IDENTITY_SOURCE_PATTERN_NOT_APPROVED"
 
     return False, "UNKNOWN_EVIDENCE_ROLE"
 
