@@ -81,6 +81,14 @@ pretty = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "unit: deterministic isolated tests",
+    "integration: cross-module or filesystem integration tests",
+    "network: tests that access external services",
+    "slow: tests excluded from the default fast development gate",
+    "historical_truth: historical-truth subsystem tests",
+    "benchmark: benchmark and replay validation tests",
+]
 
 
 [build-system]

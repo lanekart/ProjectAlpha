@@ -5,85 +5,75 @@ on:
   pull_request:
 
 jobs:
-  test:
+  quality:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-
-      # -----------------------
-      # SPEED OPTIMIZATION (CACHE)
-      # -----------------------
-      - name: Cache Poetry
-        uses: actions/cache@v4
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.cache/pypoetry
             ~/.cache/pip
-            .venv
           key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
-
-      - name: Install Poetry
-        run: pip install poetry
-
-      - name: Configure Poetry
-        run: poetry config virtualenvs.create true
-
-      # -----------------------
-      # DEPENDENCIES
-      # -----------------------
-      - name: Install dependencies
-        run: poetry install --no-interaction
-
-      # -----------------------
-      # LINTING
-      # -----------------------
+      - run: pip install poetry
+      - run: poetry install --no-interaction
       - name: Ruff check
         run: poetry run ruff check .
-
       - name: Ruff format check
         run: poetry run ruff format --check .
+      - name: MyPy
+        run: poetry run mypy alpha
 
-      # -----------------------
-      # TYPE CHECKING
-      # -----------------------
-      - name: Mypy
-        run: |
-          set +e
-          poetry run mypy alpha 2>&1 | tee mypy.txt
-          status=${PIPESTATUS[0]}
-          exit "$status"
-
-      - name: Upload MyPy diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - historical_truth
+          - historical_replay
+          - decision_and_market
+          - portfolio_and_backtest
+          - research_and_signals
+          - remaining
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          name: mypy-diagnostics
-          path: mypy.txt
-          if-no-files-found: error
-
-      # -----------------------
-      # TESTS
-      # -----------------------
-      - name: Pytest
+          python-version: "3.14"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pypoetry
+            ~/.cache/pip
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Run shard
         env:
           _TYPER_FORCE_DISABLE_TERMINAL: "1"
+          SHARD: ${{ matrix.shard }}
         run: |
-          set +e
-          poetry run pytest -q 2>&1 | tee pytest.txt
-          status=${PIPESTATUS[0]}
-          exit "$status"
-
-      - name: Upload Pytest diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pytest-diagnostics
-          path: pytest.txt
-          if-no-files-found: error
+          case "$SHARD" in
+            historical_truth)
+              poetry run pytest -q tests/historical_truth
+              ;;
+            historical_replay)
+              poetry run pytest -q tests/historical_replay tests/recovery
+              ;;
+            decision_and_market)
+              poetry run pytest -q tests/decision_intelligence tests/decision_lifecycle tests/decision_orchestrator tests/market tests/market_intelligence tests/market_truth
+              ;;
+            portfolio_and_backtest)
+              poetry run pytest -q tests/portfolio tests/portfolio_intelligence tests/backtest tests/execution tests/costs
+              ;;
+            research_and_signals)
+              poetry run pytest -q tests/research tests/trading_signals tests/strategy_lab tests/strategy_discovery tests/setup_discovery tests/candidate_learning
+              ;;
+            remaining)
+              poetry run python scripts/run_remaining_tests.py
+              ;;
+          esac
