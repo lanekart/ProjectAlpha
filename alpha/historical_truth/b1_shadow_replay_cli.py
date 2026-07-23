@@ -29,7 +29,7 @@ from alpha.historical_truth.b1_shadow_universe import (
     B1UniverseFilteredPriceRepository,
     load_b1_shadow_admission,
 )
-from alpha.market_truth.consumer_repository import MarketTruthPriceRepository
+from alpha.historical_truth.replay import HistoricalTruthReplayStore
 
 
 def _date(value: str) -> date:
@@ -39,6 +39,11 @@ def _date(value: str) -> date:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--database", type=Path, required=True)
+    parser.add_argument(
+        "--historical-truth-snapshots",
+        type=Path,
+        default=Path("alpha_data/snapshots"),
+    )
     parser.add_argument("--identity-artifact", type=Path, required=True)
     parser.add_argument("--corporate-action-artifact", type=Path, required=True)
     parser.add_argument("--admission-contract", type=Path, required=True)
@@ -80,7 +85,12 @@ def main() -> int:
     )
 
     def raw_leg() -> B1ShadowReplayLegResult:
-        source = MarketTruthPriceRepository(database_path=arguments.database)
+        source = HistoricalTruthReplayStore(
+            database_path=arguments.database,
+            snapshot_root=arguments.historical_truth_snapshots,
+            start=admission.dependency_start,
+            end=admission.dependency_end,
+        )
         try:
             filtered = B1UniverseFilteredPriceRepository(
                 source,
@@ -100,9 +110,15 @@ def main() -> int:
                 to_date=arguments.end,
                 observations=build.observations,
             )
+            source_manifest = source.manifest()
             _write_json(
                 arguments.output / "raw_observation_manifest.json",
                 {
+                    "source_dataset_version": source_manifest.dataset_version,
+                    "source_first_session": source_manifest.first_session.isoformat(),
+                    "source_last_session": source_manifest.last_session.isoformat(),
+                    "source_session_count": source_manifest.sessions,
+                    "source_row_count": source_manifest.rows,
                     "replay_dates": [item.isoformat() for item in build.replay_dates],
                     "observation_count": len(build.observations),
                     "skipped_dates": list(build.skipped_dates),
@@ -121,7 +137,12 @@ def main() -> int:
             source.close()
 
     def adjusted_leg() -> B1ShadowReplayLegResult:
-        source = MarketTruthPriceRepository(database_path=arguments.database)
+        source = HistoricalTruthReplayStore(
+            database_path=arguments.database,
+            snapshot_root=arguments.historical_truth_snapshots,
+            start=admission.dependency_start,
+            end=admission.dependency_end,
+        )
         try:
             canonical = CanonicalReplayPriceRepository(
                 source,
