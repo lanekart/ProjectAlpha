@@ -1,0 +1,65 @@
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from datetime import date
+from pathlib import Path
+
+from alpha.historical_truth.b1_shadow_replay import (
+    B1ShadowReplayRunner,
+    HTR010B1_SHADOW_CONTRACT_VERSION,
+)
+
+
+@dataclass(frozen=True)
+class _Run:
+    replay_date: date
+    symbols_scanned: int
+    candidates_stored: int
+    emitted_decisions: int
+    approved_recommendations: int
+    data_gaps: int
+
+
+def _runs(*, symbols: int = 10, candidates: int = 2) -> tuple[_Run, ...]:
+    return (
+        _Run(date(2026, 1, 2), symbols, candidates, 1, 0, 0),
+        _Run(date(2026, 1, 5), symbols, candidates, 1, 1, 0),
+    )
+
+
+def test_shadow_replay_accepts_equal_metrics_from_distinct_sources(
+    tmp_path: Path,
+) -> None:
+    result = B1ShadowReplayRunner(
+        raw_leg=_runs,
+        adjusted_leg=_runs,
+    ).run()
+
+    assert result.raw_summary["price_view"] == "RAW"
+    assert result.adjusted_summary["price_view"] == "ADJUSTED"
+    assert result.raw_summary["source_contract"] != result.adjusted_summary[
+        "source_contract"
+    ]
+    assert result.comparison["unexplained_divergence_count"] == 0
+    assert result.comparison["source_contracts_distinct"] is True
+
+    paths = B1ShadowReplayRunner.export(result, tmp_path)
+    assert len(paths) == 4
+    report = json.loads(paths[2].read_text(encoding="utf-8"))
+    assert report["contract_version"] == HTR010B1_SHADOW_CONTRACT_VERSION
+    assert report["production_influence"] is False
+
+
+def test_shadow_replay_flags_session_and_universe_divergence() -> None:
+    raw = _runs(symbols=10)
+    adjusted = (_Run(date(2026, 1, 2), 9, 2, 1, 0, 0),)
+
+    result = B1ShadowReplayRunner(
+        raw_leg=lambda: raw,
+        adjusted_leg=lambda: adjusted,
+    ).run()
+
+    assert result.comparison["unexplained_divergence_count"] == 2
+    assert result.comparison["metric_deltas"]["session_count"] == -1
+    assert result.comparison["metric_deltas"]["eligible_security_count"] == -1
