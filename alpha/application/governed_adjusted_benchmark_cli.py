@@ -27,39 +27,30 @@ def register_governed_adjusted_benchmark_command(app: typer.Typer) -> None:
 
 
 def governed_adjusted_benchmark(
+    identity_artifact: Annotated[Path, typer.Option("--identity-artifact")],
+    corporate_action_artifact: Annotated[
+        Path,
+        typer.Option("--corporate-action-artifact"),
+    ],
+    final_closure_report: Annotated[
+        Path,
+        typer.Option("--final-closure-report"),
+    ],
+    admission_contract: Annotated[
+        Path,
+        typer.Option("--admission-contract"),
+    ],
+    identity_admission: Annotated[
+        Path,
+        typer.Option("--identity-admission"),
+    ],
+    raw_universe: Annotated[Path, typer.Option("--raw-universe")],
+    adjusted_universe: Annotated[Path, typer.Option("--adjusted-universe")],
     database: Annotated[Path, typer.Option("--database")] = settings.database_path,
     historical_truth_snapshots: Annotated[
         Path,
         typer.Option("--historical-truth-snapshots"),
     ] = Path("alpha_data/snapshots"),
-    identity_artifact: Annotated[
-        Path,
-        typer.Option("--identity-artifact"),
-    ] = Path("artifacts/htr010b1_final/canonical_identities.json"),
-    corporate_action_artifact: Annotated[
-        Path,
-        typer.Option("--corporate-action-artifact"),
-    ] = Path("artifacts/htr010b1_final/canonical_actions.json"),
-    final_closure_report: Annotated[
-        Path,
-        typer.Option("--final-closure-report"),
-    ] = Path("artifacts/htr010b1_final/htr010b1_final_closure_report.json"),
-    admission_contract: Annotated[
-        Path,
-        typer.Option("--admission-contract"),
-    ] = Path("artifacts/htr010b1h/htr010b1h_replay_contract.json"),
-    identity_admission: Annotated[
-        Path,
-        typer.Option("--identity-admission"),
-    ] = Path("artifacts/htr010b1h/htr010b1h_identity_admission.json"),
-    raw_universe: Annotated[
-        Path,
-        typer.Option("--raw-universe"),
-    ] = Path("artifacts/htr010b1h/htr010b1h_raw_universe.json"),
-    adjusted_universe: Annotated[
-        Path,
-        typer.Option("--adjusted-universe"),
-    ] = Path("artifacts/htr010b1h/htr010b1h_adjusted_universe.json"),
     output: Annotated[Path, typer.Option("--output")] = DEFAULT_HTR010B2_OUTPUT,
     capital: Annotated[str, typer.Option("--capital")] = "1000000",
     max_positions: Annotated[int, typer.Option("--max-positions", min=1)] = 3,
