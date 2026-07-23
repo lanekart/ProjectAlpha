@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, cast
 
-import duckdb
 import pandas as pd
 
 from alpha.benchmark_replay.engine import CanonicalBenchmarkReplayEngine
@@ -23,9 +23,12 @@ from alpha.benchmark_replay.models import (
 from alpha.canonical_universe_audit.models import DatasetManifest
 from alpha.canonical_universe_audit.store import LegacyMarketDataStore
 from alpha.historical_replay.governed_artifacts import load_governed_replay_inputs
+from alpha.historical_replay.governed_price_repository import (
+    CanonicalReplayPriceRepository,
+)
 from alpha.historical_truth.b1_final_closure import HTR010B1_FINAL_CONTRACT_VERSION
 from alpha.historical_truth.b1_shadow_universe import load_b1_shadow_admission
-from alpha.recovery.replay_frame import CanonicalReplayFrameAdapter
+from alpha.recovery.security_timeline import SecurityIdentityTimeline
 
 HTR010B2_CONTRACT_VERSION = "HTR-010B2-v1.0.0"
 _READY_STATES = {
@@ -47,65 +50,269 @@ _PRICE_COLUMNS = (
 )
 
 
-class GovernedBenchmarkStore(LegacyMarketDataStore):
-    """Read-only benchmark store carrying an explicit governed price view."""
+class _AdmittedReplayPriceSource:
+    """Restrict every raw source read to the signed B1H identity population."""
 
-    def __init__(self, path: Path, *, price_view: str) -> None:
+    def __init__(
+        self,
+        source: LegacyMarketDataStore,
+        identities: SecurityIdentityTimeline,
+        admitted_ids: frozenset[str],
+    ) -> None:
+        self.source = source
+        self.identities = identities
+        self.admitted_ids = admitted_ids
+        self.available_dates: tuple[date, ...] | None = None
+
+    def find_by_trade_date(self, trade_date: date) -> pd.DataFrame:
+        return self._filter(self.source.find_by_trade_date(trade_date))
+
+    def find_history_by_symbols(
+        self,
+        *,
+        symbols: tuple[str, ...],
+        end_date: date,
+        limit: int,
+    ) -> pd.DataFrame:
+        return self._filter(
+            self.source.find_history_by_symbols(
+                symbols=symbols,
+                end_date=end_date,
+                limit=limit,
+            )
+        )
+
+    def find_range_by_symbols(
+        self,
+        *,
+        symbols: tuple[str, ...],
+        start_date: date,
+        end_date: date,
+    ) -> pd.DataFrame:
+        normalized = {item.strip().upper() for item in symbols if item.strip()}
+        frames: list[pd.DataFrame] = []
+        for trading_date in self.source.trade_dates(start=start_date, end=end_date):
+            frame = self.source.find_by_trade_date(trading_date)
+            if normalized:
+                selected = frame["symbol"].astype(str).str.strip().str.upper()
+                frame = frame.loc[selected.isin(normalized)].copy()
+            frame = self._filter(frame)
+            if not frame.empty:
+                frames.append(frame)
+        if not frames:
+            return pd.DataFrame(columns=_PRICE_COLUMNS)
+        return pd.concat(frames, ignore_index=True)
+
+    def find_trade_dates(self, *, start: date, end: date) -> tuple[date, ...]:
+        dates = self.available_dates
+        if dates is None:
+            dates = tuple(
+                trading_date
+                for trading_date in self.source.trade_dates(start=start, end=end)
+                if not self.find_by_trade_date(trading_date).empty
+            )
+        return tuple(item for item in dates if start <= item <= end)
+
+    def close(self) -> None:
+        """The owning B2 pair closes the shared source exactly once."""
+
+    def _filter(self, frame: pd.DataFrame) -> pd.DataFrame:
+        if frame.empty:
+            return frame.copy()
+        rows: list[dict[str, Any]] = []
+        for record in cast(list[dict[str, Any]], frame.to_dict("records")):
+            trading_date = _as_date(record.get("trade_date"))
+            if trading_date is None:
+                continue
+            identity = self.identities.resolve(
+                str(record.get("symbol") or "").strip().upper(),
+                trading_date=trading_date,
+                exchange=str(record.get("exchange") or "").strip().upper() or None,
+            )
+            if identity is not None and identity.security_id in self.admitted_ids:
+                rows.append(record)
+        return pd.DataFrame(rows, columns=frame.columns)
+
+
+class GovernedBenchmarkStore(LegacyMarketDataStore):
+    """Dynamic point-in-time benchmark store for one governed price view."""
+
+    def __init__(
+        self,
+        *,
+        path: Path,
+        price_view: str,
+        canonical: CanonicalReplayPriceRepository,
+        manifest: DatasetManifest,
+        liquidity: pd.DataFrame,
+        replay_dates: tuple[date, ...],
+        canonical_symbols: tuple[str, ...],
+    ) -> None:
+        self.path = path
         self.price_view = price_view
-        super().__init__(path)
+        self._canonical = canonical
+        self._manifest = manifest
+        self._liquidity = liquidity
+        self._replay_dates = replay_dates
+        self._canonical_symbols = canonical_symbols
+
+    @property
+    def canonical_attestation_sha256s(self) -> tuple[str, ...]:
+        return tuple(
+            item.attestation_sha256 for item in self._canonical.consumer_attestations
+        )
 
     def manifest(self) -> DatasetManifest:
-        row = self.connection.execute(
-            """
-            SELECT
-                COUNT(*),
-                COUNT(DISTINCT symbol),
-                COUNT(DISTINCT trade_date),
-                MIN(trade_date),
-                MAX(trade_date),
-                COUNT(sector),
-                STRING_AGG(DISTINCT exchange, ', ' ORDER BY exchange)
-            FROM daily_prices
-            """
-        ).fetchone()
-        if row is None or row[3] is None or row[4] is None:
-            raise ValueError("governed benchmark population is empty")
-        return DatasetManifest(
-            dataset_version=f"HTR010B2_GOVERNED_{self.price_view}_V1",
-            first_session=row[3],
-            last_session=row[4],
-            sessions=int(row[2]),
-            rows=int(row[0]),
-            symbols=int(row[1]),
-            exchange=str(row[6]),
-            sector_rows=int(row[5]),
-            confidence=Decimal("1"),
-            labels=(
-                "GOVERNED",
-                "HTR-010B2",
-                f"PRICE_VIEW={self.price_view}",
-                "PRODUCTION_INFLUENCE=false",
-            ),
+        return self._manifest
+
+    def trade_dates(
+        self,
+        *,
+        start: date | None = None,
+        end: date | None = None,
+    ) -> tuple[date, ...]:
+        first = start or date.min
+        last = end or date.max
+        return tuple(item for item in self._replay_dates if first <= item <= last)
+
+    def find_by_trade_date(self, trade_date: date) -> pd.DataFrame:
+        return _price_view(
+            self._canonical.find_by_trade_date(trade_date),
+            adjusted=self.price_view == "ADJUSTED",
         )
+
+    def find_history_by_symbols(
+        self,
+        *,
+        symbols: tuple[str, ...],
+        end_date: date,
+        limit: int,
+    ) -> pd.DataFrame:
+        return _price_view(
+            self._canonical.find_history_by_symbols(
+                symbols=symbols,
+                end_date=end_date,
+                limit=limit,
+            ),
+            adjusted=self.price_view == "ADJUSTED",
+        )
+
+    def find_range_by_symbols(
+        self,
+        *,
+        symbols: tuple[str, ...],
+        start_date: date,
+        end_date: date,
+    ) -> pd.DataFrame:
+        return _price_view(
+            self._canonical.find_range_by_symbols(
+                symbols=symbols,
+                start_date=start_date,
+                end_date=end_date,
+            ),
+            adjusted=self.price_view == "ADJUSTED",
+        )
+
+    def history_counts_before(self, observed_on: date) -> dict[str, int]:
+        if observed_on == date.min:
+            return {}
+        frame = self.find_history_by_symbols(
+            symbols=self._canonical_symbols,
+            end_date=date.fromordinal(observed_on.toordinal() - 1),
+            limit=100000,
+        )
+        if frame.empty:
+            return {}
+        counts = frame.groupby("symbol", sort=True).size()
+        return {str(symbol): int(count) for symbol, count in counts.items()}
+
+    def liquidity_statistics(self) -> pd.DataFrame:
+        return self._liquidity.copy()
+
+    def future_bars(self, candidates: pd.DataFrame, *, limit: int) -> pd.DataFrame:
+        required = {"candidate_id", "symbol", "observed_on"}
+        if not required.issubset(candidates.columns):
+            raise ValueError("future-bar candidates require id, symbol, and date")
+        if limit < 1:
+            raise ValueError("future-bar limit must be positive")
+        rows: list[pd.DataFrame] = []
+        for candidate in candidates.itertuples(index=False):
+            observed_on = _as_date(getattr(candidate, "observed_on"))
+            if observed_on is None:
+                continue
+            future_dates = tuple(
+                item for item in self._replay_dates if item > observed_on
+            )[:limit]
+            if not future_dates:
+                continue
+            frame = self.find_range_by_symbols(
+                symbols=(str(getattr(candidate, "symbol")),),
+                start_date=future_dates[0],
+                end_date=future_dates[-1],
+            )
+            if frame.empty:
+                continue
+            frame = frame.sort_values("trade_date", kind="stable").head(limit).copy()
+            frame.insert(0, "candidate_id", str(getattr(candidate, "candidate_id")))
+            rows.append(frame)
+        if not rows:
+            return pd.DataFrame(columns=("candidate_id", *_PRICE_COLUMNS))
+        return pd.concat(rows, ignore_index=True)
+
+    def return_history(
+        self,
+        *,
+        symbols: tuple[str, ...],
+        end_date: date,
+        limit: int = 60,
+    ) -> pd.DataFrame:
+        frame = self.find_history_by_symbols(
+            symbols=symbols,
+            end_date=end_date,
+            limit=limit + 1,
+        )
+        if frame.empty:
+            return pd.DataFrame()
+        frame = frame.copy()
+        frame["return"] = frame.groupby("symbol", sort=False)["close"].pct_change()
+        return frame.pivot(index="trade_date", columns="symbol", values="return")
+
+    def close(self) -> None:
+        """The owning pair closes the shared raw source."""
+
+    def __enter__(self) -> GovernedBenchmarkStore:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
 
 
 @dataclass(slots=True)
 class GovernedBenchmarkStorePair:
-    """Materialized stores and lineage shared by both benchmark arms."""
+    """Paired dynamic stores and their shared governed lineage."""
 
     raw: GovernedBenchmarkStore
     adjusted: GovernedBenchmarkStore
+    source: LegacyMarketDataStore
     identity_session_sha256: str
     source_replay_dates: tuple[date, ...]
-    materialized_replay_dates: tuple[date, ...]
-    canonical_attestation_sha256s: tuple[str, ...]
     final_closure_report_sha256: str
     admission_contract_sha256: str
     governed_input_manifest_sha256: str
 
+    @property
+    def canonical_attestation_sha256s(self) -> tuple[str, ...]:
+        return tuple(
+            sorted(
+                {
+                    *self.raw.canonical_attestation_sha256s,
+                    *self.adjusted.canonical_attestation_sha256s,
+                }
+            )
+        )
+
     def close(self) -> None:
-        self.raw.close()
-        self.adjusted.close()
+        self.source.close()
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,9 +341,9 @@ class GovernedAdjustedBenchmarkEngine:
         output: Path,
         policy: BenchmarkPolicy | None = None,
         project_root: Path | str = Path("."),
-        progress: Any = None,
+        progress: Callable[[int, int, date], None] | None = None,
     ) -> GovernedAdjustedBenchmarkResult:
-        pair = materialize_governed_benchmark_stores(
+        pair = build_governed_benchmark_stores(
             source=source,
             identity_artifact=identity_artifact,
             corporate_action_artifact=corporate_action_artifact,
@@ -145,16 +352,14 @@ class GovernedAdjustedBenchmarkEngine:
             identity_admission=identity_admission,
             raw_universe=raw_universe,
             adjusted_universe=adjusted_universe,
-            output=output / "materialized",
+            output=output / "store_contracts",
         )
+        admission_mapping = _mapping(admission_contract)
         try:
-            replay_policy = policy or BenchmarkPolicy()
             request = ReplayRequest(
-                start=date.fromisoformat(
-                    _mapping(admission_contract)["replay_start"]
-                ),
-                end=date.fromisoformat(_mapping(admission_contract)["replay_end"]),
-                policy=replay_policy,
+                start=date.fromisoformat(str(admission_mapping["replay_start"])),
+                end=date.fromisoformat(str(admission_mapping["replay_end"])),
+                policy=policy or BenchmarkPolicy(),
             )
             engine = CanonicalBenchmarkReplayEngine()
             raw_report = engine.run(
@@ -169,33 +374,32 @@ class GovernedAdjustedBenchmarkEngine:
                 project_root=project_root,
                 progress=progress,
             )
+            raw_paths = BenchmarkArtifactExporter().export(
+                raw_report,
+                output_directory=output / "raw",
+            )
+            adjusted_paths = BenchmarkArtifactExporter().export(
+                adjusted_report,
+                output_directory=output / "adjusted",
+            )
+            report = _integration_report(
+                pair=pair,
+                raw_report=raw_report,
+                adjusted_report=adjusted_report,
+                raw_artifact_count=len(raw_paths),
+                adjusted_artifact_count=len(adjusted_paths),
+            )
+            export_governed_adjusted_benchmark(report, output)
+            return GovernedAdjustedBenchmarkResult(
+                raw_report=raw_report,
+                adjusted_report=adjusted_report,
+                report=report,
+            )
         finally:
             pair.close()
 
-        raw_paths = BenchmarkArtifactExporter().export(
-            raw_report,
-            output_directory=output / "raw",
-        )
-        adjusted_paths = BenchmarkArtifactExporter().export(
-            adjusted_report,
-            output_directory=output / "adjusted",
-        )
-        report = _integration_report(
-            pair=pair,
-            raw_report=raw_report,
-            adjusted_report=adjusted_report,
-            raw_artifact_count=len(raw_paths),
-            adjusted_artifact_count=len(adjusted_paths),
-        )
-        export_governed_adjusted_benchmark(report, output)
-        return GovernedAdjustedBenchmarkResult(
-            raw_report=raw_report,
-            adjusted_report=adjusted_report,
-            report=report,
-        )
 
-
-def materialize_governed_benchmark_stores(
+def build_governed_benchmark_stores(
     *,
     source: LegacyMarketDataStore,
     identity_artifact: Path,
@@ -207,7 +411,7 @@ def materialize_governed_benchmark_stores(
     adjusted_universe: Path,
     output: Path,
 ) -> GovernedBenchmarkStorePair:
-    """Build paired read-only stores from one governed canonicalization pass."""
+    """Build paired point-in-time stores over one signed identity-session set."""
 
     closure = _validated_final_closure(final_closure_report)
     admission_mapping = _mapping(admission_contract)
@@ -228,100 +432,115 @@ def materialize_governed_benchmark_stores(
     if dependency_end < admission.replay_end:
         raise ValueError("B1H dependency window does not cover replay outcomes")
 
-    output.mkdir(parents=True, exist_ok=True)
-    raw_path = output / "htr010b2_raw_benchmark.duckdb"
-    adjusted_path = output / "htr010b2_adjusted_benchmark.duckdb"
-    for path in (raw_path, adjusted_path):
-        if path.exists():
-            path.unlink()
-    raw_connection = _new_database(raw_path)
-    adjusted_connection = _new_database(adjusted_path)
-    canonicalizer = CanonicalReplayFrameAdapter(inputs.identities, inputs.actions)
-    admitted_ids = frozenset(admission.admitted_security_ids)
+    admitted_source = _AdmittedReplayPriceSource(
+        source,
+        inputs.identities,
+        frozenset(admission.admitted_security_ids),
+    )
+    identity_rows: list[dict[str, Any]] = []
     identity_session_keys: list[str] = []
-    attestation_sha256s: list[str] = []
-    observed_security_ids: set[str] = set()
-
-    try:
-        dependency_dates = source.trade_dates(
-            start=dependency_start,
-            end=dependency_end,
+    observed_ids: set[str] = set()
+    available_dates: list[date] = []
+    for trading_date in source.trade_dates(
+        start=dependency_start,
+        end=dependency_end,
+    ):
+        frame = admitted_source.find_by_trade_date(trading_date)
+        if frame.empty:
+            continue
+        canonical_identity_frame = _canonical_identity_frame(
+            frame,
+            identities=inputs.identities,
         )
-        if not dependency_dates:
-            raise ValueError("source has no sessions in the B1H dependency window")
-        for trading_date in dependency_dates:
-            source_frame = source.find_by_trade_date(trading_date)
-            admitted_frame = _admitted_source_frame(
-                source_frame,
-                identities=inputs.identities,
-                admitted_ids=admitted_ids,
-                trading_date=trading_date,
+        if canonical_identity_frame.empty:
+            continue
+        available_dates.append(trading_date)
+        identity_rows.extend(
+            cast(list[dict[str, Any]], canonical_identity_frame.to_dict("records"))
+        )
+        for row in canonical_identity_frame.itertuples(index=False):
+            security_id = str(getattr(row, "security_id"))
+            symbol = str(getattr(row, "symbol"))
+            observed_ids.add(security_id)
+            identity_session_keys.append(
+                f"{security_id}|{trading_date.isoformat()}|{symbol}"
             )
-            if admitted_frame.empty:
-                continue
-            canonical = canonicalizer.canonicalize(
-                admitted_frame,
-                trade_date=trading_date,
-                as_of=trading_date,
-            )
-            adjusted_frame = canonical.frame
-            raw_rows = _price_view(adjusted_frame, adjusted=False)
-            adjusted_rows = _price_view(adjusted_frame, adjusted=True)
-            _assert_view_parity(raw_rows, adjusted_rows)
-            _insert_rows(raw_connection, raw_rows)
-            _insert_rows(adjusted_connection, adjusted_rows)
-            attestation_sha256s.append(canonical.attestation.attestation_sha256)
-            for row in adjusted_frame.itertuples(index=False):
-                security_id = str(getattr(row, "security_id"))
-                symbol = str(getattr(row, "symbol"))
-                observed_security_ids.add(security_id)
-                identity_session_keys.append(
-                    f"{security_id}|{trading_date.isoformat()}|{symbol}"
-                )
-        raw_connection.close()
-        adjusted_connection.close()
-    except Exception:
-        raw_connection.close()
-        adjusted_connection.close()
-        raise
+    admitted_source.available_dates = tuple(available_dates)
 
-    missing_ids = tuple(sorted(admitted_ids.difference(observed_security_ids)))
+    missing_ids = tuple(
+        sorted(set(admission.admitted_security_ids).difference(observed_ids))
+    )
     if missing_ids:
         raise ValueError(
-            "admitted identities have no materialized benchmark rows: "
-            + ",".join(missing_ids[:20])
+            "admitted identities have no benchmark rows: " + ",".join(missing_ids[:20])
         )
-
-    raw_store = GovernedBenchmarkStore(raw_path, price_view="RAW")
-    adjusted_store = GovernedBenchmarkStore(adjusted_path, price_view="ADJUSTED")
     source_replay_dates = source.trade_dates(
         start=admission.replay_start,
         end=admission.replay_end,
     )
-    raw_dates = raw_store.trade_dates(
+    admitted_replay_dates = admitted_source.find_trade_dates(
         start=admission.replay_start,
         end=admission.replay_end,
     )
-    adjusted_dates = adjusted_store.trade_dates(
-        start=admission.replay_start,
-        end=admission.replay_end,
-    )
-    if not source_replay_dates or raw_dates != source_replay_dates:
-        raw_store.close()
-        adjusted_store.close()
-        raise ValueError("raw benchmark sessions do not match the governed source")
-    if adjusted_dates != source_replay_dates:
-        raw_store.close()
-        adjusted_store.close()
-        raise ValueError("adjusted benchmark sessions do not match the governed source")
+    if not source_replay_dates or admitted_replay_dates != source_replay_dates:
+        raise ValueError("B2 admitted sessions do not match the governed source")
+    if not identity_rows:
+        raise ValueError("B2 identity-session population is empty")
 
+    identity_frame = pd.DataFrame(identity_rows)
+    manifest = _manifest(identity_frame)
+    liquidity = _liquidity(identity_frame)
+    identity_session_sha256 = _digest_list(sorted(identity_session_keys))
+    output.mkdir(parents=True, exist_ok=True)
+    raw_contract = _store_contract(
+        output / "htr010b2_raw_store_contract.json",
+        price_view="RAW",
+        identity_session_sha256=identity_session_sha256,
+        closure_sha256=str(closure["report_sha256"]),
+        admission_sha256=admission.admission_contract_sha256,
+        input_manifest_sha256=inputs.manifest.manifest_sha256,
+    )
+    adjusted_contract = _store_contract(
+        output / "htr010b2_adjusted_store_contract.json",
+        price_view="ADJUSTED",
+        identity_session_sha256=identity_session_sha256,
+        closure_sha256=str(closure["report_sha256"]),
+        admission_sha256=admission.admission_contract_sha256,
+        input_manifest_sha256=inputs.manifest.manifest_sha256,
+    )
+    canonical_symbols = tuple(sorted(set(admission.admitted_symbols)))
+    raw_store = GovernedBenchmarkStore(
+        path=raw_contract,
+        price_view="RAW",
+        canonical=CanonicalReplayPriceRepository(
+            admitted_source,
+            inputs.identities,
+            inputs.actions,
+        ),
+        manifest=_view_manifest(manifest, "RAW"),
+        liquidity=liquidity,
+        replay_dates=tuple(available_dates),
+        canonical_symbols=canonical_symbols,
+    )
+    adjusted_store = GovernedBenchmarkStore(
+        path=adjusted_contract,
+        price_view="ADJUSTED",
+        canonical=CanonicalReplayPriceRepository(
+            admitted_source,
+            inputs.identities,
+            inputs.actions,
+        ),
+        manifest=_view_manifest(manifest, "ADJUSTED"),
+        liquidity=liquidity,
+        replay_dates=tuple(available_dates),
+        canonical_symbols=canonical_symbols,
+    )
     return GovernedBenchmarkStorePair(
         raw=raw_store,
         adjusted=adjusted_store,
-        identity_session_sha256=_digest_list(sorted(identity_session_keys)),
+        source=source,
+        identity_session_sha256=identity_session_sha256,
         source_replay_dates=source_replay_dates,
-        materialized_replay_dates=raw_dates,
-        canonical_attestation_sha256s=tuple(attestation_sha256s),
         final_closure_report_sha256=str(closure["report_sha256"]),
         admission_contract_sha256=admission.admission_contract_sha256,
         governed_input_manifest_sha256=inputs.manifest.manifest_sha256,
@@ -370,49 +589,36 @@ def _validated_final_closure(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _new_database(path: Path) -> duckdb.DuckDBPyConnection:
-    connection = duckdb.connect(str(path))
-    connection.execute(
-        """
-        CREATE TABLE daily_prices (
-            symbol VARCHAR NOT NULL,
-            trade_date DATE NOT NULL,
-            open DOUBLE NOT NULL,
-            high DOUBLE NOT NULL,
-            low DOUBLE NOT NULL,
-            close DOUBLE NOT NULL,
-            volume DOUBLE NOT NULL,
-            sector VARCHAR,
-            exchange VARCHAR NOT NULL,
-            PRIMARY KEY (symbol, trade_date)
-        )
-        """
-    )
-    return connection
-
-
-def _admitted_source_frame(
+def _canonical_identity_frame(
     frame: pd.DataFrame,
     *,
-    identities: Any,
-    admitted_ids: frozenset[str],
-    trading_date: date,
+    identities: SecurityIdentityTimeline,
 ) -> pd.DataFrame:
-    if frame.empty:
-        return frame.copy()
     rows: list[dict[str, Any]] = []
     for record in cast(list[dict[str, Any]], frame.to_dict("records")):
+        trading_date = _as_date(record.get("trade_date"))
+        if trading_date is None:
+            continue
         identity = identities.resolve(
             str(record.get("symbol") or "").strip().upper(),
             trading_date=trading_date,
             exchange=str(record.get("exchange") or "").strip().upper() or None,
         )
-        if identity is not None and identity.security_id in admitted_ids:
-            rows.append(record)
-    return pd.DataFrame(rows, columns=frame.columns)
+        if identity is None:
+            continue
+        rows.append(
+            {
+                **record,
+                "security_id": identity.security_id,
+                "symbol": identity.symbol,
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 def _price_view(frame: pd.DataFrame, *, adjusted: bool) -> pd.DataFrame:
+    if frame.empty:
+        return pd.DataFrame(columns=_PRICE_COLUMNS)
     rows = frame.copy()
     if not adjusted:
         for column in ("open", "high", "low", "close", "volume"):
@@ -420,30 +626,82 @@ def _price_view(frame: pd.DataFrame, *, adjusted: bool) -> pd.DataFrame:
     return rows.loc[:, _PRICE_COLUMNS].copy()
 
 
-def _assert_view_parity(raw: pd.DataFrame, adjusted: pd.DataFrame) -> None:
-    keys = ("symbol", "trade_date", "exchange")
-    raw_keys = tuple(map(tuple, raw.loc[:, keys].astype(str).to_numpy().tolist()))
-    adjusted_keys = tuple(
-        map(tuple, adjusted.loc[:, keys].astype(str).to_numpy().tolist())
+def _manifest(frame: pd.DataFrame) -> DatasetManifest:
+    dates = tuple(sorted({_as_date(value) for value in frame["trade_date"]}))
+    valid_dates = tuple(item for item in dates if item is not None)
+    if not valid_dates:
+        raise ValueError("B2 manifest has no valid dates")
+    exchanges = ", ".join(
+        sorted({str(item).strip().upper() for item in frame["exchange"]})
     )
-    if raw_keys != adjusted_keys:
-        raise ValueError("raw and adjusted materialized identity-session keys differ")
+    return DatasetManifest(
+        dataset_version="HTR010B2_GOVERNED_BASE_V1",
+        first_session=valid_dates[0],
+        last_session=valid_dates[-1],
+        sessions=len(valid_dates),
+        rows=len(frame),
+        symbols=int(frame["symbol"].nunique()),
+        exchange=exchanges,
+        sector_rows=int(frame["sector"].notna().sum()),
+        confidence=Decimal("1"),
+        labels=("GOVERNED", "HTR-010B2", "PRODUCTION_INFLUENCE=false"),
+    )
 
 
-def _insert_rows(connection: duckdb.DuckDBPyConnection, frame: pd.DataFrame) -> None:
-    connection.register("_htr010b2_rows", frame)
-    try:
-        connection.execute(
-            """
-            INSERT INTO daily_prices
-            SELECT symbol, trade_date, open, high, low, close, volume, sector, exchange
-            FROM _htr010b2_rows
-            """
-        )
-    except duckdb.ConstraintException as error:
-        raise ValueError("B2 materialization produced duplicate symbol/date rows") from error
-    finally:
-        connection.unregister("_htr010b2_rows")
+def _view_manifest(base: DatasetManifest, price_view: str) -> DatasetManifest:
+    return DatasetManifest(
+        dataset_version=f"HTR010B2_GOVERNED_{price_view}_V1",
+        first_session=base.first_session,
+        last_session=base.last_session,
+        sessions=base.sessions,
+        rows=base.rows,
+        symbols=base.symbols,
+        exchange=base.exchange,
+        sector_rows=base.sector_rows,
+        confidence=Decimal("1"),
+        labels=(*base.labels, f"PRICE_VIEW={price_view}"),
+    )
+
+
+def _liquidity(frame: pd.DataFrame) -> pd.DataFrame:
+    rows = frame.copy()
+    rows["turnover"] = rows["close"].astype(float) * rows["volume"].astype(float)
+    grouped = rows.groupby("symbol", sort=True)
+    result = grouped.agg(
+        average_daily_volume=("volume", "mean"),
+        average_daily_turnover=("turnover", "mean"),
+        sessions=("trade_date", "count"),
+        first_session=("trade_date", "min"),
+        last_session=("trade_date", "max"),
+    )
+    return result.reset_index()
+
+
+def _store_contract(
+    path: Path,
+    *,
+    price_view: str,
+    identity_session_sha256: str,
+    closure_sha256: str,
+    admission_sha256: str,
+    input_manifest_sha256: str,
+) -> Path:
+    payload: dict[str, Any] = {
+        "contract_version": HTR010B2_CONTRACT_VERSION,
+        "price_view": price_view,
+        "identity_session_sha256": identity_session_sha256,
+        "final_closure_report_sha256": closure_sha256,
+        "admission_contract_sha256": admission_sha256,
+        "governed_input_manifest_sha256": input_manifest_sha256,
+        "active_replay_integration": False,
+        "production_influence": False,
+    }
+    payload["report_sha256"] = _digest_mapping(payload)
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return path
 
 
 def _integration_report(
@@ -458,9 +716,6 @@ def _integration_report(
     adjusted = _benchmark_summary(adjusted_report)
     parity = {
         "identity_session_sha256": pair.identity_session_sha256,
-        "source_and_materialized_sessions_match": (
-            pair.source_replay_dates == pair.materialized_replay_dates
-        ),
         "session_counts_match": raw["session_count"] == adjusted["session_count"],
         "eligible_security_counts_match": (
             raw["eligible_security_count"] == adjusted["eligible_security_count"]
@@ -470,12 +725,16 @@ def _integration_report(
             == adjusted["eligible_security_observation_count"]
         ),
         "source_contracts_distinct": (
-            raw["dataset_version"] != adjusted["dataset_version"]
+            raw["source_contract_sha256"] != adjusted["source_contract_sha256"]
         ),
     }
-    unexplained = sum(not bool(value) for key, value in parity.items() if key != "identity_session_sha256")
+    unexplained = sum(
+        not bool(value)
+        for key, value in parity.items()
+        if key != "identity_session_sha256"
+    )
     deltas = {
-        key: _number(adjusted.get(key)) - _number(raw.get(key))
+        key: str(_number(adjusted.get(key)) - _number(raw.get(key)))
         for key in (
             "technical_candidate_count",
             "institutional_approval_count",
@@ -492,13 +751,14 @@ def _integration_report(
         "unexplained_divergence_count": unexplained,
         "production_influence": False,
     }
+    attestations = pair.canonical_attestation_sha256s
     report: dict[str, Any] = {
         "contract_version": HTR010B2_CONTRACT_VERSION,
         "final_closure_report_sha256": pair.final_closure_report_sha256,
         "admission_contract_sha256": pair.admission_contract_sha256,
         "governed_input_manifest_sha256": pair.governed_input_manifest_sha256,
-        "canonical_attestation_count": len(pair.canonical_attestation_sha256s),
-        "canonical_attestation_sha256s": list(pair.canonical_attestation_sha256s),
+        "canonical_attestation_count": len(attestations),
+        "canonical_attestation_sha256s": list(attestations),
         "raw_artifact_count": raw_artifact_count,
         "adjusted_artifact_count": adjusted_artifact_count,
         "raw_summary": raw,
@@ -515,9 +775,9 @@ def _integration_report(
 
 def _benchmark_summary(report: BenchmarkReplayReport) -> dict[str, Any]:
     stats = report.portfolio_statistics
-    return {
+    summary: dict[str, Any] = {
         "run_id": report.manifest.run_id,
-        "dataset_version": report.manifest.versions.warehouse_sha256,
+        "source_contract_sha256": report.manifest.versions.warehouse_hash,
         "session_count": report.manifest.sessions,
         "eligible_security_count": report.eligible_securities,
         "eligible_security_observation_count": report.eligible_security_observations,
@@ -528,21 +788,14 @@ def _benchmark_summary(report: BenchmarkReplayReport) -> dict[str, Any]:
             row.institutional_approvals for row in report.candidate_statistics
         ),
         "trade_count": stats.logical_trades,
-        "cagr_percent": stats.cagr_percent,
-        "maximum_drawdown_percent": stats.maximum_drawdown_percent,
-        "expectancy_percent": stats.expectancy_percent,
-        "report_sha256": _digest_mapping(
-            {
-                "run_id": report.manifest.run_id,
-                "input_hash": report.manifest.input_hash,
-                "sessions": report.manifest.sessions,
-                "eligible_securities": report.eligible_securities,
-                "eligible_security_observations": report.eligible_security_observations,
-                "logical_trades": stats.logical_trades,
-                "ending_capital": str(stats.ending_capital),
-            }
+        "cagr_percent": str(stats.cagr_percent),
+        "maximum_drawdown_percent": str(stats.maximum_drawdown_percent),
+        "expectancy_percent": (
+            None if stats.expectancy_percent is None else str(stats.expectancy_percent)
         ),
     }
+    summary["report_sha256"] = _digest_mapping(summary)
+    return summary
 
 
 def _mapping(path: Path) -> dict[str, Any]:
@@ -575,6 +828,15 @@ def _number(value: object) -> Decimal:
     return Decimal(str(value))
 
 
+def _as_date(value: object) -> date | None:
+    if isinstance(value, date):
+        return value
+    if isinstance(value, pd.Timestamp):
+        return value.date()
+    text = str(value or "").strip()
+    return date.fromisoformat(text) if text else None
+
+
 def _markdown(report: dict[str, Any]) -> str:
     comparison = report["comparison"]
     raw = report["raw_summary"]
@@ -603,6 +865,6 @@ __all__ = [
     "GovernedAdjustedBenchmarkResult",
     "GovernedBenchmarkStore",
     "GovernedBenchmarkStorePair",
+    "build_governed_benchmark_stores",
     "export_governed_adjusted_benchmark",
-    "materialize_governed_benchmark_stores",
 ]
