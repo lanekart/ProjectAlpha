@@ -133,7 +133,9 @@ def _compare(raw: dict[str, Any], adjusted: dict[str, Any]) -> dict[str, Any]:
     if adjusted.get("price_view") != "ADJUSTED":
         raise ValueError("adjusted shadow leg must attest ADJUSTED price view")
     if raw.get("source_contract") == adjusted.get("source_contract"):
-        raise ValueError("raw and adjusted shadow legs must use distinct source contracts")
+        raise ValueError(
+            "raw and adjusted shadow legs must use distinct source contracts"
+        )
     metrics = (
         "session_count",
         "eligible_security_count",
