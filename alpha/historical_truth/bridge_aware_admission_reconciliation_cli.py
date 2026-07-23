@@ -13,8 +13,8 @@ from alpha.historical_truth.adjustment_replay_admission_exports import (
 from alpha.historical_truth.adjustment_replay_admission_repair import (
     InputContractError,
 )
-from alpha.historical_truth.bridge_aware_admission_reconciliation import (
-    BridgeAwareAdmissionReconciliationEngine,
+from alpha.historical_truth.bridge_aware_admission_reconciliation_integrity import (
+    BridgeAwareAdmissionReconciliationIntegrityEngine,
 )
 
 
@@ -66,7 +66,7 @@ def bridge_aware_admission_reconcile(
     if end_date < start_date:
         raise typer.BadParameter("must be on or after --start", param_hint="--end")
     try:
-        report = BridgeAwareAdmissionReconciliationEngine().run(
+        report = BridgeAwareAdmissionReconciliationIntegrityEngine().run(
             database_path=database,
             htr010a3_output=htr010a3_output,
             htr010b_output=htr010b_output,
@@ -81,6 +81,10 @@ def bridge_aware_admission_reconcile(
     paths = AdjustmentReplayAdmissionArtifactExporter().export(report, output)
     diagnostics = report.input_contract_diagnostics.get(
         "bridge_aware_admission_reconciliation",
+        {},
+    )
+    interval_diagnostics = report.input_contract_diagnostics.get(
+        "admission_interval_quarantine_augmentation",
         {},
     )
     reconciliation = report.quarantine_population_reconciliation
@@ -102,6 +106,10 @@ def bridge_aware_admission_reconcile(
     print(
         "Implementation defects remaining: "
         f"{diagnostics.get('implementation_defect_count', 0):,}"
+    )
+    print(
+        "Admission interval quarantine rows added: "
+        f"{interval_diagnostics.get('admission_interval_rows_added', 0):,}"
     )
     print(f"Validation outcomes: {readiness.get('validation_outcomes', {})}")
     print(f"Admission states: {readiness.get('admission_state_counts', {})}")
