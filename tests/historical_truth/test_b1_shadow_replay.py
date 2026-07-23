@@ -8,6 +8,7 @@ import json
 import pathlib
 
 import alpha.historical_replay.models as replay_models
+import alpha.historical_truth.b1_shadow_population_cli as population_cli
 import alpha.historical_truth.b1_shadow_replay as shadow_replay
 import alpha.historical_truth.b1_shadow_replay_cli as shadow_replay_cli
 
@@ -141,6 +142,53 @@ def test_shadow_replay_blocks_vacuous_zero_population_parity() -> None:
     assert result.comparison["unexplained_divergence_count"] == 1
 
 
+def test_population_parity_compares_each_session_observation_count() -> None:
+    replay_dates = (
+        datetime.date(2026, 1, 2),
+        datetime.date(2026, 1, 5),
+    )
+    raw = shadow_replay.B1ShadowReplayLegResult(
+        runs=(),
+        replay_dates=replay_dates,
+        eligible_security_count=10,
+        observation_count=0,
+        analysis_scope=shadow_replay.POPULATION_PARITY_SCOPE,
+        session_observation_counts=(
+            (replay_dates[0], 8),
+            (replay_dates[1], 9),
+        ),
+    )
+    adjusted = dataclasses.replace(
+        raw,
+        session_observation_counts=(
+            (replay_dates[0], 8),
+            (replay_dates[1], 8),
+        ),
+    )
+
+    result = shadow_replay.B1ShadowReplayRunner(
+        raw_leg=lambda: raw,
+        adjusted_leg=lambda: adjusted,
+    ).run()
+
+    assert result.raw_summary["eligible_observation_count"] == 17
+    assert result.adjusted_summary["eligible_observation_count"] == 16
+    assert result.comparison["session_observation_counts_match"] is False
+    assert result.comparison["unexplained_divergence_count"] == 1
+
+
+def test_population_parity_requires_counts_for_every_session() -> None:
+    with pytest.raises(ValueError, match="one observation count per replay date"):
+        shadow_replay.B1ShadowReplayLegResult(
+            runs=(),
+            replay_dates=(datetime.date(2026, 1, 2),),
+            eligible_security_count=10,
+            observation_count=0,
+            analysis_scope=shadow_replay.POPULATION_PARITY_SCOPE,
+            session_observation_counts=(),
+        )
+
+
 def test_shadow_cli_uses_verified_historical_truth_boundary() -> None:
     source = inspect.getsource(shadow_replay_cli)
 
@@ -151,3 +199,12 @@ def test_shadow_cli_uses_verified_historical_truth_boundary() -> None:
     assert "GovernedHistoricalObservationFactory" in source
     assert source.count("HistoricalReplayEngine(") == 2
     assert "B1ShadowReplayLegResult" in source
+
+
+def test_fast_population_cli_has_progress_and_skips_candidate_engine() -> None:
+    source = inspect.getsource(population_cli)
+
+    assert "Progress(" in source
+    assert "HistoricalReplayEngine" not in source
+    assert "LearningLedgerRepository" not in source
+    assert "POPULATION_PARITY_SCOPE" in source
