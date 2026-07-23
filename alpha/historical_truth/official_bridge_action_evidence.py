@@ -93,6 +93,8 @@ def match_corporate_action_payload(
     )
     action_rows = tuple(row for row in date_rows if _row_has_action_term(row))
     signatures = {_evidence_signature(row) for row in action_rows}
+    families = tuple(_action_family(row) for row in action_rows)
+    distinct_families = set(families)
 
     if len(action_rows) == 1:
         proved = True
@@ -100,6 +102,13 @@ def match_corporate_action_payload(
     elif len(action_rows) > 1 and len(signatures) == 1:
         proved = True
         state = "ACTION_ROWS_EQUIVALENT_DUPLICATES"
+    elif (
+        len(action_rows) > 1
+        and "UNSUPPORTED" not in distinct_families
+        and len(distinct_families) == len(action_rows)
+    ):
+        proved = True
+        state = "ACTION_ROWS_COMPATIBLE_COMPOUND"
     elif len(action_rows) > 1:
         proved = False
         state = "ACTION_ROWS_CONFLICTING"
@@ -214,6 +223,29 @@ def _row_purpose(row: dict[str, Any]) -> str:
 def _row_has_action_term(row: dict[str, Any]) -> bool:
     purpose = _row_purpose(row)
     return any(term in purpose for term in _ACTION_TERMS)
+
+
+def _action_family(row: dict[str, Any]) -> str:
+    purpose = _row_purpose(row)
+    if "bonus" in purpose:
+        return "BONUS"
+    if any(
+        term in purpose
+        for term in (
+            "stock split",
+            "face value split",
+            "sub-division",
+            "subdivision",
+            "change in face value",
+            "split",
+        )
+    ):
+        return "SPLIT"
+    if "consolidation" in purpose:
+        return "CONSOLIDATION"
+    if "series" in purpose:
+        return "SERIES_CHANGE"
+    return "UNSUPPORTED"
 
 
 def _evidence_signature(row: dict[str, Any]) -> tuple[str, tuple[str, ...], str]:
