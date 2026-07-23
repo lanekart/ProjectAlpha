@@ -34,6 +34,10 @@ factors, raw candles, event boundaries, candidate logic, or production policy.
 - The unchanged `bridge-aware-admission-reconcile` command emits B1E1 artifacts
   after this repair, preserving the existing operator workflow.
 
+## Validation
+
+The milestone is gated on locked Ruff, MyPy, and the complete pytest suite.
+
 ## Governance
 
 - Official factors remain immutable.
