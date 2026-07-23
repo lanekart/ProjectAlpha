@@ -36,6 +36,9 @@ def _historical_truth_app() -> typer.Typer:
     from alpha.historical_truth.official_bridge_document_downloader_cli import (
         official_bridge_document_download,
     )
+    from alpha.historical_truth.official_bridge_evidence_certification_bundle_cli import (
+        official_bridge_evidence_certify_all,
+    )
     from alpha.historical_truth.official_bridge_evidence_population_cli import (
         official_bridge_evidence_populate,
     )
@@ -95,6 +98,10 @@ def _historical_truth_app() -> typer.Typer:
     if "official-bridge-evidence-materialize" not in registered:
         historical_truth_app.command("official-bridge-evidence-materialize")(
             official_bridge_evidence_materialize
+        )
+    if "official-bridge-evidence-certify-all" not in registered:
+        historical_truth_app.command("official-bridge-evidence-certify-all")(
+            official_bridge_evidence_certify_all
         )
     if "official-bridge-complete" not in registered:
         historical_truth_app.command("official-bridge-complete")(
