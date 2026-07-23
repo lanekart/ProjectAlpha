@@ -10,6 +10,9 @@ from typing import Any
 from alpha.historical_truth.adjustment_replay_admission_continuity import (
     tier_a_quarantine_economic_weight,
 )
+from alpha.historical_truth.adjustment_replay_admission_models import (
+    AdjustmentReplayAdmissionReport,
+)
 from alpha.historical_truth.adjustment_replay_admission_repair import (
     HTR010BInputAdapter,
     candle_population,
@@ -38,7 +41,7 @@ class BridgeAwareAdmissionReconciliationIntegrityEngine:
         session_calendar_report: Path,
         start_date: date,
         end_date: date,
-    ):
+    ) -> AdjustmentReplayAdmissionReport:
         base = BridgeAwareAdmissionReconciliationEngine().run(
             database_path=database_path,
             htr010a3_output=htr010a3_output,
