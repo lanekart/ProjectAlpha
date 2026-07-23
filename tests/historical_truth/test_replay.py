@@ -99,6 +99,28 @@ def test_replay_store_is_deterministic(tmp_path: Path) -> None:
     assert first_rows == second_rows
 
 
+def test_replay_store_exposes_exact_trade_dates_and_ranges(tmp_path: Path) -> None:
+    database, snapshot_root = _source(tmp_path)
+
+    with HistoricalTruthReplayStore(
+        database_path=database,
+        snapshot_root=snapshot_root,
+    ) as store:
+        dates = store.find_trade_dates(
+            start=date(2026, 7, 17),
+            end=date(2026, 7, 20),
+        )
+        frame = store.find_range_by_symbols(
+            symbols=("ABC",),
+            start_date=date(2026, 7, 20),
+            end_date=date(2026, 7, 20),
+        )
+
+    assert dates == (date(2026, 7, 17), date(2026, 7, 20))
+    assert frame["trade_date"].tolist() == [date(2026, 7, 20)]
+    assert frame["close"].tolist() == [109.0]
+
+
 def test_replay_store_fails_closed_when_observed_snapshot_is_missing(
     tmp_path: Path,
 ) -> None:
