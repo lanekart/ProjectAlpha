@@ -22,6 +22,10 @@ def _historical_truth_app() -> typer.Typer:
     from alpha.historical_truth.factor_transformation_forensics_cli import (
         factor_transformation_forensics,
     )
+    from alpha.historical_truth.official_bridge_certification_cli import (
+        official_bridge_certify,
+        official_bridge_evidence_manifest,
+    )
     from alpha.historical_truth.session_calendar_extension_cli import (
         session_calendar_extend_certify,
     )
@@ -50,6 +54,14 @@ def _historical_truth_app() -> typer.Typer:
     if "bridge-aware-admission-reconcile" not in registered:
         historical_truth_app.command("bridge-aware-admission-reconcile")(
             bridge_aware_admission_reconcile
+        )
+    if "official-bridge-evidence-manifest" not in registered:
+        historical_truth_app.command("official-bridge-evidence-manifest")(
+            official_bridge_evidence_manifest
+        )
+    if "official-bridge-certify" not in registered:
+        historical_truth_app.command("official-bridge-certify")(
+            official_bridge_certify
         )
     return historical_truth_app
 
