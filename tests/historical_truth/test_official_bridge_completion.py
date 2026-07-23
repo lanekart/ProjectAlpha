@@ -27,6 +27,24 @@ def _case(index: int) -> dict[str, object]:
             "current_series": "BE",
             "factor_quality_confirmed": True,
         }
+
+    if index >= 15:
+        duplicate_index = (index - 15) // 2
+        return {
+            "case_id": f"duplicate-{duplicate_index}-{index % 2}",
+            "htr010b1d2_contract_version": "HTR-010B1D2-v1.0.0",
+            "effective_date": f"2026-02-{duplicate_index + 1:02d}",
+            "bridge_type": "CROSS_ISIN",
+            "bridge_dependency_state": "UNCERTIFIED_CROSS_ISIN",
+            "prior_isin": f"INE200000{duplicate_index:03d}",
+            "current_isin": f"INE300000{duplicate_index:03d}",
+            "prior_symbol": f"DUP{duplicate_index}",
+            "current_symbol": f"DUP{duplicate_index}",
+            "prior_series": "EQ",
+            "current_series": "EQ",
+            "factor_quality_confirmed": True,
+        }
+
     return {
         "case_id": f"cross-isin-{index}",
         "htr010b1d2_contract_version": "HTR-010B1D2-v1.0.0",
@@ -64,16 +82,20 @@ def test_completion_bundle_runs_all_stages_fail_closed(tmp_path: Path) -> None:
 
     assert report["contract_version"] == HTR010B1F_COMPLETION_CONTRACT_VERSION
     assert report["input_bridge_case_count"] == 24
-    assert report["unique_dossier_count"] == 24
-    assert report["pending_official_source_count"] == 24
+    assert report["unique_dossier_count"] == 20
+    assert report["pending_official_source_count"] == 20
     assert report["downloaded_document_count"] == 0
     assert report["verified_official_document_count"] == 0
     assert report["covered_bridge_case_count"] == 0
     assert report["insufficient_official_evidence_count"] == 24
-    assert report["implementation_defect_count"] > 0
+    assert report["implementation_defect_count"] == 0
     assert report["replay_readiness"] == (
         "NOT_READY_FOR_ADJUSTED_REPLAY_INTEGRATION"
     )
+    assert report["readiness_blockers"] == [
+        "INSUFFICIENT_OFFICIAL_BRIDGE_EVIDENCE",
+        "INCOMPLETE_CASE_LEVEL_EVIDENCE_COVERAGE",
+    ]
     assert report["benchmark_replay_count"] == 0
     assert report["adjusted_replay_integration_enabled"] is False
     assert report["production_influence"] is False
