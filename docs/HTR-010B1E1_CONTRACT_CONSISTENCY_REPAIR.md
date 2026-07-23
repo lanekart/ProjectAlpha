@@ -31,6 +31,8 @@ factors, raw candles, event boundaries, candidate logic, or production policy.
 - Residual attribution is recomputed from the final B1E validation rows. The
   original B1C attribution is retained only as pre-reconciliation evidence.
 - `bridge_uncertified_count` and `bridge_uncertified_case_count` must agree.
+- The unchanged `bridge-aware-admission-reconcile` command emits B1E1 artifacts
+  after this repair, preserving the existing operator workflow.
 
 ## Governance
 
