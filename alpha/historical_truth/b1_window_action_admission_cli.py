@@ -33,7 +33,7 @@ def main() -> int:
 
     arguments.output.mkdir(parents=True, exist_ok=True)
     enriched_rejected = arguments.output / "htr010b1h_enriched_rejected_actions.json"
-    _enrich_rejected_actions(
+    orphan_count = _enrich_rejected_actions(
         identities_path=arguments.identities,
         rejected_path=arguments.rejected_actions,
         output_path=enriched_rejected,
@@ -54,6 +54,7 @@ def main() -> int:
     print(f"Identity population: {report['identity_population_count']}")
     print(f"Admitted identities: {report['admitted_identity_count']}")
     print(f"Excluded identities: {report['excluded_identity_count']}")
+    print(f"Orphan material actions: {orphan_count}")
     print(
         "Admitted unresolved actions: "
         f"{report['admitted_unresolved_action_count']}"
@@ -73,7 +74,7 @@ def _enrich_rejected_actions(
     identities_path: Path,
     rejected_path: Path,
     output_path: Path,
-) -> None:
+) -> int:
     identities = _rows(identities_path)
     rejected = _rows(rejected_path)
     by_symbol: dict[str, set[str]] = defaultdict(set)
@@ -85,6 +86,7 @@ def _enrich_rejected_actions(
 
     enriched: list[dict[str, Any]] = []
     ambiguous: list[str] = []
+    orphan_count = 0
     for row in rejected:
         material = bool(row.get("price_adjustment_required"))
         current = str(
@@ -96,12 +98,19 @@ def _enrich_rejected_actions(
         if not current and material:
             symbol = str(row.get("symbol") or "").strip().upper()
             candidates = by_symbol.get(symbol, set())
-            if len(candidates) != 1:
+            if len(candidates) > 1:
                 ambiguous.append(
                     f"{row.get('action_id')}:{symbol}:{','.join(sorted(candidates))}"
                 )
-            else:
+            elif len(candidates) == 1:
                 row = {**row, "security_id": next(iter(candidates))}
+            else:
+                orphan_count += 1
+                row = {
+                    **row,
+                    "security_id": f"orphan:symbol:{symbol}",
+                    "identity_resolution_state": "NO_CANONICAL_IDENTITY_MATCH",
+                }
         enriched.append(row)
     if ambiguous:
         raise ValueError(
@@ -112,6 +121,7 @@ def _enrich_rejected_actions(
         json.dumps(enriched, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    return orphan_count
 
 
 def _rows(path: Path) -> list[dict[str, Any]]:
