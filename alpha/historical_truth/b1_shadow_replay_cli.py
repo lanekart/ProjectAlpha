@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 from datetime import date
 from pathlib import Path
-from typing import cast
 
 from alpha.application.governed_historical_replay_cli import (
     execute_governed_historical_replay,
@@ -16,6 +15,7 @@ from alpha.historical_replay import (
     HistoricalReplayEngine,
     HistoricalReplayRepository,
 )
+from alpha.historical_replay.models import ReplayRunRecord
 from alpha.historical_truth.b1_shadow_replay import B1ShadowReplayRunner
 from alpha.market_truth.consumer_repository import MarketTruthPriceRepository
 
@@ -36,28 +36,25 @@ def main() -> int:
 
     learning_repository = NightlyLearningLoop.from_path().repository
 
-    def raw_leg() -> tuple[object, ...]:
+    def raw_leg() -> tuple[ReplayRunRecord, ...]:
         source = MarketTruthPriceRepository(database_path=arguments.database)
         try:
             build = HistoricalObservationFactory(price_repository=source).build(
                 from_date=arguments.start,
                 to_date=arguments.end,
             )
-            return cast(
-                tuple[object, ...],
-                HistoricalReplayEngine(
-                    replay_repository=HistoricalReplayRepository(),
-                    learning_repository=learning_repository,
-                ).run(
-                    from_date=arguments.start,
-                    to_date=arguments.end,
-                    observations=build.observations,
-                ),
+            return HistoricalReplayEngine(
+                replay_repository=HistoricalReplayRepository(),
+                learning_repository=learning_repository,
+            ).run(
+                from_date=arguments.start,
+                to_date=arguments.end,
+                observations=build.observations,
             )
         finally:
             source.close()
 
-    def adjusted_leg() -> tuple[object, ...]:
+    def adjusted_leg() -> tuple[ReplayRunRecord, ...]:
         run = execute_governed_historical_replay(
             from_date=arguments.start,
             to_date=arguments.end,
@@ -68,11 +65,11 @@ def main() -> int:
             database_path=arguments.database,
             output=arguments.output / "adjusted_governed_replay",
         )
-        return cast(tuple[object, ...], run.replay_runs)
+        return run.replay_runs
 
     result = B1ShadowReplayRunner(
-        raw_leg=cast(object, raw_leg),
-        adjusted_leg=cast(object, adjusted_leg),
+        raw_leg=raw_leg,
+        adjusted_leg=adjusted_leg,
     ).run()
     B1ShadowReplayRunner.export(result, arguments.output)
     report = result.as_dict()
