@@ -19,35 +19,23 @@ jobs:
       - name: Install locked Ruff
         run: pip install ruff==0.15.20
 
-      - name: Apply exact formatting in workspace
-        run: |
-          ruff check \
-            alpha/benchmark_replay/governed_adjusted.py \
-            alpha/benchmark_replay/__init__.py \
-            alpha/application/governed_adjusted_benchmark_cli.py \
-            alpha/application/benchmark_cli.py \
-            tests/benchmark_replay/test_governed_adjusted.py
-          ruff format \
-            alpha/benchmark_replay/governed_adjusted.py \
-            alpha/benchmark_replay/__init__.py \
-            alpha/application/governed_adjusted_benchmark_cli.py \
-            alpha/application/benchmark_cli.py \
-            tests/benchmark_replay/test_governed_adjusted.py
-          ruff format --check \
-            alpha/benchmark_replay/governed_adjusted.py \
-            alpha/benchmark_replay/__init__.py \
-            alpha/application/governed_adjusted_benchmark_cli.py \
-            alpha/application/benchmark_cli.py \
-            tests/benchmark_replay/test_governed_adjusted.py
+      - name: Show Ruff version
+        run: ruff --version
 
-      - name: Upload exact formatted B2 files
+      - name: Run Ruff check
+        run: |
+          set +e
+          ruff check . 2>&1 | tee ruff-check.txt
+          status=${PIPESTATUS[0]}
+          exit "$status"
+
+      - name: Upload Ruff diagnostics
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: htr010b2-ruff-formatted
-          path: |
-            alpha/benchmark_replay/governed_adjusted.py
-            alpha/benchmark_replay/__init__.py
-            alpha/application/governed_adjusted_benchmark_cli.py
-            alpha/application/benchmark_cli.py
-            tests/benchmark_replay/test_governed_adjusted.py
+          name: ruff-diagnostics
+          path: ruff-check.txt
           if-no-files-found: error
+
+      - name: Run Ruff format check
+        run: ruff format --check .
