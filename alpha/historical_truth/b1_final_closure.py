@@ -127,8 +127,7 @@ class B1FinalClosureEngine:
             encoding="utf-8",
         )
         paths[1].write_text(
-            json.dumps(report["rebuilt_validations"], indent=2, sort_keys=True)
-            + "\n",
+            json.dumps(report["rebuilt_validations"], indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
         paths[2].write_text(
@@ -141,8 +140,7 @@ class B1FinalClosureEngine:
             encoding="utf-8",
         )
         paths[3].write_text(
-            json.dumps(report["governed_exclusions"], indent=2, sort_keys=True)
-            + "\n",
+            json.dumps(report["governed_exclusions"], indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
         paths[4].write_text(
@@ -180,15 +178,11 @@ def _rebuild_validations(
                 "factor_basis_compatible": bool(
                     certification.get("factor_basis_compatible")
                 ),
-                "official_evidence_ids": certification.get(
-                    "official_evidence_ids", []
-                ),
+                "official_evidence_ids": certification.get("official_evidence_ids", []),
                 "official_document_sha256": certification.get(
                     "official_document_sha256", []
                 ),
-                "b1g_reconciliation_state": directive.get(
-                    "reconciliation_state"
-                ),
+                "b1g_reconciliation_state": directive.get("reconciliation_state"),
                 "b1_final_state": (
                     "CERTIFIED_FOR_GOVERNED_REBUILD"
                     if certified
@@ -210,9 +204,7 @@ def _rebuild_intervals(
     for case_id, certification in sorted(certifications.items()):
         decision = str(certification.get("continuity_decision") or "")
         certified = decision == _CERTIFIED
-        adjusted = certified and bool(
-            certification.get("adjusted_replay_certified")
-        )
+        adjusted = certified and bool(certification.get("adjusted_replay_certified"))
         state = (
             "ADJUSTED_REPLAY_CANDIDATE_PENDING_SHADOW_VALIDATION"
             if adjusted
@@ -346,7 +338,10 @@ def _contract_contradictions(
         certified = decision == _CERTIFIED
         if case_id not in directive_by_case:
             contradictions.append(f"MISSING_B1G_DIRECTIVE:{case_id}")
-        if bool(validation_by_case.get(case_id, {}).get("bridge_certified_for_replay")) != certified:
+        if (
+            bool(validation_by_case.get(case_id, {}).get("bridge_certified_for_replay"))
+            != certified
+        ):
             contradictions.append(f"VALIDATION_PROPAGATION_MISMATCH:{case_id}")
         interval = interval_by_case.get(case_id, {})
         admitted = str(interval.get("admitted_price_view") or "") not in {"", "NONE"}

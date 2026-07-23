@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 
 from alpha.historical_truth.b1_final_closure import (
-    B1FinalClosureEngine,
     HTR010B1_FINAL_CONTRACT_VERSION,
+    B1FinalClosureEngine,
 )
 
 
@@ -103,9 +103,7 @@ def test_b1_final_closure_rebuilds_and_returns_ready_with_exclusion(
     assert report["production_influence"] is False
     exclusion = report["governed_exclusions"][0]
     assert exclusion["symbol"] == "MCX"
-    assert exclusion["required_admission_state"] == (
-        "BRIDGE_UNCERTIFIED_QUARANTINED"
-    )
+    assert exclusion["required_admission_state"] == ("BRIDGE_UNCERTIFIED_QUARANTINED")
 
 
 def test_b1_final_closure_blocks_without_shadow_replay(tmp_path: Path) -> None:
@@ -124,6 +122,4 @@ def test_b1_final_closure_blocks_without_shadow_replay(tmp_path: Path) -> None:
     )
 
     assert report["final_readiness_decision"] == "BLOCKED_BY_DATA_GAPS"
-    assert report["shadow_replay"]["comparison_state"] == (
-        "NOT_RUN_INPUT_NOT_PROVIDED"
-    )
+    assert report["shadow_replay"]["comparison_state"] == ("NOT_RUN_INPUT_NOT_PROVIDED")
