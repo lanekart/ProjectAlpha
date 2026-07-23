@@ -1,4 +1,4 @@
-"""CLI for HTR-010B1E bridge-aware admission reconciliation."""
+"""CLI for HTR-010B1E1 bridge-aware admission consistency repair."""
 
 from __future__ import annotations
 
@@ -13,8 +13,8 @@ from alpha.historical_truth.adjustment_replay_admission_exports import (
 from alpha.historical_truth.adjustment_replay_admission_repair import (
     InputContractError,
 )
-from alpha.historical_truth.bridge_aware_admission_reconciliation_integrity import (
-    BridgeAwareAdmissionReconciliationIntegrityEngine,
+from alpha.historical_truth.bridge_aware_admission_consistency import (
+    BridgeAwareAdmissionConsistencyEngine,
 )
 
 
@@ -59,14 +59,14 @@ def bridge_aware_admission_reconcile(
         "--output",
     ),
 ) -> None:
-    """Reconcile corrected factor outcomes with explicit bridge quarantine."""
+    """Reconcile corrected outcomes with consistent bridge quarantine reporting."""
 
     start_date = _date(start, "--start")
     end_date = _date(end, "--end")
     if end_date < start_date:
         raise typer.BadParameter("must be on or after --start", param_hint="--end")
     try:
-        report = BridgeAwareAdmissionReconciliationIntegrityEngine().run(
+        report = BridgeAwareAdmissionConsistencyEngine().run(
             database_path=database,
             htr010a3_output=htr010a3_output,
             htr010b_output=htr010b_output,
@@ -83,13 +83,21 @@ def bridge_aware_admission_reconcile(
         "bridge_aware_admission_reconciliation",
         {},
     )
+    consistency = report.input_contract_diagnostics.get(
+        "bridge_aware_admission_consistency",
+        {},
+    )
     interval_diagnostics = report.input_contract_diagnostics.get(
         "admission_interval_quarantine_augmentation",
         {},
     )
+    residual = report.input_contract_diagnostics.get(
+        "residual_factor_attribution",
+        {},
+    )
     reconciliation = report.quarantine_population_reconciliation
     readiness = report.replay_readiness
-    print("HTR-010B1E Bridge-Aware Admission Reconciliation")
+    print("HTR-010B1E1 Bridge-Aware Admission Consistency Repair")
     print(f"Factor validation cases: {len(report.factor_validation_results):,}")
     print(f"Corrected B1D2 cases: {diagnostics.get('corrected_case_count', 0):,}")
     print(
@@ -98,11 +106,19 @@ def bridge_aware_admission_reconcile(
     )
     print(
         "Bridge-uncertified corrected cases: "
-        f"{diagnostics.get('bridge_uncertified_count', 0):,}"
+        f"{readiness.get('bridge_uncertified_case_count', 0):,}"
     )
     print(
         "Implementation defects remaining: "
         f"{diagnostics.get('implementation_defect_count', 0):,}"
+    )
+    print(
+        "Certified factors without validation rows: "
+        f"{consistency.get('certified_unvalidated_factor_count', 0):,}"
+    )
+    print(
+        "Unresolved admission intervals: "
+        f"{consistency.get('unresolved_interval_count', 0):,}"
     )
     print(
         "Admission interval quarantine rows added: "
@@ -111,8 +127,12 @@ def bridge_aware_admission_reconcile(
     print(f"Validation outcomes: {readiness.get('validation_outcomes', {})}")
     print(f"Admission states: {readiness.get('admission_state_counts', {})}")
     print(
+        "Corrected residual attribution: "
+        f"{residual.get('attribution_counts', {})}"
+    )
+    print(
         "Admission-quarantined identities: "
-        f"{reconciliation.get('admission_quarantined_identity_count', 0):,}"
+        f"{readiness.get('admission_quarantined_identity_count', 0):,}"
     )
     print(
         "Observed Tier A row weight quarantined: "
