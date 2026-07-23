@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: write
+  pull-requests: read
+
 jobs:
   ruff:
     runs-on: ubuntu-latest
@@ -39,3 +43,119 @@ jobs:
 
       - name: Run Ruff format check
         run: ruff format --check .
+
+  format-pr38:
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 38 && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Apply verified source wraps
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              'alpha/historical_truth/bridge_aware_admission_reconciliation.py'
+          )
+          text = path.read_text(encoding='utf-8')
+          replacements = {
+              '            raise ValueError(f"invalid proposed validation outcome: {proposed}") from exc\n': (
+                  '            raise ValueError(\n'
+                  '                f"invalid proposed validation outcome: {proposed}"\n'
+                  '            ) from exc\n'
+              ),
+              '        admitted = factor_confirmed and bridge_certified and proposed in _CONFIRMED_OUTCOMES\n': (
+                  '        admitted = (\n'
+                  '            factor_confirmed\n'
+                  '            and bridge_certified\n'
+                  '            and proposed in _CONFIRMED_OUTCOMES\n'
+                  '        )\n'
+              ),
+              '                any(row.get("bridge_certified_for_replay") is False for row in preceding)\n': (
+                  '                any(\n'
+                  '                    row.get("bridge_certified_for_replay") is False\n'
+                  '                    for row in preceding\n'
+                  '                )\n'
+              ),
+              '    if states <= CERTIFIED_FACTOR_STATES and outcomes and outcomes <= _CONFIRMED_OUTCOMES:\n': (
+                  '    if (\n'
+                  '        states <= CERTIFIED_FACTOR_STATES\n'
+                  '        and outcomes\n'
+                  '        and outcomes <= _CONFIRMED_OUTCOMES\n'
+                  '    ):\n'
+              ),
+          }
+          for old, new in replacements.items():
+              assert old in text, old
+              text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+
+          test_path = Path(
+              'tests/historical_truth/test_bridge_aware_admission_reconciliation.py'
+          )
+          test_text = test_path.read_text(encoding='utf-8')
+          replacements = {
+              '            "admission_state": AdmissionState.RAW_REPLAY_CERTIFIED_POST_EVENT_SEGMENT.value,\n': (
+                  '            "admission_state": (\n'
+                  '                AdmissionState.RAW_REPLAY_CERTIFIED_POST_EVENT_SEGMENT.value\n'
+                  '            ),\n'
+              ),
+              '    interval_row = next(row for row in rows if row.get("source") == "REPLAY_ADMISSION_INTERVAL")\n': (
+                  '    interval_row = next(\n'
+                  '        row\n'
+                  '        for row in rows\n'
+                  '        if row.get("source") == "REPLAY_ADMISSION_INTERVAL"\n'
+                  '    )\n'
+              ),
+          }
+          for old, new in replacements.items():
+              assert old in test_text, old
+              test_text = test_text.replace(old, new, 1)
+          test_path.write_text(test_text, encoding='utf-8')
+          PY
+
+      - name: Format and commit PR38
+        run: |
+          pip install ruff==0.15.20
+          ruff check \
+            alpha/__main__.py \
+            alpha/historical_truth/adjustment_replay_admission_models.py \
+            alpha/historical_truth/bridge_aware_admission_quarantine.py \
+            alpha/historical_truth/bridge_aware_admission_reconciliation.py \
+            alpha/historical_truth/bridge_aware_admission_reconciliation_cli.py \
+            alpha/historical_truth/bridge_aware_admission_reconciliation_integrity.py \
+            tests/historical_truth/test_bridge_aware_admission_reconciliation.py \
+            --fix
+          ruff format \
+            alpha/__main__.py \
+            alpha/historical_truth/adjustment_replay_admission_models.py \
+            alpha/historical_truth/bridge_aware_admission_quarantine.py \
+            alpha/historical_truth/bridge_aware_admission_reconciliation.py \
+            alpha/historical_truth/bridge_aware_admission_reconciliation_cli.py \
+            alpha/historical_truth/bridge_aware_admission_reconciliation_integrity.py \
+            tests/historical_truth/test_bridge_aware_admission_reconciliation.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            alpha/__main__.py \
+            alpha/historical_truth/adjustment_replay_admission_models.py \
+            alpha/historical_truth/bridge_aware_admission_quarantine.py \
+            alpha/historical_truth/bridge_aware_admission_reconciliation.py \
+            alpha/historical_truth/bridge_aware_admission_reconciliation_cli.py \
+            alpha/historical_truth/bridge_aware_admission_reconciliation_integrity.py \
+            tests/historical_truth/test_bridge_aware_admission_reconciliation.py
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'Format HTR-010B1E admission reconciliation'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
