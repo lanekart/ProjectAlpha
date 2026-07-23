@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 
+from alpha.historical_replay.models import ReplayRunRecord
 from alpha.historical_truth.b1_shadow_replay import (
     B1ShadowReplayRunner,
     HTR010B1_SHADOW_CONTRACT_VERSION,
@@ -63,3 +65,33 @@ def test_shadow_replay_flags_session_and_universe_divergence() -> None:
     assert result.comparison["unexplained_divergence_count"] == 2
     assert result.comparison["metric_deltas"]["session_count"] == -1
     assert result.comparison["metric_deltas"]["eligible_security_count"] == -1
+
+
+def test_shadow_replay_accepts_real_frozen_replay_run_records() -> None:
+    replay_run = ReplayRunRecord(
+        replay_run_id="run-1",
+        replay_date=date(2026, 1, 2),
+        symbols_scanned=10,
+        candidates_stored=2,
+        emitted_decisions=1,
+        approved_recommendations=1,
+        market_regime="BULL",
+        long_trade_permission=True,
+        data_cutoff_date=date(2026, 1, 2),
+        outcome_windows_available=("1D",),
+        data_gaps=0,
+        runtime_seconds=Decimal("0.10"),
+        created_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+    )
+
+    def replay_leg() -> tuple[ReplayRunRecord, ...]:
+        return (replay_run,)
+
+    result = B1ShadowReplayRunner(
+        raw_leg=replay_leg,
+        adjusted_leg=replay_leg,
+    ).run()
+
+    assert result.raw_summary["session_count"] == 1
+    assert result.raw_summary["eligible_security_count"] == 10
+    assert result.adjusted_summary["institutional_approval_count"] == 1
