@@ -85,8 +85,8 @@ class B1CanonicalActionMaterializer:
                 identity_path=identity_path,
                 corporate_action_path=timeline_path,
             )
-            identity_count = len(inputs.identities)
-            action_count = len(inputs.actions)
+            identity_count = len(inputs.identities.records)
+            action_count = len(inputs.actions.events)
             manifest_sha256 = inputs.manifest.manifest_sha256
         except (FileNotFoundError, ValueError, TypeError, KeyError) as error:
             loader_error = str(error)
