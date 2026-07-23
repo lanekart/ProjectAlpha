@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import datetime as dt
 import json
 from dataclasses import dataclass
-from datetime import date, datetime, UTC
 from decimal import Decimal
 from pathlib import Path
 
@@ -15,7 +15,7 @@ from alpha.historical_truth.b1_shadow_replay import (
 
 @dataclass(frozen=True)
 class _Run:
-    replay_date: date
+    replay_date: dt.date
     symbols_scanned: int
     candidates_stored: int
     emitted_decisions: int
@@ -25,8 +25,8 @@ class _Run:
 
 def _runs(*, symbols: int = 10, candidates: int = 2) -> tuple[_Run, ...]:
     return (
-        _Run(date(2026, 1, 2), symbols, candidates, 1, 0, 0),
-        _Run(date(2026, 1, 5), symbols, candidates, 1, 1, 0),
+        _Run(dt.date(2026, 1, 2), symbols, candidates, 1, 0, 0),
+        _Run(dt.date(2026, 1, 5), symbols, candidates, 1, 1, 0),
     )
 
 
@@ -55,7 +55,7 @@ def test_shadow_replay_accepts_equal_metrics_from_distinct_sources(
 
 def test_shadow_replay_flags_session_and_universe_divergence() -> None:
     raw = _runs(symbols=10)
-    adjusted = (_Run(date(2026, 1, 2), 9, 2, 1, 0, 0),)
+    adjusted = (_Run(dt.date(2026, 1, 2), 9, 2, 1, 0, 0),)
 
     result = B1ShadowReplayRunner(
         raw_leg=lambda: raw,
@@ -70,18 +70,18 @@ def test_shadow_replay_flags_session_and_universe_divergence() -> None:
 def test_shadow_replay_accepts_real_frozen_replay_run_records() -> None:
     replay_run = ReplayRunRecord(
         replay_run_id="run-1",
-        replay_date=date(2026, 1, 2),
+        replay_date=dt.date(2026, 1, 2),
         symbols_scanned=10,
         candidates_stored=2,
         emitted_decisions=1,
         approved_recommendations=1,
         market_regime="BULL",
         long_trade_permission=True,
-        data_cutoff_date=date(2026, 1, 2),
+        data_cutoff_date=dt.date(2026, 1, 2),
         outcome_windows_available=("1D",),
         data_gaps=0,
         runtime_seconds=Decimal("0.10"),
-        created_at=datetime(2026, 1, 2, tzinfo=UTC),
+        created_at=dt.datetime(2026, 1, 2, tzinfo=dt.UTC),
     )
 
     def replay_leg() -> tuple[ReplayRunRecord, ...]:
