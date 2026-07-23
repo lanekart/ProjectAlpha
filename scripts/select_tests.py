@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -28,22 +29,57 @@ _SUBSYSTEMS = {
     "research": "tests/research",
     "trading_signals": "tests/trading_signals",
 }
+_FALLBACK_BASES = (
+    "origin/HEAD",
+    "origin/main",
+    "origin/master",
+    "origin/feature/recovery-foundation-v1",
+    "HEAD^",
+)
 
 
-def _git_lines(*args: str) -> tuple[str, ...]:
+def _git_lines(*args: str, check: bool = True) -> tuple[str, ...]:
     result = subprocess.run(
         ["git", *args],
-        check=True,
+        check=check,
         capture_output=True,
         text=True,
     )
+    if result.returncode != 0:
+        return ()
     return tuple(line.strip() for line in result.stdout.splitlines() if line.strip())
 
 
-def changed_files(base: str) -> tuple[str, ...]:
-    tracked = _git_lines("diff", "--name-only", f"{base}...HEAD")
-    staged = _git_lines("diff", "--name-only", "--cached")
-    unstaged = _git_lines("diff", "--name-only")
+def _ref_exists(ref: str) -> bool:
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", ref],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0
+
+
+def resolve_base(explicit_base: str | None) -> str | None:
+    candidates = (
+        explicit_base,
+        os.environ.get("TEST_BASE"),
+        *_FALLBACK_BASES,
+    )
+    for candidate in candidates:
+        if candidate and _ref_exists(candidate):
+            return candidate
+    return None
+
+
+def changed_files(base: str | None) -> tuple[str, ...]:
+    tracked = (
+        _git_lines("diff", "--name-only", f"{base}...HEAD", check=False)
+        if base
+        else ()
+    )
+    staged = _git_lines("diff", "--name-only", "--cached", check=False)
+    unstaged = _git_lines("diff", "--name-only", check=False)
     return tuple(sorted(set((*tracked, *staged, *unstaged))))
 
 
@@ -84,11 +120,17 @@ def select_targets(paths: tuple[str, ...]) -> tuple[str, ...]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base", default="origin/main")
+    parser.add_argument("--base")
     parser.add_argument("--run", action="store_true")
     arguments = parser.parse_args()
 
-    targets = select_targets(changed_files(arguments.base))
+    base = resolve_base(arguments.base)
+    if base is None:
+        print("No valid comparison base found; selecting the full test suite.")
+    else:
+        print(f"Comparison base: {base}")
+
+    targets = select_targets(changed_files(base))
     print("Selected pytest targets:")
     for target in targets:
         print(f"  {target}")
