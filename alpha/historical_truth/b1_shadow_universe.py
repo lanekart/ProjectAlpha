@@ -11,7 +11,10 @@ from typing import Any
 
 import pandas as pd
 
-from alpha.recovery.security_timeline import SecurityIdentityTimeline
+from alpha.recovery.security_timeline import (
+    SecurityIdentityTimeline,
+    normalize_source_security_id,
+)
 
 HTR010B1H_CONTRACT_VERSION = "HTR-010B1H-v1.0.0"
 
@@ -265,26 +268,42 @@ class B1IdentityFilteredPriceRepository:
         keep: list[bool] = []
         for row in frame.itertuples(index=False):
             symbol = str(getattr(row, "symbol")).strip().upper()
-            if symbol not in self._source_symbol_set:
-                keep.append(False)
-                continue
-            raw_date = getattr(row, "trade_date")
-            trading_date = pd.Timestamp(raw_date).date()
             raw_exchange = getattr(row, "exchange", None)
             exchange = (
                 str(raw_exchange).strip().upper()
                 if raw_exchange is not None and str(raw_exchange).strip()
                 else None
             )
-            resolved = self.identities.resolve(
+            direct_id = normalize_source_security_id(
+                security_id=_optional_tuple_text(row, "security_id"),
+                isin=_optional_tuple_text(row, "isin"),
+                exchange=exchange,
+            )
+            if direct_id is not None and direct_id not in self._security_id_set:
+                keep.append(False)
+                continue
+            if direct_id is None and symbol not in self._source_symbol_set:
+                keep.append(False)
+                continue
+
+            trading_date = pd.Timestamp(getattr(row, "trade_date")).date()
+            resolved = self.identities.resolve_source_identity(
                 symbol,
                 trading_date=trading_date,
                 exchange=exchange,
+                security_id=direct_id,
+                isin=_optional_tuple_text(row, "isin"),
             )
             if resolved is None:
+                rendered_id = direct_id or "NO_SOURCE_SECURITY_ID"
                 raise ValueError(
-                    "admitted source symbol is unresolved at point in time: "
-                    f"{symbol} on {trading_date.isoformat()}"
+                    "admitted source identity is unresolved: "
+                    f"{rendered_id} {symbol} on {trading_date.isoformat()}"
+                )
+            if direct_id is not None and resolved.security_id != direct_id:
+                raise ValueError(
+                    "source stable identity disagrees with canonical timeline: "
+                    f"{direct_id} != {resolved.security_id}"
                 )
             keep.append(resolved.security_id in self._security_id_set)
         return frame.loc[keep].copy()
@@ -389,6 +408,14 @@ class B1UniverseFilteredPriceRepository:
         return frame.loc[normalized.isin(self._symbol_set)].copy()
 
 
+def _optional_tuple_text(row: object, field: str) -> str | None:
+    value = getattr(row, field, None)
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 def _mapping(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
@@ -442,6 +469,9 @@ def _empty_price_frame() -> pd.DataFrame:
             "low",
             "close",
             "volume",
+            "exchange",
+            "security_id",
+            "isin",
         )
     )
 
