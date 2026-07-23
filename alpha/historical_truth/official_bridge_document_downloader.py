@@ -213,9 +213,8 @@ def _resolved_request_url(row: dict[str, Any], source_url: str) -> str:
         "from_date": (effective - timedelta(days=10)).strftime("%d-%m-%Y"),
         "to_date": (effective + timedelta(days=10)).strftime("%d-%m-%Y"),
     }
-    return (
-        "https://www.nseindia.com/api/corporates-corporateActions?"
-        + urlencode(parameters)
+    return "https://www.nseindia.com/api/corporates-corporateActions?" + urlencode(
+        parameters
     )
 
 

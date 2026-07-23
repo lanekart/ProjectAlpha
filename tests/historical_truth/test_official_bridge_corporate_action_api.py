@@ -36,14 +36,17 @@ def test_existing_action_api_url_is_not_rewritten() -> None:
         "index=equities&symbol=MCX&from_date=01-01-2026&to_date=10-01-2026"
     )
 
-    assert _resolved_request_url(
-        {
-            "evidence_role": "CORPORATE_ACTION",
-            "post_symbol": "MCX",
-            "effective_date": "2026-01-02",
-        },
-        source,
-    ) == source
+    assert (
+        _resolved_request_url(
+            {
+                "evidence_role": "CORPORATE_ACTION",
+                "post_symbol": "MCX",
+                "effective_date": "2026-01-02",
+            },
+            source,
+        )
+        == source
+    )
 
 
 def test_action_api_is_structurally_valid_only_with_required_parameters() -> None:

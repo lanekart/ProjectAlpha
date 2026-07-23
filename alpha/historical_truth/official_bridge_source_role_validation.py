@@ -50,9 +50,7 @@ def validate_source_role_url(role: str, source_url: str) -> tuple[bool, str]:
         and bool(query.get("from_date"))
         and bool(query.get("to_date"))
     )
-    is_generic_actions = path.startswith(
-        "/companies-listing/corporate-filings-actions"
-    )
+    is_generic_actions = path.startswith("/companies-listing/corporate-filings-actions")
 
     if normalized_role == "CORPORATE_ACTION":
         if is_generic_actions:
