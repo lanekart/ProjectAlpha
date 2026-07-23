@@ -1,4 +1,4 @@
-"""CLI for HTR-010B1E1 bridge-aware admission consistency repair."""
+"""CLI for HTR-010B1E2 final admission state propagation repair."""
 
 from __future__ import annotations
 
@@ -13,8 +13,8 @@ from alpha.historical_truth.adjustment_replay_admission_exports import (
 from alpha.historical_truth.adjustment_replay_admission_repair import (
     InputContractError,
 )
-from alpha.historical_truth.bridge_aware_admission_consistency import (
-    BridgeAwareAdmissionConsistencyEngine,
+from alpha.historical_truth.bridge_aware_admission_state_propagation import (
+    BridgeAwareAdmissionStatePropagationEngine,
 )
 
 
@@ -55,18 +55,18 @@ def bridge_aware_admission_reconcile(
     start: str = typer.Option("2026-01-01", "--start"),
     end: str = typer.Option("2026-07-20", "--end"),
     output: Path = typer.Option(
-        Path("artifacts/htr010b1e_bridge_aware_admission_reconciliation_2026"),
+        Path("artifacts/htr010b1e2_final_admission_state_propagation_2026"),
         "--output",
     ),
 ) -> None:
-    """Reconcile corrected outcomes with consistent bridge quarantine reporting."""
+    """Repair final admission state propagation without enabling replay."""
 
     start_date = _date(start, "--start")
     end_date = _date(end, "--end")
     if end_date < start_date:
         raise typer.BadParameter("must be on or after --start", param_hint="--end")
     try:
-        report = BridgeAwareAdmissionConsistencyEngine().run(
+        report = BridgeAwareAdmissionStatePropagationEngine().run(
             database_path=database,
             htr010a3_output=htr010a3_output,
             htr010b_output=htr010b_output,
@@ -80,20 +80,18 @@ def bridge_aware_admission_reconcile(
 
     paths = AdjustmentReplayAdmissionArtifactExporter().export(report, output)
     diagnostics = report.input_contract_diagnostics.get(
-        "bridge_aware_admission_reconciliation",
-        {},
+        "bridge_aware_admission_reconciliation", {}
     )
     consistency = report.input_contract_diagnostics.get(
-        "bridge_aware_admission_consistency",
-        {},
+        "bridge_aware_admission_consistency", {}
     )
     residual = report.input_contract_diagnostics.get(
-        "residual_factor_attribution",
-        {},
+        "residual_factor_attribution", {}
     )
     reconciliation = report.quarantine_population_reconciliation
     readiness = report.replay_readiness
-    print("HTR-010B1E1 Bridge-Aware Admission Consistency Repair")
+    print("HTR-010B1E2 Final Admission State Propagation Repair")
+    print(f"Contract: {report.contract_version}")
     print(f"Factor validation cases: {len(report.factor_validation_results):,}")
     print(f"Corrected B1D2 cases: {diagnostics.get('corrected_case_count', 0):,}")
     print(
@@ -106,15 +104,19 @@ def bridge_aware_admission_reconcile(
     )
     print(
         "Implementation defects remaining: "
-        f"{diagnostics.get('implementation_defect_count', 0):,}"
+        f"{readiness.get('implementation_defect_count', 0):,}"
     )
     print(
-        "Certified factors without validation rows: "
-        f"{consistency.get('certified_unvalidated_factor_count', 0):,}"
+        "Missing validation outcomes normalized: "
+        f"{consistency.get('validation_missing_outcome_row_count', 0):,}"
     )
     print(
-        "Unresolved admission intervals: "
-        f"{consistency.get('unresolved_interval_count', 0):,}"
+        "String missing outcomes normalized: "
+        f"{consistency.get('validation_string_missing_outcome_row_count', 0):,}"
+    )
+    print(
+        "Final unresolved admission intervals: "
+        f"{consistency.get('final_unresolved_interval_count', 0):,}"
     )
     print(
         "Consistency quarantine rows: "
