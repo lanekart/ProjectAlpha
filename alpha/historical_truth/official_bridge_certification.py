@@ -79,6 +79,12 @@ class OfficialBridgeCertificationEngine:
             "conflicting_official_evidence_count": decisions[
                 BridgeCertificationDecision.CONFLICTING_OFFICIAL_EVIDENCE.value
             ],
+            "adjusted_replay_certified_case_count": sum(
+                bool(row.get("adjusted_replay_certified")) for row in certifications
+            ),
+            "adjusted_replay_uncertified_case_count": sum(
+                not bool(row.get("adjusted_replay_certified")) for row in certifications
+            ),
             "unclassified_bridge_case_count": sum(
                 not str(row.get("continuity_decision") or "") for row in certifications
             ),
@@ -106,12 +112,31 @@ class OfficialBridgeCertificationEngine:
         report_json = output / "htr010b1f_official_bridge_certification.json"
         cases_json = output / "htr010b1f_bridge_certifications.json"
         cases_csv = output / "htr010b1f_bridge_certifications.csv"
+        unresolved_json = output / "htr010b1f_unresolved_official_evidence.json"
         markdown = output / "htr010b1f_executive_report.md"
-        report_json.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
-        cases_json.write_text(json.dumps(list(cases), indent=2, sort_keys=True) + "\n")
+        report_json.write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        cases_json.write_text(
+            json.dumps(list(cases), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        unresolved = tuple(
+            row
+            for row in cases
+            if row.get("continuity_decision")
+            in {
+                BridgeCertificationDecision.INSUFFICIENT_OFFICIAL_EVIDENCE.value,
+                BridgeCertificationDecision.CONFLICTING_OFFICIAL_EVIDENCE.value,
+            }
+        )
+        unresolved_json.write_text(
+            json.dumps(list(unresolved), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
         _write_csv(cases_csv, cases)
-        markdown.write_text(_markdown(executive))
-        return report_json, cases_json, cases_csv, markdown
+        markdown.write_text(_markdown(executive), encoding="utf-8")
+        return report_json, cases_json, cases_csv, unresolved_json, markdown
 
 
 def _certify_case(
@@ -143,14 +168,17 @@ def _certify_case(
         BridgeCertificationDecision.CERTIFIED_CONTINUOUS_IDENTITY
     )
     tradability_continuity = identity_continuity and bool(
-        official and all(bool(row.get("tradability_continuity_certified")) for row in official)
+        official
+        and all(bool(row.get("tradability_continuity_certified")) for row in official)
     )
     price_series_continuity = identity_continuity and bool(
-        official and all(bool(row.get("price_series_continuity_certified")) for row in official)
+        official
+        and all(bool(row.get("price_series_continuity_certified")) for row in official)
     )
     adjusted_replay_certified = (
         identity_continuity
         and price_series_continuity
+        and bool(case.get("factor_quality_confirmed"))
         and (bridge_type != "CROSS_SERIES" or tradability_continuity)
     )
 
@@ -179,6 +207,9 @@ def _certify_case(
         ),
         "official_document_dates": sorted(
             {str(row.get("document_date") or "") for row in official}
+        ),
+        "official_document_sha256": sorted(
+            {str(row.get("source_sha256") or "") for row in official}
         ),
         "continuity_decision": decision.value,
         "continuity_reason": reason,
@@ -209,6 +240,9 @@ def _evidence_matches(
 ) -> bool:
     if effective_date is None:
         return False
+    evidence_case_id = str(row.get("bridge_case_id") or "")
+    if evidence_case_id and evidence_case_id != str(case.get("case_id") or ""):
+        return False
     evidence_date = _as_date(row.get("effective_date"))
     if evidence_date != effective_date:
         return False
@@ -234,11 +268,14 @@ def _evidence_matches(
 
 
 def _is_official(row: dict[str, Any]) -> bool:
+    digest = str(row.get("source_sha256") or "").lower()
     return (
         str(row.get("source_class") or "") in _OFFICIAL_SOURCE_CLASSES
         and bool(row.get("document_id"))
         and _as_date(row.get("document_date")) is not None
-        and bool(row.get("source_sha256"))
+        and len(digest) == 64
+        and all(character in "0123456789abcdef" for character in digest)
+        and row.get("production_influence") is not True
     )
 
 
@@ -272,6 +309,10 @@ def _implementation_defects(cases: tuple[dict[str, Any], ...]) -> list[str]:
         defects.append("UNCLASSIFIED_BRIDGE_CASE")
     if any(row.get("continuity_assumed_without_official_evidence") for row in cases):
         defects.append("SILENT_IDENTITY_ASSUMPTION")
+    if any(row.get("benchmark_replay_count") != 0 for row in cases):
+        defects.append("BENCHMARK_REPLAY_INFLUENCE_DETECTED")
+    if any(row.get("production_influence") is not False for row in cases):
+        defects.append("PRODUCTION_INFLUENCE_DETECTED")
     return defects
 
 
