@@ -15,97 +15,54 @@ The milestone does not modify corporate-action factors, run a benchmark replay, 
 
 - Certification contract: `HTR-010B1F-v1.0.0`
 - Evidence-manifest contract: `HTR-010B1F-EVIDENCE-v1.0.0`
+- Unique-dossier contract: `HTR-010B1F-DOSSIER-v1.0.0`
+- Acquisition contract: `HTR-010B1F-ACQUISITION-v1.0.0`
 - Upstream case contract: `HTR-010B1D2-v1.0.0`
 
 ## Decision states
 
-Every bridge case must receive exactly one decision:
+Every bridge case must end in exactly one state:
 
 - `CERTIFIED_CONTINUOUS_IDENTITY`
 - `CERTIFIED_NONCONTINUOUS_IDENTITY`
 - `INSUFFICIENT_OFFICIAL_EVIDENCE`
 - `CONFLICTING_OFFICIAL_EVIDENCE`
 
-There is no implicit continuity state.
+No case may be silently assumed continuous.
 
-## Official evidence hierarchy
+## Evidence flow
 
-The engine accepts only evidence classified as one of:
+The evidence lifecycle is deliberately split into four stages:
 
-1. NSE security master.
-2. NSE symbol-change notice.
-3. NSE corporate-action notice.
-4. NSE scheme-of-arrangement notice.
-5. NSE listing notice.
-6. NSE suspension or relisting notice.
-7. NSE delisting notice.
-8. NSE issuer filing.
-9. BSE official notice.
-10. Depository official record.
-11. SEBI official order.
+1. The 24 immutable bridge cases are exported as evidence requests.
+2. Duplicate document searches are collapsed into 20 unique dossiers while retaining all case IDs.
+3. Official URLs are staged as discoveries, but URL discovery alone is never admissible evidence.
+4. Downloaded document bytes are hashed and verified before an admissible evidence file is produced.
 
-Every accepted evidence row must include:
+Only records in `htr010b1f_admissible_official_evidence.json` may be supplied to the certification engine.
 
-- bridge case ID;
-- official source class;
-- official document ID;
-- official document date;
-- effective date;
-- valid hexadecimal SHA-256 provenance;
-- predecessor and successor identity fields;
-- explicit continuity conclusions.
+A discovery remains fail-closed when:
 
-Price similarity, ticker similarity, company-name similarity, ATR-gap restoration, and factor performance are not certification evidence.
+- the source class is not approved;
+- the dossier ID is unknown;
+- the URL is not HTTPS;
+- document ID or document date is missing;
+- the downloaded file is absent;
+- or the expected and actual SHA-256 hashes disagree.
 
-## Evidence record schema
+## Continuity dimensions
 
-Each evidence row is expected to contain:
+B1F treats the following as separate claims:
 
-```text
-bridge_case_id
-evidence_id
-source_class
-document_id
-document_date
-effective_date
-source_url
-source_sha256
-pre_isin
-post_isin
-pre_symbol
-post_symbol
-pre_series
-post_series
-identity_continuity_certified
-price_series_continuity_certified
-tradability_continuity_certified
-official_evidence_excerpt
-review_notes
-production_influence
-```
+- identity continuity;
+- price-series continuity;
+- tradability continuity;
+- factor-basis compatibility;
+- adjusted-replay eligibility.
 
-Evidence carrying a bridge-case ID cannot certify a different case. Evidence without a bridge-case ID must still match the exact effective date and predecessor/successor identity pair.
+Cross-series adjusted replay requires all of them, including explicit tradability continuity.
 
-## Cross-ISIN rules
-
-A cross-ISIN bridge is certified only when official effective-dated evidence explicitly links the predecessor and successor identities.
-
-Certification of identity continuity does not by itself prove price-series continuity. Adjusted-replay certification additionally requires official price-series continuity and an independently confirmed factor basis from B1D2.
-
-## Cross-series rules
-
-The KOTYARK `EQ → BE` case separates four questions:
-
-1. Is the economic identity continuous?
-2. Is the price series comparable across the boundary?
-3. Is tradability continuous across the series transition?
-4. Is adjusted replay eligible across the boundary?
-
-Cross-series adjusted-replay eligibility requires all three continuity dimensions and a confirmed factor basis. An identity-continuous but tradability-discontinuous transition remains replay-ineligible and should be segmented in the later reconciliation milestone.
-
-## CLI
-
-Build the fixed 24-case acquisition manifest:
+## CLI workflow
 
 ```bash
 poetry run python -m alpha historical-truth \
@@ -114,69 +71,43 @@ poetry run python -m alpha historical-truth \
   --output artifacts/htr010b1f_official_bridge_evidence_manifest_2026
 ```
 
-The manifest command writes:
-
-- `htr010b1f_evidence_manifest.json`
-- `htr010b1f_evidence_requests.json`
-- `htr010b1f_evidence_requests.csv`
-- `htr010b1f_official_evidence_template.json`
-- `htr010b1f_evidence_manifest.md`
-
-Run certification with no evidence to verify deterministic fail-closed behavior:
-
 ```bash
 poetry run python -m alpha historical-truth \
-  official-bridge-certify \
-  --htr010b1d2-output artifacts/htr010b1d2_bridge_aware_validation_repair_2026 \
-  --start 2026-01-01 \
-  --end 2026-07-20 \
-  --output artifacts/htr010b1f_official_bridge_certification_no_evidence_2026
+  official-bridge-evidence-dossiers \
+  --evidence-manifest-output artifacts/htr010b1f_official_bridge_evidence_manifest_2026 \
+  --output artifacts/htr010b1f_official_bridge_evidence_dossiers_2026
 ```
 
-Run certification after governed official evidence is populated:
+```bash
+poetry run python -m alpha historical-truth \
+  official-bridge-evidence-acquire \
+  --dossiers artifacts/htr010b1f_official_bridge_evidence_dossiers_2026/htr010b1f_evidence_dossiers.json \
+  --discoveries artifacts/htr010b1f_official_bridge_discoveries_2026.json \
+  --downloaded-documents-root alpha_data/evidence/htr010b1f \
+  --output artifacts/htr010b1f_official_bridge_evidence_acquisition_2026
+```
 
 ```bash
 poetry run python -m alpha historical-truth \
   official-bridge-certify \
   --htr010b1d2-output artifacts/htr010b1d2_bridge_aware_validation_repair_2026 \
-  --official-evidence artifacts/htr010b1f_official_bridge_evidence.json \
+  --official-evidence artifacts/htr010b1f_official_bridge_evidence_acquisition_2026/htr010b1f_admissible_official_evidence.json \
   --start 2026-01-01 \
   --end 2026-07-20 \
   --output artifacts/htr010b1f_official_bridge_certification_2026
 ```
 
-Certification writes a separate unresolved-evidence artifact so missing and conflicting official evidence remain actionable without being hidden.
-
 ## Acceptance invariants
 
-```text
-contract_version = HTR-010B1F-v1.0.0
-input_bridge_case_count = 24
-cross_isin_case_count = 23
-cross_series_case_count = 1
-unclassified_bridge_case_count = 0
-silent_identity_assumption_count = 0
-implementation_defect_count = 0
-benchmark_replay_count = 0
-production_influence = false
-```
+- Input bridge cases: 24
+- Cross-ISIN cases: 23
+- Cross-series cases: 1
+- Unique evidence dossiers: 20
+- Multi-case dossiers: 4
+- Unclassified cases: 0
+- Silent identity assumptions: 0
+- Implementation defects: 0
+- Benchmark replays: 0
+- Production influence: false
 
-Every case must remain explicit even when official evidence is unavailable.
-
-## Non-goals
-
-- No factor-formula changes.
-- No market-derived factor autocorrection.
-- No bridge certification from price behavior.
-- No benchmark replay.
-- No adjusted replay integration.
-- No approval-policy change.
-- No production-policy change.
-
-## Expected next milestone
-
-`HTR-010B1G — Post-Certification Admission and Readiness Reconciliation`
-
-B1G will consume B1F decisions, rebuild the interval and quarantine population, and determine whether bridge blockers can be removed. B1F itself does not alter replay admission.
-
-`PRODUCTION_INFLUENCE=false`
+Readiness may remain `NOT_READY_FOR_ADJUSTED_REPLAY_INTEGRATION` after B1F. Bridge certification is not replay integration.
