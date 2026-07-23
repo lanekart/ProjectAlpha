@@ -204,9 +204,7 @@ def _row_dates(row: dict[str, Any]) -> set[date]:
 def _row_purpose(row: dict[str, Any]) -> str:
     accepted = {candidate.lower() for candidate in _PURPOSE_KEYS}
     values = [
-        str(value or "")
-        for key, value in row.items()
-        if str(key).lower() in accepted
+        str(value or "") for key, value in row.items() if str(key).lower() in accepted
     ]
     if not values:
         values = [json.dumps(row, sort_keys=True, default=str)]
