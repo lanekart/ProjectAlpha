@@ -23,6 +23,9 @@ from alpha.historical_truth.official_bridge_evidence_dossier import (
 from alpha.historical_truth.official_bridge_evidence_manifest import (
     OfficialBridgeEvidenceManifestBuilder,
 )
+from alpha.historical_truth.official_bridge_evidence_materialization import (
+    OfficialBridgeEvidenceMaterializationEngine,
+)
 
 
 def official_bridge_evidence_manifest(
@@ -164,6 +167,43 @@ def official_bridge_evidence_acquire(
         raise typer.Exit(code=1)
 
 
+def official_bridge_evidence_materialize(
+    dossiers: Path = typer.Option(..., "--dossiers", exists=True, dir_okay=False),
+    admissible_documents: Path = typer.Option(
+        ...,
+        "--admissible-documents",
+        exists=True,
+        dir_okay=False,
+    ),
+    output: Path = typer.Option(
+        Path("artifacts/htr010b1f_official_bridge_evidence_materialized_2026"),
+        "--output",
+    ),
+) -> None:
+    """Expand verified dossier documents into immutable case-level evidence."""
+
+    engine = OfficialBridgeEvidenceMaterializationEngine()
+    report = engine.run(
+        dossiers_path=dossiers,
+        admissible_documents_path=admissible_documents,
+    )
+    paths = engine.export(report, output)
+    print("HTR-010B1F Official Bridge Evidence Materialization")
+    print(f"Contract: {report['contract_version']}")
+    print(f"Input dossiers: {report['input_dossier_count']:,}")
+    print(f"Verified documents: {report['input_verified_document_count']:,}")
+    print(f"Materialized rows: {report['materialized_case_evidence_count']:,}")
+    print(f"Covered bridge cases: {report['covered_bridge_case_count']:,}")
+    print(f"Rejected documents: {report['rejected_document_count']:,}")
+    print(f"Implementation defects: {report['implementation_defect_count']:,}")
+    print(f"Report SHA256: {report['report_sha256']}")
+    print(f"Artifacts written: {len(paths)}")
+    print("Full benchmark replays: 0")
+    print("PRODUCTION_INFLUENCE=false")
+    if report["implementation_defect_count"]:
+        raise typer.Exit(code=1)
+
+
 def official_bridge_certify(
     htr010b1d2_output: Path = typer.Option(
         Path("artifacts/htr010b1d2_bridge_aware_validation_repair_2026"),
@@ -238,4 +278,5 @@ __all__ = [
     "official_bridge_evidence_discovery_registry",
     "official_bridge_evidence_dossiers",
     "official_bridge_evidence_manifest",
+    "official_bridge_evidence_materialize",
 ]
