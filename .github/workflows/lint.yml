@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: write
+  pull-requests: read
+
 jobs:
   ruff:
     runs-on: ubuntu-latest
@@ -39,3 +43,82 @@ jobs:
 
       - name: Run Ruff format check
         run: ruff format --check .
+
+  format-pr39:
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 39 && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Apply verified source wraps
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              'alpha/historical_truth/bridge_aware_admission_consistency.py'
+          )
+          text = path.read_text(encoding='utf-8')
+          old = (
+              '    corrected = sum(bool(row.get("bridge_aware_reconciliation_applied")) '
+              'for row in results)\n'
+          )
+          new = (
+              '    corrected = sum(\n'
+              '        bool(row.get("bridge_aware_reconciliation_applied"))\n'
+              '        for row in results\n'
+              '    )\n'
+          )
+          assert old in text
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          test_path = Path(
+              'tests/historical_truth/'
+              'test_bridge_aware_admission_consistency.py'
+          )
+          test_text = test_path.read_text(encoding='utf-8')
+          old = (
+              '            "admission_state": '
+              'AdmissionState.RAW_REPLAY_CERTIFIED_POST_EVENT_SEGMENT.value,\n'
+          )
+          new = (
+              '            "admission_state": (\n'
+              '                AdmissionState.RAW_REPLAY_CERTIFIED_POST_EVENT_SEGMENT.value\n'
+              '            ),\n'
+          )
+          assert old in test_text
+          test_path.write_text(
+              test_text.replace(old, new, 1),
+              encoding='utf-8',
+          )
+          PY
+
+      - name: Format and commit PR39
+        run: |
+          pip install ruff==0.15.20
+          ruff check \
+            alpha/historical_truth/bridge_aware_admission_consistency.py \
+            tests/historical_truth/test_bridge_aware_admission_consistency.py \
+            --fix
+          ruff format \
+            alpha/historical_truth/bridge_aware_admission_consistency.py \
+            tests/historical_truth/test_bridge_aware_admission_consistency.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            alpha/historical_truth/bridge_aware_admission_consistency.py \
+            tests/historical_truth/test_bridge_aware_admission_consistency.py
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'Format HTR-010B1E1 consistency repair'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
