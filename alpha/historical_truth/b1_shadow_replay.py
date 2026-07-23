@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from hashlib import sha256
 from pathlib import Path
-from typing import Any, Protocol, TypeAlias
+from typing import Any, Protocol
 
 HTR010B1_SHADOW_CONTRACT_VERSION = "HTR-010B1-SHADOW-v1.2.0"
 
@@ -57,8 +57,8 @@ class B1ShadowReplayLegResult:
             raise ValueError("shadow replay run falls outside the source session set")
 
 
-ReplayLegValue: TypeAlias = Sequence[ReplayRunLike] | B1ShadowReplayLegResult
-ReplayLeg: TypeAlias = Callable[[], ReplayLegValue]
+type ReplayLegValue = Sequence[ReplayRunLike] | B1ShadowReplayLegResult
+type ReplayLeg = Callable[[], ReplayLegValue]
 
 
 @dataclass(frozen=True, slots=True)
