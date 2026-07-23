@@ -4,6 +4,7 @@ from datetime import date
 from pathlib import Path
 
 import duckdb
+import pandas as pd
 
 from alpha.canonical_universe_audit.models import DatasetManifest
 from alpha.canonical_universe_audit.store import LegacyMarketDataStore
@@ -11,6 +12,17 @@ from alpha.historical_truth.canonical import CanonicalPointInTimeWarehouse
 from alpha.historical_truth.snapshots import PointInTimeSnapshotEngine
 
 _REPLAY_SERIES = frozenset({"EQ"})
+_PRICE_COLUMNS = (
+    "symbol",
+    "trade_date",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "sector",
+    "exchange",
+)
 
 
 class HistoricalTruthReplayStore(LegacyMarketDataStore):
@@ -69,6 +81,49 @@ class HistoricalTruthReplayStore(LegacyMarketDataStore):
             exchange=str(row[6]),
             sector_rows=int(row[5]),
         )
+
+    def find_trade_dates(self, *, start: date, end: date) -> tuple[date, ...]:
+        """Return verified snapshot sessions inside one inclusive range."""
+
+        if end < start:
+            raise ValueError("trade-date range end cannot precede start")
+        return self.trade_dates(start=start, end=end)
+
+    def find_range_by_symbols(
+        self,
+        *,
+        symbols: tuple[str, ...],
+        start_date: date,
+        end_date: date,
+    ) -> pd.DataFrame:
+        """Return exact verified snapshot rows for one inclusive symbol/date range."""
+
+        if end_date < start_date:
+            raise ValueError("range end cannot precede start")
+        normalized = tuple(
+            dict.fromkeys(
+                symbol.strip().upper() for symbol in symbols if symbol.strip()
+            )
+        )
+        if not normalized:
+            return pd.DataFrame(columns=_PRICE_COLUMNS)
+        placeholders = ", ".join("?" for _ in normalized)
+        result = self.connection.execute(
+            f"""
+            SELECT symbol, trade_date, open, high, low, close, volume, sector, exchange
+            FROM daily_prices
+            WHERE UPPER(symbol) IN ({placeholders})
+              AND trade_date BETWEEN ? AND ?
+              AND open > 0
+              AND high > 0
+              AND low > 0
+              AND close > 0
+              AND volume >= 0
+            ORDER BY symbol, trade_date
+            """,
+            (*normalized, start_date, end_date),
+        )
+        return result.fetchdf()
 
     def _initialise_view(
         self,
