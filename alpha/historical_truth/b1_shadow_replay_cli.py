@@ -196,8 +196,7 @@ def main() -> int:
     )
     print(f"Universe counts match: {result.comparison['universe_counts_match']}")
     print(
-        "Replay population nonempty: "
-        f"{result.comparison['replay_population_nonempty']}"
+        f"Replay population nonempty: {result.comparison['replay_population_nonempty']}"
     )
     print(
         f"Unexplained divergences: {result.comparison['unexplained_divergence_count']}"
