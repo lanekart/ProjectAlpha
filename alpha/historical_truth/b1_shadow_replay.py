@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from hashlib import sha256
 from pathlib import Path
 from typing import Any, Protocol
 
-HTR010B1_SHADOW_CONTRACT_VERSION = "HTR-010B1-SHADOW-v1.0.0"
+HTR010B1_SHADOW_CONTRACT_VERSION = "HTR-010B1-SHADOW-v1.1.0"
 
 
 class ReplayRunLike(Protocol):
@@ -30,11 +30,13 @@ class B1ShadowReplayResult:
     raw_summary: dict[str, Any]
     adjusted_summary: dict[str, Any]
     comparison: dict[str, Any]
+    admission_contract: dict[str, Any] = field(default_factory=dict)
     contract_version: str = HTR010B1_SHADOW_CONTRACT_VERSION
 
     def as_dict(self) -> dict[str, Any]:
         payload = {
             "contract_version": self.contract_version,
+            "admission_contract": self.admission_contract,
             "raw_summary": self.raw_summary,
             "adjusted_summary": self.adjusted_summary,
             "comparison": self.comparison,
@@ -48,6 +50,7 @@ class B1ShadowReplayResult:
 class B1ShadowReplayRunner:
     raw_leg: ReplayLeg
     adjusted_leg: ReplayLeg
+    admission_contract: dict[str, Any] = field(default_factory=dict)
 
     def run(self) -> B1ShadowReplayResult:
         raw = _summary("RAW", self.raw_leg())
@@ -56,6 +59,7 @@ class B1ShadowReplayRunner:
             raw_summary=raw,
             adjusted_summary=adjusted,
             comparison=_compare(raw, adjusted),
+            admission_contract=dict(self.admission_contract),
         )
 
     @staticmethod
@@ -132,13 +136,16 @@ def _compare(raw: dict[str, Any], adjusted: dict[str, Any]) -> dict[str, Any]:
         metric: int(adjusted.get(metric, 0)) - int(raw.get(metric, 0))
         for metric in metrics
     }
-    unexplained = sum(
-        deltas[metric] != 0
-        for metric in ("session_count", "eligible_security_count")
+    session_sets_match = raw.get("replay_dates") == adjusted.get("replay_dates")
+    universe_counts_match = raw.get("eligible_security_count") == adjusted.get(
+        "eligible_security_count"
     )
+    unexplained = int(not session_sets_match) + int(not universe_counts_match)
     return {
         "comparison_state": "COMPARED",
         "metric_deltas": deltas,
+        "session_sets_match": session_sets_match,
+        "universe_counts_match": universe_counts_match,
         "unexplained_divergence_count": unexplained,
         "raw_run_sha256": raw["run_sha256"],
         "adjusted_run_sha256": adjusted["run_sha256"],
@@ -159,11 +166,15 @@ def _markdown(report: dict[str, Any]) -> str:
     raw = report["raw_summary"]
     adjusted = report["adjusted_summary"]
     comparison = report["comparison"]
+    admission = report.get("admission_contract", {})
     lines = [
         "# HTR-010B1 Shadow Replay",
         "",
+        f"- Admitted identities: {admission.get('admitted_identity_count', 0)}",
         f"- Raw sessions: {raw['session_count']}",
         f"- Adjusted sessions: {adjusted['session_count']}",
+        f"- Session sets match: {comparison['session_sets_match']}",
+        f"- Universe counts match: {comparison['universe_counts_match']}",
         f"- Unexplained divergences: {comparison['unexplained_divergence_count']}",
         f"- Report SHA-256: {report['report_sha256']}",
         "- PRODUCTION_INFLUENCE=false",
