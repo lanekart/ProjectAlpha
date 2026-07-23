@@ -114,4 +114,4 @@ The command writes stage-specific artifacts under numbered subdirectories plus:
 - Adjusted replay integration: disabled
 - Production influence: false
 
-A no-evidence or partially evidenced run may validly conclude `NOT_READY_FOR_ADJUSTED_REPLAY_INTEGRATION`. B1F certifies evidence; it does not activate replay.
+A no-evidence or partially evidenced run may validly conclude `NOT_READY_FOR_ADJUSTED_REPLAY_INTEGRATION`. A fully evidenced and certified run may conclude `READY_FOR_B1G_RECONCILIATION`; this still does not activate replay. B1F certifies evidence, while B1G rebuilds downstream admission and readiness.
