@@ -36,9 +36,7 @@ class OfficialBridgeReconciliationEngine:
         directives = tuple(
             _directive(
                 certification,
-                validation_by_case.get(
-                    str(certification.get("bridge_case_id") or "")
-                ),
+                validation_by_case.get(str(certification.get("bridge_case_id") or "")),
                 intervals_by_case.get(
                     str(certification.get("bridge_case_id") or ""), ()
                 ),
@@ -161,9 +159,7 @@ def _interval_is_admitted(row: dict[str, Any]) -> bool:
     state = str(row.get("admission_state") or "")
     view = str(row.get("admitted_price_view") or "")
     return (
-        view not in {"", "NONE"}
-        and "QUARANTIN" not in state
-        and state != "UNRESOLVED"
+        view not in {"", "NONE"} and "QUARANTIN" not in state and state != "UNRESOLVED"
     )
 
 

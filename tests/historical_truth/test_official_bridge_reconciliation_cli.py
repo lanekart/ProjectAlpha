@@ -68,9 +68,7 @@ def test_reconciliation_cli_exports_governed_report(tmp_path: Path) -> None:
     assert "Certified propagation: 23" in result.stdout
     assert "Governed exclusions: 1" in result.stdout
     report = json.loads(
-        (output / "htr010b1g_reconciliation_report.json").read_text(
-            encoding="utf-8"
-        )
+        (output / "htr010b1g_reconciliation_report.json").read_text(encoding="utf-8")
     )
     assert report["implementation_defect_count"] == 0
     assert report["production_influence"] is False
