@@ -69,7 +69,10 @@ def load_b1_shadow_admission(
             raise ValueError(f"B1H admission contract has nonzero {key}")
 
     expected_report_sha = str(contract.get("report_sha256") or "")
-    if len(expected_report_sha) != 64 or expected_report_sha != _digest_mapping(contract):
+    if (
+        len(expected_report_sha) != 64
+        or expected_report_sha != _digest_mapping(contract)
+    ):
         raise ValueError("B1H admission contract digest mismatch")
     if raw_universe != adjusted_universe:
         raise ValueError("RAW and ADJUSTED B1H universes differ")
@@ -85,7 +88,8 @@ def load_b1_shadow_admission(
     admitted_rows = tuple(
         row
         for row in admissions
-        if row.get("raw_admitted") is True and row.get("adjusted_admitted") is True
+        if row.get("raw_admitted") is True
+        and row.get("adjusted_admitted") is True
     )
     admitted_by_id: dict[str, str] = {}
     for row in admitted_rows:
@@ -119,7 +123,15 @@ class B1UniverseFilteredPriceRepository:
     """Restrict every price read to the signed B1H symbol universe."""
 
     def __init__(self, repository: Any, symbols: tuple[str, ...]) -> None:
-        normalized = tuple(sorted({item.strip().upper() for item in symbols if item.strip()}))
+        normalized = tuple(
+            sorted(
+                {
+                    item.strip().upper()
+                    for item in symbols
+                    if item.strip()
+                }
+            )
+        )
         if not normalized:
             raise ValueError("shadow replay requires at least one admitted symbol")
         self.repository = repository
@@ -213,14 +225,20 @@ def _mapping(path: Path) -> dict[str, Any]:
 
 def _rows(path: Path) -> tuple[dict[str, Any], ...]:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, list) or not all(isinstance(row, dict) for row in payload):
+    valid = isinstance(payload, list) and all(
+        isinstance(row, dict) for row in payload
+    )
+    if not valid:
         raise ValueError(f"artifact must contain record mappings: {path}")
     return tuple(dict(row) for row in payload)
 
 
 def _string_list(path: Path) -> tuple[str, ...]:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, list) or not all(isinstance(item, str) for item in payload):
+    valid = isinstance(payload, list) and all(
+        isinstance(item, str) for item in payload
+    )
+    if not valid:
         raise ValueError(f"artifact must contain string values: {path}")
     return tuple(payload)
 
@@ -228,18 +246,34 @@ def _string_list(path: Path) -> tuple[str, ...]:
 def _digest_mapping(value: dict[str, Any]) -> str:
     payload = dict(value)
     payload.pop("report_sha256", None)
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
     return sha256(encoded).hexdigest()
 
 
 def _digest_list(value: tuple[str, ...]) -> str:
-    encoded = json.dumps(list(value), sort_keys=True, separators=(",", ":")).encode()
+    encoded = json.dumps(
+        list(value),
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
     return sha256(encoded).hexdigest()
 
 
 def _empty_price_frame() -> pd.DataFrame:
     return pd.DataFrame(
-        columns=("symbol", "trade_date", "open", "high", "low", "close", "volume")
+        columns=(
+            "symbol",
+            "trade_date",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+        )
     )
 
 
