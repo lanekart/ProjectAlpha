@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  historical-replay-diagnostic:
+  quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,19 +20,60 @@ jobs:
           key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
       - run: pip install poetry
       - run: poetry install --no-interaction
-      - name: Capture historical replay failure
-        run: |
-          set +e
-          poetry run pytest -q tests/historical_replay tests/recovery 2>&1 | tee historical-replay.txt
-          status=${PIPESTATUS[0]}
-          tail -n 220 historical-replay.txt > historical-replay-tail.txt
-          echo "$status" > historical-replay-status.txt
-          exit 0
-      - name: Upload historical replay diagnostics
-        uses: actions/upload-artifact@v4
+      - name: Ruff check
+        run: poetry run ruff check .
+      - name: Ruff format check
+        run: poetry run ruff format --check .
+      - name: MyPy
+        run: poetry run mypy alpha
+
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - historical_truth
+          - historical_replay
+          - decision_and_market
+          - portfolio_and_backtest
+          - research_and_signals
+          - remaining
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          name: historical-replay-diagnostics
+          python-version: "3.14"
+      - uses: actions/cache@v4
+        with:
           path: |
-            historical-replay-tail.txt
-            historical-replay-status.txt
-          if-no-files-found: error
+            ~/.cache/pypoetry
+            ~/.cache/pip
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Run shard
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+          SHARD: ${{ matrix.shard }}
+        run: |
+          case "$SHARD" in
+            historical_truth)
+              poetry run pytest -q tests/historical_truth
+              ;;
+            historical_replay)
+              poetry run pytest -q tests/historical_replay tests/recovery
+              ;;
+            decision_and_market)
+              poetry run pytest -q tests/decision_intelligence tests/decision_lifecycle tests/decision_orchestrator tests/market tests/market_intelligence tests/market_truth
+              ;;
+            portfolio_and_backtest)
+              poetry run pytest -q tests/portfolio tests/portfolio_intelligence tests/backtest tests/execution tests/costs
+              ;;
+            research_and_signals)
+              poetry run pytest -q tests/research tests/trading_signals tests/strategy_lab tests/strategy_discovery tests/setup_discovery tests/candidate_learning
+              ;;
+            remaining)
+              poetry run python scripts/run_remaining_tests.py
+              ;;
+          esac
