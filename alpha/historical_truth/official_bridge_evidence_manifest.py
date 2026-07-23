@@ -61,10 +61,16 @@ class OfficialBridgeEvidenceManifestBuilder:
         evidence_template = output / "htr010b1f_official_evidence_template.json"
         markdown = output / "htr010b1f_evidence_manifest.md"
         report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
-        requests_json.write_text(json.dumps(list(requests), indent=2, sort_keys=True) + "\n")
+        requests_json.write_text(
+            json.dumps(list(requests), indent=2, sort_keys=True) + "\n"
+        )
         _write_csv(requests_csv, requests)
         evidence_template.write_text(
-            json.dumps([_evidence_template(row) for row in requests], indent=2, sort_keys=True)
+            json.dumps(
+                [_evidence_template(row) for row in requests],
+                indent=2,
+                sort_keys=True,
+            )
             + "\n"
         )
         markdown.write_text(_markdown(report))
@@ -101,12 +107,19 @@ def _request(case: dict[str, Any]) -> dict[str, Any]:
 
 def _questions(bridge_type: str) -> list[str]:
     common = [
-        "Does official effective-dated evidence identify the predecessor and successor as the same economic security?",
-        "Does official evidence certify price-series comparability across the effective date?",
+        (
+            "Does official effective-dated evidence identify the predecessor "
+            "and successor as the same economic security?"
+        ),
+        (
+            "Does official evidence certify price-series comparability across "
+            "the effective date?"
+        ),
     ]
     if bridge_type == "CROSS_SERIES":
         common.append(
-            "Does official evidence certify tradability continuity across the series transition?"
+            "Does official evidence certify tradability continuity across the "
+            "series transition?"
         )
     return common
 
