@@ -141,10 +141,13 @@ def test_shadow_replay_blocks_vacuous_zero_population_parity() -> None:
     assert result.comparison["unexplained_divergence_count"] == 1
 
 
-def test_shadow_cli_keeps_diagnostic_leg_outside_full_readiness_wrapper() -> None:
+def test_shadow_cli_uses_verified_historical_truth_boundary() -> None:
     source = inspect.getsource(shadow_replay_cli)
 
     assert "execute_governed_historical_replay" not in source
+    assert "MarketTruthPriceRepository" not in source
+    assert "HistoricalTruthReplayStore" in source
+    assert "--historical-truth-snapshots" in source
     assert "GovernedHistoricalObservationFactory" in source
     assert source.count("HistoricalReplayEngine(") == 2
     assert "B1ShadowReplayLegResult" in source
