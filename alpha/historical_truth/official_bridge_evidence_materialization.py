@@ -248,7 +248,10 @@ def _markdown(report: dict[str, Any]) -> str:
             f"- Contract Version: {report['contract_version']}",
             f"- Input Dossiers: {report['input_dossier_count']}",
             f"- Verified Documents: {report['input_verified_document_count']}",
-            f"- Materialized Evidence Rows: {report['materialized_case_evidence_count']}",
+            (
+                "- Materialized Evidence Rows: "
+                f"{report['materialized_case_evidence_count']}"
+            ),
             f"- Covered Bridge Cases: {report['covered_bridge_case_count']}",
             f"- Rejected Documents: {report['rejected_document_count']}",
             f"- Implementation Defects: {report['implementation_defect_count']}",
