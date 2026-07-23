@@ -30,6 +30,9 @@ def _historical_truth_app() -> typer.Typer:
         official_bridge_evidence_manifest,
         official_bridge_evidence_materialize,
     )
+    from alpha.historical_truth.official_bridge_document_downloader_cli import (
+        official_bridge_document_download,
+    )
     from alpha.historical_truth.session_calendar_extension_cli import (
         session_calendar_extend_certify,
     )
@@ -70,6 +73,10 @@ def _historical_truth_app() -> typer.Typer:
     if "official-bridge-evidence-discovery-registry" not in registered:
         historical_truth_app.command("official-bridge-evidence-discovery-registry")(
             official_bridge_evidence_discovery_registry
+        )
+    if "official-bridge-document-download" not in registered:
+        historical_truth_app.command("official-bridge-document-download")(
+            official_bridge_document_download
         )
     if "official-bridge-evidence-acquire" not in registered:
         historical_truth_app.command("official-bridge-evidence-acquire")(
