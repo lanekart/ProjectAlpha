@@ -36,8 +36,12 @@ class OfficialBridgeReconciliationEngine:
         directives = tuple(
             _directive(
                 certification,
-                validation_by_case.get(str(certification.get("bridge_case_id") or "")),
-                intervals_by_case.get(str(certification.get("bridge_case_id") or ""), ()),
+                validation_by_case.get(
+                    str(certification.get("bridge_case_id") or "")
+                ),
+                intervals_by_case.get(
+                    str(certification.get("bridge_case_id") or ""), ()
+                ),
             )
             for certification in certifications
         )
@@ -45,7 +49,8 @@ class OfficialBridgeReconciliationEngine:
         stale = tuple(
             row
             for row in directives
-            if row["reconciliation_state"] in {
+            if row["reconciliation_state"]
+            in {
                 "CERTIFIED_BUT_DOWNSTREAM_STALE",
                 "UNRESOLVED_BUT_DOWNSTREAM_ADMITTED",
                 "DOWNSTREAM_STATE_CONTRADICTS_CERTIFICATION",
@@ -155,7 +160,11 @@ def _directive(
 def _interval_is_admitted(row: dict[str, Any]) -> bool:
     state = str(row.get("admission_state") or "")
     view = str(row.get("admitted_price_view") or "")
-    return view not in {"", "NONE"} and "QUARANTIN" not in state and state != "UNRESOLVED"
+    return (
+        view not in {"", "NONE"}
+        and "QUARANTIN" not in state
+        and state != "UNRESOLVED"
+    )
 
 
 def _records(path: Path) -> tuple[dict[str, Any], ...]:
