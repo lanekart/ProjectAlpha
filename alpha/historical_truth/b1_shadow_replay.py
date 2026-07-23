@@ -14,12 +14,23 @@ HTR010B1_SHADOW_CONTRACT_VERSION = "HTR-010B1-SHADOW-v1.1.0"
 
 
 class ReplayRunLike(Protocol):
-    replay_date: date
-    symbols_scanned: int
-    candidates_stored: int
-    emitted_decisions: int
-    approved_recommendations: int
-    data_gaps: int
+    @property
+    def replay_date(self) -> date: ...
+
+    @property
+    def symbols_scanned(self) -> int: ...
+
+    @property
+    def candidates_stored(self) -> int: ...
+
+    @property
+    def emitted_decisions(self) -> int: ...
+
+    @property
+    def approved_recommendations(self) -> int: ...
+
+    @property
+    def data_gaps(self) -> int: ...
 
 
 ReplayLeg = Callable[[], Sequence[ReplayRunLike]]
