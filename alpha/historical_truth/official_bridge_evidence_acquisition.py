@@ -126,6 +126,7 @@ def _stage_discovery(
     elif valid_discovery and downloaded_documents_root is None:
         state = "PENDING_DOWNLOAD"
     elif valid_discovery:
+        assert downloaded_documents_root is not None
         document_path = downloaded_documents_root / relative_path
         if not document_path.exists() or not document_path.is_file():
             state = "MISSING_DOCUMENT"
