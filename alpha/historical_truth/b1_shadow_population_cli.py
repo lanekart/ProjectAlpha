@@ -7,20 +7,6 @@ import json
 from datetime import date
 from pathlib import Path
 
-from alpha.historical_replay.governed_artifacts import load_governed_replay_inputs
-from alpha.historical_replay.governed_price_repository import (
-    CanonicalReplayPriceRepository,
-)
-from alpha.historical_truth.b1_shadow_replay import (
-    B1ShadowReplayLegResult,
-    B1ShadowReplayRunner,
-    POPULATION_PARITY_SCOPE,
-)
-from alpha.historical_truth.b1_shadow_universe import (
-    B1UniverseFilteredPriceRepository,
-    load_b1_shadow_admission,
-)
-from alpha.historical_truth.replay import HistoricalTruthReplayStore
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -31,6 +17,21 @@ from rich.progress import (
     TimeElapsedColumn,
     TimeRemainingColumn,
 )
+
+from alpha.historical_replay.governed_artifacts import load_governed_replay_inputs
+from alpha.historical_replay.governed_price_repository import (
+    CanonicalReplayPriceRepository,
+)
+from alpha.historical_truth.b1_shadow_replay import (
+    POPULATION_PARITY_SCOPE,
+    B1ShadowReplayLegResult,
+    B1ShadowReplayRunner,
+)
+from alpha.historical_truth.b1_shadow_universe import (
+    B1UniverseFilteredPriceRepository,
+    load_b1_shadow_admission,
+)
+from alpha.historical_truth.replay import HistoricalTruthReplayStore
 
 _CONSOLE = Console()
 
