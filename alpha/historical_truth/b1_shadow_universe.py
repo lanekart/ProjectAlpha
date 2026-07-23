@@ -22,6 +22,8 @@ class B1ShadowAdmission:
     admitted_symbols: tuple[str, ...]
     replay_start: date
     replay_end: date
+    dependency_start: date
+    dependency_end: date
     admission_contract_sha256: str
     universe_sha256: str
 
@@ -32,6 +34,8 @@ class B1ShadowAdmission:
             "admitted_symbols": list(self.admitted_symbols),
             "replay_start": self.replay_start.isoformat(),
             "replay_end": self.replay_end.isoformat(),
+            "dependency_start": self.dependency_start.isoformat(),
+            "dependency_end": self.dependency_end.isoformat(),
             "admission_contract_sha256": self.admission_contract_sha256,
             "universe_sha256": self.universe_sha256,
             "production_influence": False,
@@ -107,11 +111,27 @@ def load_b1_shadow_admission(
     if int(contract.get("admitted_identity_count", -1)) != len(raw_universe):
         raise ValueError("B1H admitted identity count does not match universe")
 
+    try:
+        replay_start = date.fromisoformat(str(contract["replay_start"]))
+        replay_end = date.fromisoformat(str(contract["replay_end"]))
+        dependency_start = date.fromisoformat(str(contract["dependency_start"]))
+        dependency_end = date.fromisoformat(str(contract["dependency_end"]))
+    except (KeyError, ValueError) as error:
+        raise ValueError("B1H contract requires valid replay and dependency dates") from error
+    if replay_end < replay_start:
+        raise ValueError("B1H replay window is inverted")
+    if dependency_end < dependency_start:
+        raise ValueError("B1H dependency window is inverted")
+    if dependency_start > replay_start or dependency_end < replay_end:
+        raise ValueError("B1H dependency window does not cover replay window")
+
     return B1ShadowAdmission(
         admitted_security_ids=raw_universe,
         admitted_symbols=symbols,
-        replay_start=date.fromisoformat(str(contract["replay_start"])),
-        replay_end=date.fromisoformat(str(contract["replay_end"])),
+        replay_start=replay_start,
+        replay_end=replay_end,
+        dependency_start=dependency_start,
+        dependency_end=dependency_end,
         admission_contract_sha256=expected_report_sha,
         universe_sha256=universe_sha,
     )
@@ -163,11 +183,19 @@ class B1UniverseFilteredPriceRepository:
             return _empty_price_frame()
         find_range = getattr(self.repository, "find_range_by_symbols", None)
         if not callable(find_range):
-            return self.find_history_by_symbols(
+            frame = self.find_history_by_symbols(
                 symbols=allowed,
                 end_date=end_date,
                 limit=1320,
             )
+            if frame.empty:
+                return frame
+            result = frame.copy()
+            result["trade_date"] = pd.to_datetime(result["trade_date"]).dt.date
+            return result.loc[
+                (result["trade_date"] >= start_date)
+                & (result["trade_date"] <= end_date)
+            ].copy()
         return self._filter(
             find_range(
                 symbols=allowed,
