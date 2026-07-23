@@ -34,10 +34,10 @@ _SUBSYSTEMS = {
     "trading_signals": "tests/trading_signals",
 }
 _FALLBACK_BASES = (
+    "origin/feature/recovery-foundation-v1",
     "origin/HEAD",
     "origin/main",
     "origin/master",
-    "origin/feature/recovery-foundation-v1",
     "HEAD^",
 )
 

@@ -12,6 +12,7 @@ from typing import Protocol
 from alpha.historical_replay.factory import (
     HistoricalObservationBuildResult,
     HistoricalObservationFactory,
+    ReplayPriceRepository,
 )
 from alpha.historical_replay.governed_price_repository import (
     CanonicalReplayPriceRepository,
@@ -38,6 +39,15 @@ class HistoricalObservationBuilder(Protocol):
     ) -> HistoricalObservationBuildResult:
         """Build historical observations for one inclusive range."""
         ...
+
+
+def create_historical_observation_builder(
+    *,
+    price_repository: ReplayPriceRepository,
+) -> HistoricalObservationBuilder:
+    """Construct the lower-level builder only through the governed boundary."""
+
+    return HistoricalObservationFactory(price_repository=price_repository)
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,7 +152,7 @@ class GovernedHistoricalObservationFactory:
                 "CanonicalReplayPriceRepository"
             )
         self.price_repository = price_repository
-        self.builder = builder or HistoricalObservationFactory(
+        self.builder = builder or create_historical_observation_builder(
             price_repository=price_repository
         )
 
@@ -189,5 +199,6 @@ __all__ = [
     "GovernedHistoricalObservationBuild",
     "GovernedHistoricalObservationFactory",
     "HistoricalObservationBuilder",
+    "create_historical_observation_builder",
     "governed_run_payloads",
 ]

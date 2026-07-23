@@ -1,4 +1,4 @@
-.PHONY: lint typecheck test-fast test-affected test-historical-truth test-b1g test-full validate-fast validate-milestone
+.PHONY: lint typecheck test-fast test-affected test-historical-truth test-b1g test-b1-final test-full validate-fast validate-milestone
 
 PYTEST := poetry run pytest
 
@@ -23,6 +23,15 @@ test-b1g:
 		tests/historical_truth/test_official_bridge_reconciliation.py \
 		tests/historical_truth/test_official_bridge_reconciliation_cli.py \
 		tests/historical_truth/test_official_bridge_reconciliation_integration.py
+
+test-b1-final:
+	$(PYTEST) -q \
+		tests/historical_truth/test_b1_final_closure.py \
+		tests/historical_truth/test_b1_shadow_replay.py \
+		tests/historical_truth/test_b1_shadow_universe.py \
+		tests/historical_truth/test_b1_canonical_action_materializer.py \
+		tests/historical_truth/test_b1_canonical_identity_materializer.py \
+		tests/historical_truth/test_b1_window_action_admission.py
 
 test-full:
 	$(PYTEST) -q
