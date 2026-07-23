@@ -13,6 +13,10 @@ from alpha.historical_truth.official_bridge_certification import (
 from alpha.historical_truth.official_bridge_evidence_acquisition import (
     OfficialBridgeEvidenceAcquisitionEngine,
 )
+from alpha.historical_truth.official_bridge_evidence_discovery import (
+    build_discovery_registry,
+    export_discovery_registry,
+)
 from alpha.historical_truth.official_bridge_evidence_dossier import (
     OfficialBridgeEvidenceDossierBuilder,
 )
@@ -78,6 +82,32 @@ def official_bridge_evidence_dossiers(
     print(f"Unique dossiers: {report['unique_dossier_count']:,}")
     print(f"Multi-case dossiers: {report['multi_case_dossier_count']:,}")
     print(f"Maximum cases per dossier: {report['maximum_cases_per_dossier']:,}")
+    print(f"Implementation defects: {report['implementation_defect_count']:,}")
+    print(f"Report SHA256: {report['report_sha256']}")
+    print(f"Artifacts written: {len(paths)}")
+    print("Evidence downloads: 0")
+    print("Full benchmark replays: 0")
+    print("PRODUCTION_INFLUENCE=false")
+    if report["implementation_defect_count"]:
+        raise typer.Exit(code=1)
+
+
+def official_bridge_evidence_discovery_registry(
+    dossiers: Path = typer.Option(..., "--dossiers", exists=True, dir_okay=False),
+    output: Path = typer.Option(
+        Path("artifacts/htr010b1f_official_bridge_evidence_discovery_2026"),
+        "--output",
+    ),
+) -> None:
+    """Build one blank governed discovery row per official-evidence dossier."""
+
+    report = build_discovery_registry(dossiers_path=dossiers)
+    paths = export_discovery_registry(report, output)
+    print("HTR-010B1F Official Bridge Evidence Discovery Registry")
+    print(f"Contract: {report['contract_version']}")
+    print(f"Input dossiers: {report['input_dossier_count']:,}")
+    print(f"Discovery templates: {report['discovery_template_count']:,}")
+    print(f"Populated discoveries: {report['populated_discovery_count']:,}")
     print(f"Implementation defects: {report['implementation_defect_count']:,}")
     print(f"Report SHA256: {report['report_sha256']}")
     print(f"Artifacts written: {len(paths)}")
@@ -205,6 +235,7 @@ def _date(value: str, option: str) -> date:
 __all__ = [
     "official_bridge_certify",
     "official_bridge_evidence_acquire",
+    "official_bridge_evidence_discovery_registry",
     "official_bridge_evidence_dossiers",
     "official_bridge_evidence_manifest",
 ]
