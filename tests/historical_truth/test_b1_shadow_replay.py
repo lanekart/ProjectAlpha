@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
 from decimal import Decimal
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 from alpha.historical_replay.models import ReplayRunRecord
