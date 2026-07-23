@@ -48,6 +48,7 @@ _CONFIRMED_OUTCOMES = {
     ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MULTIPLE_ACTIONS.value,
 }
 _MISSING_TEXT = {"", "none", "null", "nan", "n/a", "na"}
+_NO_ADJUSTMENT_FACTOR_STATES = {"FACTOR_NOT_REQUIRED"}
 
 
 class BridgeAwareAdmissionStatePropagationEngine:
@@ -184,6 +185,7 @@ class BridgeAwareAdmissionStatePropagationEngine:
                 "validation_missing_text_normalized_before_interval_"
                 "classification": True,
                 "reference_price_requirement_fail_closed_explicit": True,
+                "factor_not_required_raw_safe_explicit": True,
                 "final_admission_state_propagation_repaired": True,
                 "active_replay_integration": False,
             },
@@ -307,13 +309,10 @@ def propagated_admission_intervals(
                         _dependencies(preceding)
                     ),
                     "future_bridge_validation_outcomes": sorted(future_outcomes),
-                    "future_bridge_dependencies": sorted(
-                        _dependencies(future_factors)
-                    ),
+                    "future_bridge_dependencies": sorted(_dependencies(future_factors)),
                     "future_unvalidated_certified_factor_count": sum(
                         not bool(item.get("validation_present"))
-                        and str(item.get("factor_state"))
-                        in CERTIFIED_FACTOR_STATES
+                        and str(item.get("factor_state")) in CERTIFIED_FACTOR_STATES
                         for item in future_factors
                     ),
                     "future_bridge_certified_for_replay": all(
@@ -374,7 +373,11 @@ def _admission_state(
         return AdmissionState.FACTOR_UNKNOWN_QUARANTINED, "NONE"
     if states & NON_MULTIPLICATIVE_STATES:
         return AdmissionState.IDENTITY_TRANSITION_NONCOMPARABLE, "RAW"
-    if states <= CERTIFIED_FACTOR_STATES and (
+
+    adjustment_states = states - _NO_ADJUSTMENT_FACTOR_STATES
+    if not adjustment_states:
+        return AdmissionState.RAW_REPLAY_CERTIFIED_NO_ACTION_EXPOSURE, "RAW"
+    if adjustment_states <= CERTIFIED_FACTOR_STATES and (
         not outcomes or outcomes <= _CONFIRMED_OUTCOMES
     ):
         return AdmissionState.ADJUSTED_REPLAY_CERTIFIED_TRADABILITY_PARTIAL, "ADJUSTED"
@@ -434,11 +437,7 @@ def _reset_required(
             ValidationOutcome.FACTOR_REQUIRES_REFERENCE_PRICE.value,
         }
         or {str(item.get("factor_state")) for item in preceding}
-        & (
-            UNKNOWN_FACTOR_STATES
-            | AMBIGUOUS_FACTOR_STATES
-            | NON_MULTIPLICATIVE_STATES
-        )
+        & (UNKNOWN_FACTOR_STATES | AMBIGUOUS_FACTOR_STATES | NON_MULTIPLICATIVE_STATES)
     )
 
 
