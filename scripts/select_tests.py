@@ -51,7 +51,9 @@ def _git_lines(*args: str, check: bool = True) -> tuple[str, ...]:
     )
     if result.returncode != 0:
         return ()
-    return tuple(line.strip() for line in result.stdout.splitlines() if line.strip())
+    return tuple(
+        line.strip() for line in result.stdout.splitlines() if line.strip()
+    )
 
 
 def _ref_exists(ref: str) -> bool:
