@@ -24,6 +24,7 @@ def _historical_truth_app() -> typer.Typer:
     )
     from alpha.historical_truth.official_bridge_certification_cli import (
         official_bridge_certify,
+        official_bridge_evidence_acquire,
         official_bridge_evidence_dossiers,
         official_bridge_evidence_manifest,
     )
@@ -63,6 +64,10 @@ def _historical_truth_app() -> typer.Typer:
     if "official-bridge-evidence-dossiers" not in registered:
         historical_truth_app.command("official-bridge-evidence-dossiers")(
             official_bridge_evidence_dossiers
+        )
+    if "official-bridge-evidence-acquire" not in registered:
+        historical_truth_app.command("official-bridge-evidence-acquire")(
+            official_bridge_evidence_acquire
         )
     if "official-bridge-certify" not in registered:
         historical_truth_app.command("official-bridge-certify")(
