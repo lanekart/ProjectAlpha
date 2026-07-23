@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
+from typing import Any
 
 from alpha.historical_truth.b1_final_closure import B1FinalClosureEngine
+from alpha.historical_truth.b1_shadow_replay import HTR010B1_SHADOW_CONTRACT_VERSION
 
 
 def main() -> int:
@@ -26,6 +29,10 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args()
 
+    _validate_shadow_population(
+        raw_path=arguments.raw_replay_summary,
+        adjusted_path=arguments.adjusted_replay_summary,
+    )
     report = B1FinalClosureEngine().run(
         b1f_certifications_path=arguments.b1f_certifications,
         b1g_directives_path=arguments.b1g_directives,
@@ -52,6 +59,37 @@ def main() -> int:
     print(f"Report SHA256: {report['report_sha256']}")
     print("PRODUCTION_INFLUENCE=false")
     return 0
+
+
+def _validate_shadow_population(
+    *,
+    raw_path: Path | None,
+    adjusted_path: Path | None,
+) -> None:
+    if raw_path is None and adjusted_path is None:
+        return
+    if raw_path is None or adjusted_path is None:
+        raise ValueError("both RAW and ADJUSTED shadow summaries are required")
+    for label, path in (("RAW", raw_path), ("ADJUSTED", adjusted_path)):
+        payload = _mapping(path)
+        if payload.get("contract_version") != HTR010B1_SHADOW_CONTRACT_VERSION:
+            raise ValueError(f"{label} shadow summary uses a stale contract")
+        session_count = int(payload.get("session_count", 0))
+        eligible_count = int(payload.get("eligible_security_count", 0))
+        replay_dates = payload.get("replay_dates")
+        if session_count <= 0 or eligible_count <= 0:
+            raise ValueError(f"{label} shadow summary has a vacuous replay population")
+        if not isinstance(replay_dates, list) or len(replay_dates) != session_count:
+            raise ValueError(f"{label} shadow session count does not match replay dates")
+        if payload.get("production_influence") is not False:
+            raise ValueError(f"{label} shadow summary must remain diagnostic-only")
+
+
+def _mapping(path: Path) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"shadow summary must contain a mapping: {path}")
+    return payload
 
 
 if __name__ == "__main__":
