@@ -184,7 +184,8 @@ class _IdentityRepository:
 
     def find_by_trade_date(self, trade_date: date) -> pd.DataFrame:
         frame = pd.DataFrame(self.rows)
-        return frame.loc[pd.to_datetime(frame["trade_date"]).dt.date == trade_date].copy()
+        dates = pd.to_datetime(frame["trade_date"]).dt.date
+        return frame.loc[dates == trade_date].copy()
 
     def find_history_by_symbols(
         self,
