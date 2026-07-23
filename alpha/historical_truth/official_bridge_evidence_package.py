@@ -8,7 +8,11 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
-HTR010B1F_EVIDENCE_PACKAGE_CONTRACT_VERSION = "HTR-010B1F-PACKAGE-v1.0.0"
+from alpha.historical_truth.official_bridge_action_evidence import (
+    match_corporate_action_file,
+)
+
+HTR010B1F_EVIDENCE_PACKAGE_CONTRACT_VERSION = "HTR-010B1F-PACKAGE-v1.1.0"
 
 _REQUIRED_ROLES = ("PRE_IDENTITY", "CORPORATE_ACTION", "POST_IDENTITY")
 _ACTION_TERMS = (
@@ -156,6 +160,10 @@ class OfficialBridgeEvidencePackageEngine:
             )
 
         states = Counter(str(row["semantic_package_state"]) for row in package_results)
+        action_states = Counter(
+            str(row.get("corporate_action_state") or "UNKNOWN")
+            for row in package_results
+        )
         defects = _review_defects(dossiers, reviewed_rows, package_results)
         report = {
             "contract_version": HTR010B1F_EVIDENCE_PACKAGE_CONTRACT_VERSION,
@@ -167,6 +175,16 @@ class OfficialBridgeEvidencePackageEngine:
             "insufficient_semantic_package_count": states[
                 "INSUFFICIENT_SEMANTIC_PACKAGE_EVIDENCE"
             ],
+            "corporate_action_state_counts": dict(sorted(action_states.items())),
+            "pre_identity_proved_count": sum(
+                bool(row.get("pre_identity_proved")) for row in package_results
+            ),
+            "corporate_action_proved_count": sum(
+                bool(row.get("corporate_action_proved")) for row in package_results
+            ),
+            "post_identity_proved_count": sum(
+                bool(row.get("post_identity_proved")) for row in package_results
+            ),
             "implementation_defect_count": len(defects),
             "implementation_defects": defects,
             "benchmark_replay_count": 0,
@@ -202,6 +220,7 @@ class OfficialBridgeEvidencePackageEngine:
         report_path = output / "htr010b1f_evidence_package_review.json"
         reviewed_path = output / "htr010b1f_semantically_reviewed_discoveries.json"
         packages_path = output / "htr010b1f_semantic_package_results.json"
+        diagnostics_path = output / "htr010b1f_action_evidence_diagnostics.json"
         report_path.write_text(
             json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
@@ -210,12 +229,33 @@ class OfficialBridgeEvidencePackageEngine:
             + "\n",
             encoding="utf-8",
         )
+        package_results = report.get("package_results", [])
         packages_path.write_text(
-            json.dumps(report.get("package_results", []), indent=2, sort_keys=True)
+            json.dumps(package_results, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        diagnostics_path.write_text(
+            json.dumps(
+                [
+                    {
+                        "dossier_id": row.get("dossier_id"),
+                        "symbol": row.get("symbol"),
+                        "effective_date": row.get("effective_date"),
+                        "corporate_action_state": row.get("corporate_action_state"),
+                        "corporate_action_diagnostics": row.get(
+                            "corporate_action_diagnostics"
+                        ),
+                        "unresolved_reasons": row.get("unresolved_reasons"),
+                    }
+                    for row in package_results
+                ],
+                indent=2,
+                sort_keys=True,
+            )
             + "\n",
             encoding="utf-8",
         )
-        return report_path, reviewed_path, packages_path
+        return report_path, reviewed_path, packages_path, diagnostics_path
 
 
 def _finding(
@@ -256,7 +296,11 @@ def _package_proof(
     root: Path,
 ) -> dict[str, Any]:
     texts: dict[str, list[str]] = defaultdict(list)
+    paths: dict[str, list[Path]] = defaultdict(list)
+    downloaded_states: dict[str, list[str]] = defaultdict(list)
     for row in rows:
+        role = str(row.get("evidence_role") or "")
+        downloaded_states[role].append(str(row.get("download_state") or ""))
         if row.get("download_state") != "DOWNLOADED_VERIFIED_BYTES":
             continue
         relative_path = str(row.get("relative_path") or "")
@@ -265,31 +309,93 @@ def _package_proof(
         path = root / relative_path
         if not path.is_file():
             continue
-        text = path.read_bytes().decode("utf-8", errors="ignore").lower()
-        texts[str(row.get("evidence_role") or "")].append(text)
+        paths[role].append(path)
+        texts[role].append(path.read_bytes().decode("utf-8", errors="ignore").lower())
 
     pre_isin = str(dossier.get("pre_isin") or "").lower()
     post_isin = str(dossier.get("post_isin") or "").lower()
-    symbol = str(dossier.get("post_symbol") or dossier.get("pre_symbol") or "").lower()
+    symbol = str(dossier.get("post_symbol") or dossier.get("pre_symbol") or "")
     effective_date = str(dossier.get("effective_date") or "")
     date_tokens = _date_tokens(effective_date)
+
     pre_proved = bool(
         pre_isin and any(pre_isin in text for text in texts["PRE_IDENTITY"])
     )
     post_proved = bool(
         post_isin and any(post_isin in text for text in texts["POST_IDENTITY"])
     )
-    action_proved = any(
-        symbol in text
-        and any(token in text for token in date_tokens)
-        and any(term in text for term in _ACTION_TERMS)
-        for text in texts["CORPORATE_ACTION"]
-    )
+
+    action_diagnostics: list[dict[str, Any]] = []
+    action_proved = False
+    action_state = "ACTION_DOCUMENT_NOT_DOWNLOADED"
+    for path in paths["CORPORATE_ACTION"]:
+        if path.suffix.lower() == ".json":
+            match = match_corporate_action_file(
+                path=path,
+                symbol=symbol,
+                effective_date=effective_date,
+            )
+            diagnostic = match.as_dict()
+            diagnostic["relative_path"] = path.relative_to(root).as_posix()
+            action_diagnostics.append(diagnostic)
+            if match.proved:
+                action_proved = True
+                action_state = match.state
+                break
+            action_state = match.state
+            continue
+
+        text = path.read_bytes().decode("utf-8", errors="ignore").lower()
+        legacy_match = bool(
+            symbol.lower() in text
+            and any(token in text for token in date_tokens)
+            and any(term in text for term in _ACTION_TERMS)
+        )
+        action_diagnostics.append(
+            {
+                "proved": legacy_match,
+                "state": (
+                    "LEGACY_ACTION_TEXT_VERIFIED"
+                    if legacy_match
+                    else "LEGACY_ACTION_TEXT_INSUFFICIENT"
+                ),
+                "relative_path": path.relative_to(root).as_posix(),
+                "payload_sha256": sha256(path.read_bytes()).hexdigest(),
+            }
+        )
+        if legacy_match:
+            action_proved = True
+            action_state = "LEGACY_ACTION_TEXT_VERIFIED"
+            break
+        action_state = "LEGACY_ACTION_TEXT_INSUFFICIENT"
+
+    unresolved_reasons: list[str] = []
+    if not pre_proved:
+        unresolved_reasons.append(
+            "MISSING_PRE_IDENTITY_PROOF"
+            if paths["PRE_IDENTITY"]
+            else "PRE_IDENTITY_DOCUMENT_UNAVAILABLE"
+        )
+    if not action_proved:
+        unresolved_reasons.append(action_state)
+    if not post_proved:
+        unresolved_reasons.append(
+            "MISSING_POST_IDENTITY_PROOF"
+            if paths["POST_IDENTITY"]
+            else "POST_IDENTITY_DOCUMENT_UNAVAILABLE"
+        )
+
     return {
         "pre_identity_proved": pre_proved,
         "corporate_action_proved": action_proved,
         "post_identity_proved": post_proved,
-        "downloaded_role_count": sum(bool(texts[role]) for role in _REQUIRED_ROLES),
+        "corporate_action_state": action_state,
+        "corporate_action_diagnostics": action_diagnostics,
+        "unresolved_reasons": unresolved_reasons,
+        "downloaded_role_count": sum(bool(paths[role]) for role in _REQUIRED_ROLES),
+        "role_download_states": {
+            role: downloaded_states.get(role, []) for role in _REQUIRED_ROLES
+        },
     }
 
 
