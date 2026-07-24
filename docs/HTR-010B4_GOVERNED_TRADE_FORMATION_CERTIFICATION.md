@@ -78,6 +78,10 @@ poetry run python -m alpha benchmark governed-trade-formation \
 
 The command has one determinate eight-stage progress bar.
 
+## Implementation validation
+
+The milestone branch is validated with locked Ruff checking and formatting, strict MyPy across `alpha`, the B2/B3/B4 benchmark regression path, and public CLI registration. The separate real-data acceptance certificate remains mandatory before merge.
+
 ## Guardrails
 
 A B4 certificate never changes or enables production behavior. It records:
