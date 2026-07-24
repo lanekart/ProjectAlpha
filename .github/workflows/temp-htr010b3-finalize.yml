@@ -1,0 +1,62 @@
+name: Temporary HTR-010B3 Finalize
+
+on:
+  push:
+    branches:
+      - feature/htr-010b3-governed-adjusted-stability-certification
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temp-htr010b3-finalize
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-010b3-governed-adjusted-stability-certification
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Apply final source fixes
+        run: poetry run python scripts/temp_finalize_htr010b3.py
+      - name: Ruff autofix and formatting
+        run: |
+          poetry run ruff check --fix \
+            alpha/application/benchmark_cli.py \
+            alpha/application/governed_adjusted_stability_cli.py \
+            alpha/benchmark_replay/__init__.py \
+            alpha/benchmark_replay/governed_adjusted_stability.py \
+            tests/benchmark_replay/test_governed_adjusted_stability.py
+          poetry run ruff format \
+            alpha/application/benchmark_cli.py \
+            alpha/application/governed_adjusted_stability_cli.py \
+            alpha/benchmark_replay/__init__.py \
+            alpha/benchmark_replay/governed_adjusted_stability.py \
+            tests/benchmark_replay/test_governed_adjusted_stability.py
+      - name: Strict MyPy
+        run: poetry run mypy alpha
+      - name: HTR-010B3 regression
+        run: |
+          poetry run pytest -q \
+            tests/benchmark_replay/test_governed_adjusted_stability.py \
+            tests/benchmark_replay/test_governed_adjusted.py
+      - name: Remove temporary finalizer
+        run: |
+          rm .github/workflows/temp-htr010b3-finalize.yml
+          rm scripts/temp_finalize_htr010b3.py
+      - name: Commit validated milestone
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Finalize HTR-010B3 stability certification"
+          git push origin HEAD:feature/htr-010b3-governed-adjusted-stability-certification
