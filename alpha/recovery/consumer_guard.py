@@ -188,14 +188,38 @@ def _validate_ohlcv(frame: pd.DataFrame) -> None:
         raw = _ohlcv(row, prefix="raw_")
         adjusted = _ohlcv(row, prefix="adjusted_")
         consumed = _ohlcv(row, prefix="")
-        if adjusted != consumed:
-            raise ValueError("consumer OHLCV does not match exact adjusted OHLCV")
+        if _consumer_projection(adjusted) != consumed:
+            raise ValueError(
+                "consumer OHLCV does not match exact adjusted OHLCV projection"
+            )
         _validate_bar(raw, label="raw")
         _validate_bar(adjusted, label="adjusted")
         if decimal_value(row["cumulative_price_factor"], "price factor") <= 0:
             raise ValueError("cumulative_price_factor must be positive")
         if decimal_value(row["cumulative_volume_factor"], "volume factor") <= 0:
             raise ValueError("cumulative_volume_factor must be positive")
+
+
+def _consumer_projection(
+    values: tuple[Decimal, Decimal, Decimal, Decimal, Decimal],
+) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal]:
+    """
+    Return the exact decimal representation of the downstream float payload.
+
+    Canonical adjusted values remain eight-decimal ``Decimal`` evidence. Consumer
+    OHLCV columns are intentionally float-compatible for the unchanged Alpha stack,
+    so equality is checked against the deterministic IEEE-754 projection rather
+    than against the higher-precision source decimal itself.
+    """
+
+    open_price, high, low, close, volume = values
+    return (
+        decimal_value(float(open_price), "consumer open projection"),
+        decimal_value(float(high), "consumer high projection"),
+        decimal_value(float(low), "consumer low projection"),
+        decimal_value(float(close), "consumer close projection"),
+        decimal_value(float(volume), "consumer volume projection"),
+    )
 
 
 def _ohlcv(
