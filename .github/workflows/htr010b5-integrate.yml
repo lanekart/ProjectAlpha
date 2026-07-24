@@ -45,7 +45,9 @@ jobs:
           echo "3ac1032097ddd6af000e8f509c67c06e0942e3b8213c725a23d6603128487219  /tmp/htr010b5-final-payload.tar.gz" \
             | sha256sum --check --strict
           gzip --test /tmp/htr010b5-final-payload.tar.gz
-          tar -xzf /tmp/htr010b5-final-payload.tar.gz -C .
+          tar -xzf /tmp/htr010b5-final-payload.tar.gz \
+            --strip-components=1 \
+            -C .
 
       - name: Verify finalized source digests and syntax
         shell: bash
