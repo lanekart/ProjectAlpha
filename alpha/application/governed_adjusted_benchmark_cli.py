@@ -77,6 +77,24 @@ class _B2Progress:
             completed=0,
         )
 
+    def update_store(
+        self,
+        current: int,
+        total: int,
+        observed_on: date,
+    ) -> None:
+        if self._progress is None or self._task_id is None or total < 1:
+            return
+
+        self._progress.update(
+            self._task_id,
+            description=(
+                f"Building governed B2 stores through {observed_on.isoformat()}"
+            ),
+            total=total,
+            completed=current,
+        )
+
     def update(self, current: int, total: int, observed_on: date) -> None:
         if self._progress is None or self._task_id is None:
             return
@@ -192,6 +210,7 @@ def governed_adjusted_benchmark(
                 ),
                 project_root=settings.project_root,
                 progress=None if quiet else progress.update,
+                store_progress=None if quiet else progress.update_store,
             )
             completed = True
             progress.complete()
@@ -205,6 +224,13 @@ def governed_adjusted_benchmark(
     comparison = report["comparison"]
     typer.echo("HTR-010B2 Governed Adjusted Benchmark")
     typer.echo(f"Readiness: {report['readiness_decision']}")
+    coverage = report["identity_coverage"]
+    typer.echo(f"Admitted identities: {coverage['admitted_identity_count']}")
+    typer.echo(f"Observed identities: {coverage['observed_identity_count']}")
+    typer.echo(
+        "Unobserved admitted identities: "
+        f"{coverage['unobserved_admitted_identity_count']}"
+    )
     typer.echo(f"Raw sessions: {raw['session_count']}")
     typer.echo(f"Adjusted sessions: {adjusted['session_count']}")
     typer.echo(f"Raw eligible securities: {raw['eligible_security_count']}")

@@ -305,6 +305,9 @@ class GovernedBenchmarkStorePair:
     final_closure_report_sha256: str
     admission_contract_sha256: str
     governed_input_manifest_sha256: str
+    admitted_identity_count: int
+    observed_identity_count: int
+    unobserved_admitted_identity_ids: tuple[str, ...]
 
     @property
     def canonical_attestation_sha256s(self) -> tuple[str, ...]:
@@ -348,6 +351,7 @@ class GovernedAdjustedBenchmarkEngine:
         policy: BenchmarkPolicy | None = None,
         project_root: Path | str = Path("."),
         progress: Callable[[int, int, date], None] | None = None,
+        store_progress: Callable[[int, int, date], None] | None = None,
     ) -> GovernedAdjustedBenchmarkResult:
         pair = build_governed_benchmark_stores(
             source=source,
@@ -359,6 +363,7 @@ class GovernedAdjustedBenchmarkEngine:
             raw_universe=raw_universe,
             adjusted_universe=adjusted_universe,
             output=output / "store_contracts",
+            progress=store_progress,
         )
         admission_mapping = _mapping(admission_contract)
         try:
@@ -435,6 +440,7 @@ def build_governed_benchmark_stores(
     raw_universe: Path,
     adjusted_universe: Path,
     output: Path,
+    progress: Callable[[int, int, date], None] | None = None,
 ) -> GovernedBenchmarkStorePair:
     """Build paired point-in-time stores over one signed identity-session set."""
 
@@ -466,10 +472,13 @@ def build_governed_benchmark_stores(
     identity_session_keys: list[str] = []
     observed_ids: set[str] = set()
     available_dates: list[date] = []
-    for trading_date in source.trade_dates(
+    dependency_dates = source.trade_dates(
         start=dependency_start,
         end=dependency_end,
-    ):
+    )
+    for current, trading_date in enumerate(dependency_dates, start=1):
+        if progress is not None:
+            progress(current, len(dependency_dates), trading_date)
         frame = admitted_source.find_by_trade_date(trading_date)
         if frame.empty:
             continue
@@ -492,13 +501,10 @@ def build_governed_benchmark_stores(
             )
     admitted_source.available_dates = tuple(available_dates)
 
-    missing_ids = tuple(
-        sorted(set(admission.admitted_security_ids).difference(observed_ids))
+    admitted_ids, unobserved_ids = _identity_coverage(
+        admitted_ids=admission.admitted_security_ids,
+        observed_ids=observed_ids,
     )
-    if missing_ids:
-        raise ValueError(
-            "admitted identities have no benchmark rows: " + ",".join(missing_ids[:20])
-        )
     source_replay_dates = source.trade_dates(
         start=admission.replay_start,
         end=admission.replay_end,
@@ -569,6 +575,9 @@ def build_governed_benchmark_stores(
         final_closure_report_sha256=str(closure["report_sha256"]),
         admission_contract_sha256=admission.admission_contract_sha256,
         governed_input_manifest_sha256=inputs.manifest.manifest_sha256,
+        admitted_identity_count=len(admitted_ids),
+        observed_identity_count=len(observed_ids),
+        unobserved_admitted_identity_ids=unobserved_ids,
     )
 
 
@@ -796,6 +805,19 @@ def _integration_report(
         "final_closure_report_sha256": pair.final_closure_report_sha256,
         "admission_contract_sha256": pair.admission_contract_sha256,
         "governed_input_manifest_sha256": pair.governed_input_manifest_sha256,
+        "identity_coverage": {
+            "admitted_identity_count": pair.admitted_identity_count,
+            "observed_identity_count": pair.observed_identity_count,
+            "unobserved_admitted_identity_count": len(
+                pair.unobserved_admitted_identity_ids
+            ),
+            "unobserved_admitted_identity_sha256": _digest_list(
+                list(pair.unobserved_admitted_identity_ids)
+            ),
+            "unobserved_admitted_identity_sample": list(
+                pair.unobserved_admitted_identity_ids[:20]
+            ),
+        },
         "canonical_attestation_count": len(attestations),
         "canonical_attestation_sha256s": list(attestations),
         "raw_artifact_count": raw_artifact_count,
@@ -811,6 +833,28 @@ def _integration_report(
     }
     report["report_sha256"] = _digest_mapping(report)
     return report
+
+
+def _identity_coverage(
+    *,
+    admitted_ids: tuple[str, ...],
+    observed_ids: set[str],
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    admitted = tuple(sorted(set(admitted_ids)))
+    admitted_set = set(admitted)
+
+    unexpected = tuple(sorted(observed_ids.difference(admitted_set)))
+    if unexpected:
+        raise ValueError(
+            "observed benchmark identities are outside B1H admission: "
+            + ",".join(unexpected[:20])
+        )
+
+    if not observed_ids:
+        raise ValueError("B2 observed identity population is empty")
+
+    unobserved = tuple(sorted(admitted_set.difference(observed_ids)))
+    return admitted, unobserved
 
 
 def _benchmark_population_nonempty(

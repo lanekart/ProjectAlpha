@@ -15,6 +15,7 @@ from alpha.benchmark_replay.governed_adjusted import (
     _AdmittedReplayPriceSource,
     _benchmark_population_nonempty,
     _canonical_identity_frame,
+    _identity_coverage,
     _readiness_decision,
     build_governed_benchmark_stores,
     validate_governed_adjusted_handoff,
@@ -376,4 +377,30 @@ def test_b2_handoff_uses_final_closure_producer_digest(
             identity_admission=artifacts["identity_admission"],
             raw_universe=artifacts["raw_universe"],
             adjusted_universe=artifacts["adjusted_universe"],
+        )
+
+
+def test_b2_allows_admitted_identity_without_window_rows() -> None:
+    admitted, unobserved = _identity_coverage(
+        admitted_ids=("SEC-1", "SEC-2"),
+        observed_ids={"SEC-1"},
+    )
+
+    assert admitted == ("SEC-1", "SEC-2")
+    assert unobserved == ("SEC-2",)
+
+
+def test_b2_rejects_observed_identity_outside_admission() -> None:
+    with pytest.raises(ValueError, match="outside B1H admission"):
+        _identity_coverage(
+            admitted_ids=("SEC-1",),
+            observed_ids={"SEC-1", "SEC-2"},
+        )
+
+
+def test_b2_rejects_empty_observed_identity_population() -> None:
+    with pytest.raises(ValueError, match="observed identity population is empty"):
+        _identity_coverage(
+            admitted_ids=("SEC-1",),
+            observed_ids=set(),
         )
