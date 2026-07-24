@@ -15,6 +15,7 @@ from rich.progress import (
     MofNCompleteColumn,
     Progress,
     SpinnerColumn,
+    TaskID,
     TextColumn,
     TimeElapsedColumn,
     TimeRemainingColumn,
@@ -37,7 +38,7 @@ class _B2Progress:
     def __init__(self, *, enabled: bool) -> None:
         self.enabled = enabled
         self._progress: Progress | None = None
-        self._task_id: int | None = None
+        self._task_id: TaskID | None = None
         self._phase = 0
         self._phase_total: int | None = None
         self._last_current = 0
