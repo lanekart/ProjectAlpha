@@ -1,0 +1,68 @@
+name: Temporary HTR-010B4 Finalize
+
+on:
+  push:
+    branches:
+      - feature/htr-010b4-governed-trade-formation-certification
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temp-htr010b4-finalize
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-010b4-governed-trade-formation-certification
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Materialize complete HTR-010B4 milestone
+        run: poetry run python scripts/temp_finalize_htr010b4.py
+      - name: Ruff autofix and formatting
+        run: |
+          poetry run ruff check --fix \
+            alpha/application/benchmark_cli.py \
+            alpha/application/governed_trade_formation_cli.py \
+            alpha/benchmark_replay/__init__.py \
+            alpha/benchmark_replay/governed_trade_formation.py \
+            tests/benchmark_replay/test_governed_trade_formation.py
+          poetry run ruff format \
+            alpha/application/benchmark_cli.py \
+            alpha/application/governed_trade_formation_cli.py \
+            alpha/benchmark_replay/__init__.py \
+            alpha/benchmark_replay/governed_trade_formation.py \
+            tests/benchmark_replay/test_governed_trade_formation.py
+      - name: Strict MyPy
+        run: poetry run mypy alpha
+      - name: HTR-010B4 regression
+        run: |
+          poetry run pytest -q \
+            tests/benchmark_replay/test_governed_trade_formation.py \
+            tests/benchmark_replay/test_governed_adjusted_stability.py \
+            tests/benchmark_replay/test_governed_adjusted.py
+      - name: Verify CLI registration
+        run: poetry run python -m alpha benchmark --help | grep governed-trade-formation
+      - name: Remove temporary finalizer payload
+        run: |
+          rm .github/workflows/temp-htr010b4-finalize.yml
+          rm scripts/temp_finalize_htr010b4.py
+          rm scripts/.htr010b4_core.b64
+          rm scripts/.htr010b4_cli.b64
+          rm scripts/.htr010b4_test.b64
+      - name: Commit validated milestone
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Implement HTR-010B4 trade-formation certification"
+          git push origin HEAD:feature/htr-010b4-governed-trade-formation-certification
