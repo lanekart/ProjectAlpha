@@ -9,11 +9,15 @@ on:
 
 permissions:
   contents: write
+  issues: write
+  pull-requests: read
 
 jobs:
   integrate:
     runs-on: ubuntu-latest
     env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
       FEATURE_BRANCH: feature/htr-010b5-governed-approval-gate-forensics-certification
       _TYPER_FORCE_DISABLE_TERMINAL: "1"
     steps:
@@ -91,7 +95,29 @@ jobs:
         run: poetry run ruff format --check .
 
       - name: Run strict MyPy
-        run: poetry run mypy alpha
+        shell: bash
+        run: |
+          set +e
+          poetry run mypy alpha > /tmp/htr010b5-mypy.txt 2>&1
+          status=$?
+          cat /tmp/htr010b5-mypy.txt
+          if [[ "${status}" -ne 0 ]]; then
+            body="$(python - <<'PY'
+          from pathlib import Path
+
+          text = Path('/tmp/htr010b5-mypy.txt').read_text(encoding='utf-8')
+          print(
+              '<!-- htr010b5-mypy-diagnostic -->\n'
+              '### HTR-010B5 strict MyPy diagnostic\n\n'
+              '```text\n' + text[-50000:] + '\n```'
+          )
+          PY
+          )"
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+              -f body="${body}"
+          fi
+          exit "${status}"
 
       - name: Run focused HTR-010B5 tests
         run: >-
