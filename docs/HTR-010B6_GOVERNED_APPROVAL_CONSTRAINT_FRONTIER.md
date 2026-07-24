@@ -123,6 +123,13 @@ poetry run python -m alpha benchmark governed-approval-constraint-frontier \
 
 The command displays one determinate seven-stage progress bar.
 
+## Implementation validation
+
+The milestone branch is validated with locked Ruff checking and formatting, strict
+MyPy across `alpha`, focused B6 contract and tamper regressions, public CLI
+registration, and every permanent repository CI shard. A signed real-data B6
+certificate over the accepted B5 artifact directory remains mandatory before merge.
+
 ## Guardrails
 
 Every B6 certificate records:
