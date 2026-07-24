@@ -22,22 +22,20 @@ jobs:
       - run: poetry install --no-interaction
       - name: Apply repair
         run: poetry run python scripts/temp_repair_b2_comparisons.py
-      - name: Format and validate repair
+      - name: Ruff autofix
         run: |
           poetry run ruff check --fix \
             alpha/canonical_universe_audit/store.py \
             alpha/benchmark_replay/engine.py \
             alpha/benchmark_replay/governed_adjusted.py \
             tests/benchmark_replay/test_governed_adjusted.py
+      - name: Ruff formatting
+        run: |
           poetry run ruff format \
             alpha/canonical_universe_audit/store.py \
             alpha/benchmark_replay/engine.py \
             alpha/benchmark_replay/governed_adjusted.py \
             tests/benchmark_replay/test_governed_adjusted.py
-          poetry run mypy alpha
-          poetry run pytest -q \
-            tests/benchmark_replay \
-            tests/historical_truth/test_b1_final_closure.py
       - uses: actions/upload-artifact@v4
         with:
           name: b2-comparison-repair
@@ -47,8 +45,26 @@ jobs:
             alpha/benchmark_replay/governed_adjusted.py
             tests/benchmark_replay/test_governed_adjusted.py
           if-no-files-found: error
+      - name: Ruff verification
+        run: |
+          poetry run ruff check \
+            alpha/canonical_universe_audit/store.py \
+            alpha/benchmark_replay/engine.py \
+            alpha/benchmark_replay/governed_adjusted.py \
+            tests/benchmark_replay/test_governed_adjusted.py
+          poetry run ruff format --check \
+            alpha/canonical_universe_audit/store.py \
+            alpha/benchmark_replay/engine.py \
+            alpha/benchmark_replay/governed_adjusted.py \
+            tests/benchmark_replay/test_governed_adjusted.py
+      - name: Strict MyPy
+        run: poetry run mypy alpha
+      - name: Full benchmark regression
+        run: |
+          poetry run pytest -q \
+            tests/benchmark_replay \
+            tests/historical_truth/test_b1_final_closure.py
       - name: Commit and push repair
-        continue-on-error: true
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
