@@ -1,0 +1,66 @@
+name: Temporary HTR-010B5 finalizer
+
+on:
+  push:
+    branches:
+      - feature/bootstrap
+    paths:
+      - .github/workflows/htr010b5-finalize.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the HTR-010B5 feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/htr-010b5-governed-approval-gate-forensics
+          fetch-depth: 0
+
+      - name: Apply final deterministic source cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              "alpha/benchmark_replay/governed_approval_gate_forensics.py"
+          )
+          source = path.read_text(encoding="utf-8")
+          old = '''            _date_value(benchmark_row.get("observed_on"), f"{price_view} benchmark date"),
+            _symbol(benchmark_row.get("symbol"), f"{price_view} benchmark symbol"),'''
+          new = '''            _date_value(
+                benchmark_row.get("observed_on"),
+                f"{price_view} benchmark date",
+            ),
+            _symbol(
+                benchmark_row.get("symbol"),
+                f"{price_view} benchmark symbol",
+            ),'''
+          if old in source:
+              source = source.replace(old, new, 1)
+          elif new not in source:
+              raise SystemExit("unexpected HTR-010B5 benchmark-key block")
+          path.write_text(source, encoding="utf-8")
+          PY
+          rm -f \
+            .github/workflows/htr010b5-final-format.yml \
+            .github/workflows/htr010b5-mypy-fix.yml \
+            htr010b5-mypy-diagnostics.txt \
+            htr010b5-quality-diagnostics.txt
+
+      - name: Commit the final feature-branch source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git commit -m "fix(htr010b5): finalize strict-typed source"
+          git push origin \
+            HEAD:feature/htr-010b5-governed-approval-gate-forensics
