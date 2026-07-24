@@ -12,9 +12,17 @@ from typer.testing import CliRunner
 
 from alpha.application.benchmark_cli import benchmark_app
 from alpha.benchmark_replay.governed_adjusted import (
+    _AdmittedReplayPriceSource,
+    _benchmark_population_nonempty,
+    _canonical_identity_frame,
+    _readiness_decision,
     build_governed_benchmark_stores,
 )
 from alpha.canonical_universe_audit.store import LegacyMarketDataStore
+from alpha.recovery.security_timeline import (
+    SecurityIdentityRecord,
+    SecurityIdentityTimeline,
+)
 
 
 def _digest(value: object) -> str:
@@ -249,3 +257,90 @@ def test_b2_fails_closed_when_final_closure_is_not_ready(tmp_path: Path) -> None
             output=tmp_path / "contracts",
         )
     source.close()
+
+
+def test_b2_uses_source_stable_identity_across_interval_gap() -> None:
+    trading_date = date(2026, 1, 2)
+    identities = SecurityIdentityTimeline(
+        (
+            SecurityIdentityRecord(
+                security_id="nse:isin:INE000A01001",
+                symbol="ALPHA",
+                exchange="NSE",
+                effective_from=date(2026, 2, 1),
+            ),
+        )
+    )
+    frame = pd.DataFrame(
+        [
+            {
+                "symbol": "ALPHA",
+                "trade_date": trading_date,
+                "exchange": "NSE",
+                "security_id": "nse:isin:INE000A01001",
+                "isin": "INE000A01001",
+                "open": 100,
+                "high": 110,
+                "low": 90,
+                "close": 100,
+                "volume": 1000,
+                "sector": "TEST",
+            }
+        ]
+    )
+    admitted = _AdmittedReplayPriceSource(
+        LegacyMarketDataStore.__new__(LegacyMarketDataStore),
+        identities,
+        frozenset({"nse:isin:INE000A01001"}),
+    )
+
+    filtered = admitted._filter(frame)
+    canonical = _canonical_identity_frame(frame, identities=identities)
+
+    assert filtered["security_id"].tolist() == ["nse:isin:INE000A01001"]
+    assert canonical["security_id"].tolist() == ["nse:isin:INE000A01001"]
+
+
+def test_b2_readiness_blocks_empty_matched_population() -> None:
+    raw = {
+        "eligible_security_count": 0,
+        "eligible_security_observation_count": 0,
+    }
+    adjusted = dict(raw)
+
+    population_nonempty = _benchmark_population_nonempty(raw, adjusted)
+
+    assert population_nonempty is False
+    assert (
+        _readiness_decision(
+            unexplained=0,
+            population_nonempty=population_nonempty,
+        )
+        == "BLOCKED_BY_EMPTY_BENCHMARK_POPULATION"
+    )
+
+
+def test_b2_readiness_requires_nonempty_parity() -> None:
+    raw = {
+        "eligible_security_count": 1,
+        "eligible_security_observation_count": 3,
+    }
+    adjusted = dict(raw)
+
+    population_nonempty = _benchmark_population_nonempty(raw, adjusted)
+
+    assert population_nonempty is True
+    assert (
+        _readiness_decision(
+            unexplained=0,
+            population_nonempty=population_nonempty,
+        )
+        == "READY_FOR_GOVERNED_ADJUSTED_BENCHMARK_RESEARCH"
+    )
+    assert (
+        _readiness_decision(
+            unexplained=1,
+            population_nonempty=population_nonempty,
+        )
+        == "BLOCKED_BY_BENCHMARK_PARITY_DIVERGENCE"
+    )

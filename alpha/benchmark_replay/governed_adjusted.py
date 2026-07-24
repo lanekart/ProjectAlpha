@@ -36,7 +36,8 @@ _READY_STATES = {
     "READY_WITH_GOVERNED_EXCLUSIONS",
 }
 _B2_READY = "READY_FOR_GOVERNED_ADJUSTED_BENCHMARK_RESEARCH"
-_B2_BLOCKED = "BLOCKED_BY_BENCHMARK_PARITY_DIVERGENCE"
+_B2_BLOCKED_PARITY = "BLOCKED_BY_BENCHMARK_PARITY_DIVERGENCE"
+_B2_BLOCKED_EMPTY = "BLOCKED_BY_EMPTY_BENCHMARK_POPULATION"
 _PRICE_COLUMNS = (
     "symbol",
     "trade_date",
@@ -124,10 +125,12 @@ class _AdmittedReplayPriceSource:
             trading_date = _as_date(record.get("trade_date"))
             if trading_date is None:
                 continue
-            identity = self.identities.resolve(
+            identity = self.identities.resolve_source_identity(
                 str(record.get("symbol") or "").strip().upper(),
                 trading_date=trading_date,
                 exchange=str(record.get("exchange") or "").strip().upper() or None,
+                security_id=_optional_text(record.get("security_id")),
+                isin=_optional_text(record.get("isin")),
             )
             if identity is not None and identity.security_id in self.admitted_ids:
                 rows.append(record)
@@ -599,10 +602,12 @@ def _canonical_identity_frame(
         trading_date = _as_date(record.get("trade_date"))
         if trading_date is None:
             continue
-        identity = identities.resolve(
+        identity = identities.resolve_source_identity(
             str(record.get("symbol") or "").strip().upper(),
             trading_date=trading_date,
             exchange=str(record.get("exchange") or "").strip().upper() or None,
+            security_id=_optional_text(record.get("security_id")),
+            isin=_optional_text(record.get("isin")),
         )
         if identity is None:
             continue
@@ -744,10 +749,22 @@ def _integration_report(
             "expectancy_percent",
         )
     }
+    population_nonempty = _benchmark_population_nonempty(raw, adjusted)
+    readiness = _readiness_decision(
+        unexplained=unexplained,
+        population_nonempty=population_nonempty,
+    )
+    readiness_blockers: list[str] = []
+    if unexplained:
+        readiness_blockers.append("BENCHMARK_PARITY_DIVERGENCE")
+    if not population_nonempty:
+        readiness_blockers.append("EMPTY_BENCHMARK_POPULATION")
     comparison = {
         "comparison_state": "COMPARED",
         "parity": parity,
         "metric_deltas": deltas,
+        "benchmark_population_nonempty": population_nonempty,
+        "readiness_blockers": readiness_blockers,
         "unexplained_divergence_count": unexplained,
         "production_influence": False,
     }
@@ -764,13 +781,35 @@ def _integration_report(
         "raw_summary": raw,
         "adjusted_summary": adjusted,
         "comparison": comparison,
-        "readiness_decision": _B2_READY if unexplained == 0 else _B2_BLOCKED,
-        "governed_adjusted_benchmark_enabled": unexplained == 0,
+        "readiness_decision": readiness,
+        "governed_adjusted_benchmark_enabled": readiness == _B2_READY,
+        "decision_metrics_evaluated": population_nonempty,
         "active_replay_integration": False,
         "production_influence": False,
     }
     report["report_sha256"] = _digest_mapping(report)
     return report
+
+
+def _benchmark_population_nonempty(
+    raw: dict[str, Any],
+    adjusted: dict[str, Any],
+) -> bool:
+    required = (
+        "eligible_security_count",
+        "eligible_security_observation_count",
+    )
+    return all(
+        _number(summary.get(key)) > 0 for summary in (raw, adjusted) for key in required
+    )
+
+
+def _readiness_decision(*, unexplained: int, population_nonempty: bool) -> str:
+    if unexplained:
+        return _B2_BLOCKED_PARITY
+    if not population_nonempty:
+        return _B2_BLOCKED_EMPTY
+    return _B2_READY
 
 
 def _benchmark_summary(report: BenchmarkReplayReport) -> dict[str, Any]:
@@ -828,6 +867,13 @@ def _number(value: object) -> Decimal:
     return Decimal(str(value))
 
 
+def _optional_text(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 def _as_date(value: object) -> date | None:
     if isinstance(value, pd.Timestamp):
         return value.date()
@@ -848,6 +894,21 @@ def _markdown(report: dict[str, Any]) -> str:
             f"- Readiness: `{report['readiness_decision']}`",
             f"- Raw sessions: `{raw['session_count']}`",
             f"- Adjusted sessions: `{adjusted['session_count']}`",
+            f"- Raw eligible securities: `{raw['eligible_security_count']}`",
+            (
+                "- Raw eligible observations: "
+                f"`{raw['eligible_security_observation_count']}`"
+            ),
+            f"- Adjusted eligible securities: `{adjusted['eligible_security_count']}`",
+            (
+                "- Adjusted eligible observations: "
+                f"`{adjusted['eligible_security_observation_count']}`"
+            ),
+            (
+                "- Benchmark population nonempty: "
+                f"`{comparison['benchmark_population_nonempty']}`"
+            ),
+            f"- Decision metrics evaluated: `{report['decision_metrics_evaluated']}`",
             f"- Raw candidates: `{raw['technical_candidate_count']}`",
             f"- Adjusted candidates: `{adjusted['technical_candidate_count']}`",
             (
