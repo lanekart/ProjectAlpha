@@ -33,7 +33,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-      - name: Reconstruct the HTR-010B6 source payload
+      - name: Materialize and patch HTR-010B6
         shell: bash
         run: |
           set -euo pipefail
@@ -45,94 +45,7 @@ jobs:
           base64 --decode /tmp/htr010b6-payload.b64 > /tmp/htr010b6-payload.tar.gz
           echo "fffadfd4f4165d15a2c4a9717e7a52cb6b63fd421408b724de6e110438cc3c96  /tmp/htr010b6-payload.tar.gz" | sha256sum --check --strict
           tar -xzf /tmp/htr010b6-payload.tar.gz -C .
-      - name: Register HTR-010B6 public surfaces
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-
-          cli = Path("alpha/application/benchmark_cli.py")
-          text = cli.read_text(encoding="utf-8")
-          import_anchor = '''from alpha.application.governed_approval_gate_forensics_cli import (
-              register_governed_approval_gate_forensics_command,
-          )
-          '''
-          import_replacement = '''from alpha.application.governed_approval_constraint_frontier_cli import (
-              register_governed_approval_constraint_frontier_command,
-          )
-          from alpha.application.governed_approval_gate_forensics_cli import (
-              register_governed_approval_gate_forensics_command,
-          )
-          '''
-          if text.count(import_anchor) != 1:
-              raise SystemExit("benchmark CLI B5 import anchor mismatch")
-          text = text.replace(import_anchor, import_replacement)
-          registration_anchor = (
-              "register_governed_approval_gate_forensics_command(benchmark_app)\n"
-          )
-          registration_replacement = (
-              registration_anchor
-              + "register_governed_approval_constraint_frontier_command(benchmark_app)\n"
-          )
-          if text.count(registration_anchor) != 1:
-              raise SystemExit("benchmark CLI B5 registration anchor mismatch")
-          cli.write_text(
-              text.replace(registration_anchor, registration_replacement),
-              encoding="utf-8",
-          )
-
-          package = Path("alpha/benchmark_replay/__init__.py")
-          text = package.read_text(encoding="utf-8")
-          module_anchor = '''from alpha.benchmark_replay.governed_approval_gate_forensics import (
-          '''
-          module_replacement = '''from alpha.benchmark_replay.governed_approval_constraint_frontier import (
-              B6_BLOCKED_DEFECT,
-              B6_BLOCKED_DIVERGENCE,
-              B6_BLOCKED_EMPTY,
-              B6_BLOCKED_EVIDENCE,
-              B6_READY,
-              HTR010B6_CONTRACT_VERSION,
-              GovernedApprovalConstraintFrontierEngine,
-              GovernedApprovalConstraintFrontierResult,
-              export_governed_approval_constraint_frontier,
-              validate_governed_approval_constraint_frontier_certificate,
-          )
-          from alpha.benchmark_replay.governed_approval_gate_forensics import (
-          '''
-          if text.count(module_anchor) != 1:
-              raise SystemExit("benchmark package B5 import anchor mismatch")
-          text = text.replace(module_anchor, module_replacement)
-          replacements = {
-              '    "B5_READY",\n': '''    "B5_READY",
-              "B6_BLOCKED_DEFECT",
-              "B6_BLOCKED_DIVERGENCE",
-              "B6_BLOCKED_EMPTY",
-              "B6_BLOCKED_EVIDENCE",
-              "B6_READY",
-          ''',
-              '    "HTR010B5_CONTRACT_VERSION",\n': '''    "HTR010B5_CONTRACT_VERSION",
-              "HTR010B6_CONTRACT_VERSION",
-          ''',
-              '    "GovernedApprovalGateForensicsResult",\n': '''    "GovernedApprovalGateForensicsResult",
-              "GovernedApprovalConstraintFrontierEngine",
-              "GovernedApprovalConstraintFrontierResult",
-          ''',
-              '    "export_governed_approval_gate_forensics",\n': '''    "export_governed_approval_gate_forensics",
-              "export_governed_approval_constraint_frontier",
-          ''',
-              '    "validate_governed_approval_gate_forensics_certificate",\n': '''    "validate_governed_approval_gate_forensics_certificate",
-              "validate_governed_approval_constraint_frontier_certificate",
-          ''',
-          }
-          for anchor, replacement in replacements.items():
-              if text.count(anchor) != 1:
-                  raise SystemExit(
-                      f"benchmark package export anchor mismatch: {anchor!r}"
-                  )
-              text = text.replace(anchor, replacement)
-          package.write_text(text, encoding="utf-8")
-          PY
+          python .tmp/htr010b6/apply_ruff_fixes.py
       - name: Install the locked project environment
         run: |
           pip install poetry
@@ -141,20 +54,17 @@ jobs:
         shell: bash
         run: |
           set +e
-          poetry run ruff check --fix \
-            alpha/application/benchmark_cli.py \
-            alpha/application/governed_approval_constraint_frontier_cli.py \
-            alpha/benchmark_replay/__init__.py \
-            alpha/benchmark_replay/governed_approval_constraint_frontier.py \
-            tests/benchmark_replay/test_governed_approval_constraint_frontier.py \
+          files=(
+            alpha/application/benchmark_cli.py
+            alpha/application/governed_approval_constraint_frontier_cli.py
+            alpha/benchmark_replay/__init__.py
+            alpha/benchmark_replay/governed_approval_constraint_frontier.py
+            tests/benchmark_replay/test_governed_approval_constraint_frontier.py
+          )
+          poetry run ruff check --fix "${files[@]}" \
             > /tmp/htr010b6-ruff-check.log 2>&1
           check_status=$?
-          poetry run ruff format \
-            alpha/application/benchmark_cli.py \
-            alpha/application/governed_approval_constraint_frontier_cli.py \
-            alpha/benchmark_replay/__init__.py \
-            alpha/benchmark_replay/governed_approval_constraint_frontier.py \
-            tests/benchmark_replay/test_governed_approval_constraint_frontier.py \
+          poetry run ruff format "${files[@]}" \
             > /tmp/htr010b6-ruff-format.log 2>&1
           format_status=$?
           set -e
@@ -177,24 +87,48 @@ jobs:
             exit 1
           fi
       - name: Run HTR-010B6 quality gates
+        shell: bash
         env:
           _TYPER_FORCE_DISABLE_TERMINAL: "1"
         run: |
-          poetry run ruff check \
-            alpha/application/benchmark_cli.py \
-            alpha/application/governed_approval_constraint_frontier_cli.py \
-            alpha/benchmark_replay/__init__.py \
-            alpha/benchmark_replay/governed_approval_constraint_frontier.py \
+          set -euo pipefail
+          files=(
+            alpha/application/benchmark_cli.py
+            alpha/application/governed_approval_constraint_frontier_cli.py
+            alpha/benchmark_replay/__init__.py
+            alpha/benchmark_replay/governed_approval_constraint_frontier.py
             tests/benchmark_replay/test_governed_approval_constraint_frontier.py
-          poetry run ruff format --check \
-            alpha/application/benchmark_cli.py \
-            alpha/application/governed_approval_constraint_frontier_cli.py \
-            alpha/benchmark_replay/__init__.py \
-            alpha/benchmark_replay/governed_approval_constraint_frontier.py \
-            tests/benchmark_replay/test_governed_approval_constraint_frontier.py
-          poetry run mypy alpha
+          )
+          poetry run ruff check "${files[@]}"
+          poetry run ruff format --check "${files[@]}"
+
+          set +e
+          poetry run mypy alpha > /tmp/htr010b6-mypy.log 2>&1
+          mypy_status=$?
           poetry run pytest -q \
-            tests/benchmark_replay/test_governed_approval_constraint_frontier.py
+            tests/benchmark_replay/test_governed_approval_constraint_frontier.py \
+            > /tmp/htr010b6-pytest.log 2>&1
+          pytest_status=$?
+          set -e
+
+          cat /tmp/htr010b6-mypy.log
+          cat /tmp/htr010b6-pytest.log
+          if [[ "$mypy_status" -ne 0 || "$pytest_status" -ne 0 ]]; then
+            {
+              printf 'mypy_status=%s\n' "$mypy_status"
+              printf 'pytest_status=%s\n\n' "$pytest_status"
+              printf '%s\n' '--- strict mypy ---'
+              cat /tmp/htr010b6-mypy.log
+              printf '%s\n' '--- focused pytest ---'
+              cat /tmp/htr010b6-pytest.log
+            } > .tmp/htr010b6/diagnostic.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -f .tmp/htr010b6/diagnostic.txt
+            git commit -m "chore(htr-010b6): publish quality diagnostic"
+            git push origin HEAD:feature/htr-010b6-governed-approval-constraint-frontier
+            exit 1
+          fi
       - name: Commit the clean HTR-010B6 implementation
         shell: bash
         run: |
@@ -207,6 +141,7 @@ jobs:
           git diff --cached --name-only | sort > /tmp/htr010b6-actual-paths
           cat > /tmp/htr010b6-expected-paths <<'EOF'
           .github/workflows/htr010b6-integrate.yml
+          .tmp/htr010b6/apply_ruff_fixes.py
           .tmp/htr010b6/payload.part-00
           .tmp/htr010b6/payload.part-01
           .tmp/htr010b6/payload.part-02
