@@ -1,17 +1,20 @@
 name: Temporary HTR-010B5 finalizer
 
 on:
-  push:
+  pull_request:
     branches:
       - feature/recovery-foundation-v1
-    paths:
-      - .github/workflows/htr010b5-finalize.yml
+    types:
+      - synchronize
 
 permissions:
   contents: write
 
 jobs:
   finalize:
+    if: >-
+      github.event.pull_request.head.ref ==
+      'feature/htr-010b5-governed-approval-gate-forensics'
     runs-on: ubuntu-latest
     steps:
       - name: Check out the HTR-010B5 feature branch
