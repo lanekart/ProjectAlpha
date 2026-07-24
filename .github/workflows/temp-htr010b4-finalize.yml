@@ -48,8 +48,23 @@ jobs:
             alpha/benchmark_replay/__init__.py \
             alpha/benchmark_replay/governed_trade_formation.py \
             tests/benchmark_replay/test_governed_trade_formation.py
-      - name: Strict MyPy
-        run: poetry run mypy alpha
+      - name: Strict MyPy diagnostics
+        run: |
+          set +e
+          poetry run mypy alpha > htr010b4-mypy.log 2>&1
+          echo "$?" > htr010b4-mypy.status
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: htr010b4-mypy-diagnostics
+          path: |
+            htr010b4-mypy.log
+            htr010b4-mypy.status
+      - name: Require strict MyPy
+        run: |
+          cat htr010b4-mypy.log
+          test "$(cat htr010b4-mypy.status)" = "0"
       - name: HTR-010B4 regression
         run: |
           poetry run pytest -q \
