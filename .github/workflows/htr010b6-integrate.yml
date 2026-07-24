@@ -1,5 +1,5 @@
 name: Integrate HTR-010B6
-# Retrigger with allowlisted clean-file-set validation.
+# Serialize integration writes and validate the clean file set.
 
 on:
   push:
@@ -15,6 +15,10 @@ on:
 
 permissions:
   contents: write
+
+concurrency:
+  group: htr010b6-integration
+  cancel-in-progress: true
 
 jobs:
   integrate:
