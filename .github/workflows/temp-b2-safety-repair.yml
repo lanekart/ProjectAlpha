@@ -1,0 +1,129 @@
+name: Temporary B2 Safety Repair
+
+on:
+  push:
+    branches:
+      - feature/htr-010b2-governed-adjusted-benchmark-integration
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: ${{ !contains(github.event.head_commit.message, 'Apply B2 stable identity and non-vacuous readiness guards') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-010b2-governed-adjusted-benchmark-integration
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Apply governed B2 safety repair
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: Path, old: str, new: str) -> None:
+              text = path.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one match, found {count}")
+              path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          core = Path("alpha/benchmark_replay/governed_adjusted.py")
+
+          replace_once(
+              core,
+              '_B2_BLOCKED = "BLOCKED_BY_BENCHMARK_PARITY_DIVERGENCE"\n',
+              '_B2_BLOCKED_PARITY = "BLOCKED_BY_BENCHMARK_PARITY_DIVERGENCE"\n'
+              '_B2_BLOCKED_EMPTY = "BLOCKED_BY_EMPTY_BENCHMARK_POPULATION"\n',
+          )
+
+          replace_once(
+              core,
+              '''            identity = self.identities.resolve(\n                str(record.get("symbol") or "").strip().upper(),\n                trading_date=trading_date,\n                exchange=str(record.get("exchange") or "").strip().upper() or None,\n            )\n''',
+              '''            identity = self.identities.resolve_source_identity(\n                str(record.get("symbol") or "").strip().upper(),\n                trading_date=trading_date,\n                exchange=str(record.get("exchange") or "").strip().upper() or None,\n                security_id=_optional_text(record.get("security_id")),\n                isin=_optional_text(record.get("isin")),\n            )\n''',
+          )
+
+          replace_once(
+              core,
+              '''        identity = identities.resolve(\n            str(record.get("symbol") or "").strip().upper(),\n            trading_date=trading_date,\n            exchange=str(record.get("exchange") or "").strip().upper() or None,\n        )\n''',
+              '''        identity = identities.resolve_source_identity(\n            str(record.get("symbol") or "").strip().upper(),\n            trading_date=trading_date,\n            exchange=str(record.get("exchange") or "").strip().upper() or None,\n            security_id=_optional_text(record.get("security_id")),\n            isin=_optional_text(record.get("isin")),\n        )\n''',
+          )
+
+          replace_once(
+              core,
+              '''    comparison = {\n        "comparison_state": "COMPARED",\n        "parity": parity,\n        "metric_deltas": deltas,\n        "unexplained_divergence_count": unexplained,\n        "production_influence": False,\n    }\n    attestations = pair.canonical_attestation_sha256s\n    report: dict[str, Any] = {\n''',
+              '''    population_nonempty = _benchmark_population_nonempty(raw, adjusted)\n    readiness = _readiness_decision(\n        unexplained=unexplained,\n        population_nonempty=population_nonempty,\n    )\n    readiness_blockers: list[str] = []\n    if unexplained:\n        readiness_blockers.append("BENCHMARK_PARITY_DIVERGENCE")\n    if not population_nonempty:\n        readiness_blockers.append("EMPTY_BENCHMARK_POPULATION")\n    comparison = {\n        "comparison_state": "COMPARED",\n        "parity": parity,\n        "metric_deltas": deltas,\n        "benchmark_population_nonempty": population_nonempty,\n        "readiness_blockers": readiness_blockers,\n        "unexplained_divergence_count": unexplained,\n        "production_influence": False,\n    }\n    attestations = pair.canonical_attestation_sha256s\n    report: dict[str, Any] = {\n''',
+          )
+
+          replace_once(
+              core,
+              '''        "comparison": comparison,\n        "readiness_decision": _B2_READY if unexplained == 0 else _B2_BLOCKED,\n        "governed_adjusted_benchmark_enabled": unexplained == 0,\n        "active_replay_integration": False,\n''',
+              '''        "comparison": comparison,\n        "readiness_decision": readiness,\n        "governed_adjusted_benchmark_enabled": readiness == _B2_READY,\n        "decision_metrics_evaluated": population_nonempty,\n        "active_replay_integration": False,\n''',
+          )
+
+          replace_once(
+              core,
+              '''def _benchmark_summary(report: BenchmarkReplayReport) -> dict[str, Any]:\n''',
+              '''def _benchmark_population_nonempty(\n    raw: dict[str, Any],\n    adjusted: dict[str, Any],\n) -> bool:\n    required = (\n        "eligible_security_count",\n        "eligible_security_observation_count",\n    )\n    return all(\n        _number(summary.get(key)) > 0\n        for summary in (raw, adjusted)\n        for key in required\n    )\n\n\ndef _readiness_decision(*, unexplained: int, population_nonempty: bool) -> str:\n    if unexplained:\n        return _B2_BLOCKED_PARITY\n    if not population_nonempty:\n        return _B2_BLOCKED_EMPTY\n    return _B2_READY\n\n\ndef _benchmark_summary(report: BenchmarkReplayReport) -> dict[str, Any]:\n''',
+          )
+
+          replace_once(
+              core,
+              '''def _as_date(value: object) -> date | None:\n''',
+              '''def _optional_text(value: object) -> str | None:\n    if value is None:\n        return None\n    text = str(value).strip()\n    return text or None\n\n\ndef _as_date(value: object) -> date | None:\n''',
+          )
+
+          replace_once(
+              core,
+              '''            f"- Raw candidates: `{raw['technical_candidate_count']}`",\n            f"- Adjusted candidates: `{adjusted['technical_candidate_count']}`",\n            (\n''',
+              '''            f"- Raw eligible securities: `{raw['eligible_security_count']}`",\n            (\n                "- Raw eligible observations: "\n                f"`{raw['eligible_security_observation_count']}`"\n            ),\n            f"- Adjusted eligible securities: `{adjusted['eligible_security_count']}`",\n            (\n                "- Adjusted eligible observations: "\n                f"`{adjusted['eligible_security_observation_count']}`"\n            ),\n            (\n                "- Benchmark population nonempty: "\n                f"`{comparison['benchmark_population_nonempty']}`"\n            ),\n            f"- Decision metrics evaluated: `{report['decision_metrics_evaluated']}`",\n            f"- Raw candidates: `{raw['technical_candidate_count']}`",\n            f"- Adjusted candidates: `{adjusted['technical_candidate_count']}`",\n            (\n''',
+          )
+
+          tests = Path("tests/benchmark_replay/test_governed_adjusted.py")
+          replace_once(
+              tests,
+              '''from alpha.benchmark_replay.governed_adjusted import (\n    build_governed_benchmark_stores,\n)\n''',
+              '''from alpha.benchmark_replay.governed_adjusted import (\n    _AdmittedReplayPriceSource,\n    _benchmark_population_nonempty,\n    _canonical_identity_frame,\n    _readiness_decision,\n    build_governed_benchmark_stores,\n)\n''',
+          )
+          replace_once(
+              tests,
+              '''from alpha.canonical_universe_audit.store import LegacyMarketDataStore\n''',
+              '''from alpha.canonical_universe_audit.store import LegacyMarketDataStore\nfrom alpha.recovery.security_timeline import (\n    SecurityIdentityRecord,\n    SecurityIdentityTimeline,\n)\n''',
+          )
+
+          text = tests.read_text(encoding="utf-8")
+          text += '''\n\ndef test_b2_uses_source_stable_identity_across_interval_gap() -> None:\n    trading_date = date(2026, 1, 2)\n    identities = SecurityIdentityTimeline(\n        (\n            SecurityIdentityRecord(\n                security_id="nse:isin:INE000A01001",\n                symbol="ALPHA",\n                exchange="NSE",\n                effective_from=date(2026, 2, 1),\n            ),\n        )\n    )\n    frame = pd.DataFrame(\n        [\n            {\n                "symbol": "ALPHA",\n                "trade_date": trading_date,\n                "exchange": "NSE",\n                "security_id": "nse:isin:INE000A01001",\n                "isin": "INE000A01001",\n                "open": 100,\n                "high": 110,\n                "low": 90,\n                "close": 100,\n                "volume": 1000,\n                "sector": "TEST",\n            }\n        ]\n    )\n    admitted = _AdmittedReplayPriceSource(\n        LegacyMarketDataStore.__new__(LegacyMarketDataStore),\n        identities,\n        frozenset({"nse:isin:INE000A01001"}),\n    )\n\n    filtered = admitted._filter(frame)\n    canonical = _canonical_identity_frame(frame, identities=identities)\n\n    assert filtered["security_id"].tolist() == ["nse:isin:INE000A01001"]\n    assert canonical["security_id"].tolist() == ["nse:isin:INE000A01001"]\n\n\ndef test_b2_readiness_blocks_empty_matched_population() -> None:\n    raw = {\n        "eligible_security_count": 0,\n        "eligible_security_observation_count": 0,\n    }\n    adjusted = dict(raw)\n\n    population_nonempty = _benchmark_population_nonempty(raw, adjusted)\n\n    assert population_nonempty is False\n    assert (\n        _readiness_decision(\n            unexplained=0,\n            population_nonempty=population_nonempty,\n        )\n        == "BLOCKED_BY_EMPTY_BENCHMARK_POPULATION"\n    )\n\n\ndef test_b2_readiness_requires_nonempty_parity() -> None:\n    raw = {\n        "eligible_security_count": 1,\n        "eligible_security_observation_count": 3,\n    }\n    adjusted = dict(raw)\n\n    population_nonempty = _benchmark_population_nonempty(raw, adjusted)\n\n    assert population_nonempty is True\n    assert (\n        _readiness_decision(\n            unexplained=0,\n            population_nonempty=population_nonempty,\n        )\n        == "READY_FOR_GOVERNED_ADJUSTED_BENCHMARK_RESEARCH"\n    )\n    assert (\n        _readiness_decision(\n            unexplained=1,\n            population_nonempty=population_nonempty,\n        )\n        == "BLOCKED_BY_BENCHMARK_PARITY_DIVERGENCE"\n    )\n'''
+          tests.write_text(text, encoding="utf-8")
+          PY
+      - name: Validate focused repair
+        run: |
+          poetry run ruff check --fix \
+            alpha/benchmark_replay/governed_adjusted.py \
+            tests/benchmark_replay/test_governed_adjusted.py
+          poetry run ruff format \
+            alpha/benchmark_replay/governed_adjusted.py \
+            tests/benchmark_replay/test_governed_adjusted.py
+          poetry run ruff check \
+            alpha/benchmark_replay/governed_adjusted.py \
+            tests/benchmark_replay/test_governed_adjusted.py
+          poetry run ruff format --check \
+            alpha/benchmark_replay/governed_adjusted.py \
+            tests/benchmark_replay/test_governed_adjusted.py
+          poetry run mypy alpha
+          poetry run pytest -q tests/benchmark_replay/test_governed_adjusted.py
+      - name: Commit governed repair
+        run: |
+          git config user.name "Project Alpha CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add \
+            alpha/benchmark_replay/governed_adjusted.py \
+            tests/benchmark_replay/test_governed_adjusted.py
+          git commit -m "Apply B2 stable identity and non-vacuous readiness guards"
+          git push origin HEAD:feature/htr-010b2-governed-adjusted-benchmark-integration
