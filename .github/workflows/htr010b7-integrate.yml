@@ -36,42 +36,25 @@ jobs:
         run: |
           set +e
           DIAGNOSTIC=.tmp/htr010b7/transport_diagnostic.txt
-          {
-            echo "HTR010B7_PAYLOAD_TRANSPORT_DIAGNOSTIC"
-            echo "git_head=$(git rev-parse HEAD)"
-            echo
-            for part in .tmp/htr010b7/payload.part-*; do
-              wc -c "$part"
-              sha256sum "$part"
-            done
-            echo
-            cat .tmp/htr010b7/payload.part-* | tr -d '\r\n' > /tmp/htr010b7-payload.b64
-            echo "normalized_base64_bytes=$(wc -c < /tmp/htr010b7-payload.b64)"
-            sha256sum /tmp/htr010b7-payload.b64
-            echo
-            python - <<'PY'
-          import base64
-          import hashlib
-          from pathlib import Path
-
-          source = Path('/tmp/htr010b7-payload.b64').read_bytes()
-          print(f'python_source_bytes={len(source)}')
-          print(f'python_source_mod4={len(source) % 4}')
-          try:
-              archive = base64.b64decode(source, validate=True)
-          except Exception as error:
-              print(f'python_decode_error={type(error).__name__}:{error}')
-          else:
-              Path('/tmp/htr010b7-payload.tar.gz').write_bytes(archive)
-              print(f'archive_bytes={len(archive)}')
-              print(f'archive_sha256={hashlib.sha256(archive).hexdigest()}')
-          PY
-            echo
-            if test -f /tmp/htr010b7-payload.tar.gz; then
-              tar -tzf /tmp/htr010b7-payload.tar.gz
-              echo "tar_status=$?"
-            fi
-          } > "$DIAGNOSTIC" 2>&1
+          echo "HTR010B7_PAYLOAD_TRANSPORT_DIAGNOSTIC" > "$DIAGNOSTIC"
+          echo "git_head=$(git rev-parse HEAD)" >> "$DIAGNOSTIC"
+          echo >> "$DIAGNOSTIC"
+          for part in .tmp/htr010b7/payload.part-*; do
+            wc -c "$part" >> "$DIAGNOSTIC" 2>&1
+            sha256sum "$part" >> "$DIAGNOSTIC" 2>&1
+          done
+          echo >> "$DIAGNOSTIC"
+          cat .tmp/htr010b7/payload.part-* | tr -d '\r\n' > /tmp/htr010b7-payload.b64
+          echo "normalized_base64_bytes=$(wc -c < /tmp/htr010b7-payload.b64)" >> "$DIAGNOSTIC"
+          sha256sum /tmp/htr010b7-payload.b64 >> "$DIAGNOSTIC" 2>&1
+          base64 --decode /tmp/htr010b7-payload.b64 > /tmp/htr010b7-payload.tar.gz 2>> "$DIAGNOSTIC"
+          echo "base64_decode_status=$?" >> "$DIAGNOSTIC"
+          if test -f /tmp/htr010b7-payload.tar.gz; then
+            echo "archive_bytes=$(wc -c < /tmp/htr010b7-payload.tar.gz)" >> "$DIAGNOSTIC"
+            sha256sum /tmp/htr010b7-payload.tar.gz >> "$DIAGNOSTIC" 2>&1
+            tar -tzf /tmp/htr010b7-payload.tar.gz >> "$DIAGNOSTIC" 2>&1
+            echo "tar_status=$?" >> "$DIAGNOSTIC"
+          fi
           cat "$DIAGNOSTIC"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
