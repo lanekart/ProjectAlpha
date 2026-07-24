@@ -22,15 +22,13 @@ jobs:
       - run: poetry install --no-interaction
       - name: Apply repair
         run: poetry run python scripts/temp_repair_b2_comparisons.py
-      - name: Ruff autofix
+      - name: Ruff autofix and formatting
         run: |
           poetry run ruff check --fix \
             alpha/canonical_universe_audit/store.py \
             alpha/benchmark_replay/engine.py \
             alpha/benchmark_replay/governed_adjusted.py \
             tests/benchmark_replay/test_governed_adjusted.py
-      - name: Ruff formatting
-        run: |
           poetry run ruff format \
             alpha/canonical_universe_audit/store.py \
             alpha/benchmark_replay/engine.py \
@@ -60,10 +58,23 @@ jobs:
       - name: Strict MyPy
         run: poetry run mypy alpha
       - name: Full benchmark regression
+        id: regression
+        continue-on-error: true
         run: |
-          poetry run pytest -q \
+          set -o pipefail
+          poetry run pytest -x -vv \
             tests/benchmark_replay \
-            tests/historical_truth/test_b1_final_closure.py
+            tests/historical_truth/test_b1_final_closure.py \
+            2>&1 | tee b2-pytest.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: b2-comparison-pytest-log
+          path: b2-pytest.log
+          if-no-files-found: error
+      - name: Require passing regression
+        if: steps.regression.outcome != 'success'
+        run: exit 1
       - name: Commit and push repair
         run: |
           git config user.name "github-actions[bot]"
