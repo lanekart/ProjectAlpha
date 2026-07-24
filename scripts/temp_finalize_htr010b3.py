@@ -19,6 +19,25 @@ def replace_once(path: Path, old: str, new: str, label: str) -> None:
     print(f"patched: {label}")
 
 
+def replace_count(
+    path: Path,
+    old: str,
+    new: str,
+    *,
+    expected: int,
+    label: str,
+) -> None:
+    text = path.read_text(encoding="utf-8")
+    if new in text and old not in text:
+        print(f"already applied: {label}")
+        return
+    count = text.count(old)
+    if count != expected:
+        raise SystemExit(f"{label}: expected {expected} blocks, found {count}")
+    path.write_text(text.replace(old, new), encoding="utf-8")
+    print(f"patched: {label}")
+
+
 replace_once(
     CORE,
     '''    _validate_research_only_flags(payload)
@@ -31,6 +50,14 @@ replace_once(
     return payload
 ''',
     "B2 handoff guardrails",
+)
+
+replace_count(
+    CORE,
+    "        return _json_ready(asdict(self))\n",
+    "        return cast(dict[str, object], _json_ready(asdict(self)))\n",
+    expected=2,
+    label="serializer return types",
 )
 
 replace_once(
