@@ -5,73 +5,75 @@ on:
   pull_request:
 
 jobs:
-  b2_comparison_repair:
-    if: github.event_name == 'pull_request'
+  quality:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: feature/htr-010b2-governed-adjusted-benchmark-integration
-          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pypoetry
+            ~/.cache/pip
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
       - run: pip install poetry
       - run: poetry install --no-interaction
-      - name: Apply repair
-        run: poetry run python scripts/temp_repair_b2_comparisons.py
-      - name: Ruff autofix and formatting
-        run: |
-          poetry run ruff check --fix \
-            alpha/canonical_universe_audit/store.py \
-            alpha/benchmark_replay/engine.py \
-            alpha/benchmark_replay/governed_adjusted.py \
-            tests/benchmark_replay/test_governed_adjusted.py
-          poetry run ruff format \
-            alpha/canonical_universe_audit/store.py \
-            alpha/benchmark_replay/engine.py \
-            alpha/benchmark_replay/governed_adjusted.py \
-            tests/benchmark_replay/test_governed_adjusted.py
-      - uses: actions/upload-artifact@v4
-        with:
-          name: b2-comparison-repair
-          path: |
-            alpha/canonical_universe_audit/store.py
-            alpha/benchmark_replay/engine.py
-            alpha/benchmark_replay/governed_adjusted.py
-            tests/benchmark_replay/test_governed_adjusted.py
-          if-no-files-found: error
-      - name: Ruff verification
-        run: |
-          poetry run ruff check \
-            alpha/canonical_universe_audit/store.py \
-            alpha/benchmark_replay/engine.py \
-            alpha/benchmark_replay/governed_adjusted.py \
-            tests/benchmark_replay/test_governed_adjusted.py
-          poetry run ruff format --check \
-            alpha/canonical_universe_audit/store.py \
-            alpha/benchmark_replay/engine.py \
-            alpha/benchmark_replay/governed_adjusted.py \
-            tests/benchmark_replay/test_governed_adjusted.py
-      - name: Strict MyPy
+      - name: Ruff check
+        run: poetry run ruff check .
+      - name: Ruff format check
+        run: poetry run ruff format --check .
+      - name: MyPy
         run: poetry run mypy alpha
-      - name: Full benchmark regression
+
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - historical_truth
+          - historical_replay
+          - decision_and_market
+          - portfolio_and_backtest
+          - research_and_signals
+          - remaining
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pypoetry
+            ~/.cache/pip
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Run shard
         env:
           _TYPER_FORCE_DISABLE_TERMINAL: "1"
+          SHARD: ${{ matrix.shard }}
         run: |
-          poetry run pytest -q \
-            tests/benchmark_replay \
-            tests/historical_truth/test_b1_final_closure.py
-      - name: Commit and push repair
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
-            alpha/canonical_universe_audit/store.py \
-            alpha/benchmark_replay/engine.py \
-            alpha/benchmark_replay/governed_adjusted.py \
-            tests/benchmark_replay/test_governed_adjusted.py
-          git commit -m "Use store capabilities for benchmark comparisons"
-          git push origin HEAD:feature/htr-010b2-governed-adjusted-benchmark-integration
+          case "$SHARD" in
+            historical_truth)
+              poetry run pytest -q tests/historical_truth
+              ;;
+            historical_replay)
+              poetry run pytest -q tests/historical_replay tests/recovery
+              ;;
+            decision_and_market)
+              poetry run pytest -q tests/decision_intelligence tests/decision_lifecycle tests/decision_orchestrator tests/market tests/market_intelligence tests/market_truth
+              ;;
+            portfolio_and_backtest)
+              poetry run pytest -q tests/portfolio tests/portfolio_intelligence tests/backtest tests/execution tests/costs
+              ;;
+            research_and_signals)
+              poetry run pytest -q tests/research tests/trading_signals tests/strategy_lab tests/strategy_discovery tests/setup_discovery tests/candidate_learning
+              ;;
+            remaining)
+              poetry run python scripts/run_remaining_tests.py
+              ;;
+          esac
