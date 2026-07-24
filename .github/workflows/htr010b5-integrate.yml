@@ -9,51 +9,14 @@ on:
 
 permissions:
   contents: write
-  issues: read
-  pull-requests: read
 
 jobs:
   integrate:
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ github.token }}
-      PR_NUMBER: ${{ github.event.pull_request.number }}
       FEATURE_BRANCH: feature/htr-010b5-governed-approval-gate-forensics-certification
+      _TYPER_FORCE_DISABLE_TERMINAL: "1"
     steps:
-      - name: Reconstruct and diagnose the finalized payload
-        shell: bash
-        run: |
-          set -euo pipefail
-          comments="repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments?per_page=100"
-          : > /tmp/htr010b5-final-payload.raw
-          for number in $(seq 0 12); do
-            printf -v index '%02d' "${number}"
-            prefix="HTR010B5_FINAL_PART_${index}:"
-            body="$(
-              gh api --paginate "${comments}" \
-                --jq ".[] | select(.body | startswith(\"${prefix}\")) | .body" \
-                | tail -n 1
-            )"
-            if [[ -z "${body}" || "${body}" == "${prefix}" ]]; then
-              echo "missing finalized payload part ${index}" >&2
-              exit 1
-            fi
-            part="${body:${#prefix}}"
-            printf 'part %s bytes=%s sha256=%s\n' \
-              "${index}" "${#part}" "$(printf '%s' "${part}" | sha256sum | cut -d' ' -f1)"
-            printf '%s' "${part}" >> /tmp/htr010b5-final-payload.raw
-          done
-          tr -d '\r\n\t ' < /tmp/htr010b5-final-payload.raw \
-            > /tmp/htr010b5-final-payload.b64
-          printf 'normalized base64 bytes=%s\n' \
-            "$(wc -c < /tmp/htr010b5-final-payload.b64)"
-          base64 --decode /tmp/htr010b5-final-payload.b64 \
-            > /tmp/htr010b5-final-payload.tar.xz
-          printf 'archive bytes=%s sha256=%s\n' \
-            "$(wc -c < /tmp/htr010b5-final-payload.tar.xz)" \
-            "$(sha256sum /tmp/htr010b5-final-payload.tar.xz | cut -d' ' -f1)"
-          xz --test /tmp/htr010b5-final-payload.tar.xz
-
       - name: Check out the HTR-010B5 feature branch
         uses: actions/checkout@v4
         with:
@@ -66,11 +29,23 @@ jobs:
         with:
           python-version: "3.14"
 
-      - name: Materialize the finalized source
+      - name: Reconstruct and verify the finalized milestone archive
         shell: bash
         run: |
           set -euo pipefail
-          tar -xJf /tmp/htr010b5-final-payload.tar.xz -C .
+          cat .tmp/htr010b5/payload.part-* \
+            | tr -d '\r\n\t ' \
+            > /tmp/htr010b5-final-payload.b64
+          test "$(wc -c < /tmp/htr010b5-final-payload.b64)" -eq 44572
+          echo "b4c35b9be0d53387f083de997cb0d4519057e8d2646d173f9a9355d41ba52ef4  /tmp/htr010b5-final-payload.b64" \
+            | sha256sum --check --strict
+          base64 --decode /tmp/htr010b5-final-payload.b64 \
+            > /tmp/htr010b5-final-payload.tar.gz
+          test "$(wc -c < /tmp/htr010b5-final-payload.tar.gz)" -eq 33428
+          echo "3ac1032097ddd6af000e8f509c67c06e0942e3b8213c725a23d6603128487219  /tmp/htr010b5-final-payload.tar.gz" \
+            | sha256sum --check --strict
+          gzip --test /tmp/htr010b5-final-payload.tar.gz
+          tar -xzf /tmp/htr010b5-final-payload.tar.gz -C .
 
       - name: Verify finalized source digests and syntax
         shell: bash
@@ -91,21 +66,23 @@ jobs:
             alpha/benchmark_replay/__init__.py \
             alpha/benchmark_replay/governed_approval_gate_forensics.py \
             tests/benchmark_replay/test_governed_approval_gate_forensics.py
+          git diff --check
 
       - name: Install the locked project environment
         run: |
           pip install poetry
           poetry install --no-interaction
 
-      - name: Run HTR-010B5 milestone quality gates
-        env:
-          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+      - name: Run HTR-010B5 quality gates
         run: |
           poetry run ruff check .
           poetry run ruff format --check .
           poetry run mypy alpha
           poetry run pytest -q \
             tests/benchmark_replay/test_governed_approval_gate_forensics.py
+
+      - name: Run the complete regression suite
+        run: poetry run pytest -q
 
       - name: Commit the clean milestone implementation
         shell: bash
