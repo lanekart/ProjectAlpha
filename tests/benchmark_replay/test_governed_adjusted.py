@@ -11,7 +11,10 @@ import pytest
 from typer.testing import CliRunner
 
 from alpha.application.benchmark_cli import benchmark_app
-from alpha.benchmark_replay.engine import _eligible_security_count
+from alpha.benchmark_replay.engine import (
+    CanonicalBenchmarkReplayEngine,
+    _eligible_security_count,
+)
 from alpha.benchmark_replay.governed_adjusted import (
     _AdmittedReplayPriceSource,
     _benchmark_population_nonempty,
@@ -21,6 +24,7 @@ from alpha.benchmark_replay.governed_adjusted import (
     build_governed_benchmark_stores,
     validate_governed_adjusted_handoff,
 )
+from alpha.benchmark_replay.models import ReplayRequest
 from alpha.canonical_universe_audit.store import LegacyMarketDataStore
 from alpha.recovery.security_timeline import (
     SecurityIdentityRecord,
@@ -440,5 +444,45 @@ def test_governed_store_supports_engine_eligibility_accounting(
             )
             == 0
         )
+    finally:
+        pair.close()
+
+
+def test_full_benchmark_engine_uses_governed_comparison_capabilities(
+    tmp_path: Path,
+) -> None:
+    pair = _pair(tmp_path)
+    request = ReplayRequest(
+        start=date(2026, 1, 2),
+        end=date(2026, 1, 4),
+    )
+    try:
+        assert not hasattr(pair.raw, "connection")
+        assert not hasattr(pair.adjusted, "connection")
+        engine = CanonicalBenchmarkReplayEngine()
+        raw = engine.run(
+            store=pair.raw,
+            request=request,
+            project_root=tmp_path,
+        )
+        adjusted = engine.run(
+            store=pair.adjusted,
+            request=request,
+            project_root=tmp_path,
+        )
+
+        assert raw.eligible_securities == 0
+        assert adjusted.eligible_securities == 0
+        raw_comparisons = {item.benchmark: item for item in raw.benchmark_comparison}
+        adjusted_comparisons = {
+            item.benchmark: item for item in adjusted.benchmark_comparison
+        }
+        raw_equal = raw_comparisons["OBSERVED_EQUAL_WEIGHT_UNIVERSE"]
+        adjusted_equal = adjusted_comparisons["OBSERVED_EQUAL_WEIGHT_UNIVERSE"]
+        assert raw_equal.ending_value is not None
+        assert adjusted_equal.ending_value is not None
+        assert raw_equal.ending_value != adjusted_equal.ending_value
+        assert raw_comparisons["NIFTY_50_BUY_AND_HOLD"].ending_value is None
+        assert adjusted_comparisons["NIFTY_50_BUY_AND_HOLD"].ending_value is None
     finally:
         pair.close()

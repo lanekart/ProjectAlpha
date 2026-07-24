@@ -442,28 +442,10 @@ def observed_equal_weight_comparison(
         if dataset_version != "LEGACY_DATASET"
         else "legacy market population"
     )
-    rows = store.connection.execute(
-        """
-        WITH lagged AS (
-            SELECT
-                trade_date,
-                close,
-                LAG(close) OVER (
-                    PARTITION BY UPPER(symbol) ORDER BY trade_date
-                ) AS prior_close
-            FROM daily_prices
-            WHERE close > 0 AND trade_date <= ?
-        ), daily AS (
-            SELECT trade_date, AVG(close / prior_close - 1) AS equal_weight_return
-            FROM lagged
-            WHERE trade_date BETWEEN ? AND ? AND prior_close > 0
-            GROUP BY trade_date
-            ORDER BY trade_date
-        )
-        SELECT trade_date, equal_weight_return FROM daily ORDER BY trade_date
-        """,
-        (end, start, end),
-    ).fetchall()
+    rows = store.observed_equal_weight_returns(
+        start=start,
+        end=end,
+    )
     value = capital
     for _, raw_return in rows:
         daily_return = Decimal(str(raw_return))
@@ -510,17 +492,11 @@ def _nifty_comparison(
     capital: Decimal,
 ) -> BenchmarkComparison:
     aliases = ("NIFTY50", "NIFTY 50", "^NSEI")
-    rows = store.connection.execute(
-        """
-        SELECT trade_date, close
-        FROM daily_prices
-        WHERE UPPER(symbol) IN (?, ?, ?)
-          AND trade_date BETWEEN ? AND ?
-          AND close > 0
-        ORDER BY trade_date
-        """,
-        (*aliases, start, end),
-    ).fetchall()
+    rows = store.benchmark_price_history(
+        symbols=aliases,
+        start=start,
+        end=end,
+    )
     if len(rows) < 2:
         return BenchmarkComparison(
             benchmark="NIFTY_50_BUY_AND_HOLD",

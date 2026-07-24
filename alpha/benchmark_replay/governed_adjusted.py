@@ -31,6 +31,7 @@ from alpha.historical_truth.b1_final_closure import (
     final_closure_report_sha256,
 )
 from alpha.historical_truth.b1_shadow_universe import load_b1_shadow_admission
+from alpha.recovery.replay_frame import CanonicalReplayFrameAdapter
 from alpha.recovery.security_timeline import SecurityIdentityTimeline
 
 HTR010B2_CONTRACT_VERSION = "HTR-010B2-v1.0.0"
@@ -152,6 +153,7 @@ class GovernedBenchmarkStore(LegacyMarketDataStore):
         manifest: DatasetManifest,
         liquidity: pd.DataFrame,
         eligibility_frame: pd.DataFrame,
+        comparison_frame: pd.DataFrame,
         replay_dates: tuple[date, ...],
         canonical_symbols: tuple[str, ...],
     ) -> None:
@@ -161,6 +163,7 @@ class GovernedBenchmarkStore(LegacyMarketDataStore):
         self._manifest = manifest
         self._liquidity = liquidity
         self._eligibility_frame = eligibility_frame
+        self._comparison_frame = comparison_frame
         self._replay_dates = replay_dates
         self._canonical_symbols = canonical_symbols
 
@@ -274,6 +277,103 @@ class GovernedBenchmarkStore(LegacyMarketDataStore):
             and str(symbol).strip().upper() in observed_symbols
             for symbol, count in history_counts.items()
         )
+
+    def observed_equal_weight_returns(
+        self,
+        *,
+        start: date,
+        end: date,
+    ) -> tuple[tuple[date, Decimal], ...]:
+        """Return stable-identity equal-weight returns for this view."""
+
+        if end < start:
+            raise ValueError("equal-weight range end cannot precede start")
+        close_column = (
+            "adjusted_close" if self.price_view == "ADJUSTED" else "raw_close"
+        )
+        records = cast(
+            list[dict[str, Any]],
+            self._comparison_frame.to_dict("records"),
+        )
+        ordered = sorted(
+            records,
+            key=lambda row: (
+                str(row.get("security_id") or ""),
+                _as_date(row.get("trade_date")) or date.min,
+            ),
+        )
+        previous: dict[str, Decimal] = {}
+        seen: set[tuple[str, date]] = set()
+        daily: dict[date, list[Decimal]] = {}
+        for row in ordered:
+            security_id = str(row.get("security_id") or "").strip()
+            trading_date = _as_date(row.get("trade_date"))
+            if not security_id or trading_date is None or trading_date > end:
+                continue
+            key = security_id, trading_date
+            if key in seen:
+                raise ValueError(
+                    "duplicate governed benchmark identity-session: "
+                    f"{security_id}@{trading_date.isoformat()}"
+                )
+            seen.add(key)
+            close = _number(row.get(close_column))
+            if close <= 0:
+                continue
+            prior = previous.get(security_id)
+            if prior is not None and trading_date >= start:
+                daily.setdefault(trading_date, []).append(close / prior - 1)
+            previous[security_id] = close
+        return tuple(
+            (
+                trading_date,
+                sum(values, Decimal("0")) / Decimal(len(values)),
+            )
+            for trading_date, values in sorted(daily.items())
+            if values
+        )
+
+    def benchmark_price_history(
+        self,
+        *,
+        symbols: tuple[str, ...],
+        start: date,
+        end: date,
+    ) -> tuple[tuple[date, Decimal], ...]:
+        """Return governed benchmark closes for this price view."""
+
+        if end < start:
+            raise ValueError("benchmark range end cannot precede start")
+        normalized = {symbol.strip().upper() for symbol in symbols if symbol.strip()}
+        if not normalized:
+            return ()
+        close_column = (
+            "adjusted_close" if self.price_view == "ADJUSTED" else "raw_close"
+        )
+        selected: list[tuple[date, str, str, Decimal]] = []
+        for row in cast(
+            list[dict[str, Any]],
+            self._comparison_frame.to_dict("records"),
+        ):
+            symbol = str(row.get("symbol") or "").strip().upper()
+            trading_date = _as_date(row.get("trade_date"))
+            close = _number(row.get(close_column))
+            if (
+                symbol in normalized
+                and trading_date is not None
+                and start <= trading_date <= end
+                and close > 0
+            ):
+                selected.append(
+                    (
+                        trading_date,
+                        symbol,
+                        str(row.get("security_id") or ""),
+                        close,
+                    )
+                )
+        selected.sort(key=lambda item: (item[0], item[1], item[2]))
+        return tuple((item[0], item[3]) for item in selected)
 
     def liquidity_statistics(self) -> pd.DataFrame:
         return self._liquidity.copy()
@@ -519,9 +619,13 @@ def build_governed_benchmark_stores(
         start=dependency_start,
         end=dependency_end,
     )
+    comparison_dates = tuple(
+        item for item in dependency_dates if item <= admission.replay_end
+    )
+    progress_total = len(dependency_dates) + len(comparison_dates)
     for current, trading_date in enumerate(dependency_dates, start=1):
         if progress is not None:
-            progress(current, len(dependency_dates), trading_date)
+            progress(current, progress_total, trading_date)
         frame = admitted_source.find_by_trade_date(trading_date)
         if frame.empty:
             continue
@@ -585,6 +689,16 @@ def build_governed_benchmark_stores(
         errors="raise",
     ).dt.date
 
+    comparison_frame = _build_comparison_frame(
+        identity_frame,
+        identities=inputs.identities,
+        actions=inputs.actions,
+        as_of=admission.replay_end,
+        dates=comparison_dates,
+        progress=progress,
+        progress_offset=len(dependency_dates),
+        progress_total=progress_total,
+    )
     identity_session_sha256 = _digest_list(sorted(identity_session_keys))
     output.mkdir(parents=True, exist_ok=True)
     raw_contract = _store_contract(
@@ -615,6 +729,7 @@ def build_governed_benchmark_stores(
         manifest=_view_manifest(manifest, "RAW"),
         liquidity=liquidity,
         eligibility_frame=eligibility_frame,
+        comparison_frame=comparison_frame,
         replay_dates=tuple(available_dates),
         canonical_symbols=canonical_symbols,
     )
@@ -629,6 +744,7 @@ def build_governed_benchmark_stores(
         manifest=_view_manifest(manifest, "ADJUSTED"),
         liquidity=liquidity,
         eligibility_frame=eligibility_frame,
+        comparison_frame=comparison_frame,
         replay_dates=tuple(available_dates),
         canonical_symbols=canonical_symbols,
     )
@@ -716,6 +832,51 @@ def _canonical_identity_frame(
             }
         )
     return pd.DataFrame(rows)
+
+
+def _build_comparison_frame(
+    frame: pd.DataFrame,
+    *,
+    identities: SecurityIdentityTimeline,
+    actions: Any,
+    as_of: date,
+    dates: tuple[date, ...],
+    progress: Callable[[int, int, date], None] | None,
+    progress_offset: int,
+    progress_total: int,
+) -> pd.DataFrame:
+    """Build one governed end-of-window basis for comparisons."""
+
+    source = frame.copy()
+    source["trade_date"] = pd.to_datetime(source["trade_date"], errors="raise").dt.date
+    adapter = CanonicalReplayFrameAdapter(identities, actions)
+    canonical: list[pd.DataFrame] = []
+    for current, trading_date in enumerate(dates, start=1):
+        if progress is not None:
+            progress(
+                progress_offset + current,
+                progress_total,
+                trading_date,
+            )
+        group = source.loc[source["trade_date"] == trading_date].copy()
+        if group.empty:
+            continue
+        result = adapter.canonicalize(
+            group,
+            trade_date=trading_date,
+            as_of=as_of,
+        )
+        canonical.append(result.frame)
+    if not canonical:
+        raise ValueError("B2 comparison population is empty")
+    return (
+        pd.concat(canonical, ignore_index=True)
+        .sort_values(
+            ["trade_date", "security_id", "symbol", "raw_symbol"],
+            kind="stable",
+        )
+        .reset_index(drop=True)
+    )
 
 
 def _price_view(frame: pd.DataFrame, *, adjusted: bool) -> pd.DataFrame:
