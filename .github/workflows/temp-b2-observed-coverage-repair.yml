@@ -1,0 +1,325 @@
+name: Temporary B2 Observed Coverage Repair
+
+on:
+  push:
+    branches:
+      - feature/htr-010b2-governed-adjusted-benchmark-integration
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-010b2-governed-adjusted-benchmark-integration
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Apply observed-coverage repair
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          b2_path = Path("alpha/benchmark_replay/governed_adjusted.py")
+          cli_path = Path("alpha/application/governed_adjusted_benchmark_cli.py")
+          test_path = Path("tests/benchmark_replay/test_governed_adjusted.py")
+
+          b2 = b2_path.read_text()
+
+          b2 = b2.replace(
+              "    governed_input_manifest_sha256: str\n\n    @property\n",
+              "    governed_input_manifest_sha256: str\n"
+              "    admitted_identity_count: int\n"
+              "    observed_identity_count: int\n"
+              "    unobserved_admitted_identity_count: int\n"
+              "    unobserved_admitted_identity_sha256: str\n"
+              "    unobserved_admitted_identity_sample: tuple[str, ...]\n\n"
+              "    @property\n",
+          )
+
+          b2 = b2.replace(
+              "        progress: Callable[[int, int, date], None] | None = None,\n"
+              "    ) -> GovernedAdjustedBenchmarkResult:\n",
+              "        progress: Callable[[int, int, date], None] | None = None,\n"
+              "        store_progress: Callable[[int, int, date], None] | None = None,\n"
+              "    ) -> GovernedAdjustedBenchmarkResult:\n",
+              1,
+          )
+          b2 = b2.replace(
+              "            output=output / \"store_contracts\",\n"
+              "        )\n",
+              "            output=output / \"store_contracts\",\n"
+              "            progress=store_progress,\n"
+              "        )\n",
+              1,
+          )
+          b2 = b2.replace(
+              "    adjusted_universe: Path,\n"
+              "    output: Path,\n"
+              ") -> GovernedBenchmarkStorePair:\n",
+              "    adjusted_universe: Path,\n"
+              "    output: Path,\n"
+              "    progress: Callable[[int, int, date], None] | None = None,\n"
+              ") -> GovernedBenchmarkStorePair:\n",
+              1,
+          )
+
+          old_loop = '''    identity_rows: list[dict[str, Any]] = []
+    identity_session_keys: list[str] = []
+    observed_ids: set[str] = set()
+    available_dates: list[date] = []
+    for trading_date in source.trade_dates(
+        start=dependency_start,
+        end=dependency_end,
+    ):
+        frame = admitted_source.find_by_trade_date(trading_date)
+        if frame.empty:
+            continue
+        canonical_identity_frame = _canonical_identity_frame(
+            frame,
+            identities=inputs.identities,
+        )
+        if canonical_identity_frame.empty:
+            continue
+        available_dates.append(trading_date)
+        identity_rows.extend(
+            cast(list[dict[str, Any]], canonical_identity_frame.to_dict("records"))
+        )
+        for row in canonical_identity_frame.itertuples(index=False):
+            security_id = str(getattr(row, "security_id"))
+            symbol = str(getattr(row, "symbol"))
+            observed_ids.add(security_id)
+            identity_session_keys.append(
+                f"{security_id}|{trading_date.isoformat()}|{symbol}"
+            )
+    admitted_source.available_dates = tuple(available_dates)
+
+    missing_ids = tuple(
+        sorted(set(admission.admitted_security_ids).difference(observed_ids))
+    )
+    if missing_ids:
+        raise ValueError(
+            "admitted identities have no benchmark rows: " + ",".join(missing_ids[:20])
+        )
+'''
+          new_loop = '''    identity_rows: list[dict[str, Any]] = []
+    identity_session_keys: list[str] = []
+    observed_ids: set[str] = set()
+    available_dates: list[date] = []
+    dependency_dates = source.trade_dates(
+        start=dependency_start,
+        end=dependency_end,
+    )
+    for index, trading_date in enumerate(dependency_dates, start=1):
+        frame = admitted_source.find_by_trade_date(trading_date)
+        if not frame.empty:
+            canonical_identity_frame = _canonical_identity_frame(
+                frame,
+                identities=inputs.identities,
+            )
+            if not canonical_identity_frame.empty:
+                available_dates.append(trading_date)
+                identity_rows.extend(
+                    cast(
+                        list[dict[str, Any]],
+                        canonical_identity_frame.to_dict("records"),
+                    )
+                )
+                for row in canonical_identity_frame.itertuples(index=False):
+                    security_id = str(getattr(row, "security_id"))
+                    symbol = str(getattr(row, "symbol"))
+                    observed_ids.add(security_id)
+                    identity_session_keys.append(
+                        f"{security_id}|{trading_date.isoformat()}|{symbol}"
+                    )
+        if progress is not None:
+            progress(index, len(dependency_dates), trading_date)
+    admitted_source.available_dates = tuple(available_dates)
+
+    identity_coverage = _identity_coverage(
+        admitted_ids=admission.admitted_security_ids,
+        observed_ids=observed_ids,
+    )
+'''
+          if old_loop not in b2:
+              raise SystemExit("B2 identity loop insertion point not found")
+          b2 = b2.replace(old_loop, new_loop)
+
+          b2 = b2.replace(
+              "        governed_input_manifest_sha256=inputs.manifest.manifest_sha256,\n"
+              "    )\n\n\ndef export_governed_adjusted_benchmark",
+              "        governed_input_manifest_sha256=inputs.manifest.manifest_sha256,\n"
+              "        admitted_identity_count=int(identity_coverage[\"admitted_identity_count\"]),\n"
+              "        observed_identity_count=int(identity_coverage[\"observed_identity_count\"]),\n"
+              "        unobserved_admitted_identity_count=int(\n"
+              "            identity_coverage[\"unobserved_admitted_identity_count\"]\n"
+              "        ),\n"
+              "        unobserved_admitted_identity_sha256=str(\n"
+              "            identity_coverage[\"unobserved_admitted_identity_sha256\"]\n"
+              "        ),\n"
+              "        unobserved_admitted_identity_sample=tuple(\n"
+              "            identity_coverage[\"unobserved_admitted_identity_sample\"]\n"
+              "        ),\n"
+              "    )\n\n\ndef export_governed_adjusted_benchmark",
+          )
+
+          marker = "def _benchmark_population_nonempty(\n"
+          if "def _identity_coverage(" not in b2:
+              helper = '''def _identity_coverage(
+    *,
+    admitted_ids: tuple[str, ...],
+    observed_ids: set[str],
+) -> dict[str, Any]:
+    admitted = set(admitted_ids)
+    unexpected = tuple(sorted(observed_ids.difference(admitted)))
+    if unexpected:
+        raise ValueError(
+            "observed benchmark identities are outside B1H admission: "
+            + ",".join(unexpected[:20])
+        )
+    if not observed_ids:
+        raise ValueError("B2 observed identity population is empty")
+    unobserved = tuple(sorted(admitted.difference(observed_ids)))
+    return {
+        "admitted_identity_count": len(admitted),
+        "observed_identity_count": len(observed_ids),
+        "unobserved_admitted_identity_count": len(unobserved),
+        "unobserved_admitted_identity_sha256": _digest_list(list(unobserved)),
+        "unobserved_admitted_identity_sample": list(unobserved[:20]),
+    }
+
+
+'''
+              b2 = b2.replace(marker, helper + marker)
+
+          b2 = b2.replace(
+              '        "governed_input_manifest_sha256": pair.governed_input_manifest_sha256,\n',
+              '        "governed_input_manifest_sha256": pair.governed_input_manifest_sha256,\n'
+              '        "identity_coverage": {\n'
+              '            "admitted_identity_count": pair.admitted_identity_count,\n'
+              '            "observed_identity_count": pair.observed_identity_count,\n'
+              '            "unobserved_admitted_identity_count": (\n'
+              '                pair.unobserved_admitted_identity_count\n'
+              '            ),\n'
+              '            "unobserved_admitted_identity_sha256": (\n'
+              '                pair.unobserved_admitted_identity_sha256\n'
+              '            ),\n'
+              '            "unobserved_admitted_identity_sample": list(\n'
+              '                pair.unobserved_admitted_identity_sample\n'
+              '            ),\n'
+              '        },\n',
+          )
+          b2 = b2.replace(
+              '    "export_governed_adjusted_benchmark",\n',
+              '    "export_governed_adjusted_benchmark",\n'
+              '    "_identity_coverage",\n',
+          )
+          b2_path.write_text(b2)
+
+          cli = cli_path.read_text()
+          if "def update_store(" not in cli:
+              cli = cli.replace(
+                  "    def update(self, current: int, total: int, observed_on: date) -> None:\n",
+                  "    def update_store(\n"
+                  "        self,\n"
+                  "        current: int,\n"
+                  "        total: int,\n"
+                  "        observed_on: date,\n"
+                  "    ) -> None:\n"
+                  "        if self._progress is None or self._task_id is None or total < 1:\n"
+                  "            return\n"
+                  "        self._progress.update(\n"
+                  "            self._task_id,\n"
+                  "            description=(\n"
+                  "                \"Building governed B2 stores through \"\n"
+                  "                f\"{observed_on.isoformat()}\"\n"
+                  "            ),\n"
+                  "            total=total,\n"
+                  "            completed=current,\n"
+                  "        )\n\n"
+                  "    def update(self, current: int, total: int, observed_on: date) -> None:\n",
+              )
+          cli = cli.replace(
+              "                progress=None if quiet else progress.update,\n"
+              "            )\n",
+              "                progress=None if quiet else progress.update,\n"
+              "                store_progress=None if quiet else progress.update_store,\n"
+              "            )\n",
+          )
+          cli = cli.replace(
+              "    typer.echo(f\"Raw sessions: {raw['session_count']}\")\n",
+              "    coverage = report[\"identity_coverage\"]\n"
+              "    typer.echo(f\"Admitted identities: {coverage['admitted_identity_count']}\")\n"
+              "    typer.echo(f\"Observed identities: {coverage['observed_identity_count']}\")\n"
+              "    typer.echo(\n"
+              "        \"Unobserved admitted identities: \"\n"
+              "        f\"{coverage['unobserved_admitted_identity_count']}\"\n"
+              "    )\n"
+              "    typer.echo(f\"Raw sessions: {raw['session_count']}\")\n",
+          )
+          cli_path.write_text(cli)
+
+          tests = test_path.read_text()
+          tests = tests.replace(
+              "    _canonical_identity_frame,\n",
+              "    _canonical_identity_frame,\n"
+              "    _identity_coverage,\n",
+          )
+          if "test_b2_allows_admitted_identity_without_window_rows" not in tests:
+              tests += '''
+
+
+def test_b2_allows_admitted_identity_without_window_rows() -> None:
+    coverage = _identity_coverage(
+        admitted_ids=("SEC-1", "SEC-2"),
+        observed_ids={"SEC-1"},
+    )
+
+    assert coverage["admitted_identity_count"] == 2
+    assert coverage["observed_identity_count"] == 1
+    assert coverage["unobserved_admitted_identity_count"] == 1
+    assert coverage["unobserved_admitted_identity_sample"] == ["SEC-2"]
+    assert len(str(coverage["unobserved_admitted_identity_sha256"])) == 64
+
+
+def test_b2_rejects_observed_identity_outside_admission() -> None:
+    with pytest.raises(ValueError, match="outside B1H admission"):
+        _identity_coverage(
+            admitted_ids=("SEC-1",),
+            observed_ids={"SEC-1", "SEC-2"},
+        )
+'''
+          test_path.write_text(tests)
+          PY
+      - name: Validate repair
+        run: |
+          poetry run ruff check --fix \
+            alpha/benchmark_replay/governed_adjusted.py \
+            alpha/application/governed_adjusted_benchmark_cli.py \
+            tests/benchmark_replay/test_governed_adjusted.py
+          poetry run ruff format \
+            alpha/benchmark_replay/governed_adjusted.py \
+            alpha/application/governed_adjusted_benchmark_cli.py \
+            tests/benchmark_replay/test_governed_adjusted.py
+          poetry run mypy alpha
+          poetry run pytest -q tests/benchmark_replay/test_governed_adjusted.py
+      - name: Commit repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            alpha/benchmark_replay/governed_adjusted.py \
+            alpha/application/governed_adjusted_benchmark_cli.py \
+            tests/benchmark_replay/test_governed_adjusted.py
+          if git diff --cached --quiet; then
+            echo "No repair changes required"
+          else
+            git commit -m "Account for unobserved B1H identities in B2"
+            git push origin HEAD:feature/htr-010b2-governed-adjusted-benchmark-integration
+          fi
