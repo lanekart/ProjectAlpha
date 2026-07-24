@@ -24,6 +24,11 @@ jobs:
         with:
           ref: feature/htr-010b6-governed-approval-constraint-frontier
           fetch-depth: 0
+      - name: Stop after publishing a diagnostic
+        if: ${{ hashFiles('.tmp/htr010b6/diagnostic.txt') != '' }}
+        run: |
+          cat .tmp/htr010b6/diagnostic.txt
+          exit 1
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -133,19 +138,44 @@ jobs:
           pip install poetry
           poetry install --no-interaction
       - name: Normalize HTR-010B6 formatting
+        shell: bash
         run: |
+          set +e
           poetry run ruff check --fix \
             alpha/application/benchmark_cli.py \
             alpha/application/governed_approval_constraint_frontier_cli.py \
             alpha/benchmark_replay/__init__.py \
             alpha/benchmark_replay/governed_approval_constraint_frontier.py \
-            tests/benchmark_replay/test_governed_approval_constraint_frontier.py
+            tests/benchmark_replay/test_governed_approval_constraint_frontier.py \
+            > /tmp/htr010b6-ruff-check.log 2>&1
+          check_status=$?
           poetry run ruff format \
             alpha/application/benchmark_cli.py \
             alpha/application/governed_approval_constraint_frontier_cli.py \
             alpha/benchmark_replay/__init__.py \
             alpha/benchmark_replay/governed_approval_constraint_frontier.py \
-            tests/benchmark_replay/test_governed_approval_constraint_frontier.py
+            tests/benchmark_replay/test_governed_approval_constraint_frontier.py \
+            > /tmp/htr010b6-ruff-format.log 2>&1
+          format_status=$?
+          set -e
+          cat /tmp/htr010b6-ruff-check.log
+          cat /tmp/htr010b6-ruff-format.log
+          if [[ "$check_status" -ne 0 || "$format_status" -ne 0 ]]; then
+            {
+              printf 'ruff_check_status=%s\n' "$check_status"
+              printf 'ruff_format_status=%s\n\n' "$format_status"
+              printf '%s\n' '--- ruff check --fix ---'
+              cat /tmp/htr010b6-ruff-check.log
+              printf '%s\n' '--- ruff format ---'
+              cat /tmp/htr010b6-ruff-format.log
+            } > .tmp/htr010b6/diagnostic.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .tmp/htr010b6/diagnostic.txt
+            git commit -m "chore(htr-010b6): publish Ruff diagnostic"
+            git push origin HEAD:feature/htr-010b6-governed-approval-constraint-frontier
+            exit 1
+          fi
       - name: Run HTR-010B6 quality gates
         env:
           _TYPER_FORCE_DISABLE_TERMINAL: "1"
