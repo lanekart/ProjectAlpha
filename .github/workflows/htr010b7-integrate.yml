@@ -6,6 +6,11 @@ on:
       - feature/htr-010b7-governed-setup-matched-evidence
     paths:
       - .github/workflows/htr010b7-integrate.yml
+  pull_request:
+    branches:
+      - feature/recovery-foundation-v1
+    paths:
+      - .github/workflows/htr010b7-integrate.yml
 
 permissions:
   contents: write
