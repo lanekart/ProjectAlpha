@@ -7,6 +7,11 @@ on:
       - feature/htr-010b5-governed-approval-gate-forensics-certification
     paths:
       - .github/workflows/htr010b5-integrate.yml
+  pull_request:
+    branches:
+      - feature/recovery-foundation-v1
+    paths:
+      - .github/workflows/htr010b5-integrate.yml
 
 permissions:
   contents: write
