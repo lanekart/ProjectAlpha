@@ -1,0 +1,78 @@
+ruff_check_status=1
+ruff_format_status=0
+
+--- ruff check --fix ---
+E501 Line too long (91 > 88)
+   --> alpha/benchmark_replay/governed_approval_constraint_frontier.py:617:89
+    |
+615 |         )
+616 |     for stage, code, remediation in (
+617 |         ("STRESS_DECISION", "STRESS_FINAL_ACTION", _STRESS_ACTIONS["STRESS_FINAL_ACTION"]),
+    |                                                                                         ^^^
+618 |         ("TRADE_PLAN", "TRADE_PLAN_FINAL_ACTION", _TRADE_PLAN_ACTION),
+619 |     ):
+    |
+
+E501 Line too long (90 > 88)
+   --> alpha/benchmark_replay/governed_approval_constraint_frontier.py:686:89
+    |
+684 |         gate_sha256 = _file_sha256(gate_path)
+685 |
+686 |         _progress(progress, 2, total_steps, "Loading bound B5 candidate and gate ledgers")
+    |                                                                                         ^^
+687 |         candidate_rows = _csv_rows(candidate_path)
+688 |         gate_rows = _csv_rows(gate_path)
+    |
+
+E501 Line too long (92 > 88)
+   --> alpha/benchmark_replay/governed_approval_constraint_frontier.py:947:89
+    |
+945 |         raise ValueError("HTR-010B6 readiness decision is invalid")
+946 |     expected_enabled = readiness == B6_READY
+947 |     if payload.get("governed_approval_constraint_research_enabled") is not expected_enabled:
+    |                                                                                         ^^^^
+948 |         raise ValueError("HTR-010B6 readiness and research enablement disagree")
+949 |     _validate_certificate_state_semantics(payload)
+    |
+
+E501 Line too long (95 > 88)
+    --> alpha/benchmark_replay/governed_approval_constraint_frontier.py:1887:89
+     |
+1886 | def _write_json(path: Path, payload: Mapping[str, object]) -> Path:
+1887 |     return _write_text(path, json.dumps(_json_ready(payload), indent=2, sort_keys=True) + "\n")
+     |                                                                                         ^^^^^^^
+     |
+
+E501 Line too long (129 > 88)
+    --> alpha/benchmark_replay/governed_approval_constraint_frontier.py:1974:89
+     |
+1972 |     if isinstance(value, (tuple, list, set, frozenset)):
+1973 |         items = [_json_ready(item) for item in value]
+1974 |         return sorted(items, key=lambda item: json.dumps(item, sort_keys=True)) if isinstance(value, (set, frozenset)) else items
+     |                                                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1975 |     if isinstance(value, Decimal):
+1976 |         return str(value)
+     |
+
+E501 Line too long (91 > 88)
+    --> alpha/benchmark_replay/governed_approval_constraint_frontier.py:2147:89
+     |
+2146 | def _is_sha256(value: str) -> bool:
+2147 |     return len(value) == 64 and all(character in "0123456789abcdef" for character in value)
+     |                                                                                         ^^^
+     |
+
+E501 Line too long (90 > 88)
+  --> tests/benchmark_replay/test_governed_approval_constraint_frontier.py:96:89
+   |
+94 |     stage: str = "BASE_GATE",
+95 |     gate_code: str = "WEAK_SETUP",
+96 |     explanation: str = "Final evidence score is below the stricter deployment threshold.",
+   |                                                                                         ^^
+97 | ) -> dict[str, str]:
+98 |     return {
+   |
+
+Found 9 errors (2 fixed, 7 remaining).
+--- ruff format ---
+3 files reformatted, 2 files left unchanged
