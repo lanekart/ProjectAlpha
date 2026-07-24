@@ -1,12 +1,6 @@
 name: Integrate HTR-010B5
-# Trigger materialization after workflow registration.
 
 on:
-  push:
-    branches:
-      - feature/htr-010b5-governed-approval-gate-forensics-certification
-    paths:
-      - .github/workflows/htr010b5-integrate.yml
   pull_request:
     branches:
       - feature/recovery-foundation-v1
@@ -15,124 +9,129 @@ on:
 
 permissions:
   contents: write
+  issues: read
+  pull-requests: read
 
 jobs:
   integrate:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: feature/htr-010b5-governed-approval-gate-forensics-certification
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-      - name: Materialize HTR-010B5 payload
+      - name: Reconstruct and verify HTR-010B5 payload
+        shell: bash
         run: |
-          cat .tmp/htr010b5/payload.part-* > /tmp/htr010b5-payload.b64
-          base64 --decode /tmp/htr010b5-payload.b64 > /tmp/htr010b5-payload.tar.gz
-          echo "0738dcd9fc2f81dfe2b9ed0dd93244d8d4c0952f0e416317ca56ec52d2dcd8b2  /tmp/htr010b5-payload.tar.gz" | sha256sum --check --strict
-          tar -xzf /tmp/htr010b5-payload.tar.gz -C .
-          rm -rf .tmp/htr010b5
-      - name: Register HTR-010B5 surfaces
+          set -euo pipefail
+          declare -A expected=(
+            [00]=b02aa3b260813a3fcd435b1c9ec8f586d140f7ec85e878bede02df9c6d28853d
+            [01]=cbb3a600fc095da530058062cc0c8364344c13c4bb714ed6e0f8cf37043bed0a
+            [02]=74ffd2a8457663933fcb51e537a5cf359dd85cf065ad4fd80674823c0357178c
+            [03]=ac639faba8e3dfbae62d060eb31df2deed0936fd57344a565ce1becd505dc7c8
+            [04]=c9306340902b33611be7c71c009031d7fda443ab564c566b34681004a220cf49
+            [05]=4c75dd0dd26242a4c4ed025042d3d706fc912a59a67243a731ca33eb15e1bb92
+            [06]=836da9274c69fb15575bb6a7fa9dea3260861e9171de9fac5b9ed00bdffa6a4e
+            [07]=502dcc4037d191c79b40862b00548e209a0a99998a5e04b184f67d80a1669e17
+            [08]=0a1da1ecd961f4021cb74347fecb6e38c3a3e243b593a6f133874409d53bcc0e
+          )
+          comments="repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments?per_page=100"
+          : > /tmp/htr010b5-payload.b64
+          for number in $(seq 0 8); do
+            printf -v index '%02d' "${number}"
+            prefix="HTR010B5_PAYLOAD_PART_${index}:"
+            body="$(
+              gh api --paginate "${comments}" \
+                --jq ".[] | select(.body | startswith(\"${prefix}\")) | .body" \
+                | tail -n 1
+            )"
+            if [[ -z "${body}" || "${body}" == "${prefix}" ]]; then
+              echo "missing payload part ${index}" >&2
+              exit 1
+            fi
+            printf '%s' "${body:${#prefix}}" > "/tmp/htr010b5-part-${index}"
+            echo "${expected[${index}]}  /tmp/htr010b5-part-${index}" \
+              | sha256sum --check --strict
+            cat "/tmp/htr010b5-part-${index}" >> /tmp/htr010b5-payload.b64
+          done
+          test "$(wc -c < /tmp/htr010b5-payload.b64)" -eq 35756
+          base64 --decode /tmp/htr010b5-payload.b64 \
+            > /tmp/htr010b5-final-payload.tar.xz
+          echo "b6cf26169d2e55a509dd7c7776395f2180c2bb30b65aae2a29c777cdbf38596c  /tmp/htr010b5-final-payload.tar.xz" \
+            | sha256sum --check --strict
+          xz --test /tmp/htr010b5-final-payload.tar.xz
+          tar -xJf /tmp/htr010b5-final-payload.tar.xz -C .
+      - name: Verify materialized source digests
+        shell: bash
         run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          cli = Path("alpha/application/benchmark_cli.py")
-          text = cli.read_text(encoding="utf-8")
-          import_anchor = '''from alpha.application.governed_trade_formation_cli import (
-              register_governed_trade_formation_command,
-          )
-          '''
-          import_replacement = '''from alpha.application.governed_approval_gate_forensics_cli import (
-              register_governed_approval_gate_forensics_command,
-          )
-          from alpha.application.governed_trade_formation_cli import (
-              register_governed_trade_formation_command,
-          )
-          '''
-          if text.count(import_anchor) != 1:
-              raise SystemExit("benchmark CLI import anchor mismatch")
-          text = text.replace(import_anchor, import_replacement)
-          registration_anchor = (
-              "register_governed_trade_formation_command(benchmark_app)\n"
-          )
-          registration_replacement = (
-              registration_anchor
-              + "register_governed_approval_gate_forensics_command(benchmark_app)\n"
-          )
-          if text.count(registration_anchor) != 1:
-              raise SystemExit("benchmark CLI registration anchor mismatch")
-          cli.write_text(
-              text.replace(registration_anchor, registration_replacement),
-              encoding="utf-8",
-          )
-
-          package = Path("alpha/benchmark_replay/__init__.py")
-          text = package.read_text(encoding="utf-8")
-          module_anchor = '''from alpha.benchmark_replay.governed_trade_formation import (
-          '''
-          module_replacement = '''from alpha.benchmark_replay.governed_approval_gate_forensics import (
-              B5_BLOCKED_DEFECT,
-              B5_BLOCKED_DIVERGENCE,
-              B5_BLOCKED_EVIDENCE,
-              B5_BLOCKED_UNREACHED,
-              B5_BLOCKED_VACUOUS,
-              B5_READY,
-              HTR010B5_CONTRACT_VERSION,
-              GovernedApprovalGateForensicsEngine,
-              GovernedApprovalGateForensicsResult,
-              export_governed_approval_gate_forensics,
-              validate_governed_approval_gate_forensics_certificate,
-          )
-          from alpha.benchmark_replay.governed_trade_formation import (
-          '''
-          if text.count(module_anchor) != 1:
-              raise SystemExit("benchmark package module anchor mismatch")
-          text = text.replace(module_anchor, module_replacement)
-          replacements = {
-              '    "B4_READY",\n': '''    "B4_READY",
-              "B5_BLOCKED_DEFECT",
-              "B5_BLOCKED_DIVERGENCE",
-              "B5_BLOCKED_EVIDENCE",
-              "B5_BLOCKED_UNREACHED",
-              "B5_BLOCKED_VACUOUS",
-              "B5_READY",
-          ''',
-              '    "HTR010B4_CONTRACT_VERSION",\n': '''    "HTR010B4_CONTRACT_VERSION",
-              "HTR010B5_CONTRACT_VERSION",
-          ''',
-              '    "GovernedAdjustedStabilityResult",\n': '''    "GovernedAdjustedStabilityResult",
-              "GovernedApprovalGateForensicsEngine",
-              "GovernedApprovalGateForensicsResult",
-          ''',
-              '    "export_governed_adjusted_stability",\n': '''    "export_governed_adjusted_stability",
-              "export_governed_approval_gate_forensics",
-          ''',
-              '    "validate_governed_adjusted_research_activation",\n': '''    "validate_governed_adjusted_research_activation",
-              "validate_governed_approval_gate_forensics_certificate",
-          ''',
-          }
-          for anchor, replacement in replacements.items():
-              if text.count(anchor) != 1:
-                  raise SystemExit(
-                      f"benchmark package export anchor mismatch: {anchor!r}"
-                  )
-              text = text.replace(anchor, replacement)
-          package.write_text(text, encoding="utf-8")
-          PY
-      - name: Verify syntax
-        run: |
+          set -euo pipefail
+          cat > /tmp/htr010b5-source.sha256 <<'EOF'
+          125e83262318d2bd7baaaa903a5f357ed49120278ae228bc61a329c717df9fb7  alpha/benchmark_replay/governed_approval_gate_forensics.py
+          353768a3645c433077dd62e32fae4ee937b477278bff4d0e31d4858339ae113a  alpha/application/governed_approval_gate_forensics_cli.py
+          dd016f1c9a2d4dae1fee0b35bdc7af117c89756b2a6cbd8cbba256452394d076  tests/benchmark_replay/test_governed_approval_gate_forensics.py
+          2368df8843fbd024a0c6bea994c65836383785b030091a9d2491fec446e6488c  docs/HTR-010B5_GOVERNED_INSTITUTIONAL_APPROVAL_GATE_FORENSICS.md
+          bf4255daf5e2d708d39acc4fc80b897f3a2cf989d8dd9378e6eeee94cf750237  alpha/application/benchmark_cli.py
+          130c6b2d6b58029c59fc2a4ef267778a55a0e5dc451a940891daca60c734ec72  alpha/benchmark_replay/__init__.py
+          EOF
+          sha256sum --check --strict /tmp/htr010b5-source.sha256
           python -m py_compile \
             alpha/application/benchmark_cli.py \
             alpha/application/governed_approval_gate_forensics_cli.py \
             alpha/benchmark_replay/__init__.py \
             alpha/benchmark_replay/governed_approval_gate_forensics.py \
             tests/benchmark_replay/test_governed_approval_gate_forensics.py
-      - name: Commit integration
+      - name: Install project
         run: |
+          pip install poetry
+          poetry install --no-interaction
+      - name: Run B5 quality gates
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+        run: |
+          poetry run ruff check \
+            alpha/application/benchmark_cli.py \
+            alpha/application/governed_approval_gate_forensics_cli.py \
+            alpha/benchmark_replay/__init__.py \
+            alpha/benchmark_replay/governed_approval_gate_forensics.py \
+            tests/benchmark_replay/test_governed_approval_gate_forensics.py
+          poetry run ruff format --check \
+            alpha/application/benchmark_cli.py \
+            alpha/application/governed_approval_gate_forensics_cli.py \
+            alpha/benchmark_replay/__init__.py \
+            alpha/benchmark_replay/governed_approval_gate_forensics.py \
+            tests/benchmark_replay/test_governed_approval_gate_forensics.py
+          poetry run mypy alpha
+          poetry run pytest -q \
+            tests/benchmark_replay/test_governed_approval_gate_forensics.py
+      - name: Commit clean HTR-010B5 integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .tmp/htr010b5
+          rm -f .github/workflows/htr010b5-integrate.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "feat(htr-010b5): register approval-gate forensics"
+          git diff --cached --name-only | sort > /tmp/htr010b5-actual-paths
+          cat > /tmp/htr010b5-expected-paths <<'EOF'
+          .github/workflows/htr010b5-integrate.yml
+          .tmp/htr010b5/payload.part-00
+          .tmp/htr010b5/payload.part-01
+          .tmp/htr010b5/payload.part-02
+          .tmp/htr010b5/payload.part-03
+          alpha/application/benchmark_cli.py
+          alpha/application/governed_approval_gate_forensics_cli.py
+          alpha/benchmark_replay/__init__.py
+          alpha/benchmark_replay/governed_approval_gate_forensics.py
+          docs/HTR-010B5_GOVERNED_INSTITUTIONAL_APPROVAL_GATE_FORENSICS.md
+          tests/benchmark_replay/test_governed_approval_gate_forensics.py
+          EOF
+          diff -u /tmp/htr010b5-expected-paths /tmp/htr010b5-actual-paths
+          git commit -m "feat(htr-010b5): certify approval-gate non-vacuity"
           git push
