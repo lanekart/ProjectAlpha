@@ -32,7 +32,7 @@ _CONSOLE = Console(stderr=True)
 
 
 class _B2Progress:
-    """Continuous staged progress display for snapshot loading and both benchmark arms."""
+    """Show staged progress for snapshot loading and both benchmark arms."""
 
     def __init__(self, *, enabled: bool) -> None:
         self.enabled = enabled
