@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: temp-htr010b3-finalize
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   finalize:
