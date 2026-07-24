@@ -75,6 +75,15 @@ jobs:
           pip install poetry
           poetry install --no-interaction
 
+      - name: Normalize HTR-010B5 Ruff formatting
+        run: |
+          poetry run ruff format \
+            alpha/application/benchmark_cli.py \
+            alpha/application/governed_approval_gate_forensics_cli.py \
+            alpha/benchmark_replay/__init__.py \
+            alpha/benchmark_replay/governed_approval_gate_forensics.py \
+            tests/benchmark_replay/test_governed_approval_gate_forensics.py
+
       - name: Run Ruff check
         run: poetry run ruff check .
 
