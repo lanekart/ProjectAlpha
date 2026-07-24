@@ -197,17 +197,21 @@ def normalize_source_security_id(
     """Normalize an explicit stable ID or construct one from an exchange ISIN."""
 
     explicit = str(security_id or "").strip()
+    normalized_isin = str(isin or "").strip().upper()
+    normalized_exchange = str(exchange or "").strip().lower()
     if explicit:
         marker = explicit.lower().find(":isin:")
         if marker >= 0:
             prefix = explicit[:marker].strip().lower()
             value = explicit[marker + len(":isin:") :].strip().upper()
             if prefix and value:
+                if normalized_isin and normalized_isin != value:
+                    raise ValueError("source security ID and ISIN disagree")
+                if normalized_exchange and normalized_exchange != prefix:
+                    raise ValueError("source security ID and exchange disagree")
                 return f"{prefix}:isin:{value}"
         return explicit
 
-    normalized_isin = str(isin or "").strip().upper()
-    normalized_exchange = str(exchange or "").strip().lower()
     if not normalized_isin or not normalized_exchange:
         return None
     return f"{normalized_exchange}:isin:{normalized_isin}"
