@@ -27,26 +27,6 @@ jobs:
       - name: MyPy
         run: poetry run mypy alpha
 
-  b2_cli_format:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
-      - run: pip install poetry
-      - run: poetry install --no-interaction
-      - name: Apply locked Ruff formatting
-        run: |
-          poetry run ruff format alpha/application/governed_adjusted_benchmark_cli.py
-          poetry run ruff check alpha/application/governed_adjusted_benchmark_cli.py
-          poetry run ruff format --check alpha/application/governed_adjusted_benchmark_cli.py
-      - uses: actions/upload-artifact@v4
-        with:
-          name: formatted-b2-cli
-          path: alpha/application/governed_adjusted_benchmark_cli.py
-          if-no-files-found: error
-
   pytest:
     runs-on: ubuntu-latest
     strategy:
