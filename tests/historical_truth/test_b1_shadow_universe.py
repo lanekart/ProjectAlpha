@@ -313,7 +313,7 @@ def test_identity_filter_uses_admitted_source_id_across_interval_gap() -> None:
     assert daily["security_id"].tolist() == ["nse:isin:INE1"]
 
 
-def test_identity_filter_fails_closed_for_unknown_admitted_source_id() -> None:
+def test_identity_filter_fails_closed_when_source_id_and_isin_disagree() -> None:
     trading_date = date(2026, 1, 2)
     identities = SecurityIdentityTimeline(
         (
@@ -347,7 +347,7 @@ def test_identity_filter_fails_closed_for_unknown_admitted_source_id() -> None:
         ("nse:isin:INE1",),
     )
 
-    with pytest.raises(ValueError, match="source stable identity disagrees"):
+    with pytest.raises(ValueError, match="source security ID and ISIN disagree"):
         repository.find_by_trade_date(trading_date)
 
 
