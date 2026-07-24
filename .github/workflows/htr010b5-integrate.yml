@@ -20,18 +20,7 @@ jobs:
       PR_NUMBER: ${{ github.event.pull_request.number }}
       FEATURE_BRANCH: feature/htr-010b5-governed-approval-gate-forensics-certification
     steps:
-      - name: Check out the HTR-010B5 feature branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ env.FEATURE_BRANCH }}
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
-
-      - name: Reconstruct the finalized HTR-010B5 payload
+      - name: Reconstruct and diagnose the finalized payload
         shell: bash
         run: |
           set -euo pipefail
@@ -49,13 +38,38 @@ jobs:
               echo "missing finalized payload part ${index}" >&2
               exit 1
             fi
-            printf '%s' "${body:${#prefix}}" >> /tmp/htr010b5-final-payload.raw
+            part="${body:${#prefix}}"
+            printf 'part %s bytes=%s sha256=%s\n' \
+              "${index}" "${#part}" "$(printf '%s' "${part}" | sha256sum | cut -d' ' -f1)"
+            printf '%s' "${part}" >> /tmp/htr010b5-final-payload.raw
           done
           tr -d '\r\n\t ' < /tmp/htr010b5-final-payload.raw \
             > /tmp/htr010b5-final-payload.b64
+          printf 'normalized base64 bytes=%s\n' \
+            "$(wc -c < /tmp/htr010b5-final-payload.b64)"
           base64 --decode /tmp/htr010b5-final-payload.b64 \
             > /tmp/htr010b5-final-payload.tar.xz
+          printf 'archive bytes=%s sha256=%s\n' \
+            "$(wc -c < /tmp/htr010b5-final-payload.tar.xz)" \
+            "$(sha256sum /tmp/htr010b5-final-payload.tar.xz | cut -d' ' -f1)"
           xz --test /tmp/htr010b5-final-payload.tar.xz
+
+      - name: Check out the HTR-010B5 feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.FEATURE_BRANCH }}
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Materialize the finalized source
+        shell: bash
+        run: |
+          set -euo pipefail
           tar -xJf /tmp/htr010b5-final-payload.tar.xz -C .
 
       - name: Verify finalized source digests and syntax
