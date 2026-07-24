@@ -4,6 +4,7 @@ from datetime import date
 from pathlib import Path
 
 import duckdb
+import pandas as pd
 
 from alpha.canonical_universe_audit.models import DatasetManifest
 from alpha.canonical_universe_audit.store import LegacyMarketDataStore
@@ -11,6 +12,19 @@ from alpha.historical_truth.canonical import CanonicalPointInTimeWarehouse
 from alpha.historical_truth.snapshots import PointInTimeSnapshotEngine
 
 _REPLAY_SERIES = frozenset({"EQ"})
+_PRICE_COLUMNS = (
+    "symbol",
+    "trade_date",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "sector",
+    "exchange",
+    "security_id",
+    "isin",
+)
 
 
 class HistoricalTruthReplayStore(LegacyMarketDataStore):
@@ -70,6 +84,120 @@ class HistoricalTruthReplayStore(LegacyMarketDataStore):
             sector_rows=int(row[5]),
         )
 
+    def find_by_trade_date(self, trade_date: date) -> pd.DataFrame:
+        """Return one verified snapshot session with source stable identity fields."""
+
+        result = self.connection.execute(
+            """
+            SELECT
+                symbol, trade_date, open, high, low, close, volume, sector,
+                exchange, security_id, isin
+            FROM daily_prices
+            WHERE trade_date = ?
+              AND open > 0
+              AND high > 0
+              AND low > 0
+              AND close > 0
+              AND volume >= 0
+            ORDER BY symbol
+            """,
+            (trade_date,),
+        )
+        return result.fetchdf()
+
+    def find_history_by_symbols(
+        self,
+        *,
+        symbols: tuple[str, ...],
+        end_date: date,
+        limit: int,
+    ) -> pd.DataFrame:
+        """Return verified source history while preserving ISIN identity evidence."""
+
+        normalized = tuple(
+            dict.fromkeys(
+                symbol.strip().upper() for symbol in symbols if symbol.strip()
+            )
+        )
+        if not normalized:
+            return pd.DataFrame(columns=_PRICE_COLUMNS)
+        if limit < 1:
+            raise ValueError("history limit must be positive")
+        placeholders = ", ".join("?" for _ in normalized)
+        result = self.connection.execute(
+            f"""
+            WITH ranked AS (
+                SELECT
+                    symbol, trade_date, open, high, low, close, volume, sector,
+                    exchange, security_id, isin,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY symbol ORDER BY trade_date DESC
+                    ) AS row_number
+                FROM daily_prices
+                WHERE UPPER(symbol) IN ({placeholders})
+                  AND trade_date <= ?
+                  AND open > 0
+                  AND high > 0
+                  AND low > 0
+                  AND close > 0
+                  AND volume >= 0
+            )
+            SELECT
+                symbol, trade_date, open, high, low, close, volume, sector,
+                exchange, security_id, isin
+            FROM ranked
+            WHERE row_number <= ?
+            ORDER BY symbol, trade_date
+            """,
+            (*normalized, end_date, limit),
+        )
+        return result.fetchdf()
+
+    def find_trade_dates(self, *, start: date, end: date) -> tuple[date, ...]:
+        """Return verified snapshot sessions inside one inclusive range."""
+
+        if end < start:
+            raise ValueError("trade-date range end cannot precede start")
+        return self.trade_dates(start=start, end=end)
+
+    def find_range_by_symbols(
+        self,
+        *,
+        symbols: tuple[str, ...],
+        start_date: date,
+        end_date: date,
+    ) -> pd.DataFrame:
+        """Return exact verified snapshot rows for one inclusive symbol/date range."""
+
+        if end_date < start_date:
+            raise ValueError("range end cannot precede start")
+        normalized = tuple(
+            dict.fromkeys(
+                symbol.strip().upper() for symbol in symbols if symbol.strip()
+            )
+        )
+        if not normalized:
+            return pd.DataFrame(columns=_PRICE_COLUMNS)
+        placeholders = ", ".join("?" for _ in normalized)
+        result = self.connection.execute(
+            f"""
+            SELECT
+                symbol, trade_date, open, high, low, close, volume, sector,
+                exchange, security_id, isin
+            FROM daily_prices
+            WHERE UPPER(symbol) IN ({placeholders})
+              AND trade_date BETWEEN ? AND ?
+              AND open > 0
+              AND high > 0
+              AND low > 0
+              AND close > 0
+              AND volume >= 0
+            ORDER BY symbol, trade_date
+            """,
+            (*normalized, start_date, end_date),
+        )
+        return result.fetchdf()
+
     def _initialise_view(
         self,
         *,
@@ -88,6 +216,8 @@ class HistoricalTruthReplayStore(LegacyMarketDataStore):
                 volume BIGINT NOT NULL,
                 sector VARCHAR,
                 exchange VARCHAR NOT NULL,
+                security_id VARCHAR,
+                isin VARCHAR,
                 PRIMARY KEY (symbol, trade_date)
             )
             """
@@ -136,6 +266,16 @@ class HistoricalTruthReplayStore(LegacyMarketDataStore):
                 )
             for candle in selected:
                 self._validate_candle(candle)
+                normalized_isin = (
+                    candle.isin.strip().upper()
+                    if candle.isin is not None and candle.isin.strip()
+                    else None
+                )
+                security_id = (
+                    f"{candle.exchange.lower()}:isin:{normalized_isin}"
+                    if normalized_isin is not None
+                    else None
+                )
                 rows.append(
                     (
                         candle.symbol.strip().upper(),
@@ -147,11 +287,13 @@ class HistoricalTruthReplayStore(LegacyMarketDataStore):
                         candle.volume,
                         None,
                         candle.exchange.upper(),
+                        security_id,
+                        normalized_isin,
                     )
                 )
         try:
             self.connection.executemany(
-                "INSERT INTO daily_prices VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO daily_prices VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 rows,
             )
         except duckdb.ConstraintException as exc:

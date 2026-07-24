@@ -3,9 +3,17 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from alpha.historical_truth.b1_final_closure import (
     HTR010B1_FINAL_CONTRACT_VERSION,
     B1FinalClosureEngine,
+)
+from alpha.historical_truth.b1_final_closure_cli import _validate_shadow_population
+from alpha.historical_truth.b1_shadow_replay import (
+    FULL_DIAGNOSTIC_REPLAY_SCOPE,
+    HTR010B1_SHADOW_CONTRACT_VERSION,
+    POPULATION_PARITY_SCOPE,
 )
 
 
@@ -123,3 +131,83 @@ def test_b1_final_closure_blocks_without_shadow_replay(tmp_path: Path) -> None:
 
     assert report["final_readiness_decision"] == "BLOCKED_BY_DATA_GAPS"
     assert report["shadow_replay"]["comparison_state"] == ("NOT_RUN_INPUT_NOT_PROVIDED")
+
+
+def test_final_closure_cli_rejects_vacuous_shadow_population(tmp_path: Path) -> None:
+    summary = {
+        "contract_version": HTR010B1_SHADOW_CONTRACT_VERSION,
+        "analysis_scope": FULL_DIAGNOSTIC_REPLAY_SCOPE,
+        "session_count": 0,
+        "eligible_security_count": 2631,
+        "replay_dates": [],
+        "production_influence": False,
+    }
+    raw = _write(tmp_path / "raw.json", summary)
+    adjusted = _write(tmp_path / "adjusted.json", summary)
+
+    with pytest.raises(ValueError, match="vacuous replay population"):
+        _validate_shadow_population(raw_path=raw, adjusted_path=adjusted)
+
+
+def test_final_closure_cli_accepts_nonempty_shadow_population(tmp_path: Path) -> None:
+    summary = {
+        "contract_version": HTR010B1_SHADOW_CONTRACT_VERSION,
+        "analysis_scope": FULL_DIAGNOSTIC_REPLAY_SCOPE,
+        "session_count": 2,
+        "eligible_security_count": 10,
+        "replay_dates": ["2026-01-02", "2026-01-05"],
+        "production_influence": False,
+    }
+    raw = _write(tmp_path / "raw.json", summary)
+    adjusted = _write(tmp_path / "adjusted.json", summary)
+
+    _validate_shadow_population(raw_path=raw, adjusted_path=adjusted)
+
+
+def test_final_closure_cli_accepts_population_parity_scope(tmp_path: Path) -> None:
+    summary = {
+        "contract_version": HTR010B1_SHADOW_CONTRACT_VERSION,
+        "analysis_scope": POPULATION_PARITY_SCOPE,
+        "session_count": 2,
+        "eligible_security_count": 10,
+        "eligible_observation_count": 17,
+        "replay_dates": ["2026-01-02", "2026-01-05"],
+        "session_observation_counts": [
+            {"replay_date": "2026-01-02", "eligible_observation_count": 8},
+            {"replay_date": "2026-01-05", "eligible_observation_count": 9},
+        ],
+        "production_influence": False,
+    }
+    raw = _write(tmp_path / "raw.json", summary)
+    adjusted = _write(tmp_path / "adjusted.json", summary)
+
+    _validate_shadow_population(raw_path=raw, adjusted_path=adjusted)
+
+
+def test_final_closure_cli_rejects_population_count_divergence(
+    tmp_path: Path,
+) -> None:
+    raw_summary = {
+        "contract_version": HTR010B1_SHADOW_CONTRACT_VERSION,
+        "analysis_scope": POPULATION_PARITY_SCOPE,
+        "session_count": 1,
+        "eligible_security_count": 10,
+        "eligible_observation_count": 8,
+        "replay_dates": ["2026-01-02"],
+        "session_observation_counts": [
+            {"replay_date": "2026-01-02", "eligible_observation_count": 8}
+        ],
+        "production_influence": False,
+    }
+    adjusted_summary = {
+        **raw_summary,
+        "eligible_observation_count": 7,
+        "session_observation_counts": [
+            {"replay_date": "2026-01-02", "eligible_observation_count": 7}
+        ],
+    }
+    raw = _write(tmp_path / "raw.json", raw_summary)
+    adjusted = _write(tmp_path / "adjusted.json", adjusted_summary)
+
+    with pytest.raises(ValueError, match="session observation counts differ"):
+        _validate_shadow_population(raw_path=raw, adjusted_path=adjusted)

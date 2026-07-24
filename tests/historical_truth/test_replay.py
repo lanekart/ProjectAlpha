@@ -68,6 +68,8 @@ def test_replay_store_exposes_verified_eq_candles_without_source_writes(
     assert manifest.symbols == 1
     assert frame["symbol"].tolist() == ["ABC"]
     assert frame["close"].tolist() == [108.0]
+    assert frame["isin"].tolist() == ["INE000A01001"]
+    assert frame["security_id"].tolist() == ["nse:isin:INE000A01001"]
     assert _sha256(database) == before
 
 
@@ -97,6 +99,32 @@ def test_replay_store_is_deterministic(tmp_path: Path) -> None:
 
     assert first_manifest == second_manifest
     assert first_rows == second_rows
+    assert {row["isin"] for row in first_rows} == {"INE000A01001"}
+    assert {row["security_id"] for row in first_rows} == {"nse:isin:INE000A01001"}
+
+
+def test_replay_store_exposes_exact_trade_dates_and_ranges(tmp_path: Path) -> None:
+    database, snapshot_root = _source(tmp_path)
+
+    with HistoricalTruthReplayStore(
+        database_path=database,
+        snapshot_root=snapshot_root,
+    ) as store:
+        dates = store.find_trade_dates(
+            start=date(2026, 7, 17),
+            end=date(2026, 7, 20),
+        )
+        frame = store.find_range_by_symbols(
+            symbols=("ABC",),
+            start_date=date(2026, 7, 20),
+            end_date=date(2026, 7, 20),
+        )
+
+    assert dates == (date(2026, 7, 17), date(2026, 7, 20))
+    assert frame["trade_date"].dt.date.tolist() == [date(2026, 7, 20)]
+    assert frame["close"].tolist() == [109.0]
+    assert frame["isin"].tolist() == ["INE000A01001"]
+    assert frame["security_id"].tolist() == ["nse:isin:INE000A01001"]
 
 
 def test_replay_store_fails_closed_when_observed_snapshot_is_missing(

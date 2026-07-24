@@ -134,8 +134,10 @@ def _row(
     *,
     close: int,
     volume: int = 1000,
+    security_id: str | None = None,
+    isin: str | None = None,
 ) -> dict[str, object]:
-    return {
+    row: dict[str, object] = {
         "symbol": symbol,
         "trade_date": trade_date,
         "open": close - 10,
@@ -145,17 +147,23 @@ def _row(
         "volume": volume,
         "exchange": "NSE",
     }
+    if security_id is not None:
+        row["security_id"] = security_id
+    if isin is not None:
+        row["isin"] = isin
+    return row
 
 
 def _repository(
     rows: list[dict[str, object]],
     *,
     actions: tuple[CorporateActionEvent, ...] = (),
+    identities: SecurityIdentityTimeline | None = None,
 ) -> tuple[CanonicalReplayPriceRepository, FakePriceSource]:
     source = FakePriceSource(pd.DataFrame(rows))
     repository = CanonicalReplayPriceRepository(
         source,
-        _identity_timeline(),
+        identities or _identity_timeline(),
         CorporateActionTimeline(actions),
     )
     return repository, source
@@ -253,6 +261,50 @@ def test_history_limit_is_enforced_by_stable_security_identity() -> None:
     assert repository.reads[0].row_count == 2
 
 
+def test_source_stable_id_supports_history_across_interval_gap() -> None:
+    first = date(2025, 1, 1)
+    second = date(2025, 1, 2)
+    identities = SecurityIdentityTimeline(
+        (
+            SecurityIdentityRecord(
+                security_id="nse:isin:INE000A01001",
+                symbol="ALPHA",
+                exchange="NSE",
+                effective_from=second,
+            ),
+        )
+    )
+    repository, _ = _repository(
+        [
+            _row(
+                "ALPHA",
+                first,
+                close=90,
+                security_id="nse:isin:INE000A01001",
+                isin="INE000A01001",
+            ),
+            _row(
+                "ALPHA",
+                second,
+                close=100,
+                security_id="nse:isin:INE000A01001",
+                isin="INE000A01001",
+            ),
+        ],
+        identities=identities,
+    )
+
+    frame = repository.find_history_by_symbols(
+        symbols=("ALPHA",),
+        end_date=second,
+        limit=2,
+    )
+
+    assert list(frame["trade_date"]) == [first, second]
+    assert set(frame["security_id"]) == {"nse:isin:INE000A01001"}
+    assert repository.reads[0].row_count == 2
+
+
 def test_unresolved_material_action_fails_closed() -> None:
     repository, _ = _repository(
         [_row("ALPHA", _BEFORE_SPLIT, close=100)],
@@ -273,6 +325,39 @@ def test_duplicate_stable_identity_for_one_date_fails_closed() -> None:
             _row("ALPHA", _BEFORE_SPLIT, close=100),
             _row("NEWALPHA", _BEFORE_SPLIT, close=100),
         ]
+    )
+
+    with pytest.raises(ValueError, match="duplicate stable security identities"):
+        repository.find_by_trade_date(_BEFORE_SPLIT)
+
+
+def test_duplicate_source_stable_identity_for_one_date_fails_closed() -> None:
+    identities = SecurityIdentityTimeline(
+        (
+            SecurityIdentityRecord(
+                security_id="nse:isin:INE000A01001",
+                symbol="NEWALPHA",
+                exchange="NSE",
+                historical_symbols=("ALPHA",),
+            ),
+        )
+    )
+    repository, _ = _repository(
+        [
+            _row(
+                "ALPHA",
+                _BEFORE_SPLIT,
+                close=100,
+                security_id="nse:isin:INE000A01001",
+            ),
+            _row(
+                "NEWALPHA",
+                _BEFORE_SPLIT,
+                close=100,
+                security_id="nse:isin:INE000A01001",
+            ),
+        ],
+        identities=identities,
     )
 
     with pytest.raises(ValueError, match="duplicate stable security identities"):

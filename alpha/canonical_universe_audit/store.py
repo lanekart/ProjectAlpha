@@ -165,6 +165,122 @@ class LegacyMarketDataStore:
         ).fetchall()
         return {str(symbol): int(count) for symbol, count in rows}
 
+    def eligible_security_count(
+        self,
+        *,
+        start: date,
+        end: date,
+        minimum_history: int = 200,
+    ) -> int:
+        """Count observed securities meeting the governed history requirement."""
+
+        if end < start:
+            raise ValueError("eligibility range end cannot precede start")
+        if minimum_history < 1:
+            raise ValueError("minimum history must be positive")
+
+        row = self.connection.execute(
+            """
+            WITH history AS (
+                SELECT UPPER(symbol) AS symbol, COUNT(*) AS observations
+                FROM daily_prices
+                WHERE trade_date <= ?
+                  AND open > 0
+                  AND high > 0
+                  AND low > 0
+                  AND close > 0
+                  AND volume >= 0
+                GROUP BY UPPER(symbol)
+                HAVING COUNT(*) >= ?
+            ), observed AS (
+                SELECT DISTINCT UPPER(symbol) AS symbol
+                FROM daily_prices
+                WHERE trade_date BETWEEN ? AND ?
+            )
+            SELECT COUNT(*)
+            FROM history
+            JOIN observed USING (symbol)
+            """,
+            (end, minimum_history, start, end),
+        ).fetchone()
+
+        return 0 if row is None else int(row[0])
+
+    def observed_equal_weight_returns(
+        self,
+        *,
+        start: date,
+        end: date,
+    ) -> tuple[tuple[date, Decimal], ...]:
+        """Return daily equal-weight returns through the store boundary."""
+
+        if end < start:
+            raise ValueError("equal-weight range end cannot precede start")
+        rows = self.connection.execute(
+            """
+            WITH lagged AS (
+                SELECT
+                    trade_date,
+                    close,
+                    LAG(close) OVER (
+                        PARTITION BY UPPER(symbol) ORDER BY trade_date
+                    ) AS prior_close
+                FROM daily_prices
+                WHERE close > 0 AND trade_date <= ?
+            ), daily AS (
+                SELECT
+                    trade_date,
+                    AVG(close / prior_close - 1) AS equal_weight_return
+                FROM lagged
+                WHERE trade_date BETWEEN ? AND ? AND prior_close > 0
+                GROUP BY trade_date
+                ORDER BY trade_date
+            )
+            SELECT trade_date, equal_weight_return
+            FROM daily
+            ORDER BY trade_date
+            """,
+            (end, start, end),
+        ).fetchall()
+        return tuple(
+            (trading_date, Decimal(str(raw_return)))
+            for trading_date, raw_return in rows
+        )
+
+    def benchmark_price_history(
+        self,
+        *,
+        symbols: tuple[str, ...],
+        start: date,
+        end: date,
+    ) -> tuple[tuple[date, Decimal], ...]:
+        """Return benchmark closes through the store boundary."""
+
+        if end < start:
+            raise ValueError("benchmark range end cannot precede start")
+        normalized = tuple(
+            dict.fromkeys(
+                symbol.strip().upper() for symbol in symbols if symbol.strip()
+            )
+        )
+        if not normalized:
+            return ()
+        placeholders = ", ".join("?" for _ in normalized)
+        rows = self.connection.execute(
+            f"""
+            SELECT trade_date, close
+            FROM daily_prices
+            WHERE UPPER(symbol) IN ({placeholders})
+              AND trade_date BETWEEN ? AND ?
+              AND close > 0
+            ORDER BY trade_date, UPPER(symbol)
+            """,
+            (*normalized, start, end),
+        ).fetchall()
+        return tuple(
+            (trading_date, Decimal(str(close))) for trading_date, close in rows
+        )
+
     def liquidity_statistics(self) -> pd.DataFrame:
         return self.connection.execute(
             """

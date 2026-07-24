@@ -461,6 +461,12 @@ def _number(value: object) -> float:
     return float(value) if isinstance(value, (int, float)) else 0.0
 
 
+def final_closure_report_sha256(value: dict[str, Any]) -> str:
+    """Return the producer-authoritative B1 closure digest."""
+
+    return _digest(value)
+
+
 def _digest(value: dict[str, Any]) -> str:
     payload = {**value, "report_sha256": ""}
     return sha256(
@@ -484,4 +490,8 @@ def _markdown(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-__all__ = ["B1FinalClosureEngine", "HTR010B1_FINAL_CONTRACT_VERSION"]
+__all__ = [
+    "B1FinalClosureEngine",
+    "HTR010B1_FINAL_CONTRACT_VERSION",
+    "final_closure_report_sha256",
+]

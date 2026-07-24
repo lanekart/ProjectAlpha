@@ -10,6 +10,9 @@ from typing import Annotated, Any
 
 import typer
 
+from alpha.application.governed_adjusted_benchmark_cli import (
+    register_governed_adjusted_benchmark_command,
+)
 from alpha.benchmark_replay import (
     DEFAULT_BENCHMARK_OUTPUT,
     BenchmarkArtifactExporter,
@@ -30,6 +33,8 @@ benchmark_app = typer.Typer(
     help="Run and inspect the immutable Canonical Alpha Benchmark Replay.",
     no_args_is_help=True,
 )
+
+register_governed_adjusted_benchmark_command(benchmark_app)
 
 
 @benchmark_app.command("replay")

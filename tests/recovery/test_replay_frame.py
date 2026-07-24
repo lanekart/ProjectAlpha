@@ -110,6 +110,32 @@ def test_canonicalizes_identity_prices_and_lineage() -> None:
     assert result.audit.passed
 
 
+def test_source_stable_id_resolves_interval_gap() -> None:
+    identity = SecurityIdentityTimeline(
+        (
+            SecurityIdentityRecord(
+                security_id="nse:isin:INE000A01001",
+                symbol="ALPHA",
+                exchange="NSE",
+                effective_from=date(2025, 1, 11),
+            ),
+        )
+    )
+    frame = _frame()
+    frame["security_id"] = "nse:isin:INE000A01001"
+    frame["isin"] = "INE000A01001"
+    adapter = CanonicalReplayFrameAdapter(identity, CorporateActionTimeline(()))
+
+    result = adapter.canonicalize(
+        frame,
+        trade_date=_TRADE_DATE,
+        as_of=_TRADE_DATE,
+    )
+
+    assert result.frame.iloc[0]["security_id"] == "nse:isin:INE000A01001"
+    assert result.frame.iloc[0]["symbol"] == "ALPHA"
+
+
 def test_unresolved_identity_fails_closed() -> None:
     adapter = CanonicalReplayFrameAdapter(
         _identities(),
@@ -119,6 +145,19 @@ def test_unresolved_identity_fails_closed() -> None:
     with pytest.raises(ValueError, match="unresolved security identities: UNKNOWN"):
         adapter.canonicalize(
             _frame("UNKNOWN"),
+            trade_date=_TRADE_DATE,
+            as_of=_TRADE_DATE,
+        )
+
+
+def test_unknown_source_stable_id_fails_closed() -> None:
+    frame = _frame()
+    frame["security_id"] = "nse:isin:INE999A01001"
+    adapter = CanonicalReplayFrameAdapter(_identities(), CorporateActionTimeline(()))
+
+    with pytest.raises(ValueError, match="unresolved security identities: ALPHA"):
+        adapter.canonicalize(
+            frame,
             trade_date=_TRADE_DATE,
             as_of=_TRADE_DATE,
         )

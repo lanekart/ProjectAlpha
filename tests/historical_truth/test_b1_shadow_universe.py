@@ -9,8 +9,13 @@ import pandas as pd
 import pytest
 
 from alpha.historical_truth.b1_shadow_universe import (
+    B1IdentityFilteredPriceRepository,
     B1UniverseFilteredPriceRepository,
     load_b1_shadow_admission,
+)
+from alpha.recovery.security_timeline import (
+    SecurityIdentityRecord,
+    SecurityIdentityTimeline,
 )
 
 
@@ -30,6 +35,8 @@ def _artifacts(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
         "contract_version": "HTR-010B1H-v1.0.0",
         "replay_start": "2026-01-01",
         "replay_end": "2026-07-20",
+        "dependency_start": "2025-01-01",
+        "dependency_end": "2026-09-30",
         "admitted_identity_count": 2,
         "admitted_unresolved_action_count": 0,
         "raw_adjusted_universe_difference_count": 0,
@@ -84,6 +91,8 @@ def test_loads_verified_b1h_admission(tmp_path: Path) -> None:
     assert result.admitted_symbols == ("AAA", "BBB")
     assert result.replay_start == date(2026, 1, 1)
     assert result.replay_end == date(2026, 7, 20)
+    assert result.dependency_start == date(2025, 1, 1)
+    assert result.dependency_end == date(2026, 9, 30)
 
 
 def test_rejects_tampered_universe(tmp_path: Path) -> None:
@@ -91,6 +100,26 @@ def test_rejects_tampered_universe(tmp_path: Path) -> None:
     adjusted.write_text(json.dumps(["nse:isin:INE1"]), encoding="utf-8")
 
     with pytest.raises(ValueError, match="universes differ"):
+        load_b1_shadow_admission(
+            contract_path=contract,
+            identity_admission_path=admissions,
+            raw_universe_path=raw,
+            adjusted_universe_path=adjusted,
+        )
+
+
+def test_rejects_dependency_window_that_does_not_cover_replay(
+    tmp_path: Path,
+) -> None:
+    contract, admissions, raw, adjusted = _artifacts(tmp_path)
+    payload = json.loads(contract.read_text(encoding="utf-8"))
+    payload["dependency_start"] = "2026-02-01"
+    payload["report_sha256"] = _digest(
+        {key: value for key, value in payload.items() if key != "report_sha256"}
+    )
+    contract.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="does not cover replay window"):
         load_b1_shadow_admission(
             contract_path=contract,
             identity_admission_path=admissions,
@@ -147,3 +176,213 @@ def test_price_repository_cannot_leak_excluded_symbols() -> None:
 
     assert daily["symbol"].tolist() == ["AAA"]
     assert history["symbol"].tolist() == ["AAA"]
+
+
+class _IdentityRepository:
+    def __init__(self, rows: list[dict[str, object]]) -> None:
+        self.rows = rows
+
+    def find_by_trade_date(self, trade_date: date) -> pd.DataFrame:
+        frame = pd.DataFrame(self.rows)
+        dates = pd.to_datetime(frame["trade_date"]).dt.date
+        return frame.loc[dates == trade_date].copy()
+
+    def find_history_by_symbols(
+        self,
+        *,
+        symbols: tuple[str, ...],
+        end_date: date,
+        limit: int,
+    ) -> pd.DataFrame:
+        del limit
+        frame = pd.DataFrame(self.rows)
+        normalized = frame["symbol"].astype(str).str.upper()
+        dates = pd.to_datetime(frame["trade_date"]).dt.date
+        return frame.loc[normalized.isin(symbols) & (dates <= end_date)].copy()
+
+
+def _identity_timeline() -> SecurityIdentityTimeline:
+    return SecurityIdentityTimeline(
+        (
+            SecurityIdentityRecord(
+                security_id="nse:isin:INE1",
+                symbol="NEW",
+                exchange="NSE",
+                historical_symbols=("OLD",),
+            ),
+            SecurityIdentityRecord(
+                security_id="nse:isin:INE2",
+                symbol="OTHER",
+                exchange="NSE",
+            ),
+        )
+    )
+
+
+def test_identity_filter_preserves_admitted_historical_aliases() -> None:
+    trading_date = date(2026, 1, 2)
+    source = _IdentityRepository(
+        [
+            {
+                "symbol": "OLD",
+                "trade_date": trading_date,
+                "exchange": "NSE",
+                "open": 1,
+                "high": 2,
+                "low": 1,
+                "close": 2,
+                "volume": 10,
+            },
+            {
+                "symbol": "OTHER",
+                "trade_date": trading_date,
+                "exchange": "NSE",
+                "open": 1,
+                "high": 2,
+                "low": 1,
+                "close": 2,
+                "volume": 10,
+            },
+            {
+                "symbol": "UNRESOLVED_OUTSIDE_B1H",
+                "trade_date": trading_date,
+                "exchange": "NSE",
+                "open": 1,
+                "high": 2,
+                "low": 1,
+                "close": 2,
+                "volume": 10,
+            },
+        ]
+    )
+    repository = B1IdentityFilteredPriceRepository(
+        source,
+        _identity_timeline(),
+        ("nse:isin:INE1",),
+    )
+
+    daily = repository.find_by_trade_date(trading_date)
+    history = repository.find_history_by_symbols(
+        symbols=("OLD", "OTHER", "UNRESOLVED_OUTSIDE_B1H"),
+        end_date=trading_date,
+        limit=10,
+    )
+
+    assert daily["symbol"].tolist() == ["OLD"]
+    assert history["symbol"].tolist() == ["OLD"]
+
+
+def test_identity_filter_uses_admitted_source_id_across_interval_gap() -> None:
+    trading_date = date(2026, 1, 2)
+    identities = SecurityIdentityTimeline(
+        (
+            SecurityIdentityRecord(
+                security_id="nse:isin:INE1",
+                symbol="NEW",
+                exchange="NSE",
+                effective_from=date(2026, 2, 1),
+                historical_symbols=("OLD",),
+            ),
+        )
+    )
+    source = _IdentityRepository(
+        [
+            {
+                "symbol": "OLD",
+                "trade_date": trading_date,
+                "exchange": "NSE",
+                "security_id": "nse:isin:INE1",
+                "isin": "INE1",
+                "open": 1,
+                "high": 2,
+                "low": 1,
+                "close": 2,
+                "volume": 10,
+            }
+        ]
+    )
+    repository = B1IdentityFilteredPriceRepository(
+        source,
+        identities,
+        ("nse:isin:INE1",),
+    )
+
+    daily = repository.find_by_trade_date(trading_date)
+
+    assert daily["symbol"].tolist() == ["OLD"]
+    assert daily["security_id"].tolist() == ["nse:isin:INE1"]
+
+
+def test_identity_filter_fails_closed_when_source_id_and_isin_disagree() -> None:
+    trading_date = date(2026, 1, 2)
+    identities = SecurityIdentityTimeline(
+        (
+            SecurityIdentityRecord(
+                security_id="nse:isin:INE1",
+                symbol="NEW",
+                exchange="NSE",
+                historical_symbols=("OLD",),
+            ),
+        )
+    )
+    source = _IdentityRepository(
+        [
+            {
+                "symbol": "OLD",
+                "trade_date": trading_date,
+                "exchange": "NSE",
+                "security_id": "nse:isin:INE1",
+                "isin": "INE999",
+                "open": 1,
+                "high": 2,
+                "low": 1,
+                "close": 2,
+                "volume": 10,
+            }
+        ]
+    )
+    repository = B1IdentityFilteredPriceRepository(
+        source,
+        identities,
+        ("nse:isin:INE1",),
+    )
+
+    with pytest.raises(ValueError, match="source security ID and ISIN disagree"):
+        repository.find_by_trade_date(trading_date)
+
+
+def test_identity_filter_fails_closed_for_symbol_only_interval_gap() -> None:
+    trading_date = date(2026, 1, 2)
+    identities = SecurityIdentityTimeline(
+        (
+            SecurityIdentityRecord(
+                security_id="nse:isin:INE1",
+                symbol="NEW",
+                exchange="NSE",
+                effective_from=date(2026, 2, 1),
+                historical_symbols=("OLD",),
+            ),
+        )
+    )
+    source = _IdentityRepository(
+        [
+            {
+                "symbol": "OLD",
+                "trade_date": trading_date,
+                "exchange": "NSE",
+                "open": 1,
+                "high": 2,
+                "low": 1,
+                "close": 2,
+                "volume": 10,
+            }
+        ]
+    )
+    repository = B1IdentityFilteredPriceRepository(
+        source,
+        identities,
+        ("nse:isin:INE1",),
+    )
+
+    with pytest.raises(ValueError, match="admitted source identity is unresolved"):
+        repository.find_by_trade_date(trading_date)
