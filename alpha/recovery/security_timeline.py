@@ -141,7 +141,7 @@ class SecurityIdentityTimeline:
         security_id: str | None = None,
         isin: str | None = None,
     ) -> SecurityIdentityRecord | None:
-        """Prefer an authoritative source stable ID, with symbol resolution as fallback."""
+        """Prefer authoritative source ID, with symbol resolution as fallback."""
 
         direct_id = normalize_source_security_id(
             security_id=security_id,
@@ -164,7 +164,9 @@ class SecurityIdentityTimeline:
         if not candidates:
             return None
 
-        active = tuple(record for record in candidates if record.active_on(trading_date))
+        active = tuple(
+            record for record in candidates if record.active_on(trading_date)
+        )
         normalized_symbol = symbol.strip().upper()
         active_symbol = tuple(
             record for record in active if record.supports_symbol(normalized_symbol)
