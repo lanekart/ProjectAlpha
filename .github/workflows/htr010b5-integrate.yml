@@ -75,13 +75,19 @@ jobs:
           pip install poetry
           poetry install --no-interaction
 
-      - name: Run HTR-010B5 quality gates
-        run: |
-          poetry run ruff check .
-          poetry run ruff format --check .
-          poetry run mypy alpha
-          poetry run pytest -q \
-            tests/benchmark_replay/test_governed_approval_gate_forensics.py
+      - name: Run Ruff check
+        run: poetry run ruff check .
+
+      - name: Run Ruff format check
+        run: poetry run ruff format --check .
+
+      - name: Run strict MyPy
+        run: poetry run mypy alpha
+
+      - name: Run focused HTR-010B5 tests
+        run: >-
+          poetry run pytest -q
+          tests/benchmark_replay/test_governed_approval_gate_forensics.py
 
       - name: Run the complete regression suite
         run: poetry run pytest -q
