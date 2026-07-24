@@ -15,7 +15,10 @@ import pandas as pd
 from alpha.recovery.consumer_attestation import CanonicalReplayConsumerAttestation
 from alpha.recovery.corporate_actions import CorporateActionTimeline
 from alpha.recovery.replay_frame import CanonicalReplayFrameAdapter
-from alpha.recovery.security_timeline import SecurityIdentityTimeline
+from alpha.recovery.security_timeline import (
+    SecurityIdentityRecord,
+    SecurityIdentityTimeline,
+)
 
 REPOSITORY_CONTRACT_VERSION = "HTR-005-repository-v1.0.0"
 _TEMP_SECURITY_ID = "__canonical_security_id"
@@ -438,10 +441,11 @@ def _limit_by_security_identity(
     records = cast(list[dict[str, object]], result.to_dict("records"))
     security_ids: list[str] = []
     for row in records:
-        identity = identities.resolve(
-            str(row.get("symbol", "")),
-            trading_date=cast(date, row["trade_date"]),
-            exchange=_optional_exchange(row.get("exchange")),
+        trade_date = cast(date, row["trade_date"])
+        identity = _resolve_row_identity(
+            row,
+            identities=identities,
+            trade_date=trade_date,
         )
         if identity is None:
             raise ValueError(
@@ -471,10 +475,10 @@ def _reject_duplicate_stable_identities(
     duplicates: set[tuple[str, date]] = set()
     for row in records:
         trade_date = cast(date, row["trade_date"])
-        identity = identities.resolve(
-            str(row.get("symbol", "")),
-            trading_date=trade_date,
-            exchange=_optional_exchange(row.get("exchange")),
+        identity = _resolve_row_identity(
+            row,
+            identities=identities,
+            trade_date=trade_date,
         )
         if identity is None:
             continue
@@ -492,6 +496,21 @@ def _reject_duplicate_stable_identities(
         )
 
 
+def _resolve_row_identity(
+    row: dict[str, object],
+    *,
+    identities: SecurityIdentityTimeline,
+    trade_date: date,
+) -> SecurityIdentityRecord | None:
+    return identities.resolve_source_identity(
+        str(row.get("symbol", "")),
+        trading_date=trade_date,
+        exchange=_optional_exchange(row.get("exchange")),
+        security_id=_optional_text(row.get("security_id")),
+        isin=_optional_text(row.get("isin")),
+    )
+
+
 def _reject_precanonicalized_source(frame: pd.DataFrame) -> None:
     present = tuple(sorted(_GOVERNANCE_COLUMNS.intersection(frame.columns)))
     if present:
@@ -506,6 +525,13 @@ def _optional_exchange(value: object) -> str | None:
     if value is None:
         return None
     text = str(value).strip().upper()
+    return text or None
+
+
+def _optional_text(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
     return text or None
 
 
