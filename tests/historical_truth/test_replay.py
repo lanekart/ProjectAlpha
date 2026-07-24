@@ -100,9 +100,7 @@ def test_replay_store_is_deterministic(tmp_path: Path) -> None:
     assert first_manifest == second_manifest
     assert first_rows == second_rows
     assert {row["isin"] for row in first_rows} == {"INE000A01001"}
-    assert {row["security_id"] for row in first_rows} == {
-        "nse:isin:INE000A01001"
-    }
+    assert {row["security_id"] for row in first_rows} == {"nse:isin:INE000A01001"}
 
 
 def test_replay_store_exposes_exact_trade_dates_and_ranges(tmp_path: Path) -> None:
