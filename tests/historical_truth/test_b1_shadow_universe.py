@@ -272,7 +272,86 @@ def test_identity_filter_preserves_admitted_historical_aliases() -> None:
     assert history["symbol"].tolist() == ["OLD"]
 
 
-def test_identity_filter_fails_closed_for_unresolved_admitted_alias() -> None:
+def test_identity_filter_uses_admitted_source_id_across_interval_gap() -> None:
+    trading_date = date(2026, 1, 2)
+    identities = SecurityIdentityTimeline(
+        (
+            SecurityIdentityRecord(
+                security_id="nse:isin:INE1",
+                symbol="NEW",
+                exchange="NSE",
+                effective_from=date(2026, 2, 1),
+                historical_symbols=("OLD",),
+            ),
+        )
+    )
+    source = _IdentityRepository(
+        [
+            {
+                "symbol": "OLD",
+                "trade_date": trading_date,
+                "exchange": "NSE",
+                "security_id": "nse:isin:INE1",
+                "isin": "INE1",
+                "open": 1,
+                "high": 2,
+                "low": 1,
+                "close": 2,
+                "volume": 10,
+            }
+        ]
+    )
+    repository = B1IdentityFilteredPriceRepository(
+        source,
+        identities,
+        ("nse:isin:INE1",),
+    )
+
+    daily = repository.find_by_trade_date(trading_date)
+
+    assert daily["symbol"].tolist() == ["OLD"]
+    assert daily["security_id"].tolist() == ["nse:isin:INE1"]
+
+
+def test_identity_filter_fails_closed_for_unknown_admitted_source_id() -> None:
+    trading_date = date(2026, 1, 2)
+    identities = SecurityIdentityTimeline(
+        (
+            SecurityIdentityRecord(
+                security_id="nse:isin:INE1",
+                symbol="NEW",
+                exchange="NSE",
+                historical_symbols=("OLD",),
+            ),
+        )
+    )
+    source = _IdentityRepository(
+        [
+            {
+                "symbol": "OLD",
+                "trade_date": trading_date,
+                "exchange": "NSE",
+                "security_id": "nse:isin:INE1",
+                "isin": "INE999",
+                "open": 1,
+                "high": 2,
+                "low": 1,
+                "close": 2,
+                "volume": 10,
+            }
+        ]
+    )
+    repository = B1IdentityFilteredPriceRepository(
+        source,
+        identities,
+        ("nse:isin:INE1",),
+    )
+
+    with pytest.raises(ValueError, match="source stable identity disagrees"):
+        repository.find_by_trade_date(trading_date)
+
+
+def test_identity_filter_fails_closed_for_symbol_only_interval_gap() -> None:
     trading_date = date(2026, 1, 2)
     identities = SecurityIdentityTimeline(
         (
@@ -305,5 +384,5 @@ def test_identity_filter_fails_closed_for_unresolved_admitted_alias() -> None:
         ("nse:isin:INE1",),
     )
 
-    with pytest.raises(ValueError, match="admitted source symbol is unresolved"):
+    with pytest.raises(ValueError, match="admitted source identity is unresolved"):
         repository.find_by_trade_date(trading_date)
