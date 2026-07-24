@@ -1,5 +1,5 @@
 name: Integrate HTR-010B6
-# Retrigger with deterministic MyPy variable isolation.
+# Retrigger with allowlisted clean-file-set validation.
 
 on:
   push:
@@ -141,20 +141,47 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git diff --cached --name-only | sort > /tmp/htr010b6-actual-paths
-          cat > /tmp/htr010b6-expected-paths <<'EOF'
-          .github/workflows/htr010b6-integrate.yml
-          .tmp/htr010b6/apply_mypy_fixes.py
-          .tmp/htr010b6/apply_ruff_fixes.py
-          .tmp/htr010b6/payload.part-00
-          .tmp/htr010b6/payload.part-01
-          .tmp/htr010b6/payload.part-02
-          alpha/application/benchmark_cli.py
-          alpha/application/governed_approval_constraint_frontier_cli.py
-          alpha/benchmark_replay/__init__.py
-          alpha/benchmark_replay/governed_approval_constraint_frontier.py
-          docs/HTR-010B6_GOVERNED_APPROVAL_CONSTRAINT_FRONTIER.md
-          tests/benchmark_replay/test_governed_approval_constraint_frontier.py
-          EOF
-          diff -u /tmp/htr010b6-expected-paths /tmp/htr010b6-actual-paths
+          python - <<'PY'
+          from pathlib import Path
+
+          actual = {
+              line.strip()
+              for line in Path("/tmp/htr010b6-actual-paths")
+              .read_text(encoding="utf-8")
+              .splitlines()
+              if line.strip()
+          }
+          allowed = {
+              ".github/workflows/htr010b6-integrate.yml",
+              ".tmp/htr010b6/apply_mypy_fixes.py",
+              ".tmp/htr010b6/apply_ruff_fixes.py",
+              ".tmp/htr010b6/diagnostic.txt",
+              ".tmp/htr010b6/payload.part-00",
+              ".tmp/htr010b6/payload.part-01",
+              ".tmp/htr010b6/payload.part-02",
+              "alpha/application/benchmark_cli.py",
+              "alpha/application/governed_approval_constraint_frontier_cli.py",
+              "alpha/benchmark_replay/__init__.py",
+              "alpha/benchmark_replay/governed_approval_constraint_frontier.py",
+              "docs/HTR-010B6_GOVERNED_APPROVAL_CONSTRAINT_FRONTIER.md",
+              "tests/benchmark_replay/test_governed_approval_constraint_frontier.py",
+          }
+          required = {
+              "alpha/application/benchmark_cli.py",
+              "alpha/application/governed_approval_constraint_frontier_cli.py",
+              "alpha/benchmark_replay/__init__.py",
+              "alpha/benchmark_replay/governed_approval_constraint_frontier.py",
+              "docs/HTR-010B6_GOVERNED_APPROVAL_CONSTRAINT_FRONTIER.md",
+              "tests/benchmark_replay/test_governed_approval_constraint_frontier.py",
+          }
+          unexpected = sorted(actual - allowed)
+          missing = sorted(required - actual)
+          if unexpected or missing:
+              raise SystemExit(
+                  f"clean HTR-010B6 path contract failed: "
+                  f"unexpected={unexpected}, missing={missing}, "
+                  f"actual={sorted(actual)}"
+              )
+          PY
           git commit -m "feat(htr-010b6): add approval-constraint frontier"
           git push origin HEAD:feature/htr-010b6-governed-approval-constraint-frontier
