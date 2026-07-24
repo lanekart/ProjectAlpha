@@ -6,6 +6,11 @@ on:
       - feature/htr-010b6-governed-approval-constraint-frontier
     paths:
       - .github/workflows/htr010b6-integrate.yml
+  pull_request:
+    branches:
+      - feature/recovery-foundation-v1
+    paths:
+      - .github/workflows/htr010b6-integrate.yml
 
 permissions:
   contents: write
