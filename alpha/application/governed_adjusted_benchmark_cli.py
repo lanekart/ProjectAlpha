@@ -200,16 +200,14 @@ def governed_adjusted_benchmark(
     typer.echo(f"Raw eligible securities: {raw['eligible_security_count']}")
     typer.echo(f"Adjusted eligible securities: {adjusted['eligible_security_count']}")
     typer.echo(
-        "Raw eligible observations: "
-        f"{raw['eligible_security_observation_count']}"
+        f"Raw eligible observations: {raw['eligible_security_observation_count']}"
     )
     typer.echo(
         "Adjusted eligible observations: "
         f"{adjusted['eligible_security_observation_count']}"
     )
     typer.echo(
-        "Benchmark population nonempty: "
-        f"{comparison['benchmark_population_nonempty']}"
+        f"Benchmark population nonempty: {comparison['benchmark_population_nonempty']}"
     )
     typer.echo(f"Decision metrics evaluated: {report['decision_metrics_evaluated']}")
     typer.echo(f"Raw candidates: {raw['technical_candidate_count']}")
