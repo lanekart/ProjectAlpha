@@ -13,6 +13,9 @@ import typer
 from alpha.application.governed_adjusted_benchmark_cli import (
     register_governed_adjusted_benchmark_command,
 )
+from alpha.application.governed_adjusted_stability_cli import (
+    register_governed_adjusted_stability_command,
+)
 from alpha.benchmark_replay import (
     DEFAULT_BENCHMARK_OUTPUT,
     BenchmarkArtifactExporter,
@@ -35,6 +38,7 @@ benchmark_app = typer.Typer(
 )
 
 register_governed_adjusted_benchmark_command(benchmark_app)
+register_governed_adjusted_stability_command(benchmark_app)
 
 
 @benchmark_app.command("replay")
