@@ -165,6 +165,47 @@ class LegacyMarketDataStore:
         ).fetchall()
         return {str(symbol): int(count) for symbol, count in rows}
 
+    def eligible_security_count(
+        self,
+        *,
+        start: date,
+        end: date,
+        minimum_history: int = 200,
+    ) -> int:
+        """Count observed securities meeting the governed history requirement."""
+
+        if end < start:
+            raise ValueError("eligibility range end cannot precede start")
+        if minimum_history < 1:
+            raise ValueError("minimum history must be positive")
+
+        row = self.connection.execute(
+            """
+            WITH history AS (
+                SELECT UPPER(symbol) AS symbol, COUNT(*) AS observations
+                FROM daily_prices
+                WHERE trade_date <= ?
+                  AND open > 0
+                  AND high > 0
+                  AND low > 0
+                  AND close > 0
+                  AND volume >= 0
+                GROUP BY UPPER(symbol)
+                HAVING COUNT(*) >= ?
+            ), observed AS (
+                SELECT DISTINCT UPPER(symbol) AS symbol
+                FROM daily_prices
+                WHERE trade_date BETWEEN ? AND ?
+            )
+            SELECT COUNT(*)
+            FROM history
+            JOIN observed USING (symbol)
+            """,
+            (end, minimum_history, start, end),
+        ).fetchone()
+
+        return 0 if row is None else int(row[0])
+
     def liquidity_statistics(self) -> pd.DataFrame:
         return self.connection.execute(
             """

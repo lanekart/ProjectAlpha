@@ -151,6 +151,7 @@ class GovernedBenchmarkStore(LegacyMarketDataStore):
         canonical: CanonicalReplayPriceRepository,
         manifest: DatasetManifest,
         liquidity: pd.DataFrame,
+        eligibility_frame: pd.DataFrame,
         replay_dates: tuple[date, ...],
         canonical_symbols: tuple[str, ...],
     ) -> None:
@@ -159,6 +160,7 @@ class GovernedBenchmarkStore(LegacyMarketDataStore):
         self._canonical = canonical
         self._manifest = manifest
         self._liquidity = liquidity
+        self._eligibility_frame = eligibility_frame
         self._replay_dates = replay_dates
         self._canonical_symbols = canonical_symbols
 
@@ -231,6 +233,47 @@ class GovernedBenchmarkStore(LegacyMarketDataStore):
             return {}
         counts = frame.groupby("symbol", sort=True).size()
         return {str(symbol): int(count) for symbol, count in counts.items()}
+
+    def eligible_security_count(
+        self,
+        *,
+        start: date,
+        end: date,
+        minimum_history: int = 200,
+    ) -> int:
+        """Count eligible securities inside the signed governed population."""
+
+        if end < start:
+            raise ValueError("eligibility range end cannot precede start")
+        if minimum_history < 1:
+            raise ValueError("minimum history must be positive")
+
+        frame = self._eligibility_frame
+        if frame.empty:
+            return 0
+
+        valid = (
+            frame["open"].astype(float).gt(0)
+            & frame["high"].astype(float).gt(0)
+            & frame["low"].astype(float).gt(0)
+            & frame["close"].astype(float).gt(0)
+            & frame["volume"].astype(float).ge(0)
+        )
+
+        through_end = frame.loc[valid & (frame["trade_date"] <= end)]
+        observed = frame.loc[
+            valid & (frame["trade_date"] >= start) & (frame["trade_date"] <= end),
+            "symbol",
+        ]
+
+        history_counts = through_end.groupby("symbol", sort=True).size()
+        observed_symbols = {str(symbol).strip().upper() for symbol in observed}
+
+        return sum(
+            int(count) >= minimum_history
+            and str(symbol).strip().upper() in observed_symbols
+            for symbol, count in history_counts.items()
+        )
 
     def liquidity_statistics(self) -> pd.DataFrame:
         return self._liquidity.copy()
@@ -521,6 +564,27 @@ def build_governed_benchmark_stores(
     identity_frame = pd.DataFrame(identity_rows)
     manifest = _manifest(identity_frame)
     liquidity = _liquidity(identity_frame)
+
+    eligibility_frame = identity_frame.loc[
+        :,
+        (
+            "symbol",
+            "trade_date",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+        ),
+    ].copy()
+    eligibility_frame["symbol"] = (
+        eligibility_frame["symbol"].astype(str).str.strip().str.upper()
+    )
+    eligibility_frame["trade_date"] = pd.to_datetime(
+        eligibility_frame["trade_date"],
+        errors="raise",
+    ).dt.date
+
     identity_session_sha256 = _digest_list(sorted(identity_session_keys))
     output.mkdir(parents=True, exist_ok=True)
     raw_contract = _store_contract(
@@ -550,6 +614,7 @@ def build_governed_benchmark_stores(
         ),
         manifest=_view_manifest(manifest, "RAW"),
         liquidity=liquidity,
+        eligibility_frame=eligibility_frame,
         replay_dates=tuple(available_dates),
         canonical_symbols=canonical_symbols,
     )
@@ -563,6 +628,7 @@ def build_governed_benchmark_stores(
         ),
         manifest=_view_manifest(manifest, "ADJUSTED"),
         liquidity=liquidity,
+        eligibility_frame=eligibility_frame,
         replay_dates=tuple(available_dates),
         canonical_symbols=canonical_symbols,
     )

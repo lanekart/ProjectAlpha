@@ -11,6 +11,7 @@ import pytest
 from typer.testing import CliRunner
 
 from alpha.application.benchmark_cli import benchmark_app
+from alpha.benchmark_replay.engine import _eligible_security_count
 from alpha.benchmark_replay.governed_adjusted import (
     _AdmittedReplayPriceSource,
     _benchmark_population_nonempty,
@@ -404,3 +405,40 @@ def test_b2_rejects_empty_observed_identity_population() -> None:
             admitted_ids=("SEC-1",),
             observed_ids=set(),
         )
+
+
+def test_governed_store_supports_engine_eligibility_accounting(
+    tmp_path: Path,
+) -> None:
+    pair = _pair(tmp_path)
+    try:
+        assert (
+            pair.raw.eligible_security_count(
+                start=date(2026, 1, 2),
+                end=date(2026, 1, 4),
+                minimum_history=3,
+            )
+            == 1
+        )
+
+        assert (
+            pair.adjusted.eligible_security_count(
+                start=date(2026, 1, 2),
+                end=date(2026, 1, 4),
+                minimum_history=3,
+            )
+            == 1
+        )
+
+        # The production benchmark threshold remains unchanged at 200.
+        # Most importantly, this must not access store.connection.
+        assert (
+            _eligible_security_count(
+                store=pair.raw,
+                start=date(2026, 1, 2),
+                end=date(2026, 1, 4),
+            )
+            == 0
+        )
+    finally:
+        pair.close()

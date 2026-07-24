@@ -622,27 +622,11 @@ def _eligible_security_count(
     start: date,
     end: date,
 ) -> int:
-    row = store.connection.execute(
-        """
-        WITH history AS (
-            SELECT UPPER(symbol) AS symbol, COUNT(*) AS observations
-            FROM daily_prices
-            WHERE trade_date <= ?
-              AND open > 0 AND high > 0 AND low > 0 AND close > 0 AND volume >= 0
-            GROUP BY UPPER(symbol)
-            HAVING COUNT(*) >= 200
-        ), observed AS (
-            SELECT DISTINCT UPPER(symbol) AS symbol
-            FROM daily_prices
-            WHERE trade_date BETWEEN ? AND ?
-        )
-        SELECT COUNT(*)
-        FROM history
-        JOIN observed USING (symbol)
-        """,
-        (end, start, end),
-    ).fetchone()
-    return 0 if row is None else int(row[0])
+    return store.eligible_security_count(
+        start=start,
+        end=end,
+        minimum_history=200,
+    )
 
 
 def _week(value: date) -> str:
