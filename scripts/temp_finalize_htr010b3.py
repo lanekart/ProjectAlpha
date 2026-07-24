@@ -34,6 +34,41 @@ replace_once(
 )
 
 replace_once(
+    CORE,
+    '''    if _integer(eligibility.get("eligible_security_days"), "eligible security days") != (
+''',
+    '''    if _integer(
+        eligibility.get("eligible_security_days"),
+        "eligible security days",
+    ) != (
+''',
+    "eligible observation wrapping",
+)
+
+replace_once(
+    CORE,
+    '''            raise ValueError(f"{label} manifest window does not match candidate evidence")
+''',
+    '''            raise ValueError(
+                f"{label} manifest window does not match candidate evidence"
+            )
+''',
+    "candidate manifest wrapping",
+)
+
+replace_once(
+    CORE,
+    '''        decision_date = _date_value(reference.get("decision_date"), "trade decision date")
+''',
+    '''        decision_date = _date_value(
+            reference.get("decision_date"),
+            "trade decision date",
+        )
+''',
+    "trade decision date wrapping",
+)
+
+replace_once(
     TEST,
     '''                    "effective_date": dates[60].isoformat(),
 ''',
