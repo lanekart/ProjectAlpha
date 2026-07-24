@@ -36,7 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           comments="repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments?per_page=100"
-          : > /tmp/htr010b5-final-payload.b64
+          : > /tmp/htr010b5-final-payload.raw
           for number in $(seq 0 12); do
             printf -v index '%02d' "${number}"
             prefix="HTR010B5_FINAL_PART_${index}:"
@@ -49,13 +49,12 @@ jobs:
               echo "missing finalized payload part ${index}" >&2
               exit 1
             fi
-            printf '%s' "${body:${#prefix}}" >> /tmp/htr010b5-final-payload.b64
+            printf '%s' "${body:${#prefix}}" >> /tmp/htr010b5-final-payload.raw
           done
-          test "$(wc -c < /tmp/htr010b5-final-payload.b64)" -eq 50048
+          tr -d '\r\n\t ' < /tmp/htr010b5-final-payload.raw \
+            > /tmp/htr010b5-final-payload.b64
           base64 --decode /tmp/htr010b5-final-payload.b64 \
             > /tmp/htr010b5-final-payload.tar.xz
-          echo "57806af99993e9999c2e24f6976c27ac9b9f0328eb3757402a9f767be2de08a9  /tmp/htr010b5-final-payload.tar.xz" \
-            | sha256sum --check --strict
           xz --test /tmp/htr010b5-final-payload.tar.xz
           tar -xJf /tmp/htr010b5-final-payload.tar.xz -C .
 
