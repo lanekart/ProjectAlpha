@@ -38,6 +38,38 @@ def replace_once(path: Path, old: str, new: str, label: str) -> None:
     print(f"patched: {label}")
 
 
+def patch_materialized_sources() -> None:
+    path = ROOT / "alpha/benchmark_replay/governed_trade_formation.py"
+    replace_once(
+        path,
+        """    for key, decision in sorted(decisions.items()):
+        session = sessions.get(decision.observed_on)
+        if session is None:
+            defects.append(
+                f"{price_view}_DECISION_WITHOUT_SESSION@"
+                f"{decision.observed_on.isoformat()}|{decision.symbol}"
+            )
+            runtime_status = "MISSING_SESSION"
+        else:
+            runtime_status = str(session.get("runtime_status") or "").strip().upper()
+""",
+        """    for key, decision in sorted(decisions.items()):
+        session_row = sessions.get(decision.observed_on)
+        if session_row is None:
+            defects.append(
+                f"{price_view}_DECISION_WITHOUT_SESSION@"
+                f"{decision.observed_on.isoformat()}|{decision.symbol}"
+            )
+            runtime_status = "MISSING_SESSION"
+        else:
+            runtime_status = (
+                str(session_row.get("runtime_status") or "").strip().upper()
+            )
+""",
+        "B4 optional session typing",
+    )
+
+
 def patch_benchmark_cli() -> None:
     path = ROOT / "alpha/application/benchmark_cli.py"
     replace_once(
@@ -143,5 +175,6 @@ from alpha.benchmark_replay.models import (
 
 
 decode_payloads()
+patch_materialized_sources()
 patch_benchmark_cli()
 patch_package_exports()
