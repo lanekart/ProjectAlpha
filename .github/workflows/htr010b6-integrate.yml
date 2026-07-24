@@ -1,5 +1,5 @@
 name: Integrate HTR-010B6
-# Retrigger after clearing the superseded diagnostic.
+# Retrigger with deterministic MyPy variable isolation.
 
 on:
   push:
@@ -47,6 +47,7 @@ jobs:
           echo "fffadfd4f4165d15a2c4a9717e7a52cb6b63fd421408b724de6e110438cc3c96  /tmp/htr010b6-payload.tar.gz" | sha256sum --check --strict
           tar -xzf /tmp/htr010b6-payload.tar.gz -C .
           python .tmp/htr010b6/apply_ruff_fixes.py
+          python .tmp/htr010b6/apply_mypy_fixes.py
       - name: Install the locked project environment
         run: |
           pip install poetry
@@ -142,6 +143,7 @@ jobs:
           git diff --cached --name-only | sort > /tmp/htr010b6-actual-paths
           cat > /tmp/htr010b6-expected-paths <<'EOF'
           .github/workflows/htr010b6-integrate.yml
+          .tmp/htr010b6/apply_mypy_fixes.py
           .tmp/htr010b6/apply_ruff_fixes.py
           .tmp/htr010b6/payload.part-00
           .tmp/htr010b6/payload.part-01
