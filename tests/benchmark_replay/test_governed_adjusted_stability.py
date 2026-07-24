@@ -231,7 +231,7 @@ def _evidence(tmp_path: Path, *, sessions: int = 80) -> dict[str, Path]:
                     "security_id": "SEC-ALPHA",
                     "symbol": "ALPHA",
                     "action_type": "SPLIT",
-                    "effective_date": dates[60].isoformat(),
+                    "effective_date": dates[min(60, len(dates) - 1)].isoformat(),
                     "announced_at": dates[40].isoformat(),
                     "status": "RESOLVED",
                 }
@@ -302,8 +302,7 @@ def test_b3_blocks_insufficient_window_evidence(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="not ready"):
         validate_governed_adjusted_research_activation(
             stability_certificate=output / "htr010b3_stability_certificate.json",
-            activation_contract=output
-            / "htr010b3_research_activation_contract.json",
+            activation_contract=output / "htr010b3_research_activation_contract.json",
         )
 
 

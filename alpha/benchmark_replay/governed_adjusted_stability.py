@@ -99,7 +99,7 @@ class StabilityWindow:
     adjusted_portfolio_return_percent: Decimal | None
 
     def as_dict(self) -> dict[str, object]:
-        return _json_ready(asdict(self))
+        return cast(dict[str, object], _json_ready(asdict(self)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,7 +118,7 @@ class CohortStability:
     mean_absolute_score_delta: Decimal | None
 
     def as_dict(self) -> dict[str, object]:
-        return _json_ready(asdict(self))
+        return cast(dict[str, object], _json_ready(asdict(self)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -209,9 +209,7 @@ class GovernedAdjustedStabilityEngine:
             "b2_report_file_sha256": _file_sha256(b2_report),
             "raw_manifest_sha256": raw.manifest_sha256,
             "adjusted_manifest_sha256": adjusted.manifest_sha256,
-            "corporate_action_artifact_sha256": _file_sha256(
-                corporate_action_artifact
-            ),
+            "corporate_action_artifact_sha256": _file_sha256(corporate_action_artifact),
             "replay_start": dates[0].isoformat(),
             "replay_end": dates[-1].isoformat(),
             "session_count": len(dates),
@@ -362,7 +360,10 @@ def _validated_b2_report(path: Path) -> dict[str, Any]:
         raise ValueError("HTR-010B2 contains unexplained divergences")
     if list(comparison.get("readiness_blockers") or []):
         raise ValueError("HTR-010B2 contains readiness blockers")
-    _validate_research_only_flags(payload)
+    if payload.get("active_replay_integration") is not False:
+        raise ValueError("HTR-010B2 active replay integration is not disabled")
+    if payload.get("production_influence") is not False:
+        raise ValueError("HTR-010B2 production influence is not disabled")
     return payload
 
 
@@ -438,7 +439,10 @@ def _validate_bundle_against_summary(
         _integer(summary.get("eligible_security_count"), "summary eligible securities")
     ):
         raise ValueError("eligible security count does not match B2 summary")
-    if _integer(eligibility.get("eligible_security_days"), "eligible security days") != (
+    if _integer(
+        eligibility.get("eligible_security_days"),
+        "eligible security days",
+    ) != (
         _integer(
             summary.get("eligible_security_observation_count"),
             "summary eligible observations",
@@ -466,7 +470,9 @@ def _paired_candidate_sessions(
         first = _date_value(bundle.manifest.get("replay_start"), f"{label} start")
         last = _date_value(bundle.manifest.get("replay_end"), f"{label} end")
         if first != dates[0] or last != dates[-1]:
-            raise ValueError(f"{label} manifest window does not match candidate evidence")
+            raise ValueError(
+                f"{label} manifest window does not match candidate evidence"
+            )
     return dates, raw_map, adjusted_map
 
 
@@ -513,9 +519,7 @@ def _decision_differences(
             {
                 "observed_on": observed_on,
                 "symbol": symbol,
-                "action_cohort": (
-                    "ACTION_AFFECTED" if action_types else "UNAFFECTED"
-                ),
+                "action_cohort": ("ACTION_AFFECTED" if action_types else "UNAFFECTED"),
                 "action_types": action_types,
                 "raw_present": raw_item is not None,
                 "adjusted_present": adjusted_item is not None,
@@ -542,9 +546,7 @@ def _decision_differences(
                     None if raw_item is None else raw_item.primary_reason_code
                 ),
                 "adjusted_reason": (
-                    None
-                    if adjusted_item is None
-                    else adjusted_item.primary_reason_code
+                    None if adjusted_item is None else adjusted_item.primary_reason_code
                 ),
                 "reason_changed": (
                     paired
@@ -553,13 +555,9 @@ def _decision_differences(
                     if raw_item is not None and adjusted_item is not None
                     else False
                 ),
-                "raw_score": (
-                    None if raw_item is None else raw_item.opportunity_score
-                ),
+                "raw_score": (None if raw_item is None else raw_item.opportunity_score),
                 "adjusted_score": (
-                    None
-                    if adjusted_item is None
-                    else adjusted_item.opportunity_score
+                    None if adjusted_item is None else adjusted_item.opportunity_score
                 ),
                 "score_delta": score_delta,
                 "absolute_score_delta": (
@@ -611,7 +609,10 @@ def _trade_differences(
         if reference is None:
             continue
         symbol = _symbol(reference.get("symbol"), "trade symbol")
-        decision_date = _date_value(reference.get("decision_date"), "trade decision date")
+        decision_date = _date_value(
+            reference.get("decision_date"),
+            "trade decision date",
+        )
         action_types = _affecting_action_types(
             actions,
             symbol=symbol,
@@ -636,9 +637,7 @@ def _trade_differences(
                 "trade_id": trade_id,
                 "symbol": symbol,
                 "decision_date": decision_date,
-                "action_cohort": (
-                    "ACTION_AFFECTED" if action_types else "UNAFFECTED"
-                ),
+                "action_cohort": ("ACTION_AFFECTED" if action_types else "UNAFFECTED"),
                 "action_types": action_types,
                 "raw_present": raw_item is not None,
                 "adjusted_present": adjusted_item is not None,
@@ -697,9 +696,7 @@ def _window_stability(
     for index, window_dates in enumerate(partitions, start=1):
         date_set = set(window_dates)
         decisions = tuple(
-            row
-            for row in decision_rows
-            if cast(date, row["observed_on"]) in date_set
+            row for row in decision_rows if cast(date, row["observed_on"]) in date_set
         )
         paired = tuple(row for row in decisions if bool(row["paired"]))
         absolute_deltas = tuple(
@@ -1203,12 +1200,7 @@ def _write_csv(
     writer = csv.DictWriter(stream, fieldnames=fieldnames, lineterminator="\n")
     writer.writeheader()
     for row in rows:
-        writer.writerow(
-            {
-                key: _csv_value(value)
-                for key, value in row.items()
-            }
-        )
+        writer.writerow({key: _csv_value(value) for key, value in row.items()})
     return _write_text(path, stream.getvalue())
 
 

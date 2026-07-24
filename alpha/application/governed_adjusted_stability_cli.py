@@ -22,9 +22,7 @@ from alpha.benchmark_replay.governed_adjusted_stability import (
     GovernedAdjustedStabilityEngine,
 )
 
-DEFAULT_HTR010B3_OUTPUT = Path(
-    ".alpha/benchmark/htr010b3_governed_adjusted_stability"
-)
+DEFAULT_HTR010B3_OUTPUT = Path(".alpha/benchmark/htr010b3_governed_adjusted_stability")
 _CONSOLE = Console(stderr=True)
 
 
