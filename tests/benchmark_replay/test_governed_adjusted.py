@@ -32,6 +32,14 @@ def _digest(value: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _closure_digest(value: dict[str, object]) -> str:
+    payload = {**value, "report_sha256": ""}
+    encoded = json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), default=str
+    ).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def _write_json(path: Path, payload: object) -> Path:
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
@@ -153,7 +161,7 @@ def _artifacts(tmp_path: Path, *, ready: bool = True) -> dict[str, Path]:
         "adjusted_replay_integration_enabled": False,
         "production_influence": False,
     }
-    closure_payload["report_sha256"] = _digest(closure_payload)
+    closure_payload["report_sha256"] = _closure_digest(closure_payload)
     closure = _write_json(tmp_path / "closure.json", closure_payload)
     return {
         "identity": identity,
@@ -344,3 +352,27 @@ def test_b2_readiness_requires_nonempty_parity() -> None:
         )
         == "BLOCKED_BY_BENCHMARK_PARITY_DIVERGENCE"
     )
+
+
+def test_b2_handoff_uses_final_closure_producer_digest(
+    tmp_path: Path,
+) -> None:
+    artifacts = _artifacts(tmp_path)
+    validate_governed_adjusted_handoff(
+        final_closure_report=artifacts["closure"],
+        admission_contract=artifacts["admission"],
+        identity_admission=artifacts["identity_admission"],
+        raw_universe=artifacts["raw_universe"],
+        adjusted_universe=artifacts["adjusted_universe"],
+    )
+    payload = json.loads(artifacts["closure"].read_text())
+    payload["governed_exclusion_count"] = 1
+    artifacts["closure"].write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match="digest mismatch"):
+        validate_governed_adjusted_handoff(
+            final_closure_report=artifacts["closure"],
+            admission_contract=artifacts["admission"],
+            identity_admission=artifacts["identity_admission"],
+            raw_universe=artifacts["raw_universe"],
+            adjusted_universe=artifacts["adjusted_universe"],
+        )

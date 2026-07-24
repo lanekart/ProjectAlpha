@@ -26,7 +26,10 @@ from alpha.historical_replay.governed_artifacts import load_governed_replay_inpu
 from alpha.historical_replay.governed_price_repository import (
     CanonicalReplayPriceRepository,
 )
-from alpha.historical_truth.b1_final_closure import HTR010B1_FINAL_CONTRACT_VERSION
+from alpha.historical_truth.b1_final_closure import (
+    HTR010B1_FINAL_CONTRACT_VERSION,
+    final_closure_report_sha256,
+)
 from alpha.historical_truth.b1_shadow_universe import load_b1_shadow_admission
 from alpha.recovery.security_timeline import SecurityIdentityTimeline
 
@@ -402,6 +405,25 @@ class GovernedAdjustedBenchmarkEngine:
             pair.close()
 
 
+def validate_governed_adjusted_handoff(
+    *,
+    final_closure_report: Path,
+    admission_contract: Path,
+    identity_admission: Path,
+    raw_universe: Path,
+    adjusted_universe: Path,
+) -> None:
+    """Validate signed B1/B1H handoff before loading market data."""
+
+    _validated_final_closure(final_closure_report)
+    load_b1_shadow_admission(
+        contract_path=admission_contract,
+        identity_admission_path=identity_admission,
+        raw_universe_path=raw_universe,
+        adjusted_universe_path=adjusted_universe,
+    )
+
+
 def build_governed_benchmark_stores(
     *,
     source: LegacyMarketDataStore,
@@ -587,7 +609,7 @@ def _validated_final_closure(path: Path) -> dict[str, Any]:
     if payload.get("production_influence") is not False:
         raise ValueError("B1 final closure must remain diagnostic-only")
     expected = str(payload.get("report_sha256") or "")
-    if len(expected) != 64 or expected != _digest_mapping(payload):
+    if len(expected) != 64 or expected != final_closure_report_sha256(payload):
         raise ValueError("B1 final closure digest mismatch")
     return payload
 
@@ -931,4 +953,5 @@ __all__ = [
     "GovernedBenchmarkStorePair",
     "build_governed_benchmark_stores",
     "export_governed_adjusted_benchmark",
+    "validate_governed_adjusted_handoff",
 ]

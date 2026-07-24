@@ -23,6 +23,7 @@ from rich.progress import (
 
 from alpha.benchmark_replay.governed_adjusted import (
     GovernedAdjustedBenchmarkEngine,
+    validate_governed_adjusted_handoff,
 )
 from alpha.benchmark_replay.models import BenchmarkPolicy
 from alpha.config.settings import settings
@@ -150,8 +151,16 @@ def governed_adjusted_benchmark(
 ) -> None:
     """Run paired raw and adjusted CABR under the signed B1H population."""
 
-    dependency_start, dependency_end = _dependency_window(admission_contract)
     with _B2Progress(enabled=not quiet) as progress:
+        progress.stage("Validating signed B1/B1H handoff")
+        validate_governed_adjusted_handoff(
+            final_closure_report=final_closure_report,
+            admission_contract=admission_contract,
+            identity_admission=identity_admission,
+            raw_universe=raw_universe,
+            adjusted_universe=adjusted_universe,
+        )
+        dependency_start, dependency_end = _dependency_window(admission_contract)
         progress.stage("Loading verified Historical Truth snapshots")
         source = HistoricalTruthReplayStore(
             database_path=database,
