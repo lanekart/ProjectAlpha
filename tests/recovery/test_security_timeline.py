@@ -99,11 +99,14 @@ def test_authoritative_source_id_resolves_observed_interval_gap() -> None:
     assert resolved is not None
     assert resolved.security_id == "nse:isin:INE000A01001"
     assert unknown is None
-    assert normalize_source_security_id(
-        security_id=None,
-        isin="ine000a01001",
-        exchange="NSE",
-    ) == "nse:isin:INE000A01001"
+    assert (
+        normalize_source_security_id(
+            security_id=None,
+            isin="ine000a01001",
+            exchange="NSE",
+        )
+        == "nse:isin:INE000A01001"
+    )
 
 
 def test_builds_timeline_from_htr002_recovery_result() -> None:
