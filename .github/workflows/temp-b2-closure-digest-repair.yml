@@ -1,0 +1,231 @@
+name: Temporary B2 Closure Digest Repair
+
+on:
+  push:
+    branches:
+      - feature/htr-010b2-governed-adjusted-benchmark-integration
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-010b2-governed-adjusted-benchmark-integration
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Apply digest-contract repair
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          branch_files = {
+              "closure": Path("alpha/historical_truth/b1_final_closure.py"),
+              "b2": Path("alpha/benchmark_replay/governed_adjusted.py"),
+              "cli": Path("alpha/application/governed_adjusted_benchmark_cli.py"),
+              "tests": Path("tests/benchmark_replay/test_governed_adjusted.py"),
+          }
+
+          closure = branch_files["closure"].read_text()
+          if "def final_closure_report_sha256(" not in closure:
+              closure = closure.replace(
+                  "def _digest(value: dict[str, Any]) -> str:\n",
+                  "def final_closure_report_sha256(value: dict[str, Any]) -> str:\n"
+                  "    \"\"\"Return the producer-authoritative digest for a B1 closure report.\"\"\"\n\n"
+                  "    return _digest(value)\n\n\n"
+                  "def _digest(value: dict[str, Any]) -> str:\n",
+              )
+              closure = closure.replace(
+                  '__all__ = ["B1FinalClosureEngine", "HTR010B1_FINAL_CONTRACT_VERSION"]',
+                  "__all__ = [\n"
+                  '    "B1FinalClosureEngine",\n'
+                  '    "HTR010B1_FINAL_CONTRACT_VERSION",\n'
+                  '    "final_closure_report_sha256",\n'
+                  "]",
+              )
+              branch_files["closure"].write_text(closure)
+
+          b2 = branch_files["b2"].read_text()
+          old_import = (
+              "from alpha.historical_truth.b1_final_closure import "
+              "HTR010B1_FINAL_CONTRACT_VERSION\n"
+          )
+          new_import = (
+              "from alpha.historical_truth.b1_final_closure import (\n"
+              "    HTR010B1_FINAL_CONTRACT_VERSION,\n"
+              "    final_closure_report_sha256,\n"
+              ")\n"
+          )
+          b2 = b2.replace(old_import, new_import)
+
+          if "def validate_governed_adjusted_handoff(" not in b2:
+              marker = "def build_governed_benchmark_stores(\n"
+              preflight = (
+                  "def validate_governed_adjusted_handoff(\n"
+                  "    *,\n"
+                  "    final_closure_report: Path,\n"
+                  "    admission_contract: Path,\n"
+                  "    identity_admission: Path,\n"
+                  "    raw_universe: Path,\n"
+                  "    adjusted_universe: Path,\n"
+                  ") -> None:\n"
+                  "    \"\"\"Validate signed B1/B1H handoff before loading market data.\"\"\"\n\n"
+                  "    _validated_final_closure(final_closure_report)\n"
+                  "    load_b1_shadow_admission(\n"
+                  "        contract_path=admission_contract,\n"
+                  "        identity_admission_path=identity_admission,\n"
+                  "        raw_universe_path=raw_universe,\n"
+                  "        adjusted_universe_path=adjusted_universe,\n"
+                  "    )\n\n\n"
+              )
+              b2 = b2.replace(marker, preflight + marker)
+
+          b2 = b2.replace(
+              "expected != _digest_mapping(payload)",
+              "expected != final_closure_report_sha256(payload)",
+          )
+          b2 = b2.replace(
+              '    "export_governed_adjusted_benchmark",\n]',
+              '    "export_governed_adjusted_benchmark",\n'
+              '    "validate_governed_adjusted_handoff",\n'
+              "]",
+          )
+          branch_files["b2"].write_text(b2)
+
+          cli = branch_files["cli"].read_text()
+          cli = cli.replace(
+              "from alpha.benchmark_replay.governed_adjusted import (\n"
+              "    GovernedAdjustedBenchmarkEngine,\n"
+              ")\n",
+              "from alpha.benchmark_replay.governed_adjusted import (\n"
+              "    GovernedAdjustedBenchmarkEngine,\n"
+              "    validate_governed_adjusted_handoff,\n"
+              ")\n",
+          )
+          old_block = (
+              "    dependency_start, dependency_end = _dependency_window(admission_contract)\n"
+              "    with _B2Progress(enabled=not quiet) as progress:\n"
+              "        progress.stage(\"Loading verified Historical Truth snapshots\")\n"
+              "        source = HistoricalTruthReplayStore(\n"
+              "            database_path=database,\n"
+              "            snapshot_root=historical_truth_snapshots,\n"
+              "            start=dependency_start,\n"
+              "            end=dependency_end,\n"
+              "        )\n"
+          )
+          new_block = (
+              "    with _B2Progress(enabled=not quiet) as progress:\n"
+              "        progress.stage(\"Validating signed B1/B1H handoff\")\n"
+              "        validate_governed_adjusted_handoff(\n"
+              "            final_closure_report=final_closure_report,\n"
+              "            admission_contract=admission_contract,\n"
+              "            identity_admission=identity_admission,\n"
+              "            raw_universe=raw_universe,\n"
+              "            adjusted_universe=adjusted_universe,\n"
+              "        )\n"
+              "        dependency_start, dependency_end = _dependency_window(admission_contract)\n"
+              "        progress.stage(\"Loading verified Historical Truth snapshots\")\n"
+              "        source = HistoricalTruthReplayStore(\n"
+              "            database_path=database,\n"
+              "            snapshot_root=historical_truth_snapshots,\n"
+              "            start=dependency_start,\n"
+              "            end=dependency_end,\n"
+              "        )\n"
+          )
+          if old_block not in cli and "Validating signed B1/B1H handoff" not in cli:
+              raise SystemExit("CLI insertion point not found")
+          cli = cli.replace(old_block, new_block)
+          branch_files["cli"].write_text(cli)
+
+          tests = branch_files["tests"].read_text()
+          tests = tests.replace(
+              "from alpha.benchmark_replay.governed_adjusted import (\n"
+              "    build_governed_benchmark_stores,\n"
+              ")\n",
+              "from alpha.benchmark_replay.governed_adjusted import (\n"
+              "    build_governed_benchmark_stores,\n"
+              "    validate_governed_adjusted_handoff,\n"
+              ")\n",
+          )
+          if "def _closure_digest(" not in tests:
+              tests = tests.replace(
+                  "def _write_json(path: Path, payload: object) -> Path:\n",
+                  "def _closure_digest(value: dict[str, object]) -> str:\n"
+                  "    payload = {**value, \"report_sha256\": \"\"}\n"
+                  "    encoded = json.dumps(\n"
+                  "        payload,\n"
+                  "        sort_keys=True,\n"
+                  "        separators=(\",\", \":\"),\n"
+                  "        default=str,\n"
+                  "    ).encode()\n"
+                  "    return hashlib.sha256(encoded).hexdigest()\n\n\n"
+                  "def _write_json(path: Path, payload: object) -> Path:\n",
+              )
+          tests = tests.replace(
+              '    closure_payload["report_sha256"] = _digest(closure_payload)',
+              '    closure_payload["report_sha256"] = _closure_digest(closure_payload)',
+          )
+          if "test_b2_handoff_uses_final_closure_producer_digest" not in tests:
+              tests += (
+                  "\n\ndef test_b2_handoff_uses_final_closure_producer_digest(\n"
+                  "    tmp_path: Path,\n"
+                  ") -> None:\n"
+                  "    artifacts = _artifacts(tmp_path)\n\n"
+                  "    validate_governed_adjusted_handoff(\n"
+                  "        final_closure_report=artifacts[\"closure\"],\n"
+                  "        admission_contract=artifacts[\"admission\"],\n"
+                  "        identity_admission=artifacts[\"identity_admission\"],\n"
+                  "        raw_universe=artifacts[\"raw_universe\"],\n"
+                  "        adjusted_universe=artifacts[\"adjusted_universe\"],\n"
+                  "    )\n\n"
+                  "    payload = json.loads(artifacts[\"closure\"].read_text())\n"
+                  "    payload[\"governed_exclusion_count\"] = 1\n"
+                  "    artifacts[\"closure\"].write_text(json.dumps(payload))\n\n"
+                  "    with pytest.raises(ValueError, match=\"digest mismatch\"):\n"
+                  "        validate_governed_adjusted_handoff(\n"
+                  "            final_closure_report=artifacts[\"closure\"],\n"
+                  "            admission_contract=artifacts[\"admission\"],\n"
+                  "            identity_admission=artifacts[\"identity_admission\"],\n"
+                  "            raw_universe=artifacts[\"raw_universe\"],\n"
+                  "            adjusted_universe=artifacts[\"adjusted_universe\"],\n"
+                  "        )\n"
+              )
+          branch_files["tests"].write_text(tests)
+          PY
+      - name: Validate repair
+        run: |
+          poetry run ruff check --fix \
+            alpha/historical_truth/b1_final_closure.py \
+            alpha/benchmark_replay/governed_adjusted.py \
+            alpha/application/governed_adjusted_benchmark_cli.py \
+            tests/benchmark_replay/test_governed_adjusted.py
+          poetry run ruff format \
+            alpha/historical_truth/b1_final_closure.py \
+            alpha/benchmark_replay/governed_adjusted.py \
+            alpha/application/governed_adjusted_benchmark_cli.py \
+            tests/benchmark_replay/test_governed_adjusted.py
+          poetry run mypy alpha
+          poetry run pytest -q \
+            tests/benchmark_replay/test_governed_adjusted.py \
+            tests/historical_truth/test_b1_final_closure.py
+      - name: Commit repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            alpha/historical_truth/b1_final_closure.py \
+            alpha/benchmark_replay/governed_adjusted.py \
+            alpha/application/governed_adjusted_benchmark_cli.py \
+            tests/benchmark_replay/test_governed_adjusted.py
+          if git diff --cached --quiet; then
+            echo "No repair changes required"
+          else
+            git commit -m "Repair B2 final closure digest validation"
+            git push origin HEAD:feature/htr-010b2-governed-adjusted-benchmark-integration
+          fi
