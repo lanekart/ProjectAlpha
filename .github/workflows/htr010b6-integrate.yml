@@ -1,4 +1,5 @@
 name: Integrate HTR-010B6
+# Retrigger after clearing the superseded diagnostic.
 
 on:
   push:
