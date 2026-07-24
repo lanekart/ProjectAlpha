@@ -17,6 +17,7 @@ from alpha.benchmark_replay.governed_adjusted import (
     _canonical_identity_frame,
     _readiness_decision,
     build_governed_benchmark_stores,
+    validate_governed_adjusted_handoff,
 )
 from alpha.canonical_universe_audit.store import LegacyMarketDataStore
 from alpha.recovery.security_timeline import (
