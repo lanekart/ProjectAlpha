@@ -58,23 +58,12 @@ jobs:
       - name: Strict MyPy
         run: poetry run mypy alpha
       - name: Full benchmark regression
-        id: regression
-        continue-on-error: true
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
         run: |
-          set -o pipefail
-          poetry run pytest -x -vv \
+          poetry run pytest -q \
             tests/benchmark_replay \
-            tests/historical_truth/test_b1_final_closure.py \
-            2>&1 | tee b2-pytest.log
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: b2-comparison-pytest-log
-          path: b2-pytest.log
-          if-no-files-found: error
-      - name: Require passing regression
-        if: steps.regression.outcome != 'success'
-        run: exit 1
+            tests/historical_truth/test_b1_final_closure.py
       - name: Commit and push repair
         run: |
           git config user.name "github-actions[bot]"
