@@ -134,6 +134,22 @@ poetry run python -m alpha benchmark governed-adjusted-stability \
 
 The command includes a determinate six-stage progress bar.
 
+## Validation
+
+The milestone branch must pass the permanent repository gates before the real
+B2 evidence is certified:
+
+- locked Ruff check and format check;
+- strict MyPy across the complete `alpha` package;
+- the full HTR-010B2 regression suite;
+- B3 command-registration, ready-path, blocked-path, artifact-tampering, and
+  activation-contract guardrail tests;
+- every permanent CI pytest shard.
+
+The final acceptance remains a separate local run over the signed B2 artifacts.
+The pull request stays draft until that command produces a reviewed B3
+certificate and activation contract.
+
 ## Guardrails
 
 A ready B3 contract permits only:
