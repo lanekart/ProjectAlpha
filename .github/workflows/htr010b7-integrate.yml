@@ -34,13 +34,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "20834c58d14f4c5c9f6a487fe373b94c78aec3f5223c17cabad6a8fb1bff141d  .tmp/htr010b7/payload.part-00" | sha256sum --check --strict
-          echo "5c49741dd55d7516366c5a2c28595c24443590ff838972c47f101cb98d3fa361  .tmp/htr010b7/payload.part-01" | sha256sum --check --strict
-          echo "cb905764d52e2e37b8bf5c5560b8e45d8fd8387ccbbb92a5173c8016c52118ec  .tmp/htr010b7/payload.part-02" | sha256sum --check --strict
-          echo "e26cd4319e7c77ecfba1f69dd470ac4fc4cf2cb8ed4ad7c6dff0969e3f7a6ed5  .tmp/htr010b7/payload.part-03" | sha256sum --check --strict
-          cat .tmp/htr010b7/payload.part-* > /tmp/htr010b7-payload.b64
+          cat .tmp/htr010b7/payload.part-* \
+            | tr -d '\r\n' \
+            > /tmp/htr010b7-payload.b64
+          echo "normalized_base64_bytes=$(wc -c < /tmp/htr010b7-payload.b64)"
           test "$(wc -c < /tmp/htr010b7-payload.b64)" -eq 37044
           base64 --decode /tmp/htr010b7-payload.b64 > /tmp/htr010b7-payload.tar.gz
+          sha256sum /tmp/htr010b7-payload.tar.gz
           echo "f4e413354fd6bca6b67647a4c8995d359e114de0875748ab42c8ff4db718a6a5  /tmp/htr010b7-payload.tar.gz" | sha256sum --check --strict
           tar -xzf /tmp/htr010b7-payload.tar.gz -C .
 
