@@ -1,0 +1,132 @@
+name: Integrate HTR-010B5
+
+on:
+  push:
+    branches:
+      - feature/htr-010b5-governed-approval-gate-forensics-certification
+    paths:
+      - .github/workflows/htr010b5-integrate.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-010b5-governed-approval-gate-forensics-certification
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Materialize HTR-010B5 payload
+        run: |
+          cat .tmp/htr010b5/payload.part-* > /tmp/htr010b5-payload.b64
+          base64 --decode /tmp/htr010b5-payload.b64 > /tmp/htr010b5-payload.tar.gz
+          echo "0738dcd9fc2f81dfe2b9ed0dd93244d8d4c0952f0e416317ca56ec52d2dcd8b2  /tmp/htr010b5-payload.tar.gz" | sha256sum --check --strict
+          tar -xzf /tmp/htr010b5-payload.tar.gz -C .
+          rm -rf .tmp/htr010b5
+      - name: Register HTR-010B5 surfaces
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          cli = Path("alpha/application/benchmark_cli.py")
+          text = cli.read_text(encoding="utf-8")
+          import_anchor = '''from alpha.application.governed_trade_formation_cli import (
+              register_governed_trade_formation_command,
+          )
+          '''
+          import_replacement = '''from alpha.application.governed_approval_gate_forensics_cli import (
+              register_governed_approval_gate_forensics_command,
+          )
+          from alpha.application.governed_trade_formation_cli import (
+              register_governed_trade_formation_command,
+          )
+          '''
+          if text.count(import_anchor) != 1:
+              raise SystemExit("benchmark CLI import anchor mismatch")
+          text = text.replace(import_anchor, import_replacement)
+          registration_anchor = (
+              "register_governed_trade_formation_command(benchmark_app)\n"
+          )
+          registration_replacement = (
+              registration_anchor
+              + "register_governed_approval_gate_forensics_command(benchmark_app)\n"
+          )
+          if text.count(registration_anchor) != 1:
+              raise SystemExit("benchmark CLI registration anchor mismatch")
+          cli.write_text(
+              text.replace(registration_anchor, registration_replacement),
+              encoding="utf-8",
+          )
+
+          package = Path("alpha/benchmark_replay/__init__.py")
+          text = package.read_text(encoding="utf-8")
+          module_anchor = '''from alpha.benchmark_replay.governed_trade_formation import (
+          '''
+          module_replacement = '''from alpha.benchmark_replay.governed_approval_gate_forensics import (
+              B5_BLOCKED_DEFECT,
+              B5_BLOCKED_DIVERGENCE,
+              B5_BLOCKED_EVIDENCE,
+              B5_BLOCKED_UNREACHED,
+              B5_BLOCKED_VACUOUS,
+              B5_READY,
+              HTR010B5_CONTRACT_VERSION,
+              GovernedApprovalGateForensicsEngine,
+              GovernedApprovalGateForensicsResult,
+              export_governed_approval_gate_forensics,
+              validate_governed_approval_gate_forensics_certificate,
+          )
+          from alpha.benchmark_replay.governed_trade_formation import (
+          '''
+          if text.count(module_anchor) != 1:
+              raise SystemExit("benchmark package module anchor mismatch")
+          text = text.replace(module_anchor, module_replacement)
+          replacements = {
+              '    "B4_READY",\n': '''    "B4_READY",
+              "B5_BLOCKED_DEFECT",
+              "B5_BLOCKED_DIVERGENCE",
+              "B5_BLOCKED_EVIDENCE",
+              "B5_BLOCKED_UNREACHED",
+              "B5_BLOCKED_VACUOUS",
+              "B5_READY",
+          ''',
+              '    "HTR010B4_CONTRACT_VERSION",\n': '''    "HTR010B4_CONTRACT_VERSION",
+              "HTR010B5_CONTRACT_VERSION",
+          ''',
+              '    "GovernedAdjustedStabilityResult",\n': '''    "GovernedAdjustedStabilityResult",
+              "GovernedApprovalGateForensicsEngine",
+              "GovernedApprovalGateForensicsResult",
+          ''',
+              '    "export_governed_adjusted_stability",\n': '''    "export_governed_adjusted_stability",
+              "export_governed_approval_gate_forensics",
+          ''',
+              '    "validate_governed_adjusted_research_activation",\n': '''    "validate_governed_adjusted_research_activation",
+              "validate_governed_approval_gate_forensics_certificate",
+          ''',
+          }
+          for anchor, replacement in replacements.items():
+              if text.count(anchor) != 1:
+                  raise SystemExit(
+                      f"benchmark package export anchor mismatch: {anchor!r}"
+                  )
+              text = text.replace(anchor, replacement)
+          package.write_text(text, encoding="utf-8")
+          PY
+      - name: Verify syntax
+        run: |
+          python -m py_compile \
+            alpha/application/benchmark_cli.py \
+            alpha/application/governed_approval_gate_forensics_cli.py \
+            alpha/benchmark_replay/__init__.py \
+            alpha/benchmark_replay/governed_approval_gate_forensics.py \
+            tests/benchmark_replay/test_governed_approval_gate_forensics.py
+      - name: Commit integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat(htr-010b5): register approval-gate forensics"
+          git push
