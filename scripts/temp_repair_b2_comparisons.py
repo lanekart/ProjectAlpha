@@ -1,0 +1,533 @@
+from __future__ import annotations
+
+from pathlib import Path
+from textwrap import dedent, indent
+
+ROOT = Path.cwd()
+STORE_PATH = ROOT / "alpha/canonical_universe_audit/store.py"
+ENGINE_PATH = ROOT / "alpha/benchmark_replay/engine.py"
+GOVERNED_PATH = ROOT / "alpha/benchmark_replay/governed_adjusted.py"
+TEST_PATH = ROOT / "tests/benchmark_replay/test_governed_adjusted.py"
+
+
+def replace_once(text: str, old: str, new: str, label: str) -> str:
+    if new in text:
+        print(f"already applied: {label}")
+        return text
+    count = text.count(old)
+    if count != 1:
+        raise SystemExit(
+            f"patch blocked for {label}: expected one block, found {count}"
+        )
+    print(f"patched: {label}")
+    return text.replace(old, new, 1)
+
+
+def insert_once(
+    text: str,
+    *,
+    marker: str,
+    addition: str,
+    needle: str,
+    label: str,
+) -> str:
+    if needle in text:
+        print(f"already applied: {label}")
+        return text
+    count = text.count(marker)
+    if count != 1:
+        raise SystemExit(
+            f"patch blocked for {label}: expected one marker, found {count}"
+        )
+    print(f"patched: {label}")
+    return text.replace(marker, addition + marker, 1)
+
+
+def patch_legacy_store() -> None:
+    text = STORE_PATH.read_text(encoding="utf-8")
+    methods = indent(
+        dedent(
+            '''
+            def observed_equal_weight_returns(
+                self,
+                *,
+                start: date,
+                end: date,
+            ) -> tuple[tuple[date, Decimal], ...]:
+                """Return daily equal-weight returns through the store boundary."""
+
+                if end < start:
+                    raise ValueError("equal-weight range end cannot precede start")
+                rows = self.connection.execute(
+                    """
+                    WITH lagged AS (
+                        SELECT
+                            trade_date,
+                            close,
+                            LAG(close) OVER (
+                                PARTITION BY UPPER(symbol) ORDER BY trade_date
+                            ) AS prior_close
+                        FROM daily_prices
+                        WHERE close > 0 AND trade_date <= ?
+                    ), daily AS (
+                        SELECT
+                            trade_date,
+                            AVG(close / prior_close - 1) AS equal_weight_return
+                        FROM lagged
+                        WHERE trade_date BETWEEN ? AND ? AND prior_close > 0
+                        GROUP BY trade_date
+                        ORDER BY trade_date
+                    )
+                    SELECT trade_date, equal_weight_return
+                    FROM daily
+                    ORDER BY trade_date
+                    """,
+                    (end, start, end),
+                ).fetchall()
+                return tuple(
+                    (trading_date, Decimal(str(raw_return)))
+                    for trading_date, raw_return in rows
+                )
+
+            def benchmark_price_history(
+                self,
+                *,
+                symbols: tuple[str, ...],
+                start: date,
+                end: date,
+            ) -> tuple[tuple[date, Decimal], ...]:
+                """Return benchmark closes through the store boundary."""
+
+                if end < start:
+                    raise ValueError("benchmark range end cannot precede start")
+                normalized = tuple(
+                    dict.fromkeys(
+                        symbol.strip().upper()
+                        for symbol in symbols
+                        if symbol.strip()
+                    )
+                )
+                if not normalized:
+                    return ()
+                placeholders = ", ".join("?" for _ in normalized)
+                rows = self.connection.execute(
+                    f"""
+                    SELECT trade_date, close
+                    FROM daily_prices
+                    WHERE UPPER(symbol) IN ({placeholders})
+                      AND trade_date BETWEEN ? AND ?
+                      AND close > 0
+                    ORDER BY trade_date, UPPER(symbol)
+                    """,
+                    (*normalized, start, end),
+                ).fetchall()
+                return tuple(
+                    (trading_date, Decimal(str(close)))
+                    for trading_date, close in rows
+                )
+
+            '''
+        ).lstrip(),
+        "    ",
+    )
+    text = insert_once(
+        text,
+        marker="    def liquidity_statistics(self) -> pd.DataFrame:\n",
+        addition=methods,
+        needle="    def observed_equal_weight_returns(\n",
+        label="legacy comparison capabilities",
+    )
+    STORE_PATH.write_text(text, encoding="utf-8")
+
+
+def patch_engine() -> None:
+    text = ENGINE_PATH.read_text(encoding="utf-8")
+    if "store.observed_equal_weight_returns(" not in text:
+        start_index = text.index(
+            "    rows = store.connection.execute(\n",
+            text.index("def observed_equal_weight_comparison("),
+        )
+        end_index = text.index("    value = capital\n", start_index)
+        text = (
+            text[:start_index]
+            + "    rows = store.observed_equal_weight_returns(\n"
+            + "        start=start,\n"
+            + "        end=end,\n"
+            + "    )\n"
+            + text[end_index:]
+        )
+        print("patched: equal-weight comparison capability")
+    if "store.benchmark_price_history(" not in text:
+        start_index = text.index(
+            "    rows = store.connection.execute(\n",
+            text.index("def _nifty_comparison("),
+        )
+        end_index = text.index("    if len(rows) < 2:\n", start_index)
+        text = (
+            text[:start_index]
+            + "    rows = store.benchmark_price_history(\n"
+            + "        symbols=aliases,\n"
+            + "        start=start,\n"
+            + "        end=end,\n"
+            + "    )\n"
+            + text[end_index:]
+        )
+        print("patched: NIFTY comparison capability")
+    if "store.connection" in text:
+        raise SystemExit("benchmark engine still contains store.connection")
+    ENGINE_PATH.write_text(text, encoding="utf-8")
+
+
+def patch_governed_store() -> None:
+    text = GOVERNED_PATH.read_text(encoding="utf-8")
+    text = replace_once(
+        text,
+        "from alpha.recovery.security_timeline import SecurityIdentityTimeline\n",
+        "from alpha.recovery.replay_frame import CanonicalReplayFrameAdapter\n"
+        "from alpha.recovery.security_timeline import SecurityIdentityTimeline\n",
+        "comparison adapter import",
+    )
+    text = replace_once(
+        text,
+        "        eligibility_frame: pd.DataFrame,\n"
+        "        replay_dates: tuple[date, ...],\n",
+        "        eligibility_frame: pd.DataFrame,\n"
+        "        comparison_frame: pd.DataFrame,\n"
+        "        replay_dates: tuple[date, ...],\n",
+        "comparison-frame constructor parameter",
+    )
+    text = replace_once(
+        text,
+        "        self._eligibility_frame = eligibility_frame\n"
+        "        self._replay_dates = replay_dates\n",
+        "        self._eligibility_frame = eligibility_frame\n"
+        "        self._comparison_frame = comparison_frame\n"
+        "        self._replay_dates = replay_dates\n",
+        "comparison-frame assignment",
+    )
+
+    methods = indent(
+        dedent(
+            '''
+            def observed_equal_weight_returns(
+                self,
+                *,
+                start: date,
+                end: date,
+            ) -> tuple[tuple[date, Decimal], ...]:
+                """Return stable-identity equal-weight returns for this view."""
+
+                if end < start:
+                    raise ValueError("equal-weight range end cannot precede start")
+                close_column = (
+                    "adjusted_close"
+                    if self.price_view == "ADJUSTED"
+                    else "raw_close"
+                )
+                records = cast(
+                    list[dict[str, Any]],
+                    self._comparison_frame.to_dict("records"),
+                )
+                ordered = sorted(
+                    records,
+                    key=lambda row: (
+                        str(row.get("security_id") or ""),
+                        _as_date(row.get("trade_date")) or date.min,
+                    ),
+                )
+                previous: dict[str, Decimal] = {}
+                seen: set[tuple[str, date]] = set()
+                daily: dict[date, list[Decimal]] = {}
+                for row in ordered:
+                    security_id = str(row.get("security_id") or "").strip()
+                    trading_date = _as_date(row.get("trade_date"))
+                    if not security_id or trading_date is None or trading_date > end:
+                        continue
+                    key = security_id, trading_date
+                    if key in seen:
+                        raise ValueError(
+                            "duplicate governed benchmark identity-session: "
+                            f"{security_id}@{trading_date.isoformat()}"
+                        )
+                    seen.add(key)
+                    close = _number(row.get(close_column))
+                    if close <= 0:
+                        continue
+                    prior = previous.get(security_id)
+                    if prior is not None and trading_date >= start:
+                        daily.setdefault(trading_date, []).append(close / prior - 1)
+                    previous[security_id] = close
+                return tuple(
+                    (
+                        trading_date,
+                        sum(values, Decimal("0")) / Decimal(len(values)),
+                    )
+                    for trading_date, values in sorted(daily.items())
+                    if values
+                )
+
+            def benchmark_price_history(
+                self,
+                *,
+                symbols: tuple[str, ...],
+                start: date,
+                end: date,
+            ) -> tuple[tuple[date, Decimal], ...]:
+                """Return governed benchmark closes for this price view."""
+
+                if end < start:
+                    raise ValueError("benchmark range end cannot precede start")
+                normalized = {
+                    symbol.strip().upper()
+                    for symbol in symbols
+                    if symbol.strip()
+                }
+                if not normalized:
+                    return ()
+                close_column = (
+                    "adjusted_close"
+                    if self.price_view == "ADJUSTED"
+                    else "raw_close"
+                )
+                selected: list[tuple[date, str, str, Decimal]] = []
+                for row in cast(
+                    list[dict[str, Any]],
+                    self._comparison_frame.to_dict("records"),
+                ):
+                    symbol = str(row.get("symbol") or "").strip().upper()
+                    trading_date = _as_date(row.get("trade_date"))
+                    close = _number(row.get(close_column))
+                    if (
+                        symbol in normalized
+                        and trading_date is not None
+                        and start <= trading_date <= end
+                        and close > 0
+                    ):
+                        selected.append(
+                            (
+                                trading_date,
+                                symbol,
+                                str(row.get("security_id") or ""),
+                                close,
+                            )
+                        )
+                selected.sort(key=lambda item: (item[0], item[1], item[2]))
+                return tuple((item[0], item[3]) for item in selected)
+
+            '''
+        ).lstrip(),
+        "    ",
+    )
+    text = insert_once(
+        text,
+        marker="    def liquidity_statistics(self) -> pd.DataFrame:\n",
+        addition=methods,
+        needle="    def observed_equal_weight_returns(\n",
+        label="governed comparison capabilities",
+    )
+    text = replace_once(
+        text,
+        "    dependency_dates = source.trade_dates(\n"
+        "        start=dependency_start,\n"
+        "        end=dependency_end,\n"
+        "    )\n"
+        "    for current, trading_date in enumerate(dependency_dates, start=1):\n"
+        "        if progress is not None:\n"
+        "            progress(current, len(dependency_dates), trading_date)\n",
+        "    dependency_dates = source.trade_dates(\n"
+        "        start=dependency_start,\n"
+        "        end=dependency_end,\n"
+        "    )\n"
+        "    comparison_dates = tuple(\n"
+        "        item for item in dependency_dates if item <= admission.replay_end\n"
+        "    )\n"
+        "    progress_total = len(dependency_dates) + len(comparison_dates)\n"
+        "    for current, trading_date in enumerate(dependency_dates, start=1):\n"
+        "        if progress is not None:\n"
+        "            progress(current, progress_total, trading_date)\n",
+        "two-phase store progress",
+    )
+    comparison_call = indent(
+        dedent(
+            '''
+            comparison_frame = _build_comparison_frame(
+                identity_frame,
+                identities=inputs.identities,
+                actions=inputs.actions,
+                as_of=admission.replay_end,
+                dates=comparison_dates,
+                progress=progress,
+                progress_offset=len(dependency_dates),
+                progress_total=progress_total,
+            )
+            '''
+        ).lstrip(),
+        "    ",
+    )
+    text = insert_once(
+        text,
+        marker="    identity_session_sha256 = _digest_list(sorted(identity_session_keys))\n",
+        addition=comparison_call,
+        needle="    comparison_frame = _build_comparison_frame(\n",
+        label="end-basis comparison frame",
+    )
+    wiring_old = (
+        "        eligibility_frame=eligibility_frame,\n"
+        "        replay_dates=tuple(available_dates),\n"
+    )
+    wiring_new = (
+        "        eligibility_frame=eligibility_frame,\n"
+        "        comparison_frame=comparison_frame,\n"
+        "        replay_dates=tuple(available_dates),\n"
+    )
+    while wiring_old in text:
+        text = text.replace(wiring_old, wiring_new, 1)
+    if text.count("        comparison_frame=comparison_frame,\n") != 2:
+        raise SystemExit("expected RAW and ADJUSTED comparison-frame wiring")
+
+    helper = dedent(
+        '''
+        def _build_comparison_frame(
+            frame: pd.DataFrame,
+            *,
+            identities: SecurityIdentityTimeline,
+            actions: Any,
+            as_of: date,
+            dates: tuple[date, ...],
+            progress: Callable[[int, int, date], None] | None,
+            progress_offset: int,
+            progress_total: int,
+        ) -> pd.DataFrame:
+            """Build one governed end-of-window basis for comparisons."""
+
+            source = frame.copy()
+            source["trade_date"] = pd.to_datetime(
+                source["trade_date"], errors="raise"
+            ).dt.date
+            adapter = CanonicalReplayFrameAdapter(identities, actions)
+            canonical: list[pd.DataFrame] = []
+            for current, trading_date in enumerate(dates, start=1):
+                if progress is not None:
+                    progress(
+                        progress_offset + current,
+                        progress_total,
+                        trading_date,
+                    )
+                group = source.loc[source["trade_date"] == trading_date].copy()
+                if group.empty:
+                    continue
+                result = adapter.canonicalize(
+                    group,
+                    trade_date=trading_date,
+                    as_of=as_of,
+                )
+                canonical.append(result.frame)
+            if not canonical:
+                raise ValueError("B2 comparison population is empty")
+            return (
+                pd.concat(canonical, ignore_index=True)
+                .sort_values(
+                    ["trade_date", "security_id", "symbol", "raw_symbol"],
+                    kind="stable",
+                )
+                .reset_index(drop=True)
+            )
+
+
+        '''
+    )
+    text = insert_once(
+        text,
+        marker="def _price_view(frame: pd.DataFrame, *, adjusted: bool) -> pd.DataFrame:\n",
+        addition=helper,
+        needle="def _build_comparison_frame(\n",
+        label="comparison-frame builder",
+    )
+    GOVERNED_PATH.write_text(text, encoding="utf-8")
+
+
+def patch_tests() -> None:
+    text = TEST_PATH.read_text(encoding="utf-8")
+    text = replace_once(
+        text,
+        "from alpha.benchmark_replay.engine import _eligible_security_count\n",
+        "from alpha.benchmark_replay.engine import (\n"
+        "    CanonicalBenchmarkReplayEngine,\n"
+        "    _eligible_security_count,\n"
+        ")\n"
+        "from alpha.benchmark_replay.models import ReplayRequest\n",
+        "full-engine regression imports",
+    )
+    if "test_full_benchmark_engine_uses_governed_comparison_capabilities" not in text:
+        text += dedent(
+            '''
+
+
+            def test_full_benchmark_engine_uses_governed_comparison_capabilities(
+                tmp_path: Path,
+            ) -> None:
+                pair = _pair(tmp_path)
+                request = ReplayRequest(
+                    start=date(2026, 1, 2),
+                    end=date(2026, 1, 4),
+                )
+                try:
+                    assert not hasattr(pair.raw, "connection")
+                    assert not hasattr(pair.adjusted, "connection")
+                    engine = CanonicalBenchmarkReplayEngine()
+                    raw = engine.run(
+                        store=pair.raw,
+                        request=request,
+                        project_root=tmp_path,
+                    )
+                    adjusted = engine.run(
+                        store=pair.adjusted,
+                        request=request,
+                        project_root=tmp_path,
+                    )
+
+                    assert raw.eligible_securities == 0
+                    assert adjusted.eligible_securities == 0
+                    raw_comparisons = {
+                        item.benchmark: item for item in raw.benchmark_comparison
+                    }
+                    adjusted_comparisons = {
+                        item.benchmark: item
+                        for item in adjusted.benchmark_comparison
+                    }
+                    raw_equal = raw_comparisons[
+                        "OBSERVED_EQUAL_WEIGHT_UNIVERSE"
+                    ]
+                    adjusted_equal = adjusted_comparisons[
+                        "OBSERVED_EQUAL_WEIGHT_UNIVERSE"
+                    ]
+                    assert raw_equal.ending_value is not None
+                    assert adjusted_equal.ending_value is not None
+                    assert raw_equal.ending_value != adjusted_equal.ending_value
+                    assert (
+                        raw_comparisons["NIFTY_50_BUY_AND_HOLD"].ending_value
+                        is None
+                    )
+                    assert (
+                        adjusted_comparisons[
+                            "NIFTY_50_BUY_AND_HOLD"
+                        ].ending_value
+                        is None
+                    )
+                finally:
+                    pair.close()
+            '''
+        )
+        print("patched: full governed benchmark regression")
+    TEST_PATH.write_text(text, encoding="utf-8")
+
+
+def main() -> None:
+    patch_legacy_store()
+    patch_engine()
+    patch_governed_store()
+    patch_tests()
+
+
+if __name__ == "__main__":
+    main()
