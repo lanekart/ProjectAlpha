@@ -237,8 +237,7 @@ def _baseline_states(
     extra = sorted(set(observed) - set(canonical))
     if extra:
         raise ValueError(
-            "B10 downstream identity lineage mismatch:"
-            f"missing=0:extra={len(extra)}"
+            f"B10 downstream identity lineage mismatch:missing=0:extra={len(extra)}"
         )
 
     result: dict[FrozenCandidateKey, BaselineDownstreamState] = {}

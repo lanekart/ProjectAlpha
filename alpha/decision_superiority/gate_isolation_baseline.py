@@ -40,9 +40,7 @@ class FrozenBaselineCandidate:
         if not self.outcome_status.strip():
             raise ValueError("outcome_status cannot be empty")
         if not self.b5_present or not self.dsi001_present:
-            raise ValueError(
-                "baseline candidate must be present in B5 and DSI-001"
-            )
+            raise ValueError("baseline candidate must be present in B5 and DSI-001")
         if self.resolved_outcome and self.realized_return_pct is None:
             raise ValueError("resolved outcome requires realized_return_pct")
 

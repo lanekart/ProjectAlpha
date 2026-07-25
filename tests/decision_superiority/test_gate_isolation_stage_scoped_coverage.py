@@ -107,8 +107,7 @@ def test_extra_b10_downstream_identity_fails_closed(
 ) -> None:
     _patch_population(monkeypatch, _population(b10_present=False))
     text = (
-        "price_view,observed_on,symbol,default_accepted\n"
-        "RAW,2026-01-02,EXTRA,false\n"
+        "price_view,observed_on,symbol,default_accepted\nRAW,2026-01-02,EXTRA,false\n"
     )
     with pytest.raises(ValueError, match="B10 downstream identity lineage mismatch"):
         GateIsolationDryRunOrchestrator().run(

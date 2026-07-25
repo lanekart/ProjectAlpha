@@ -163,7 +163,9 @@ def test_missing_b10_state_fails_closed(
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="B10 downstream identity lineage mismatch"):
+    with pytest.raises(
+        ValueError, match="B10 downstream state missing for covered candidate"
+    ):
         GateIsolationDryRunOrchestrator().run(
             source_paths=_source_paths(tmp_path),
             baseline_paths=paths,
