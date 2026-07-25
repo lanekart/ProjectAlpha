@@ -1,5 +1,0 @@
-HTR010B7_FINAL_FRAGMENT_DIAGNOSTIC
-500 .tmp/htr010b7/fixed3.part-02-02-02-00
-e990fe0c9b5979aed6e06d1af29e8298ebe4f179dc4f4f6a64338aff3ea151b2  .tmp/htr010b7/fixed3.part-02-02-02-00
-499 .tmp/htr010b7/fixed3.part-02-02-02-01
-9655375f655bad0dc95f8dc873cb5565ac005a1beb08edb94468c98a2ba5265d  .tmp/htr010b7/fixed3.part-02-02-02-01

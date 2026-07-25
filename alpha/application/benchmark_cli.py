@@ -22,6 +22,9 @@ from alpha.application.governed_approval_constraint_frontier_cli import (
 from alpha.application.governed_approval_gate_forensics_cli import (
     register_governed_approval_gate_forensics_command,
 )
+from alpha.application.governed_setup_matched_evidence_cli import (
+    register_governed_setup_matched_evidence_command,
+)
 from alpha.application.governed_trade_formation_cli import (
     register_governed_trade_formation_command,
 )
@@ -50,6 +53,7 @@ register_governed_adjusted_benchmark_command(benchmark_app)
 register_governed_adjusted_stability_command(benchmark_app)
 register_governed_approval_gate_forensics_command(benchmark_app)
 register_governed_approval_constraint_frontier_command(benchmark_app)
+register_governed_setup_matched_evidence_command(benchmark_app)
 register_governed_trade_formation_command(benchmark_app)
 
 
