@@ -9,6 +9,12 @@ from pathlib import Path
 from typing import Any, Final
 
 _SHA256_HEX_LENGTH: Final = 64
+_REPORT_DIGEST_CONTRACTS: Final = frozenset(
+    {
+        "HTR-010B5-v1.0.0",
+        "HTR-010B7-v1.0.0",
+    }
+)
 
 
 class GovernedInputContractError(ValueError):
@@ -64,12 +70,13 @@ def verify_certificate(
                 f"{name}:{expected_sha256}:{actual_sha256}"
             )
 
-    computed_report_sha256 = _report_digest(payload)
-    if computed_report_sha256 != report_sha256:
-        raise GovernedInputContractError(
-            "CERTIFICATE_REPORT_SHA256_MISMATCH:"
-            f"{report_sha256}:{computed_report_sha256}"
-        )
+    if contract_version in _REPORT_DIGEST_CONTRACTS:
+        computed_report_sha256 = _report_digest(payload)
+        if computed_report_sha256 != report_sha256:
+            raise GovernedInputContractError(
+                "CERTIFICATE_REPORT_SHA256_MISMATCH:"
+                f"{report_sha256}:{computed_report_sha256}"
+            )
 
     return VerifiedCertificate(
         path=path,
