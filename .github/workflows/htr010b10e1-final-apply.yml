@@ -106,6 +106,10 @@ jobs:
                'risk_reward_ratio=Decimal("4"),'),
               ('historical_bar_count=250,',
                'historical_bar_count=1260,'),
+              ('sample_count="60",\n                evidence_strength="moderate",\n                posterior="0.6000",',
+               'sample_count="60",\n                evidence_strength="moderate",\n                posterior="0.7000",'),
+              ('sample_count="1",\n                evidence_strength="strong",\n                posterior="0.6000",',
+               'sample_count="1",\n                evidence_strength="strong",\n                posterior="0.7000",'),
               ('sample_count="1"',
                'sample_count="10"'),
           )
