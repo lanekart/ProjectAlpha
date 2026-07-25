@@ -4,4 +4,4 @@ This connector-authored commit intentionally retriggers normal repository valida
 
 Acceptance remains bound to the exact reviewed commit SHA. This file has no runtime, policy, portfolio, execution, learning, or production influence.
 
-The final validation source uses `Sequence[str]` for readiness blockers so strict MyPy and `str.join` agree without weakening the report contract.
+The final validation source uses `Sequence[str]` for CLI readiness blockers so strict MyPy and `str.join` agree without weakening the report contract. The engine report renderer also narrows its blocker sequence explicitly before iteration.
