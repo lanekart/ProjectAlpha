@@ -35,6 +35,7 @@ class ExecutionStateCaptureInput:
             ("cash_state", self.cash_state),
             ("sizing_state", self.sizing_state),
             ("participation_constraints", self.participation_constraints),
+            ("queue_state", self.queue_state),
             ("risk_budget_state", self.risk_budget_state),
         )
         for name, value in required:
