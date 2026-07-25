@@ -852,7 +852,9 @@ def _optional_file_sha256(path: Path) -> str:
 
 
 def _markdown(report: Mapping[str, object]) -> str:
-    blockers = report.get("readiness_blockers", [])
+    blockers = cast(
+        Sequence[object], report.get("readiness_blockers", [])
+    )
     return "\n".join(
         (
             "# HTR-010B10 Governed Adaptive Institutional and Trade Shadow Replay",
@@ -864,7 +866,7 @@ def _markdown(report: Mapping[str, object]) -> str:
             ),
             (
                 "- Readiness blockers: "
-                f"`{', '.join(str(item) for item in cast(Sequence[object], blockers)) or 'NONE'}`"
+                f"`{', '.join(str(item) for item in blockers) or 'NONE'}`"
             ),
             "",
             "## Governance",
