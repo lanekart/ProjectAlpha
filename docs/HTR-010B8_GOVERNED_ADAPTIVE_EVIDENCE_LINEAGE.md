@@ -207,3 +207,15 @@ Every B8 certificate records:
 Any publication bridge, fingerprint-schema repair, outcome-ledger mutation,
 threshold change, setup-matching change, trade research, economic claim, or
 production activation requires a separate governed milestone.
+
+## Repository validation and acceptance boundary
+
+The milestone source must pass the repository's locked Ruff, formatting, strict
+MyPy, and permanent pytest gates before real-data acceptance. Acceptance must run
+from a clean worktree at the exact reviewed commit, validate the signed B7 handoff,
+write to a fresh output directory, and record both the internal report SHA-256 and
+the certificate-file SHA-256.
+
+Repository validation does not activate adaptive publication. A ready B8
+certificate authorizes lineage research only; the canonical publication bridge
+remains reserved for a separate governed milestone.
