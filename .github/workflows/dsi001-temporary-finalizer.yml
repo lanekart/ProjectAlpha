@@ -64,6 +64,30 @@ jobs:
           )
           path.write_text(text, encoding='utf-8')
           PY
+      - name: Repair benchmark CLI integration test
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('tests/decision_superiority/test_gate_value_audit.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('import typer\n', '')
+          text = text.replace(
+              'from alpha.application.decision_superiority_gate_value_cli import (\n'
+              '    register_decision_superiority_gate_value_command,\n'
+              ')\n',
+              'from alpha.application.benchmark_cli import benchmark_app\n',
+          )
+          text = text.replace(
+              '    app = typer.Typer()\n'
+              '    register_decision_superiority_gate_value_command(app)\n'
+              '    result = CliRunner().invoke(\n'
+              '        app,\n',
+              '    result = CliRunner().invoke(\n'
+              '        benchmark_app,\n',
+          )
+          path.write_text(text, encoding='utf-8')
+          PY
       - name: Format and lint
         run: |
           poetry run ruff format \
@@ -93,7 +117,7 @@ jobs:
           if git diff --cached --quiet; then
             exit 0
           fi
-          git commit -m 'fix(dsi-001): normalize governed gate ordinal typing'
+          git commit -m 'fix(dsi-001): validate permanent benchmark CLI integration'
           git push origin HEAD:feature/dsi-001-governed-decision-superiority-gate-value-audit
       - name: Focused MyPy
         run: |
@@ -101,17 +125,4 @@ jobs:
             alpha/application/decision_superiority_gate_value_cli.py \
             alpha/decision_superiority
       - name: Focused pytest
-        id: pytest
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          poetry run pytest -q tests/decision_superiority 2>&1 | tee dsi001-pytest.txt
-      - name: Upload pytest diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dsi001-pytest-diagnostics
-          path: dsi001-pytest.txt
-      - name: Enforce pytest
-        if: steps.pytest.outcome == 'failure'
-        run: exit 1
+        run: poetry run pytest -q tests/decision_superiority
