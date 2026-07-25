@@ -11,6 +11,13 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
+from alpha.decision_superiority.gate_artifacts import (
+    CONFIDENCE_SUMMARY_FIELDS,
+    EVIDENCE_SUMMARY_FIELDS,
+    GATE_CONCLUSION_FIELDS,
+    GATE_RECOMMENDATION_FIELDS,
+    build_gate_artifact_rows,
+)
 from alpha.decision_superiority.gate_attribution import (
     ATTRIBUTION_SUMMARY_FIELDS,
     BASELINE_FIELDS,
@@ -84,6 +91,12 @@ _VALUE_FIELDS = (
     "net_gate_value",
     "conclusion",
 )
+_NEW_DIAGNOSTIC_ARTIFACTS = (
+    "dsi001_gate_conclusions.csv",
+    "dsi001_evidence_summary.csv",
+    "dsi001_confidence_summary.csv",
+    "dsi001_gate_recommendations.csv",
+)
 
 
 @dataclass(slots=True)
@@ -101,8 +114,6 @@ class GateAccumulator:
     unique_returns: list[Decimal] = field(default_factory=list)
 
     def record_block(self, *, unique: bool) -> None:
-        """Record one observed gate failure."""
-
         self.blocked += 1
         if unique:
             self.unique += 1
@@ -115,11 +126,8 @@ class GateAccumulator:
         realized_return: Decimal,
         unique: bool,
     ) -> tuple[Decimal, Decimal]:
-        """Record one resolved rejected return and return legacy economics."""
-
         self.resolved += 1
         self.return_sum += realized_return
-
         avoided = Decimal("0")
         cost = Decimal("0")
         if realized_return > 0:
@@ -130,10 +138,8 @@ class GateAccumulator:
             avoided = abs(realized_return)
         else:
             self.flat += 1
-
         if unique:
             self.unique_returns.append(realized_return)
-
         return avoided, cost
 
 
@@ -179,7 +185,6 @@ class GovernedGateValueAudit:
         candidates = _read_rows(candidate_gate_forensics)
         gate_events = _read_rows(gate_event_ledger)
         outcomes = _read_rows(outcome_coverage_ledger)
-
         outcome_by_key = {
             _key(row): row
             for row in outcomes
@@ -205,13 +210,10 @@ class GovernedGateValueAudit:
             )
             outcome = outcome_by_key.get(key)
             resolved = outcome is not None
-            realized_return = _decimal(
-                (outcome or {}).get("realized_return_pct")
-                or (outcome or {}).get("realized_return_pct", "")
-            )
+            realized_return = _decimal((outcome or {}).get("realized_return_pct"))
             realized_r = _decimal(
                 (outcome or {}).get("realized_r")
-                or (outcome or {}).get("realized_r_multiple", "")
+                or (outcome or {}).get("realized_r_multiple")
             )
             unique = len(failure_codes) == 1
             won = _truthy((outcome or {}).get("won")) or realized_return > 0
@@ -264,6 +266,9 @@ class GovernedGateValueAudit:
         )
         gate_states = self._gate_states(gate_stats)
         value_rows = self._value_rows(gate_states)
+        projections = build_gate_artifact_rows(
+            {gate: state.pipeline for gate, state in gate_states.items()}
+        )
         cooccurrence_rows = self._cooccurrence_rows(failures_by_key)
         resolved_count = sum(
             1 for row in candidate_rows if row["resolved_outcome"] is True
@@ -289,7 +294,9 @@ class GovernedGateValueAudit:
         )
 
         output.mkdir(parents=True, exist_ok=True)
-        support = {
+        legacy_support: dict[
+            str, tuple[list[dict[str, object]], tuple[str, ...]]
+        ] = {
             "dsi001_gate_inventory.csv": (gate_inventory, _GATE_INVENTORY_FIELDS),
             "dsi001_candidate_gate_failure_ledger.csv": (
                 candidate_rows,
@@ -333,13 +340,41 @@ class GovernedGateValueAudit:
                 ("gate_code", "governed_order", "minimum_observed_ordinal"),
             ),
         }
+        diagnostic_support: dict[
+            str, tuple[list[dict[str, object]], tuple[str, ...]]
+        ] = {
+            "dsi001_gate_conclusions.csv": (
+                list(projections.conclusions),
+                GATE_CONCLUSION_FIELDS,
+            ),
+            "dsi001_evidence_summary.csv": (
+                list(projections.evidence),
+                EVIDENCE_SUMMARY_FIELDS,
+            ),
+            "dsi001_confidence_summary.csv": (
+                list(projections.confidence),
+                CONFIDENCE_SUMMARY_FIELDS,
+            ),
+            "dsi001_gate_recommendations.csv": (
+                list(projections.recommendations),
+                GATE_RECOMMENDATION_FIELDS,
+            ),
+        }
+
         paths: list[Path] = []
-        for name, (rows, fields) in support.items():
+        for name, (rows, fields) in legacy_support.items():
             path = output / name
             _write_csv(path, rows, fields)
             paths.append(path)
+        diagnostic_paths: list[Path] = []
+        for name, (rows, fields) in diagnostic_support.items():
+            path = output / name
+            _write_csv(path, rows, fields)
+            diagnostic_paths.append(path)
 
-        artifact_hashes = {path.name: _sha256(path) for path in paths}
+        artifact_hashes = {
+            path.name: _sha256(path) for path in (*paths, *diagnostic_paths)
+        }
         report = {
             "contract_version": DSI001_CONTRACT_VERSION,
             "research_scope": DSI001_RESEARCH_SCOPE,
@@ -352,6 +387,11 @@ class GovernedGateValueAudit:
             "gate_value_summary": value_rows,
             "attribution_summary": list(attribution.summary_rows),
             "ordered_gate_lineage": list(attribution.gate_order_rows),
+            "gate_conclusions": list(projections.conclusions),
+            "evidence_summary": list(projections.evidence),
+            "confidence_summary": list(projections.confidence),
+            "gate_recommendations": list(projections.recommendations),
+            "diagnostic_artifact_names": list(_NEW_DIAGNOSTIC_ARTIFACTS),
             "artifact_hashes": artifact_hashes,
             "benchmark_relative_evidence": "UNKNOWN",
             "causal_claim_permitted": False,
@@ -398,12 +438,10 @@ class GovernedGateValueAudit:
                 },
             )
             entry["minimum_ordinal"] = min(
-                int(str(entry["minimum_ordinal"])),
-                ordinal,
+                int(str(entry["minimum_ordinal"])), ordinal
             )
             entry["maximum_ordinal"] = max(
-                int(str(entry["maximum_ordinal"])),
-                ordinal,
+                int(str(entry["maximum_ordinal"])), ordinal
             )
             key = _key(row)
             if _truthy(row.get("stage_reached")):
@@ -412,17 +450,15 @@ class GovernedGateValueAudit:
                 failed[code].add(key)
                 if _truthy(row.get("primary")):
                     primary[code] += 1
-        result: list[dict[str, object]] = []
-        for code, entry in sorted(grouped.items()):
-            result.append(
-                {
-                    **entry,
-                    "reached_candidate_count": len(reached[code]),
-                    "failed_candidate_count": len(failed[code]),
-                    "primary_failure_count": primary[code],
-                }
-            )
-        return result
+        return [
+            {
+                **entry,
+                "reached_candidate_count": len(reached[code]),
+                "failed_candidate_count": len(failed[code]),
+                "primary_failure_count": primary[code],
+            }
+            for code, entry in sorted(grouped.items())
+        ]
 
     @staticmethod
     def _gate_states(
@@ -450,13 +486,12 @@ class GovernedGateValueAudit:
         rows: list[dict[str, object]] = []
         for gate, state in sorted(states_by_gate.items()):
             stats = state.accumulator
-            pipeline = state.pipeline
+            economic_value = state.pipeline.economic_value
             average = (
                 stats.return_sum / Decimal(stats.resolved)
                 if stats.resolved
                 else Decimal("0")
             )
-            economic_value = pipeline.economic_value
             net = economic_value.net_gate_value
             conclusion = (
                 "INSUFFICIENT_RESOLVED_OUTCOMES"
@@ -528,8 +563,7 @@ def _write_csv(
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
         writer.writeheader()
-        for row in rows:
-            writer.writerow(row)
+        writer.writerows(rows)
 
 
 def _key(row: dict[str, str]) -> tuple[str, str, str]:
