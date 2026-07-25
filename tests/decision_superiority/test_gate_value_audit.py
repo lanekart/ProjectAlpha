@@ -8,11 +8,11 @@ import pytest
 from typer.testing import CliRunner
 
 from alpha.application.benchmark_cli import benchmark_app
+from alpha.benchmark_replay.governed_approval_gate_forensics import B5_READY
+from alpha.benchmark_replay.governed_setup_matched_evidence import B7_READY
 from alpha.decision_superiority import GovernedGateValueAudit
 from alpha.decision_superiority.input_contract import GovernedInputContractError
 from alpha.decision_superiority.signed_audit import GovernedSignedGateValueAudit
-from alpha.benchmark_replay.governed_approval_gate_forensics import B5_READY
-from alpha.benchmark_replay.governed_setup_matched_evidence import B7_READY
 
 
 def _write(
@@ -439,13 +439,11 @@ def test_signed_audit_preserves_certificate_sha256(tmp_path: Path) -> None:
         output=tmp_path / "out",
     )
 
-    assert (
-        result.report["upstream_certificates"]["b5"]["file_sha256"]
-        == _sha256_file(b5)
+    assert result.report["upstream_certificates"]["b5"]["file_sha256"] == _sha256_file(
+        b5
     )
-    assert (
-        result.report["upstream_certificates"]["b7"]["file_sha256"]
-        == _sha256_file(b7)
+    assert result.report["upstream_certificates"]["b7"]["file_sha256"] == _sha256_file(
+        b7
     )
 
 
@@ -578,3 +576,350 @@ def test_cli_emits_governance_flags(tmp_path: Path) -> None:
     assert "EXECUTION_INFLUENCE=false" in result.output
     assert "ACTIVE_REPLAY_INTEGRATION=false" in result.output
     assert "PRODUCTION_INFLUENCE=false" in result.output
+
+
+def test_cli_requires_b5_certificate_option(tmp_path: Path) -> None:
+    """CLI must fail when --b5-certificate is not provided."""
+    b5, b7, candidate, gates, outcomes = _make_signed_certificates(tmp_path)
+    result = CliRunner().invoke(
+        benchmark_app,
+        [
+            "decision-superiority-gate-value",
+            "--b7-certificate",
+            str(b7),
+            "--candidate-gate-forensics",
+            str(candidate),
+            "--gate-event-ledger",
+            str(gates),
+            "--outcome-coverage-ledger",
+            str(outcomes),
+            "--output",
+            str(tmp_path / "cli"),
+        ],
+    )
+    assert result.exit_code != 0
+    assert "Missing option" in result.output or "requires" in result.output.lower()
+
+
+def test_cli_requires_b7_certificate_option(tmp_path: Path) -> None:
+    """CLI must fail when --b7-certificate is not provided."""
+    b5, b7, candidate, gates, outcomes = _make_signed_certificates(tmp_path)
+    result = CliRunner().invoke(
+        benchmark_app,
+        [
+            "decision-superiority-gate-value",
+            "--b5-certificate",
+            str(b5),
+            "--candidate-gate-forensics",
+            str(candidate),
+            "--gate-event-ledger",
+            str(gates),
+            "--outcome-coverage-ledger",
+            str(outcomes),
+            "--output",
+            str(tmp_path / "cli"),
+        ],
+    )
+    assert result.exit_code != 0
+    assert "Missing option" in result.output or "requires" in result.output.lower()
+
+
+def test_cli_rejects_invalid_json_in_b5_certificate(tmp_path: Path) -> None:
+    """CLI must fail when B5 certificate contains invalid JSON."""
+    b5, b7, candidate, gates, outcomes = _make_signed_certificates(tmp_path)
+    b5.write_text("{ this is not valid json", encoding="utf-8")
+    result = CliRunner().invoke(
+        benchmark_app,
+        [
+            "decision-superiority-gate-value",
+            "--b5-certificate",
+            str(b5),
+            "--b7-certificate",
+            str(b7),
+            "--candidate-gate-forensics",
+            str(candidate),
+            "--gate-event-ledger",
+            str(gates),
+            "--outcome-coverage-ledger",
+            str(outcomes),
+            "--output",
+            str(tmp_path / "cli"),
+        ],
+    )
+    assert result.exit_code == 1
+    assert "SIGNED_EXECUTION_FAILED" in result.output
+    assert "CERTIFICATE_JSON_INVALID" in result.output
+
+
+def test_cli_rejects_invalid_json_in_b7_certificate(tmp_path: Path) -> None:
+    """CLI must fail when B7 certificate contains invalid JSON."""
+    b5, b7, candidate, gates, outcomes = _make_signed_certificates(tmp_path)
+    b7.write_text("{ this is not valid json", encoding="utf-8")
+    result = CliRunner().invoke(
+        benchmark_app,
+        [
+            "decision-superiority-gate-value",
+            "--b5-certificate",
+            str(b5),
+            "--b7-certificate",
+            str(b7),
+            "--candidate-gate-forensics",
+            str(candidate),
+            "--gate-event-ledger",
+            str(gates),
+            "--outcome-coverage-ledger",
+            str(outcomes),
+            "--output",
+            str(tmp_path / "cli"),
+        ],
+    )
+    assert result.exit_code == 1
+    assert "SIGNED_EXECUTION_FAILED" in result.output
+    assert "CERTIFICATE_JSON_INVALID" in result.output
+
+
+def test_cli_deterministic_execution_produces_same_report_hash(tmp_path: Path) -> None:
+    """CLI must produce deterministic output with same report hash for same inputs."""
+    # Use the same inputs for both runs
+    b5, b7, candidate, gates, outcomes = _make_signed_certificates(tmp_path)
+
+    # Run 1
+    result1 = CliRunner().invoke(
+        benchmark_app,
+        [
+            "decision-superiority-gate-value",
+            "--b5-certificate",
+            str(b5),
+            "--b7-certificate",
+            str(b7),
+            "--candidate-gate-forensics",
+            str(candidate),
+            "--gate-event-ledger",
+            str(gates),
+            "--outcome-coverage-ledger",
+            str(outcomes),
+            "--output",
+            str(tmp_path / "cli1"),
+        ],
+    )
+
+    # Run 2 with different output directory but same inputs
+    result2 = CliRunner().invoke(
+        benchmark_app,
+        [
+            "decision-superiority-gate-value",
+            "--b5-certificate",
+            str(b5),
+            "--b7-certificate",
+            str(b7),
+            "--candidate-gate-forensics",
+            str(candidate),
+            "--gate-event-ledger",
+            str(gates),
+            "--outcome-coverage-ledger",
+            str(outcomes),
+            "--output",
+            str(tmp_path / "cli2"),
+        ],
+    )
+
+    assert result1.exit_code == 0, result1.output
+    assert result2.exit_code == 0, result2.output
+
+    # Extract report SHA-256 from both runs
+    import re
+
+    match1 = re.search(r"Report SHA256: ([a-f0-9]{64})", result1.output)
+    match2 = re.search(r"Report SHA256: ([a-f0-9]{64})", result2.output)
+
+    assert match1, f"Could not find Report SHA256 in output:\n{result1.output}"
+    assert match2, f"Could not find Report SHA256 in output:\n{result2.output}"
+
+    sha256_1 = match1.group(1)
+    sha256_2 = match2.group(1)
+    assert sha256_1 == sha256_2, f"Report SHAs differ: {sha256_1} vs {sha256_2}"
+
+
+def test_cli_preserves_certificate_file_sha256(tmp_path: Path) -> None:
+    """CLI must preserve and report B5/B7 certificate file SHA-256."""
+    b5, b7, candidate, gates, outcomes = _make_signed_certificates(tmp_path)
+    result = CliRunner().invoke(
+        benchmark_app,
+        [
+            "decision-superiority-gate-value",
+            "--b5-certificate",
+            str(b5),
+            "--b7-certificate",
+            str(b7),
+            "--candidate-gate-forensics",
+            str(candidate),
+            "--gate-event-ledger",
+            str(gates),
+            "--outcome-coverage-ledger",
+            str(outcomes),
+            "--output",
+            str(tmp_path / "cli"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+
+    # Load the final certificate to verify preservation
+    import hashlib
+
+    certificate_path = tmp_path / "cli" / "dsi001_gate_value_audit_certificate.json"
+    certificate = json.loads(certificate_path.read_text(encoding="utf-8"))
+
+    # Verify upstream certificates are preserved with file SHA-256
+    assert "upstream_certificates" in certificate
+    assert "b5" in certificate["upstream_certificates"]
+    assert "b7" in certificate["upstream_certificates"]
+
+    b5_cert = certificate["upstream_certificates"]["b5"]
+    b7_cert = certificate["upstream_certificates"]["b7"]
+
+    assert "file_sha256" in b5_cert
+    assert "file_sha256" in b7_cert
+    assert b5_cert["file_sha256"] == hashlib.sha256(b5.read_bytes()).hexdigest()
+    assert b7_cert["file_sha256"] == hashlib.sha256(b7.read_bytes()).hexdigest()
+
+
+def test_cli_preserves_contract_versions(tmp_path: Path) -> None:
+    """CLI must preserve B5/B7 contract versions in certificate."""
+    b5, b7, candidate, gates, outcomes = _make_signed_certificates(tmp_path)
+    result = CliRunner().invoke(
+        benchmark_app,
+        [
+            "decision-superiority-gate-value",
+            "--b5-certificate",
+            str(b5),
+            "--b7-certificate",
+            str(b7),
+            "--candidate-gate-forensics",
+            str(candidate),
+            "--gate-event-ledger",
+            str(gates),
+            "--outcome-coverage-ledger",
+            str(outcomes),
+            "--output",
+            str(tmp_path / "cli"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+
+    certificate_path = tmp_path / "cli" / "dsi001_gate_value_audit_certificate.json"
+    certificate = json.loads(certificate_path.read_text(encoding="utf-8"))
+
+    # Verify contract versions are preserved
+    b5_cert = certificate["upstream_certificates"]["b5"]
+    b7_cert = certificate["upstream_certificates"]["b7"]
+
+    assert b5_cert["contract_version"] == "HTR-010B5-v1.0.0"
+    assert b7_cert["contract_version"] == "HTR-010B7-v1.0.0"
+
+
+def test_cli_preserves_readiness_decisions(tmp_path: Path) -> None:
+    """CLI must preserve B5/B7 readiness decisions in certificate."""
+    b5, b7, candidate, gates, outcomes = _make_signed_certificates(tmp_path)
+    result = CliRunner().invoke(
+        benchmark_app,
+        [
+            "decision-superiority-gate-value",
+            "--b5-certificate",
+            str(b5),
+            "--b7-certificate",
+            str(b7),
+            "--candidate-gate-forensics",
+            str(candidate),
+            "--gate-event-ledger",
+            str(gates),
+            "--outcome-coverage-ledger",
+            str(outcomes),
+            "--output",
+            str(tmp_path / "cli"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+
+    certificate_path = tmp_path / "cli" / "dsi001_gate_value_audit_certificate.json"
+    certificate = json.loads(certificate_path.read_text(encoding="utf-8"))
+
+    # Verify readiness decisions are preserved
+    b5_cert = certificate["upstream_certificates"]["b5"]
+    b7_cert = certificate["upstream_certificates"]["b7"]
+
+    assert b5_cert["readiness_decision"] == B5_READY
+    assert b7_cert["readiness_decision"] == B7_READY
+
+
+def test_cli_preserves_ledger_artifact_sha256(tmp_path: Path) -> None:
+    """CLI must preserve exact consumed ledger SHA-256 in source contract."""
+    b5, b7, candidate, gates, outcomes = _make_signed_certificates(tmp_path)
+
+    import hashlib
+
+    candidate_sha = hashlib.sha256(candidate.read_bytes()).hexdigest()
+    gates_sha = hashlib.sha256(gates.read_bytes()).hexdigest()
+    outcomes_sha = hashlib.sha256(outcomes.read_bytes()).hexdigest()
+
+    result = CliRunner().invoke(
+        benchmark_app,
+        [
+            "decision-superiority-gate-value",
+            "--b5-certificate",
+            str(b5),
+            "--b7-certificate",
+            str(b7),
+            "--candidate-gate-forensics",
+            str(candidate),
+            "--gate-event-ledger",
+            str(gates),
+            "--outcome-coverage-ledger",
+            str(outcomes),
+            "--output",
+            str(tmp_path / "cli"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+
+    source_contract_path = tmp_path / "cli" / "dsi001_source_contract_snapshot.csv"
+    with source_contract_path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+
+    # Verify B5 candidate and gate event ledger SHAs
+    b5_rows = [row for row in rows if row["source"] == "B5"]
+    candidate_row = next(
+        (
+            row
+            for row in b5_rows
+            if row["artifact_name"] == "htr010b5_candidate_gate_forensics.csv"
+        ),
+        None,
+    )
+    gates_row = next(
+        (
+            row
+            for row in b5_rows
+            if row["artifact_name"] == "htr010b5_gate_event_ledger.csv"
+        ),
+        None,
+    )
+
+    assert candidate_row is not None
+    assert gates_row is not None
+    assert candidate_row["artifact_sha256"] == candidate_sha
+    assert gates_row["artifact_sha256"] == gates_sha
+
+    # Verify B7 outcome coverage ledger SHA
+    b7_rows = [row for row in rows if row["source"] == "B7"]
+    outcomes_row = next(
+        (
+            row
+            for row in b7_rows
+            if row["artifact_name"] == "htr010b7_outcome_coverage_ledger.csv"
+        ),
+        None,
+    )
+
+    assert outcomes_row is not None
+    assert outcomes_row["artifact_sha256"] == outcomes_sha
