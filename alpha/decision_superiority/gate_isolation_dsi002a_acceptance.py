@@ -7,7 +7,10 @@ from datetime import date
 from pathlib import Path
 
 from alpha.application.intelligence import IntelligenceApplicationService
-from alpha.application.intelligence_inputs import DemoIntelligenceInputBuilder
+from alpha.application.intelligence_inputs import (
+    DemoIntelligenceInputBuilder,
+    IntelligenceInputSet,
+)
 from alpha.decision_superiority.gate_isolation_application_capture import (
     CapturingIntelligenceInputProvider,
     DSI002AAcceptanceResult,
@@ -22,6 +25,7 @@ from alpha.decision_superiority.gate_isolation_frozen_input_assembler import (
     FrozenInputAssembler,
 )
 from alpha.decision_superiority.gate_isolation_frozen_input_capture import (
+    FrozenInputCaptureResult,
     FrozenInputCaptureWriter,
 )
 from alpha.decision_superiority.gate_isolation_frozen_inputs import (
@@ -67,6 +71,35 @@ def default_acceptance_bundle() -> FrozenCapturePolicyBundle:
     )
 
 
+class _RecordingObserver:
+    def __init__(self, delegate: GovernedFrozenInputApplicationObserver) -> None:
+        self._delegate = delegate
+        self.result: FrozenInputCaptureResult | None = None
+
+    def capture(
+        self,
+        *,
+        inputs: IntelligenceInputSet,
+        observed_on: date,
+    ) -> FrozenInputCaptureResult:
+        self.result = self._delegate.capture(
+            inputs=inputs,
+            observed_on=observed_on,
+        )
+        return self.result
+
+
+class _FailingObserver:
+    def capture(
+        self,
+        *,
+        inputs: IntelligenceInputSet,
+        observed_on: date,
+    ) -> FrozenInputCaptureResult:
+        del inputs, observed_on
+        raise RuntimeError("capture failed")
+
+
 def run_dsi002a_acceptance(output: Path) -> DSI002AAcceptanceResult:
     """Execute capture, parity, duplicate, and fail-closed checks."""
 
@@ -78,18 +111,23 @@ def run_dsi002a_acceptance(output: Path) -> DSI002AAcceptanceResult:
         input_provider=DemoIntelligenceInputBuilder()
     ).run(observed_on=observed_on)
     capture_root = output / "capture"
-    observer = GovernedFrozenInputApplicationObserver(
-        request_provider=provider,
-        capture_root=capture_root,
+    recorder = _RecordingObserver(
+        GovernedFrozenInputApplicationObserver(
+            request_provider=provider,
+            capture_root=capture_root,
+        )
     )
     captured = IntelligenceApplicationService(
         input_provider=CapturingIntelligenceInputProvider(
             delegate=DemoIntelligenceInputBuilder(),
-            observer=observer,
+            observer=recorder,
             enabled=True,
         )
     ).run(observed_on=observed_on)
     parity_verified = captured.as_dict() == baseline.as_dict()
+    capture_result = recorder.result
+    if capture_result is None:
+        raise RuntimeError("acceptance capture did not produce a result")
 
     inputs = DemoIntelligenceInputBuilder().build(observed_on=observed_on)
     request = provider.build(inputs=inputs, observed_on=observed_on)
@@ -140,14 +178,6 @@ def run_dsi002a_acceptance(output: Path) -> DSI002AAcceptanceResult:
     except RuntimeError:
         capture_failure_isolation_verified = True
 
-    snapshot_files = tuple((capture_root / "snapshots").glob("*.json"))
-    capture_result = observer.capture(
-        inputs=inputs,
-        observed_on=date(2026, 7, 27),
-    ) if not snapshot_files else _capture_from_existing(
-        capture_root,
-        assembly.snapshot,
-    )
     result = DSI002AAcceptanceResult(
         capture=capture_result,
         parity_verified=parity_verified,
@@ -160,29 +190,6 @@ def run_dsi002a_acceptance(output: Path) -> DSI002AAcceptanceResult:
     )
     export_dsi002a_acceptance(result, output)
     return result
-
-
-class _FailingObserver:
-    def capture(self, **_: object) -> object:
-        raise RuntimeError("capture failed")
-
-
-def _capture_from_existing(
-    capture_root: Path,
-    snapshot: FrozenCandidateInputSnapshot,
-):
-    from alpha.decision_superiority.gate_isolation_frozen_input_capture import (
-        FrozenInputCaptureResult,
-    )
-
-    snapshot_path = next((capture_root / "snapshots").glob("*.json"))
-    return FrozenInputCaptureResult(
-        candidate=snapshot.candidate,
-        snapshot_sha256=snapshot.snapshot_sha256,
-        snapshot_path=snapshot_path,
-        index_path=capture_root / "dsi002_frozen_input_capture_index.csv",
-        replay_ready=True,
-    )
 
 
 __all__ = [
