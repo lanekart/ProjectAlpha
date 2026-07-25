@@ -110,8 +110,7 @@ def test_co_blocked_single_gate_arm_has_no_downstream_effect() -> None:
     assert transition.first_changed_stage is DownstreamStage.NONE
     assert transition.counterfactual == transition.baseline
     assert (
-        transition.semantic_status
-        is CounterfactualSemanticStatus.NO_DOWNSTREAM_EFFECT
+        transition.semantic_status is CounterfactualSemanticStatus.NO_DOWNSTREAM_EFFECT
     )
 
 
@@ -168,7 +167,6 @@ def test_baseline_arm_is_identity_replay() -> None:
 
 
 def test_arm_identity_and_blocker_lineage_must_match() -> None:
-    candidate = _candidate()
     other = _candidate()
     mismatched_arm = GateIsolationArm(
         arm_id="wrong",

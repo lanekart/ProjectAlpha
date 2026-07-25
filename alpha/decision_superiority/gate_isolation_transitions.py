@@ -124,16 +124,11 @@ class GateIsolationTransitionEngine:
             baseline=baseline,
             counterfactual=counterfactual,
             first_changed_stage=first_changed,
-            newly_approved=(
-                not baseline.approved and counterfactual.approved
-            ),
+            newly_approved=(not baseline.approved and counterfactual.approved),
             newly_portfolio_eligible=(
-                not baseline.portfolio_eligible
-                and counterfactual.portfolio_eligible
+                not baseline.portfolio_eligible and counterfactual.portfolio_eligible
             ),
-            newly_entry_ready=(
-                not baseline.entry_ready and counterfactual.entry_ready
-            ),
+            newly_entry_ready=(not baseline.entry_ready and counterfactual.entry_ready),
             newly_trade_formed=(
                 not baseline.trade_formed and counterfactual.trade_formed
             ),
