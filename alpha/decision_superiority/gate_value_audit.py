@@ -11,6 +11,16 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
+from alpha.decision_superiority.gate_attribution import (
+    ATTRIBUTION_SUMMARY_FIELDS,
+    BASELINE_FIELDS,
+    FIRST_FAILURE_FIELDS,
+    ORDERED_MARGINAL_FIELDS,
+    REMOVE_ONE_FIELDS,
+    RETAIN_ONLY_FIELDS,
+    build_attribution_artifacts,
+)
+
 DSI001_CONTRACT_VERSION = "DSI-001-v1.0.0"
 DSI001_READY = "READY_FOR_GOVERNED_DECISION_SUPERIORITY_RESEARCH"
 DSI001_BLOCKED_EMPTY = "BLOCKED_BY_EMPTY_GATE_AUDIT_POPULATION"
@@ -196,6 +206,11 @@ class GovernedGateValueAudit:
                     }
                 )
 
+        attribution = build_attribution_artifacts(
+            candidates=candidates,
+            gate_events=gate_events,
+            outcomes_by_key=outcome_by_key,
+        )
         value_rows = self._value_rows(gate_stats)
         cooccurrence_rows = self._cooccurrence_rows(failures_by_key)
         resolved_count = sum(
@@ -237,6 +252,34 @@ class GovernedGateValueAudit:
                 cooccurrence_rows,
                 ("left_gate", "right_gate", "candidate_count", "jaccard"),
             ),
+            "dsi001_baseline_policy.csv": (
+                list(attribution.baseline_rows),
+                BASELINE_FIELDS,
+            ),
+            "dsi001_remove_one_gate.csv": (
+                list(attribution.remove_one_rows),
+                REMOVE_ONE_FIELDS,
+            ),
+            "dsi001_retain_only_gate.csv": (
+                list(attribution.retain_only_rows),
+                RETAIN_ONLY_FIELDS,
+            ),
+            "dsi001_first_failure_attribution.csv": (
+                list(attribution.first_failure_rows),
+                FIRST_FAILURE_FIELDS,
+            ),
+            "dsi001_ordered_marginal_attribution.csv": (
+                list(attribution.ordered_marginal_rows),
+                ORDERED_MARGINAL_FIELDS,
+            ),
+            "dsi001_gate_attribution_summary.csv": (
+                list(attribution.summary_rows),
+                ATTRIBUTION_SUMMARY_FIELDS,
+            ),
+            "dsi001_gate_order_lineage.csv": (
+                list(attribution.gate_order_rows),
+                ("gate_code", "governed_order", "minimum_observed_ordinal"),
+            ),
         }
         paths: list[Path] = []
         for name, (rows, fields) in support.items():
@@ -255,6 +298,8 @@ class GovernedGateValueAudit:
             "profitable_rejection_count": profitable_rejections,
             "avoided_loss_count": avoided_losses,
             "gate_value_summary": value_rows,
+            "attribution_summary": list(attribution.summary_rows),
+            "ordered_gate_lineage": list(attribution.gate_order_rows),
             "artifact_hashes": artifact_hashes,
             "benchmark_relative_evidence": "UNKNOWN",
             "causal_claim_permitted": False,

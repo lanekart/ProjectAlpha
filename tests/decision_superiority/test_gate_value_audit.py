@@ -314,7 +314,23 @@ def test_artifacts_are_hash_bound(tmp_path: Path) -> None:
         (tmp_path / "out" / "dsi001_gate_value_audit_certificate.json").read_text()
     )
     assert certificate["artifact_hashes"]
-    assert len(result.paths) == 7
+    expected_artifacts = {
+        "dsi001_gate_inventory.csv",
+        "dsi001_candidate_gate_failure_ledger.csv",
+        "dsi001_single_gate_counterfactual_ledger.csv",
+        "dsi001_gate_value_summary.csv",
+        "dsi001_gate_cooccurrence_matrix.csv",
+        "dsi001_baseline_policy.csv",
+        "dsi001_remove_one_gate.csv",
+        "dsi001_retain_only_gate.csv",
+        "dsi001_first_failure_attribution.csv",
+        "dsi001_ordered_marginal_attribution.csv",
+        "dsi001_gate_attribution_summary.csv",
+        "dsi001_gate_order_lineage.csv",
+        "dsi001_gate_value_audit_certificate.json",
+        "dsi001_executive_report.md",
+    }
+    assert {path.name for path in result.paths} == expected_artifacts
 
 
 def test_signed_audit_binds_b5_b7_and_source_snapshot(tmp_path: Path) -> None:
