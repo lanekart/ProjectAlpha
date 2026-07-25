@@ -38,7 +38,11 @@ class GateIsolationArmBatch:
 class GateIsolationArmBuilder:
     """Build baseline, single-gate, and bounded remediation-set arms."""
 
-    def __init__(self, *, max_remediation_set_size: int = DEFAULT_MAX_REMEDIATION_SET_SIZE):
+    def __init__(
+        self,
+        *,
+        max_remediation_set_size: int = DEFAULT_MAX_REMEDIATION_SET_SIZE,
+    ) -> None:
         if max_remediation_set_size < 1:
             raise ValueError("max_remediation_set_size must be positive")
         self._max_remediation_set_size = max_remediation_set_size
@@ -61,7 +65,7 @@ class GateIsolationArmBuilder:
         )
         single_gate_arms = tuple(
             GateIsolationArm(
-                arm_id=f"{prefix}|PASS:{gate_code}",
+                arm_id=f"{prefix}|SINGLE_GATE_PASS:{gate_code}",
                 arm_type=CounterfactualArmType.SINGLE_GATE_PASS,
                 candidate=candidate,
                 passed_gate_codes=(gate_code,),
@@ -82,7 +86,7 @@ class GateIsolationArmBuilder:
         else:
             minimal_arms = (
                 GateIsolationArm(
-                    arm_id=f"{prefix}|PASS:{'+'.join(failures)}",
+                    arm_id=f"{prefix}|MINIMAL_REMEDIATION_SET:{'+'.join(failures)}",
                     arm_type=CounterfactualArmType.MINIMAL_REMEDIATION_SET,
                     candidate=candidate,
                     passed_gate_codes=failures,
