@@ -45,9 +45,7 @@ def _write_certificate(
     payload: dict[str, object] = {
         "contract_version": contract_version,
         "readiness_decision": readiness,
-        "artifact_hashes": {
-            artifact.name: _sha256(artifact) for artifact in artifacts
-        },
+        "artifact_hashes": {artifact.name: _sha256(artifact) for artifact in artifacts},
     }
     payload["report_sha256"] = _report_digest(payload)
     path.write_text(
