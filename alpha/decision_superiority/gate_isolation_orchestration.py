@@ -15,6 +15,10 @@ from alpha.decision_superiority.gate_isolation_baseline import (
     FrozenBaselineReconstructor,
     FrozenBaselineSourcePaths,
 )
+from alpha.decision_superiority.gate_isolation_evaluators import (
+    GateIsolationStageEvaluator,
+    UnavailableStageEvaluator,
+)
 from alpha.decision_superiority.gate_isolation_models import (
     CounterfactualArmType,
     FrozenCandidateKey,
@@ -72,6 +76,13 @@ class GateIsolationDryRunResult:
 class GateIsolationDryRunOrchestrator:
     """Execute the current DSI-002 stack without economic interpretation."""
 
+    def __init__(
+        self,
+        *,
+        stage_evaluator: GateIsolationStageEvaluator | None = None,
+    ) -> None:
+        self._stage_evaluator = stage_evaluator or UnavailableStageEvaluator()
+
     def run(
         self,
         *,
@@ -106,10 +117,24 @@ class GateIsolationDryRunOrchestrator:
                 *batch.single_gate_arms,
                 *batch.minimal_remediation_arms,
             )
-            transitions.extend(
-                engine.replay(candidate=candidate, arm=arm, baseline=state)
-                for arm in arms
-            )
+            for arm in arms:
+                evaluation = None
+                if (
+                    arm.arm_type is not CounterfactualArmType.BASELINE
+                    and arm.clears_all_observed_failures
+                ):
+                    evaluation = self._stage_evaluator.evaluate(
+                        candidate=candidate,
+                        arm=arm,
+                    )
+                transitions.append(
+                    engine.replay(
+                        candidate=candidate,
+                        arm=arm,
+                        baseline=state,
+                        stage_evaluation=evaluation,
+                    )
+                )
 
         ordered = tuple(sorted(transitions, key=lambda item: item.arm.arm_id))
         summary = _summarize(population, ordered)
