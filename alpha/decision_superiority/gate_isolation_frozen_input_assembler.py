@@ -1,9 +1,15 @@
-"""Partial frozen-input assembly for DSI-002A pre-decision capture."""
+"""Complete frozen-input assembly for DSI-002A candidate capture."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from alpha.decision_superiority.gate_isolation_execution_outcome_producers import (
+    ExecutionStateCaptureInput,
+    ExecutionStateSnapshotProducer,
+    OutcomePolicyCaptureInput,
+    OutcomePolicySnapshotProducer,
+)
 from alpha.decision_superiority.gate_isolation_frozen_input_producers import (
     CandidateFeatureCaptureInput,
     CandidateFeatureSnapshotProducer,
@@ -31,13 +37,15 @@ from alpha.decision_superiority.gate_isolation_source_lineage_producer import (
 
 @dataclass(frozen=True, slots=True)
 class FrozenInputAssemblyRequest:
-    """Inputs available at the pre-recommendation capture seam."""
+    """All seven point-in-time inputs for a newly created candidate."""
 
     candidate: FrozenCandidateKey
     candidate_features: CandidateFeatureCaptureInput
     approval_policy: ApprovalPolicyCaptureInput
     portfolio_state: PortfolioStateCaptureInput
     entry_policy: EntryPolicyCaptureInput
+    execution_state: ExecutionStateCaptureInput
+    outcome_policy: OutcomePolicyCaptureInput
     source_lineage: SourceLineageCaptureInput
 
     def __post_init__(self) -> None:
@@ -47,6 +55,8 @@ class FrozenInputAssemblyRequest:
             ("approval policy", self.approval_policy.observed_on),
             ("portfolio state", self.portfolio_state.observed_on),
             ("entry policy", self.entry_policy.observed_on),
+            ("execution state", self.execution_state.observed_on),
+            ("outcome policy", self.outcome_policy.observed_on),
             ("source lineage", self.source_lineage.observed_on),
         )
         for name, section_date in dated_inputs:
@@ -56,7 +66,7 @@ class FrozenInputAssemblyRequest:
 
 @dataclass(frozen=True, slots=True)
 class FrozenInputAssemblyResult:
-    """Partial snapshot plus explicit unavailable section diagnostics."""
+    """Complete snapshot and persistence readiness diagnostics."""
 
     snapshot: FrozenCandidateInputSnapshot
     present_sections: tuple[FrozenInputSection, ...]
@@ -69,8 +79,8 @@ class FrozenInputAssemblyResult:
     def __post_init__(self) -> None:
         if self.production_influence:
             raise ValueError("frozen-input assembly must remain diagnostic-only")
-        if self.persistence_permitted and not self.replay_ready:
-            raise ValueError("incomplete snapshot cannot be persisted")
+        if self.persistence_permitted != self.replay_ready:
+            raise ValueError("persistence permission must equal replay readiness")
         if tuple(sorted(self.present_sections)) != self.present_sections:
             raise ValueError("present_sections must be sorted")
         if tuple(sorted(self.missing_sections)) != self.missing_sections:
@@ -78,13 +88,13 @@ class FrozenInputAssemblyResult:
 
 
 class FrozenInputAssembler:
-    """Assemble available sections without fabricating unavailable inputs."""
+    """Assemble all governed sections without fabricating candidate outcomes."""
 
     def assemble(
         self,
         request: FrozenInputAssemblyRequest,
     ) -> FrozenInputAssemblyResult:
-        """Build a partial snapshot and fail closed on persistence readiness."""
+        """Build and validate one complete frozen-input snapshot."""
 
         sections = (
             ApprovalPolicySnapshotProducer().produce(
@@ -94,6 +104,12 @@ class FrozenInputAssembler:
                 request.candidate_features
             ),
             EntryPolicySnapshotProducer().produce(request.entry_policy),
+            ExecutionStateSnapshotProducer().produce(
+                request.execution_state
+            ),
+            OutcomePolicySnapshotProducer().produce(
+                request.outcome_policy
+            ),
             PortfolioStateSnapshotProducer().produce(
                 request.portfolio_state
             ),
