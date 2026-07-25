@@ -4,9 +4,12 @@ import csv
 import json
 from pathlib import Path
 
+import typer
 from typer.testing import CliRunner
 
-from alpha.application.benchmark_cli import benchmark_app
+from alpha.application.decision_superiority_gate_value_cli import (
+    register_decision_superiority_gate_value_command,
+)
 from alpha.decision_superiority import GovernedGateValueAudit
 
 
@@ -89,15 +92,19 @@ def test_artifacts_are_hash_bound(tmp_path: Path) -> None:
         outcome_coverage_ledger=outcomes,
         output=tmp_path / "out",
     )
-    certificate = json.loads((tmp_path / "out" / "dsi001_gate_value_audit_certificate.json").read_text())
+    certificate = json.loads(
+        (tmp_path / "out" / "dsi001_gate_value_audit_certificate.json").read_text()
+    )
     assert certificate["artifact_hashes"]
     assert len(result.paths) == 7
 
 
-def test_cli_is_registered_and_emits_governance(tmp_path: Path) -> None:
+def test_cli_emits_governance(tmp_path: Path) -> None:
     candidates, gates, outcomes = _fixtures(tmp_path)
+    app = typer.Typer()
+    register_decision_superiority_gate_value_command(app)
     result = CliRunner().invoke(
-        benchmark_app,
+        app,
         [
             "decision-superiority-gate-value",
             "--candidate-gate-forensics",
