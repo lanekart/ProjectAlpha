@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/htr-010b10-governed-adaptive-institutional-trade-shadow
+  pull_request:
 
 jobs:
   mypy:
