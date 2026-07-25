@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from alpha.decision_superiority.gate_isolation_execution_outcome_producers import (
+    ExecutionStateCaptureInput,
+    OutcomePolicyCaptureInput,
+)
 from alpha.decision_superiority.gate_isolation_frozen_input_assembler import (
     FrozenInputAssembler,
     FrozenInputAssemblyRequest,
@@ -58,38 +62,51 @@ def _request() -> FrozenInputAssemblyRequest:
             trigger_source_hashes={"price_history": "def"},
             observed_on="2026-07-26",
         ),
+        execution_state=ExecutionStateCaptureInput(
+            cash_state={"available_cash": "1000"},
+            sizing_state={"max_position_weight": "0.05"},
+            liquidity_constraints={"minimum_adv": "1000000"},
+            participation_constraints={"maximum_participation": "0.10"},
+            queue_state={"pending_orders": 0},
+            risk_budget_state={"portfolio_heat": "0.25"},
+            state_version="execution-v1",
+            observed_on="2026-07-26",
+        ),
+        outcome_policy=OutcomePolicyCaptureInput(
+            exit_policy={"mode": "RULE_BASED"},
+            stop_policy={"atr_multiple": "2"},
+            target_policy={"reward_multiple": "3"},
+            trailing_policy={"enabled": True},
+            time_exit_policy={"maximum_sessions": 20},
+            ambiguity_policy={"same_bar": "STOP_FIRST"},
+            policy_version="outcome-v1",
+            dependency_versions={"price_semantics": "v1"},
+            observed_on="2026-07-26",
+        ),
         source_lineage=SourceLineageCaptureInput(
             artifact_hashes={"analysis": "abc"},
             provider_versions={"nse": "v1"},
             source_paths={"analysis": "artifacts/analysis.csv"},
-            dataset_versions={"historical_truth": "2026-07-26"},
+            dataset_versions={"daily_history": "2026-07-26"},
             observed_on="2026-07-26",
         ),
     )
 
 
-def test_assembler_preserves_five_available_sections() -> None:
+def test_assembler_preserves_all_seven_sections() -> None:
     result = FrozenInputAssembler().assemble(_request())
 
-    assert result.present_sections == (
-        FrozenInputSection.APPROVAL_POLICY,
-        FrozenInputSection.CANDIDATE_FEATURES,
-        FrozenInputSection.ENTRY_POLICY,
-        FrozenInputSection.PORTFOLIO_STATE,
-        FrozenInputSection.SOURCE_LINEAGE,
-    )
-    assert result.missing_sections == (
-        FrozenInputSection.EXECUTION_STATE,
-        FrozenInputSection.OUTCOME_POLICY,
-    )
+    assert result.present_sections == tuple(sorted(FrozenInputSection))
+    assert result.missing_sections == ()
+    assert len(result.present_sections) == 7
 
 
-def test_incomplete_snapshot_is_not_persistable() -> None:
+def test_complete_snapshot_is_persistable() -> None:
     result = FrozenInputAssembler().assemble(_request())
 
-    assert result.readiness is FrozenInputReadiness.INCOMPLETE
-    assert result.replay_ready is False
-    assert result.persistence_permitted is False
+    assert result.readiness is FrozenInputReadiness.READY
+    assert result.replay_ready is True
+    assert result.persistence_permitted is True
     assert result.production_influence is False
 
 
@@ -111,11 +128,13 @@ def test_observation_date_mismatch_fails_closed() -> None:
             approval_policy=request.approval_policy,
             portfolio_state=request.portfolio_state,
             entry_policy=request.entry_policy,
+            execution_state=request.execution_state,
+            outcome_policy=request.outcome_policy,
             source_lineage=SourceLineageCaptureInput(
                 artifact_hashes={"analysis": "abc"},
                 provider_versions={"nse": "v1"},
                 source_paths={"analysis": "artifacts/analysis.csv"},
-                dataset_versions={"historical_truth": "2026-07-26"},
+                dataset_versions={"daily_history": "2026-07-26"},
                 observed_on="2026-07-25",
             ),
         )
