@@ -40,9 +40,6 @@ jobs:
           ):
               Path(temporary).unlink(missing_ok=True)
           PY
-          pip install ruff==0.15.20
-          ruff check --fix alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py
-          ruff format alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py
       - name: Commit final strict typing correction
         run: |
           git config user.name 'github-actions[bot]'
