@@ -1,0 +1,238 @@
+name: Authoritative HTR-010B9 validation v2
+
+on:
+  push:
+    branches:
+      - feature/htr-010b9-governed-adaptive-publication-bridge
+    paths:
+      - .github/workflows/htr010b9-authoritative-v2.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out and synchronize feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/htr-010b9-governed-adaptive-publication-bridge
+          fetch-depth: 0
+
+      - name: Pull latest connector-authored head
+        run: git pull --ff-only origin feature/htr-010b9-governed-adaptive-publication-bridge
+
+      - name: Apply integration seam when absent
+        run: |
+          if grep -q 'adaptive_metadata_publication_enabled' alpha/application/intelligence.py; then
+            echo 'B9 integration seam already present.'
+          else
+            test -f .tmp/htr010b9_patch.py
+            python .tmp/htr010b9_patch.py
+          fi
+
+      - name: Apply idempotent contract hardening
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding='utf-8')
+              if old in text:
+                  target.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          publication = 'alpha/learning_intelligence/publication.py'
+          replace(
+              publication,
+              'from alpha.learning_intelligence.engine import AdaptiveLearningEngine\n',
+              'from alpha.learning_intelligence.engine import AdaptiveLearningEngine\n'
+              'from alpha.learning_intelligence.models import AdaptiveLearningAssessment\n',
+          )
+          replace(
+              publication,
+              '    def _metadata(assessment: object) -> dict[str, str]:\n',
+              '    def _metadata(\n'
+              '        assessment: AdaptiveLearningAssessment,\n'
+              '    ) -> dict[str, str]:\n',
+          )
+          replace(
+              publication,
+              '        statistics = getattr(assessment, "statistics")\n'
+              '        bayesian = getattr(assessment, "bayesian")\n'
+              '        confidence = getattr(assessment, "confidence")\n'
+              '        expectancy = getattr(statistics, "expectancy")\n',
+              '        statistics = assessment.statistics\n'
+              '        bayesian = assessment.bayesian\n'
+              '        confidence = assessment.confidence\n'
+              '        expectancy = statistics.expectancy\n',
+          )
+          replace(publication, 'getattr(confidence, "adjusted_confidence")', 'confidence.adjusted_confidence')
+          replace(publication, 'getattr(getattr(statistics, "evidence_strength"), "value")', 'statistics.evidence_strength.value')
+          replace(publication, 'getattr(bayesian, "posterior_win_probability")', 'bayesian.posterior_win_probability')
+          replace(publication, 'getattr(statistics, "completed_trade_count")', 'statistics.completed_trade_count')
+
+          engine = 'alpha/benchmark_replay/governed_adaptive_publication_bridge.py'
+          replace(
+              engine,
+              'from alpha.application.intelligence import IntelligenceApplicationService\n',
+              'from alpha.application.intelligence import (\n'
+              '    IntelligenceApplicationService,\n'
+              '    IntelligenceRun,\n'
+              ')\n',
+          )
+          replace(
+              engine,
+              'from alpha.performance_intelligence.recorder import recommendation_to_ledger_entry\n',
+              'from alpha.performance_intelligence.recorder import recommendation_to_ledger_entry\n'
+              'from alpha.recommendation_intelligence.models import RecommendationReport\n',
+          )
+          replace(
+              engine,
+              '    "alpha/application/intelligence.py",\n'
+              '    "alpha/performance_intelligence/recorder.py",\n',
+              '    "alpha/application/intelligence.py",\n'
+              '    "alpha/canonical_universe_audit/canonical_runner.py",\n'
+              '    "alpha/performance_intelligence/recorder.py",\n',
+          )
+          replace(
+              engine,
+              '    def publish(self, **_: object) -> AdaptiveMetadataPublicationBatch:\n'
+              '        self.calls += 1\n',
+              '    def publish(\n'
+              '        self,\n'
+              '        *,\n'
+              '        recommendations: tuple[RecommendationReport, ...],\n'
+              '        observed_on: date,\n'
+              '        market_regime: str | None,\n'
+              '    ) -> AdaptiveMetadataPublicationBatch:\n'
+              '        del recommendations, observed_on, market_regime\n'
+              '        self.calls += 1\n',
+          )
+          replace(
+              engine,
+              '    tuple[dict[str, object], ...], object, tuple[str, ...]\n',
+              '    tuple[dict[str, object], ...], IntelligenceRun, tuple[str, ...]\n',
+          )
+          replace(engine, 'def _recorder_parity(\n    baseline_run: object,\n', 'def _recorder_parity(\n    baseline_run: IntelligenceRun,\n')
+          replace(
+              engine,
+              '    recommendations = tuple(getattr(baseline_run, "recommendations"))\n'
+              '    market_regime = str(getattr(getattr(baseline_run, "market_report"), "bias").value)\n',
+              '    recommendations = baseline_run.recommendations\n'
+              '    market_regime = baseline_run.market_report.bias.value\n',
+          )
+          replace(engine, 'def _publisher_round_trip(\n    baseline_run: object,\n', 'def _publisher_round_trip(\n    baseline_run: IntelligenceRun,\n')
+          replace(
+              engine,
+              '    recommendation = tuple(getattr(baseline_run, "recommendations"))[0]\n'
+              '    market_regime = str(getattr(getattr(baseline_run, "market_report"), "bias").value)\n',
+              '    recommendation = baseline_run.recommendations[0]\n'
+              '    market_regime = baseline_run.market_report.bias.value\n',
+          )
+          PY
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install locked environment
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install poetry
+          poetry install --no-interaction
+
+      - name: Normalize and lint
+        run: |
+          poetry run ruff check . --fix
+          poetry run ruff format .
+          poetry run ruff check .
+          poetry run ruff format --check .
+
+      - name: Strict MyPy
+        run: poetry run mypy alpha
+
+      - name: Focused B9 and compatibility tests
+        run: |
+          poetry run pytest -q \
+            tests/learning_intelligence/test_adaptive_metadata_publication.py \
+            tests/benchmark_replay/test_governed_adaptive_publication_bridge.py \
+            tests/performance_intelligence/test_performance_intelligence.py \
+            tests/application/test_intelligence.py \
+            tests/application/test_intelligence_inputs.py \
+            tests/canonical_universe_audit \
+            tests/decision_intelligence \
+            tests/recommendation_intelligence
+
+      - name: Public CLI registration
+        run: |
+          poetry run python -m alpha benchmark --help | \
+            grep governed-adaptive-publication-bridge
+
+      - name: Remove temporary integration material
+        run: |
+          rm -f .tmp/htr010b9_patch.py
+          rm -f .github/workflows/htr010b9-integrate.yml
+          rm -f .github/workflows/htr010b9-finalize.yml
+          rm -f .github/workflows/htr010b9-validate.yml
+          rm -f .github/workflows/htr010b9-repair.yml
+          rm -f .github/workflows/htr010b9-authoritative.yml
+          rm -f .github/workflows/htr010b9-authoritative-v2.yml
+          rmdir .tmp 2>/dev/null || true
+          git add -A
+
+      - name: Enforce final effective file set
+        run: |
+          python - <<'PY'
+          import subprocess
+
+          expected = {
+              'alpha/application/benchmark_cli.py',
+              'alpha/application/governed_adaptive_publication_bridge_cli.py',
+              'alpha/application/intelligence.py',
+              'alpha/benchmark_replay/__init__.py',
+              'alpha/benchmark_replay/governed_adaptive_publication_bridge.py',
+              'alpha/canonical_universe_audit/canonical_runner.py',
+              'alpha/learning_intelligence/__init__.py',
+              'alpha/learning_intelligence/publication.py',
+              'alpha/performance_intelligence/recorder.py',
+              'docs/HTR-010B9_GOVERNED_ADAPTIVE_PUBLICATION_BRIDGE.md',
+              'tests/benchmark_replay/test_governed_adaptive_publication_bridge.py',
+              'tests/learning_intelligence/test_adaptive_metadata_publication.py',
+          }
+          observed = set(
+              subprocess.check_output(
+                  [
+                      'git', 'diff', '--cached', '--name-only',
+                      'origin/feature/recovery-foundation-v1',
+                  ],
+                  text=True,
+              ).splitlines()
+          )
+          unexpected = sorted(observed - expected)
+          missing = sorted(expected - observed)
+          if unexpected or missing:
+              raise SystemExit(
+                  f'unexpected={unexpected}; missing={missing}; observed={sorted(observed)}'
+              )
+          print('HTR-010B9 final effective file set verified')
+          PY
+
+      - name: Commit validated source-only head
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m 'chore(htr-010b9): publish validated source-only milestone tree'
+          git push origin HEAD:feature/htr-010b9-governed-adaptive-publication-bridge
+
+      - name: Record authoritative validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          HEAD_SHA=$(git rev-parse HEAD)
+          gh pr comment 57 --body "Authoritative HTR-010B9 validation v2 passed. Ruff, Ruff format, strict MyPy, publication/certificate/recorder/application/input/canonical/decision/recommendation compatibility tests, CLI registration, and the corrected final effective source-only file-set check passed at head \`${HEAD_SHA}\`. Normal repository Lint and CI are the remaining final gates."
