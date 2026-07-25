@@ -20,6 +20,14 @@ from alpha.decision_superiority.gate_isolation_frozen_input_capture import (
 )
 
 
+class IntelligenceInputProvider(Protocol):
+    """Build immutable engine-ready application inputs."""
+
+    def build(self, *, observed_on: date) -> IntelligenceInputSet:
+        """Return one deterministic application input set."""
+        ...
+
+
 class FrozenInputAssemblyRequestProvider(Protocol):
     """Build all governed capture inputs from the immutable application seam."""
 
@@ -44,6 +52,34 @@ class FrozenInputApplicationObserver(Protocol):
     ) -> FrozenInputCaptureResult:
         """Persist one complete point-in-time frozen-input snapshot."""
         ...
+
+
+class CapturingIntelligenceInputProvider:
+    """Disabled-by-default capture hook at the immutable input boundary."""
+
+    def __init__(
+        self,
+        *,
+        delegate: IntelligenceInputProvider,
+        observer: FrozenInputApplicationObserver | None = None,
+        enabled: bool = False,
+    ) -> None:
+        if enabled and observer is None:
+            raise ValueError("enabled frozen-input capture requires an observer")
+        self._delegate = delegate
+        self._observer = observer
+        self._enabled = enabled
+
+    def build(self, *, observed_on: date) -> IntelligenceInputSet:
+        """Return unchanged inputs after optional strict diagnostic capture."""
+
+        inputs = self._delegate.build(observed_on=observed_on)
+        if self._enabled:
+            observer = self._observer
+            if observer is None:
+                raise ValueError("enabled frozen-input capture requires an observer")
+            observer.capture(inputs=inputs, observed_on=observed_on)
+        return inputs
 
 
 class GovernedFrozenInputApplicationObserver:
@@ -159,9 +195,11 @@ def export_dsi002a_acceptance(
 
 
 __all__ = [
+    "CapturingIntelligenceInputProvider",
     "DSI002AAcceptanceResult",
     "FrozenInputApplicationObserver",
     "FrozenInputAssemblyRequestProvider",
     "GovernedFrozenInputApplicationObserver",
+    "IntelligenceInputProvider",
     "export_dsi002a_acceptance",
 ]
