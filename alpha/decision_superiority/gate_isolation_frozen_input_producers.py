@@ -8,7 +8,6 @@ from dataclasses import asdict, dataclass, is_dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any
 
 from alpha.decision_superiority.gate_isolation_frozen_inputs import (
     FrozenInputSection,
@@ -36,7 +35,10 @@ class CandidateFeatureCaptureInput:
             raise ValueError("observed_on cannot be empty")
         if not self.source_hashes:
             raise ValueError("source_hashes cannot be empty")
-        if any(not key.strip() or not value.strip() for key, value in self.source_hashes.items()):
+        if any(
+            not key.strip() or not value.strip()
+            for key, value in self.source_hashes.items()
+        ):
             raise ValueError("source_hashes keys and values cannot be empty")
 
 
@@ -117,14 +119,18 @@ def _normalise(value: object) -> object:
     if isinstance(value, Mapping):
         return {
             str(key): _normalise(item)
-            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+            for key, item in sorted(
+                value.items(),
+                key=lambda pair: str(pair[0]),
+            )
         }
     if isinstance(value, (list, tuple)):
         return [_normalise(item) for item in value]
     if isinstance(value, (set, frozenset)):
         normalised = [_normalise(item) for item in value]
         return sorted(normalised, key=_sort_key)
-    raise TypeError(f"unsupported frozen-input value type:{type(value).__name__}")
+    type_name = type(value).__name__
+    raise TypeError(f"unsupported frozen-input value type:{type_name}")
 
 
 def _sort_key(value: object) -> str:
