@@ -10,12 +10,13 @@ from typer.testing import CliRunner
 from alpha.application.benchmark_cli import benchmark_app
 from alpha.benchmark_replay.governed_approval_gate_forensics import B5_READY
 from alpha.benchmark_replay.governed_setup_matched_evidence import B7_READY
+from alpha.decision_superiority.gate_value_audit import DSI001Result
 from alpha.decision_superiority.signed_audit import GovernedSignedGateValueAudit
 
 _DIAGNOSTIC_ARTIFACTS = (
-    "dsi001_confidence_summary.csv",
-    "dsi001_evidence_summary.csv",
     "dsi001_gate_conclusions.csv",
+    "dsi001_evidence_summary.csv",
+    "dsi001_confidence_summary.csv",
     "dsi001_gate_recommendations.csv",
 )
 
@@ -153,7 +154,7 @@ def _run_signed(
     *,
     inputs: tuple[Path, Path, Path, Path, Path],
     output: Path,
-):
+) -> DSI001Result:
     b5, b7, candidates, gates, outcomes = inputs
     return GovernedSignedGateValueAudit().run(
         b5_certificate=b5,
@@ -269,4 +270,7 @@ def test_signed_end_to_end_preserves_all_governance_boundaries(
         "confidence_summary",
         "gate_recommendations",
     ):
-        assert all(row["production_influence"] is False for row in result.report[section])
+        assert all(
+            row["production_influence"] is False
+            for row in result.report[section]
+        )
