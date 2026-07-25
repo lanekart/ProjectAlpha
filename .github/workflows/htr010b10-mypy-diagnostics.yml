@@ -1,0 +1,32 @@
+name: HTR-010B10 MyPy Diagnostics
+
+on:
+  pull_request:
+    branches:
+      - feature/recovery-foundation-v1
+
+permissions:
+  contents: read
+
+jobs:
+  mypy-diagnostics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Capture MyPy output
+        continue-on-error: true
+        run: |
+          set +e
+          poetry run mypy alpha 2>&1 | tee mypy.txt
+          exit 0
+      - name: Upload MyPy diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: htr010b10-mypy-diagnostics
+          path: mypy.txt
+          if-no-files-found: error
