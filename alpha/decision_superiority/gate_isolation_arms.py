@@ -11,7 +11,11 @@ from alpha.decision_superiority.gate_isolation_models import (
     GateIsolationArm,
 )
 
-DEFAULT_MAX_REMEDIATION_SET_SIZE = 8
+# The builder emits one complete observed blocker set, not the powerset. A limit of
+# eight incorrectly omitted valid nine-blocker candidates without reducing any
+# combinatorial search. Keep a defensive bound for corrupt inputs while supporting
+# the governed population's complete blocker sets.
+DEFAULT_MAX_REMEDIATION_SET_SIZE = 64
 
 
 @dataclass(frozen=True, slots=True)
