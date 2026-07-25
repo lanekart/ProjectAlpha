@@ -33,7 +33,7 @@ def verify_certificate(
     accepted_readiness: frozenset[str],
     required_artifacts: frozenset[str],
 ) -> VerifiedCertificate:
-    """Verify certificate structure, readiness and all declared file hashes."""
+    """Verify certificate structure, report digest, readiness, and artifacts."""
 
     if not path.is_file():
         raise GovernedInputContractError(f"CERTIFICATE_NOT_FOUND:{path}")
@@ -63,6 +63,13 @@ def verify_certificate(
                 "CERTIFICATE_ARTIFACT_HASH_MISMATCH:"
                 f"{name}:{expected_sha256}:{actual_sha256}"
             )
+
+    computed_report_sha256 = _report_digest(payload)
+    if computed_report_sha256 != report_sha256:
+        raise GovernedInputContractError(
+            "CERTIFICATE_REPORT_SHA256_MISMATCH:"
+            f"{report_sha256}:{computed_report_sha256}"
+        )
 
     return VerifiedCertificate(
         path=path,
@@ -152,6 +159,17 @@ def _resolve_artifact(root: Path, name: str) -> Path:
     if not artifact.is_file():
         raise GovernedInputContractError(f"CERTIFICATE_ARTIFACT_NOT_FOUND:{name}")
     return artifact
+
+
+def _report_digest(payload: dict[str, Any]) -> str:
+    report = dict(payload)
+    report.pop("report_sha256", None)
+    encoded = json.dumps(
+        report,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _is_sha256(value: str) -> bool:
