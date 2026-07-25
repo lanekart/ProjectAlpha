@@ -10,15 +10,13 @@ from typing import Any, Final
 
 from alpha.benchmark_replay.governed_approval_gate_forensics import B5_READY
 from alpha.benchmark_replay.governed_setup_matched_evidence import B7_READY
-from alpha.decision_superiority.gate_value_audit import (
-    DSI001Result,
-    GovernedGateValueAudit,
-)
+from alpha.decision_superiority.gate_value_audit import DSI001Result
 from alpha.decision_superiority.input_contract import (
     VerifiedCertificate,
     verify_bound_artifact,
     verify_certificate,
 )
+from alpha.decision_superiority.phase4f_audit import GovernedPhase4FGateValueAudit
 
 _B5_CANDIDATE: Final = "htr010b5_candidate_gate_forensics.csv"
 _B5_GATE_EVENTS: Final = "htr010b5_gate_event_ledger.csv"
@@ -68,7 +66,7 @@ class GovernedSignedGateValueAudit:
             ),
         }
 
-        result = GovernedGateValueAudit().run(
+        result = GovernedPhase4FGateValueAudit().run(
             candidate_gate_forensics=candidate_gate_forensics,
             gate_event_ledger=gate_event_ledger,
             outcome_coverage_ledger=outcome_coverage_ledger,
