@@ -1,5 +1,6 @@
 name: DSI-001 Branch Finalizer
 
+# Second commit intentionally triggers this branch-scoped workflow.
 on:
   push:
     branches:
