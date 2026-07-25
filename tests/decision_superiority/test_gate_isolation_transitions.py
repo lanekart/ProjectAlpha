@@ -67,7 +67,9 @@ def _rejected() -> BaselineDownstreamState:
     return BaselineDownstreamState(False, False, False, False, False)
 
 
-def _all_passed(*, outcome: StageEvaluationStatus = StageEvaluationStatus.PASSED) -> StageEvaluation:
+def _all_passed(
+    *, outcome: StageEvaluationStatus = StageEvaluationStatus.PASSED
+) -> StageEvaluation:
     return StageEvaluation(
         approval=StageEvaluationStatus.PASSED,
         portfolio_eligibility=StageEvaluationStatus.PASSED,
