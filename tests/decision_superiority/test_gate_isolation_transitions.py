@@ -18,6 +18,8 @@ from alpha.decision_superiority.gate_isolation_transitions import (
     DownstreamStage,
     GateIsolationTransition,
     GateIsolationTransitionEngine,
+    StageEvaluation,
+    StageEvaluationStatus,
 )
 
 
@@ -62,16 +64,20 @@ def _arm(
 
 
 def _rejected() -> BaselineDownstreamState:
-    return BaselineDownstreamState(
-        approved=False,
-        portfolio_eligible=False,
-        entry_ready=False,
-        trade_formed=False,
-        outcome_available=False,
+    return BaselineDownstreamState(False, False, False, False, False)
+
+
+def _all_passed(*, outcome: StageEvaluationStatus = StageEvaluationStatus.PASSED) -> StageEvaluation:
+    return StageEvaluation(
+        approval=StageEvaluationStatus.PASSED,
+        portfolio_eligibility=StageEvaluationStatus.PASSED,
+        entry_readiness=StageEvaluationStatus.PASSED,
+        trade_formation=StageEvaluationStatus.PASSED,
+        outcome=outcome,
     )
 
 
-def test_single_gate_clear_replays_all_downstream_stages() -> None:
+def test_clear_arm_without_canonical_reevaluation_fails_closed() -> None:
     candidate = _candidate()
     transition = GateIsolationTransitionEngine().replay(
         candidate=candidate,
@@ -81,6 +87,30 @@ def test_single_gate_clear_replays_all_downstream_stages() -> None:
             passed=("GATE_A",),
         ),
         baseline=_rejected(),
+    )
+
+    assert transition.first_changed_stage is DownstreamStage.NONE
+    assert transition.counterfactual == transition.baseline
+    assert transition.stage_evaluation.approval is StageEvaluationStatus.UNAVAILABLE
+    assert transition.newly_approved is False
+    assert transition.newly_trade_formed is False
+    assert (
+        transition.semantic_status
+        is CounterfactualSemanticStatus.NOT_SEMANTICALLY_VALID
+    )
+
+
+def test_explicit_stage_evaluation_replays_all_downstream_stages() -> None:
+    candidate = _candidate()
+    transition = GateIsolationTransitionEngine().replay(
+        candidate=candidate,
+        arm=_arm(
+            candidate,
+            arm_type=CounterfactualArmType.SINGLE_GATE_PASS,
+            passed=("GATE_A",),
+        ),
+        baseline=_rejected(),
+        stage_evaluation=_all_passed(),
     )
 
     assert transition.first_changed_stage is DownstreamStage.APPROVAL
@@ -95,6 +125,32 @@ def test_single_gate_clear_replays_all_downstream_stages() -> None:
     )
 
 
+def test_stage_chain_stops_at_first_failed_stage() -> None:
+    candidate = _candidate()
+    evaluation = StageEvaluation(
+        approval=StageEvaluationStatus.PASSED,
+        portfolio_eligibility=StageEvaluationStatus.FAILED,
+        entry_readiness=StageEvaluationStatus.NOT_REACHED,
+        trade_formation=StageEvaluationStatus.NOT_REACHED,
+        outcome=StageEvaluationStatus.NOT_REACHED,
+    )
+    transition = GateIsolationTransitionEngine().replay(
+        candidate=candidate,
+        arm=_arm(
+            candidate,
+            arm_type=CounterfactualArmType.SINGLE_GATE_PASS,
+            passed=("GATE_A",),
+        ),
+        baseline=_rejected(),
+        stage_evaluation=evaluation,
+    )
+
+    assert transition.newly_approved is True
+    assert transition.newly_portfolio_eligible is False
+    assert transition.newly_entry_ready is False
+    assert transition.newly_trade_formed is False
+
+
 def test_co_blocked_single_gate_arm_has_no_downstream_effect() -> None:
     candidate = _candidate(("GATE_A", "GATE_B"))
     transition = GateIsolationTransitionEngine().replay(
@@ -105,6 +161,7 @@ def test_co_blocked_single_gate_arm_has_no_downstream_effect() -> None:
             passed=("GATE_A",),
         ),
         baseline=_rejected(),
+        stage_evaluation=_all_passed(),
     )
 
     assert transition.first_changed_stage is DownstreamStage.NONE
@@ -114,7 +171,7 @@ def test_co_blocked_single_gate_arm_has_no_downstream_effect() -> None:
     )
 
 
-def test_minimal_set_clear_is_semantically_valid() -> None:
+def test_minimal_set_requires_explicit_stage_evaluation() -> None:
     candidate = _candidate(("GATE_A", "GATE_B"))
     transition = GateIsolationTransitionEngine().replay(
         candidate=candidate,
@@ -126,14 +183,14 @@ def test_minimal_set_clear_is_semantically_valid() -> None:
         baseline=_rejected(),
     )
 
-    assert transition.newly_trade_formed is True
+    assert transition.newly_trade_formed is False
     assert (
         transition.semantic_status
-        is CounterfactualSemanticStatus.VALID_MINIMAL_REMEDIATION_SET
+        is CounterfactualSemanticStatus.NOT_SEMANTICALLY_VALID
     )
 
 
-def test_unresolved_outcome_remains_unavailable_after_trade_formation() -> None:
+def test_unavailable_outcome_does_not_create_outcome_transition() -> None:
     candidate = _candidate(resolved=False)
     transition = GateIsolationTransitionEngine().replay(
         candidate=candidate,
@@ -143,6 +200,7 @@ def test_unresolved_outcome_remains_unavailable_after_trade_formation() -> None:
             passed=("GATE_A",),
         ),
         baseline=_rejected(),
+        stage_evaluation=_all_passed(outcome=StageEvaluationStatus.UNAVAILABLE),
     )
 
     assert transition.newly_trade_formed is True
@@ -171,12 +229,7 @@ def test_arm_identity_and_blocker_lineage_must_match() -> None:
     mismatched_arm = GateIsolationArm(
         arm_id="wrong",
         arm_type=CounterfactualArmType.SINGLE_GATE_PASS,
-        candidate=FrozenCandidateKey(
-            price_view="RAW",
-            observed_on="2026-01-03",
-            symbol="AAA",
-            input_fingerprint="fp-a",
-        ),
+        candidate=FrozenCandidateKey("RAW", "2026-01-03", "AAA", "fp-a"),
         passed_gate_codes=("GATE_A",),
         observed_failure_codes=("GATE_A",),
         semantic_status=CounterfactualSemanticStatus.NO_DOWNSTREAM_EFFECT,
@@ -191,13 +244,7 @@ def test_arm_identity_and_blocker_lineage_must_match() -> None:
 
 def test_invalid_stage_chain_is_rejected() -> None:
     with pytest.raises(ValueError, match="entry readiness"):
-        BaselineDownstreamState(
-            approved=True,
-            portfolio_eligible=True,
-            entry_ready=False,
-            trade_formed=True,
-            outcome_available=False,
-        )
+        BaselineDownstreamState(True, True, False, True, False)
 
 
 def test_unexplained_divergence_fails_closed() -> None:
@@ -211,13 +258,8 @@ def test_unexplained_divergence_fails_closed() -> None:
         GateIsolationTransition(
             arm=arm,
             baseline=_rejected(),
-            counterfactual=BaselineDownstreamState(
-                approved=True,
-                portfolio_eligible=True,
-                entry_ready=True,
-                trade_formed=True,
-                outcome_available=True,
-            ),
+            counterfactual=BaselineDownstreamState(True, True, True, True, True),
+            stage_evaluation=_all_passed(),
             first_changed_stage=DownstreamStage.APPROVAL,
             newly_approved=True,
             newly_portfolio_eligible=True,
