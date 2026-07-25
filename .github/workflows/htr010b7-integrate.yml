@@ -25,18 +25,12 @@ jobs:
           ref: feature/htr-010b7-governed-setup-matched-evidence
           fetch-depth: 0
 
-      - name: Stop after diagnostic publication
-        if: ${{ hashFiles('.tmp/htr010b7/quality_diagnostic.txt') != '' }}
-        run: |
-          cat .tmp/htr010b7/quality_diagnostic.txt
-          exit 1
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.14"
 
-      - name: Materialize HTR-010B7 source
+      - name: Materialize and patch HTR-010B7
         shell: bash
         run: |
           set -euo pipefail
@@ -115,7 +109,7 @@ jobs:
           )
           ''' + module_anchor,
           )
-          replacements = {
+          package_replacements = {
               '    "B6_READY",\n': '''    "B6_READY",
               "B7_BLOCKED_DIVERGENCE",
               "B7_BLOCKED_EMPTY",
@@ -137,8 +131,62 @@ jobs:
               "validate_governed_setup_matched_evidence_certificate",
           ''',
           }
-          for anchor, replacement in replacements.items():
+          for anchor, replacement in package_replacements.items():
               replace_once(package, anchor, replacement)
+
+          module = Path(
+              "alpha/benchmark_replay/governed_setup_matched_evidence.py"
+          )
+          replace_once(
+              module,
+              '''    for price_view, audit in (("RAW", raw_audit), ("ADJUSTED", adjusted_audit)):
+              for ranking in audit.rankings:
+                  key = price_view, ranking.observed_on, ranking.symbol
+                  if key in rankings:
+                      defects.append(_key_defect("DUPLICATE_RERUN_RANKING", key))
+                  rankings[key] = ranking
+              for outcome in audit.outcomes:
+                  key = price_view, outcome.observed_on, outcome.symbol
+                  if key in outcomes:
+                      defects.append(_key_defect("DUPLICATE_RERUN_OUTCOME", key))
+                  outcomes[key] = outcome
+          ''',
+              '''    for price_view, audit in (("RAW", raw_audit), ("ADJUSTED", adjusted_audit)):
+              for audit_ranking in audit.rankings:
+                  key = price_view, audit_ranking.observed_on, audit_ranking.symbol
+                  if key in rankings:
+                      defects.append(_key_defect("DUPLICATE_RERUN_RANKING", key))
+                  rankings[key] = audit_ranking
+              for audit_outcome in audit.outcomes:
+                  key = price_view, audit_outcome.observed_on, audit_outcome.symbol
+                  if key in outcomes:
+                      defects.append(_key_defect("DUPLICATE_RERUN_OUTCOME", key))
+                  outcomes[key] = audit_outcome
+          ''',
+          )
+          replace_once(
+              module,
+              '''        (
+              "STRONG_OVERRIDE",
+              0,
+              "STRONG",
+              10,
+              0,
+              "NONE",
+              "NONE",
+          ),
+          ''',
+              '''        (
+              "STRONG_OVERRIDE",
+              0,
+              "STRONG",
+              10,
+              0,
+              "ZERO_MATCHED_OUTCOMES",
+              "NONE",
+          ),
+          ''',
+          )
           PY
 
       - name: Install the locked project environment
@@ -146,7 +194,7 @@ jobs:
           pip install poetry
           poetry install --no-interaction
 
-      - name: Normalize formatting
+      - name: Normalize HTR-010B7 formatting
         run: |
           poetry run ruff check --fix \
             alpha/application/benchmark_cli.py \
@@ -161,57 +209,55 @@ jobs:
             alpha/benchmark_replay/governed_setup_matched_evidence.py \
             tests/benchmark_replay/test_governed_setup_matched_evidence.py
 
-      - name: Publish source quality diagnostics
-        shell: bash
+      - name: Run HTR-010B7 quality gates
         env:
           _TYPER_FORCE_DISABLE_TERMINAL: "1"
         run: |
-          set +e
-          D=.tmp/htr010b7/quality_diagnostic.txt
           poetry run ruff check \
             alpha/application/benchmark_cli.py \
             alpha/application/governed_setup_matched_evidence_cli.py \
             alpha/benchmark_replay/__init__.py \
             alpha/benchmark_replay/governed_setup_matched_evidence.py \
-            tests/benchmark_replay/test_governed_setup_matched_evidence.py \
-            > /tmp/b7-ruff-check.log 2>&1
-          RUFF_CHECK_STATUS=$?
+            tests/benchmark_replay/test_governed_setup_matched_evidence.py
           poetry run ruff format --check \
             alpha/application/benchmark_cli.py \
             alpha/application/governed_setup_matched_evidence_cli.py \
             alpha/benchmark_replay/__init__.py \
             alpha/benchmark_replay/governed_setup_matched_evidence.py \
-            tests/benchmark_replay/test_governed_setup_matched_evidence.py \
-            > /tmp/b7-ruff-format.log 2>&1
-          RUFF_FORMAT_STATUS=$?
-          poetry run mypy alpha > /tmp/b7-mypy.log 2>&1
-          MYPY_STATUS=$?
+            tests/benchmark_replay/test_governed_setup_matched_evidence.py
+          poetry run mypy alpha
           poetry run pytest -q \
-            tests/benchmark_replay/test_governed_setup_matched_evidence.py \
-            > /tmp/b7-pytest.log 2>&1
-          PYTEST_STATUS=$?
-          {
-            echo "ruff_check_status=$RUFF_CHECK_STATUS"
-            echo "ruff_format_status=$RUFF_FORMAT_STATUS"
-            echo "mypy_status=$MYPY_STATUS"
-            echo "pytest_status=$PYTEST_STATUS"
-            echo
-            echo "--- ruff check ---"
-            cat /tmp/b7-ruff-check.log
-            echo
-            echo "--- ruff format ---"
-            cat /tmp/b7-ruff-format.log
-            echo
-            echo "--- strict mypy ---"
-            cat /tmp/b7-mypy.log
-            echo
-            echo "--- focused pytest ---"
-            cat /tmp/b7-pytest.log
-          } > "$D"
-          cat "$D"
+            tests/benchmark_replay/test_governed_setup_matched_evidence.py
+
+      - name: Commit the clean HTR-010B7 implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .tmp/htr010b7
+          rm -f .github/workflows/htr010b7-integrate.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f "$D"
-          git commit -m "chore(htr-010b7): publish source quality diagnostic"
+          git add -A
+          git diff --cached --check
+          git diff --cached --name-only | sort > /tmp/htr010b7-actual-paths
+          while IFS= read -r path; do
+            case "$path" in
+              .github/workflows/htr010b7-integrate.yml|.tmp/htr010b7/*|alpha/application/benchmark_cli.py|alpha/application/governed_setup_matched_evidence_cli.py|alpha/benchmark_replay/__init__.py|alpha/benchmark_replay/governed_setup_matched_evidence.py|docs/HTR-010B7_GOVERNED_SETUP_MATCHED_EVIDENCE.md|tests/benchmark_replay/test_governed_setup_matched_evidence.py)
+                ;;
+              *)
+                echo "Unexpected staged path: $path"
+                exit 1
+                ;;
+            esac
+          done < /tmp/htr010b7-actual-paths
+          for required in \
+            alpha/application/benchmark_cli.py \
+            alpha/application/governed_setup_matched_evidence_cli.py \
+            alpha/benchmark_replay/__init__.py \
+            alpha/benchmark_replay/governed_setup_matched_evidence.py \
+            docs/HTR-010B7_GOVERNED_SETUP_MATCHED_EVIDENCE.md \
+            tests/benchmark_replay/test_governed_setup_matched_evidence.py; do
+            grep -Fx "$required" /tmp/htr010b7-actual-paths
+          done
+          git commit -m "feat(htr-010b7): certify setup-matched evidence coverage"
           git push origin HEAD:feature/htr-010b7-governed-setup-matched-evidence
-          exit 1
