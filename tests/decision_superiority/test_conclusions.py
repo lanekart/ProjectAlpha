@@ -4,7 +4,6 @@ from decimal import Decimal
 
 import pytest
 
-from alpha.decision_superiority.confidence import assess_evidence
 from alpha.decision_superiority.conclusions import (
     EconomicDirection,
     GateConclusion,
@@ -15,6 +14,7 @@ from alpha.decision_superiority.conclusions import (
     conclude_gate,
     rank_conclusions,
 )
+from alpha.decision_superiority.confidence import assess_evidence
 from alpha.decision_superiority.metrics import GateEconomicValue
 
 
@@ -50,10 +50,7 @@ def test_statistical_direction_negative() -> None:
         minimum_required=20,
     )
 
-    assert (
-        classify_statistical_direction(evidence)
-        is StatisticalDirection.NEGATIVE
-    )
+    assert classify_statistical_direction(evidence) is StatisticalDirection.NEGATIVE
 
 
 def test_statistical_direction_positive() -> None:
@@ -63,10 +60,7 @@ def test_statistical_direction_positive() -> None:
         minimum_required=20,
     )
 
-    assert (
-        classify_statistical_direction(evidence)
-        is StatisticalDirection.POSITIVE
-    )
+    assert classify_statistical_direction(evidence) is StatisticalDirection.POSITIVE
 
 
 def test_statistical_direction_inconclusive() -> None:
@@ -76,10 +70,7 @@ def test_statistical_direction_inconclusive() -> None:
         minimum_required=20,
     )
 
-    assert (
-        classify_statistical_direction(evidence)
-        is StatisticalDirection.INCONCLUSIVE
-    )
+    assert classify_statistical_direction(evidence) is StatisticalDirection.INCONCLUSIVE
 
 
 def test_statistical_direction_unavailable() -> None:
@@ -89,10 +80,7 @@ def test_statistical_direction_unavailable() -> None:
         minimum_required=20,
     )
 
-    assert (
-        classify_statistical_direction(evidence)
-        is StatisticalDirection.UNAVAILABLE
-    )
+    assert classify_statistical_direction(evidence) is StatisticalDirection.UNAVAILABLE
 
 
 def test_positive_value_and_negative_rejected_returns_retain_gate() -> None:
@@ -107,9 +95,7 @@ def test_positive_value_and_negative_rejected_returns_retain_gate() -> None:
     )
 
     assert conclusion.recommendation is GateRecommendation.RETAIN
-    assert conclusion.reason_code == (
-        "POSITIVE_NET_VALUE_AND_NEGATIVE_REJECTED_RETURN"
-    )
+    assert conclusion.reason_code == ("POSITIVE_NET_VALUE_AND_NEGATIVE_REJECTED_RETURN")
     assert conclusion.production_influence is False
 
 
@@ -125,9 +111,7 @@ def test_negative_value_and_positive_rejected_returns_remove_gate() -> None:
     )
 
     assert conclusion.recommendation is GateRecommendation.REMOVE
-    assert conclusion.reason_code == (
-        "NEGATIVE_NET_VALUE_AND_POSITIVE_REJECTED_RETURN"
-    )
+    assert conclusion.reason_code == ("NEGATIVE_NET_VALUE_AND_POSITIVE_REJECTED_RETURN")
 
 
 def test_insufficient_population_blocks_economic_recommendation() -> None:
