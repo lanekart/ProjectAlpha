@@ -74,6 +74,37 @@ def verify_certificate(
     )
 
 
+def verify_bound_artifact(
+    certificate: VerifiedCertificate,
+    artifact: Path,
+    *,
+    expected_name: str,
+) -> str:
+    """Verify a caller-supplied artifact matches the signed certificate binding."""
+
+    if artifact.name != expected_name:
+        raise GovernedInputContractError(
+            f"BOUND_ARTIFACT_NAME_MISMATCH:{expected_name}:{artifact.name}"
+        )
+    if not artifact.is_file():
+        raise GovernedInputContractError(f"BOUND_ARTIFACT_NOT_FOUND:{artifact}")
+
+    declared = dict(certificate.artifact_hashes)
+    expected_sha256 = declared.get(expected_name)
+    if expected_sha256 is None:
+        raise GovernedInputContractError(
+            f"BOUND_ARTIFACT_NOT_DECLARED:{expected_name}"
+        )
+
+    actual_sha256 = _sha256(artifact)
+    if actual_sha256 != expected_sha256:
+        raise GovernedInputContractError(
+            "BOUND_ARTIFACT_HASH_MISMATCH:"
+            f"{expected_name}:{expected_sha256}:{actual_sha256}"
+        )
+    return actual_sha256
+
+
 def _read_json_object(path: Path) -> dict[str, Any]:
     try:
         parsed = json.loads(path.read_text(encoding="utf-8"))
@@ -142,5 +173,6 @@ def _sha256(path: Path) -> str:
 __all__ = [
     "GovernedInputContractError",
     "VerifiedCertificate",
+    "verify_bound_artifact",
     "verify_certificate",
 ]
