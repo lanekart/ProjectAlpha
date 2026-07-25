@@ -32,6 +32,7 @@ jobs:
           import base64
           import hashlib
           import io
+          import itertools
           import json
           import os
           import shutil
@@ -46,7 +47,10 @@ jobs:
               'baf994a0a638060327eedfa90f8ef02b7366fd79',
               'b440ec86ad203858817959e6cf9b59d9ac23be2f',
           )
-          chunks: list[bytes] = []
+          expected = '267400eb2135b4f23c69cafa4bcf2ac0c9378d976866d7b8ef4f37c85110cf05'
+          parts: dict[str, bytes] = {}
+          diagnostics: list[str] = []
+
           for sha in blob_shas:
               request = urllib.request.Request(
                   f'https://api.github.com/repos/{repository}/git/blobs/{sha}',
@@ -58,13 +62,58 @@ jobs:
               )
               with urllib.request.urlopen(request) as response:
                   payload = json.load(response)
-              chunks.append(base64.b64decode(payload['content']))
+              raw = base64.b64decode(payload['content'])
+              parts[sha] = raw
+              diagnostics.append(
+                  f'part {sha} bytes={len(raw)} sha256={hashlib.sha256(raw).hexdigest()}'
+              )
 
-          archive = b''.join(chunks)
-          digest = hashlib.sha256(archive).hexdigest()
-          expected = '267400eb2135b4f23c69cafa4bcf2ac0c9378d976866d7b8ef4f37c85110cf05'
-          if digest != expected:
-              raise SystemExit(f'archive SHA-256 mismatch: {digest}')
+          archive: bytes | None = None
+          for order in itertools.permutations(blob_shas):
+              ordered = [parts[sha] for sha in order]
+              candidates: list[tuple[str, bytes]] = [('raw', b''.join(ordered))]
+
+              try:
+                  text = b''.join(ordered).decode('ascii')
+              except UnicodeDecodeError:
+                  text = ''
+              if text:
+                  try:
+                      candidates.append(
+                          ('joined-base64', base64.b64decode(text, validate=False))
+                      )
+                  except Exception:
+                      pass
+
+              decoded_parts: list[bytes] = []
+              individually_decodable = True
+              for part in ordered:
+                  try:
+                      decoded_parts.append(
+                          base64.b64decode(part.decode('ascii'), validate=False)
+                      )
+                  except Exception:
+                      individually_decodable = False
+                      break
+              if individually_decodable:
+                  candidates.append(('per-part-base64', b''.join(decoded_parts)))
+
+              for mode, candidate in candidates:
+                  digest = hashlib.sha256(candidate).hexdigest()
+                  diagnostics.append(
+                      f'candidate mode={mode} order={order} bytes={len(candidate)} sha256={digest}'
+                  )
+                  if digest == expected:
+                      archive = candidate
+                      break
+              if archive is not None:
+                  break
+
+          Path('b10e1-reconstruction-diagnostics.txt').write_text(
+              '\n'.join(diagnostics) + '\n', encoding='utf-8'
+          )
+          if archive is None:
+              raise SystemExit('no staged reconstruction matched the expected SHA-256')
 
           stage = Path('.b10e1_stage')
           shutil.rmtree(stage, ignore_errors=True)
@@ -88,6 +137,14 @@ jobs:
 
           shutil.rmtree(stage)
           PY
+
+      - name: Upload reconstruction diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: htr010b10e1-reconstruction-diagnostics
+          path: b10e1-reconstruction-diagnostics.txt
+          if-no-files-found: warn
 
       - name: Install locked project dependencies
         run: |
@@ -113,6 +170,7 @@ jobs:
       - name: Commit full B10E1 implementation
         run: |
           rm .github/workflows/htr010b10e1-apply.yml
+          rm -f b10e1-reconstruction-diagnostics.txt
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add \
