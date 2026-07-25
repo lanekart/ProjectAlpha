@@ -1,0 +1,27 @@
+name: HTR-010B10 Final MyPy Diagnostics
+
+on:
+  push:
+    branches:
+      - feature/htr-010b10-governed-adaptive-institutional-trade-shadow
+
+jobs:
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Capture MyPy diagnostics
+        run: |
+          set +e
+          poetry run mypy alpha 2>&1 | tee htr010b10-mypy.txt
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: htr010b10-final-mypy-diagnostics
+          path: htr010b10-mypy.txt
+          if-no-files-found: error
