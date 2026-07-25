@@ -51,19 +51,44 @@ def _row(
     }
 
 
-def _write(path: Path, rows: list[dict[str, str]]) -> Path:
+def _write(
+    path: Path,
+    rows: list[dict[str, str]],
+    *,
+    fields: tuple[str, ...] = FIELDS,
+) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=FIELDS)
+        writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
         writer.writerows(rows)
     return path
 
 
-def _paths(tmp_path: Path, rows: list[dict[str, str]]) -> FrozenBaselineSourcePaths:
+def _b7_without_fingerprint(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    return [
+        {key: value for key, value in row.items() if key != "input_fingerprint"}
+        for row in rows
+    ]
+
+
+def _paths(
+    tmp_path: Path,
+    rows: list[dict[str, str]],
+    *,
+    b7_rows: list[dict[str, str]] | None = None,
+) -> FrozenBaselineSourcePaths:
+    selected_b7 = rows if b7_rows is None else b7_rows
+    b7_fields = (
+        tuple(selected_b7[0]) if selected_b7 else tuple(field for field in FIELDS)
+    )
     return FrozenBaselineSourcePaths(
         b5_candidate_ledger=_write(tmp_path / "b5.csv", rows),
-        b7_outcome_ledger=_write(tmp_path / "b7.csv", rows),
+        b7_outcome_ledger=_write(
+            tmp_path / "b7.csv",
+            selected_b7,
+            fields=b7_fields,
+        ),
         b10_decision_ledger=_write(tmp_path / "b10.csv", rows),
         dsi001_candidate_ledger=_write(tmp_path / "dsi001.csv", rows),
     )
@@ -84,6 +109,55 @@ def test_reconstructs_deterministic_complete_baseline(tmp_path: Path) -> None:
     assert str(result.candidates[0].realized_return_pct) == "12.5"
 
 
+def test_b7_without_fingerprint_joins_to_canonical_identity(tmp_path: Path) -> None:
+    rows = [_row()]
+    paths = _paths(tmp_path, rows, b7_rows=_b7_without_fingerprint(rows))
+
+    result = FrozenBaselineReconstructor().reconstruct(paths)
+
+    assert result.candidates[0].candidate.input_fingerprint == "fp-a"
+    assert result.candidates[0].b7_present is True
+
+
+def test_b7_present_fingerprint_must_match_canonical_identity(
+    tmp_path: Path,
+) -> None:
+    rows = [_row()]
+    paths = _paths(tmp_path, rows, b7_rows=[_row(fingerprint="wrong")])
+
+    with pytest.raises(
+        GateIsolationBaselineError,
+        match="B7_FINGERPRINT_MISMATCH",
+    ):
+        FrozenBaselineReconstructor().reconstruct(paths)
+
+
+def test_b7_ambiguous_canonical_identity_fails_closed(tmp_path: Path) -> None:
+    rows = [
+        _row(fingerprint="fp-a"),
+        _row(fingerprint="fp-b"),
+    ]
+    paths = _paths(tmp_path, rows, b7_rows=_b7_without_fingerprint([rows[0]]))
+
+    with pytest.raises(
+        GateIsolationBaselineError,
+        match="B7_AMBIGUOUS_CANONICAL_IDENTITY",
+    ):
+        FrozenBaselineReconstructor().reconstruct(paths)
+
+
+def test_b7_duplicate_available_identity_fails_closed(tmp_path: Path) -> None:
+    rows = [_row()]
+    b7_rows = _b7_without_fingerprint([_row(), _row()])
+    paths = _paths(tmp_path, rows, b7_rows=b7_rows)
+
+    with pytest.raises(
+        GateIsolationBaselineError,
+        match="B7_DUPLICATE_CANDIDATE_IDENTITY",
+    ):
+        FrozenBaselineReconstructor().reconstruct(paths)
+
+
 def test_raw_adjusted_parity_is_arm_neutral(tmp_path: Path) -> None:
     rows = [
         _row(price_view="RAW"),
@@ -100,6 +174,21 @@ def test_rejects_missing_candidate_in_any_source(tmp_path: Path) -> None:
     rows = [_row()]
     paths = _paths(tmp_path, rows)
     _write(paths.b7_outcome_ledger, [])
+
+    with pytest.raises(
+        GateIsolationBaselineError,
+        match="B7_IDENTITY_LINEAGE_MISMATCH",
+    ):
+        FrozenBaselineReconstructor().reconstruct(paths)
+
+
+def test_rejects_extra_b7_candidate(tmp_path: Path) -> None:
+    rows = [_row()]
+    b7_rows = [
+        _row(),
+        _row(symbol="EXTRA", fingerprint="fp-extra"),
+    ]
+    paths = _paths(tmp_path, rows, b7_rows=b7_rows)
 
     with pytest.raises(
         GateIsolationBaselineError,
