@@ -4,4 +4,4 @@ This connector-authored commit intentionally retriggers normal repository valida
 
 Acceptance remains bound to the exact reviewed commit SHA. This file has no runtime, policy, portfolio, execution, learning, or production influence.
 
-The final validation source uses `Sequence[str]` for CLI readiness blockers so strict MyPy and `str.join` agree without weakening the report contract. The engine report renderer narrows its blocker sequence before iteration and preserves Ruff-compliant line lengths.
+The final validation source uses `Sequence[str]` for CLI readiness blockers so strict MyPy and `str.join` agree without weakening the report contract. The engine report renderer narrows its blocker sequence before iteration, and the exact layout is produced by locked Ruff 0.15.20.
