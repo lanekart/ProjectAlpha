@@ -13,7 +13,6 @@ from alpha.benchmark_replay.governed_adaptive_institutional_trade_shadow import 
     HTR010B10_CONTRACT_VERSION,
 )
 from alpha.benchmark_replay.governed_approval_gate_forensics import B5_READY
-from alpha.benchmark_replay.governed_setup_matched_evidence import B7_READY
 from alpha.decision_superiority.gate_isolation_source_contract import (
     GateIsolationSourceContractError,
     GateIsolationSourceContractVerifier,
@@ -71,16 +70,10 @@ def _paths(root: Path) -> GateIsolationSourcePaths:
     b5_candidate = _write(root / "htr010b5_candidate_gate_forensics.csv")
     b5_gates = _write(root / "htr010b5_gate_event_ledger.csv")
     b7_outcomes = _write(root / "htr010b7_outcome_coverage_ledger.csv")
-    b10_decisions = _write(
-        root / "htr010b10_institutional_decision_comparison.csv"
-    )
+    b10_decisions = _write(root / "htr010b10_institutional_decision_comparison.csv")
     b10_gates = _write(root / "htr010b10_gate_transition_ledger.csv")
-    b10_trades = _write(
-        root / "htr010b10_portfolio_trade_formation_comparison.csv"
-    )
-    b10_outcomes = _write(
-        root / "htr010b10_completed_trade_outcome_comparison.csv"
-    )
+    b10_trades = _write(root / "htr010b10_portfolio_trade_formation_comparison.csv")
+    b10_outcomes = _write(root / "htr010b10_completed_trade_outcome_comparison.csv")
     dsi001 = _signed_dsi001(root)
     return GateIsolationSourcePaths(
         b5_certificate=_write(root / "b5.json", "{}\n"),
@@ -158,11 +151,7 @@ def test_verifier_binds_all_selected_sources(
     ) -> VerifiedCertificate:
         del required_artifacts
         readiness = next(iter(accepted_readiness))
-        contract = (
-            "HTR-010B5-v1.0.0"
-            if readiness == B5_READY
-            else "HTR-010B7-v1.0.0"
-        )
+        contract = "HTR-010B5-v1.0.0" if readiness == B5_READY else "HTR-010B7-v1.0.0"
         return _verified(path, contract, readiness)
 
     b10_hashes = {

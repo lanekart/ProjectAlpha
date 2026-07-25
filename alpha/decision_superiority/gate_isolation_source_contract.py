@@ -186,7 +186,9 @@ def _verify_b10(path: Path) -> dict[str, Any]:
             require_ready=True,
         )
     except (OSError, ValueError) as exc:
-        raise GateIsolationSourceContractError(f"B10_SOURCE_CONTRACT_INVALID:{exc}") from exc
+        raise GateIsolationSourceContractError(
+            f"B10_SOURCE_CONTRACT_INVALID:{exc}"
+        ) from exc
     if payload.get("contract_version") != HTR010B10_CONTRACT_VERSION:
         raise GateIsolationSourceContractError("B10_CONTRACT_VERSION_MISMATCH")
     if payload.get("readiness_decision") != B10_READY:
@@ -243,12 +245,14 @@ def _verify_named_paths(
 ) -> dict[str, str]:
     if not isinstance(declared, dict):
         raise GateIsolationSourceContractError(f"{source}_ARTIFACT_HASHES_INVALID")
-    result: dict[str, str] = {}
     for expected_name, path in sorted(selected.items()):
         if path.name != expected_name:
             raise GateIsolationSourceContractError(
                 f"{source}_BOUND_ARTIFACT_NAME_MISMATCH:{expected_name}:{path.name}"
             )
+
+    result: dict[str, str] = {}
+    for expected_name, path in sorted(selected.items()):
         expected = str(declared.get(expected_name) or "")
         observed = _sha256(path)
         if expected != observed:
@@ -259,7 +263,9 @@ def _verify_named_paths(
     return result
 
 
-def _snapshot_verified(source: str, certificate: VerifiedCertificate) -> SourceCertificateSnapshot:
+def _snapshot_verified(
+    source: str, certificate: VerifiedCertificate
+) -> SourceCertificateSnapshot:
     return SourceCertificateSnapshot(
         source=source,
         path=str(certificate.path),
