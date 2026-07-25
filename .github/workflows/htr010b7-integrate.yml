@@ -19,203 +19,31 @@ jobs:
   integrate:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out the HTR-010B7 feature branch
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: feature/htr-010b7-governed-setup-matched-evidence
           fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
-
-      - name: Reconstruct the HTR-010B7 source payload
+      - name: Stop after diagnostic
+        if: ${{ hashFiles('.tmp/htr010b7/final_fragment_diagnostic.txt') != '' }}
+        run: |
+          cat .tmp/htr010b7/final_fragment_diagnostic.txt
+          exit 1
+      - name: Publish final-fragment diagnostic
         shell: bash
         run: |
-          set -euo pipefail
-          echo "20834c58d14f4c5c9f6a487fe373b94c78aec3f5223c17cabad6a8fb1bff141d  .tmp/htr010b7/payload.part-00" | sha256sum --check --strict
-          echo "e5770d3002400e4c23db135d0d7c39e0646580f931b53faa8c1247b6dcf408d6  .tmp/htr010b7/fixed.part-01-00" | sha256sum --check --strict
-          echo "e5ede20f41a12fbe85fbe9db986a17ccc9a6e0b2562f07ae200f2aa85ada201f  .tmp/htr010b7/fixed.part-01-01" | sha256sum --check --strict
-          echo "fd0df0588cee7dde290a22fe3af22c460046fedbfdfce61d7e36060b6c8bceb1  .tmp/htr010b7/fixed.part-01-02" | sha256sum --check --strict
-          echo "aec2d48f597194db3feb99afaeaec8b6de0405f109cbb18d665f0b06b6045ab6  .tmp/htr010b7/fixed.part-01-03" | sha256sum --check --strict
-          echo "42650d00d0c7737d106cce8196e743d56eef9293c71d3159d4d2cfbf94f99146  .tmp/htr010b7/fixed.part-02-00" | sha256sum --check --strict
-          echo "f012c04a219daba2700ce90e0b6955af34a289c55f12eba0bc480a82f7dbf2ef  .tmp/htr010b7/fixed.part-02-01" | sha256sum --check --strict
-          echo "3fb12c39a9defc40de2e04ecd436d875e384cfae237d7fb00a9563c977f2b90b  .tmp/htr010b7/fixed2.part-02-02-00" | sha256sum --check --strict
-          echo "5207563cc2613cfd6ec1547c031dafbfe3cf9a6e22744577845f088eb9711254  .tmp/htr010b7/fixed2.part-02-02-01" | sha256sum --check --strict
-          echo "e990fe0c9b5979aed6e06d1af29e8298ebe4f179dc4f4f6a64338aff3ea151b2  .tmp/htr010b7/fixed3.part-02-02-02-00" | sha256sum --check --strict
-          echo "b87066b1086039f78d849e4858e9deeecd6ade776a5583be51b78560abf500bb  .tmp/htr010b7/fixed3.part-02-02-02-01" | sha256sum --check --strict
-          echo "0f58bdb2638edd7090713cca0c152b092f9af173c701856ff6a064d43c6b1d7d  .tmp/htr010b7/fixed.part-02-03" | sha256sum --check --strict
-          echo "e26cd4319e7c77ecfba1f69dd470ac4fc4cf2cb8ed4ad7c6dff0969e3f7a6ed5  .tmp/htr010b7/payload.part-03" | sha256sum --check --strict
-          cat \
-            .tmp/htr010b7/payload.part-00 \
-            .tmp/htr010b7/fixed.part-01-00 \
-            .tmp/htr010b7/fixed.part-01-01 \
-            .tmp/htr010b7/fixed.part-01-02 \
-            .tmp/htr010b7/fixed.part-01-03 \
-            .tmp/htr010b7/fixed.part-02-00 \
-            .tmp/htr010b7/fixed.part-02-01 \
-            .tmp/htr010b7/fixed2.part-02-02-00 \
-            .tmp/htr010b7/fixed2.part-02-02-01 \
+          set +e
+          D=.tmp/htr010b7/final_fragment_diagnostic.txt
+          echo HTR010B7_FINAL_FRAGMENT_DIAGNOSTIC > "$D"
+          for part in \
             .tmp/htr010b7/fixed3.part-02-02-02-00 \
-            .tmp/htr010b7/fixed3.part-02-02-02-01 \
-            .tmp/htr010b7/fixed.part-02-03 \
-            .tmp/htr010b7/payload.part-03 \
-            | tr -d '\r\n' \
-            > /tmp/htr010b7-payload.b64
-          test "$(wc -c < /tmp/htr010b7-payload.b64)" -eq 37044
-          base64 --decode /tmp/htr010b7-payload.b64 > /tmp/htr010b7-payload.tar.gz
-          echo "f4e413354fd6bca6b67647a4c8995d359e114de0875748ab42c8ff4db718a6a5  /tmp/htr010b7-payload.tar.gz" | sha256sum --check --strict
-          tar -xzf /tmp/htr010b7-payload.tar.gz -C .
-
-      - name: Register HTR-010B7 public surfaces
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-
-
-          def replace_once(path: Path, old: str, new: str) -> None:
-              text = path.read_text(encoding="utf-8")
-              if text.count(old) != 1:
-                  raise SystemExit(f"B7 patch anchor mismatch: {path}: {old!r}")
-              path.write_text(text.replace(old, new), encoding="utf-8")
-
-
-          cli = Path("alpha/application/benchmark_cli.py")
-          import_anchor = '''from alpha.application.governed_approval_constraint_frontier_cli import (
-              register_governed_approval_constraint_frontier_command,
-          )
-          '''
-          import_replacement = import_anchor + '''from alpha.application.governed_setup_matched_evidence_cli import (
-              register_governed_setup_matched_evidence_command,
-          )
-          '''
-          replace_once(cli, import_anchor, import_replacement)
-          registration_anchor = (
-              "register_governed_approval_constraint_frontier_command(benchmark_app)\n"
-          )
-          replace_once(
-              cli,
-              registration_anchor,
-              registration_anchor
-              + "register_governed_setup_matched_evidence_command(benchmark_app)\n",
-          )
-
-          package = Path("alpha/benchmark_replay/__init__.py")
-          module_anchor = (
-              "from alpha.benchmark_replay.governed_approval_gate_forensics import (\n"
-          )
-          module_replacement = '''from alpha.benchmark_replay.governed_setup_matched_evidence import (
-              B7_BLOCKED_DIVERGENCE,
-              B7_BLOCKED_EMPTY,
-              B7_BLOCKED_PROVENANCE,
-              B7_BLOCKED_SETUP,
-              B7_READY,
-              HTR010B7_CONTRACT_VERSION,
-              GovernedSetupMatchedEvidenceEngine,
-              GovernedSetupMatchedEvidenceResult,
-              export_governed_setup_matched_evidence,
-              validate_governed_setup_matched_evidence_certificate,
-          )
-          ''' + module_anchor
-          replace_once(package, module_anchor, module_replacement)
-          replacements = {
-              '    "B6_READY",\n': '''    "B6_READY",
-              "B7_BLOCKED_DIVERGENCE",
-              "B7_BLOCKED_EMPTY",
-              "B7_BLOCKED_PROVENANCE",
-              "B7_BLOCKED_SETUP",
-              "B7_READY",
-          ''',
-              '    "HTR010B6_CONTRACT_VERSION",\n': '''    "HTR010B6_CONTRACT_VERSION",
-              "HTR010B7_CONTRACT_VERSION",
-          ''',
-              '    "GovernedApprovalConstraintFrontierResult",\n': '''    "GovernedApprovalConstraintFrontierResult",
-              "GovernedSetupMatchedEvidenceEngine",
-              "GovernedSetupMatchedEvidenceResult",
-          ''',
-              '    "export_governed_approval_constraint_frontier",\n': '''    "export_governed_approval_constraint_frontier",
-              "export_governed_setup_matched_evidence",
-          ''',
-              '    "validate_governed_approval_constraint_frontier_certificate",\n': '''    "validate_governed_approval_constraint_frontier_certificate",
-              "validate_governed_setup_matched_evidence_certificate",
-          ''',
-          }
-          for anchor, replacement in replacements.items():
-              replace_once(package, anchor, replacement)
-          PY
-
-      - name: Install the locked project environment
-        run: |
-          pip install poetry
-          poetry install --no-interaction
-
-      - name: Normalize HTR-010B7 formatting
-        run: |
-          poetry run ruff check --fix \
-            alpha/application/benchmark_cli.py \
-            alpha/application/governed_setup_matched_evidence_cli.py \
-            alpha/benchmark_replay/__init__.py \
-            alpha/benchmark_replay/governed_setup_matched_evidence.py \
-            tests/benchmark_replay/test_governed_setup_matched_evidence.py
-          poetry run ruff format \
-            alpha/application/benchmark_cli.py \
-            alpha/application/governed_setup_matched_evidence_cli.py \
-            alpha/benchmark_replay/__init__.py \
-            alpha/benchmark_replay/governed_setup_matched_evidence.py \
-            tests/benchmark_replay/test_governed_setup_matched_evidence.py
-
-      - name: Run HTR-010B7 quality gates
-        env:
-          _TYPER_FORCE_DISABLE_TERMINAL: "1"
-        run: |
-          poetry run ruff check \
-            alpha/application/benchmark_cli.py \
-            alpha/application/governed_setup_matched_evidence_cli.py \
-            alpha/benchmark_replay/__init__.py \
-            alpha/benchmark_replay/governed_setup_matched_evidence.py \
-            tests/benchmark_replay/test_governed_setup_matched_evidence.py
-          poetry run ruff format --check \
-            alpha/application/benchmark_cli.py \
-            alpha/application/governed_setup_matched_evidence_cli.py \
-            alpha/benchmark_replay/__init__.py \
-            alpha/benchmark_replay/governed_setup_matched_evidence.py \
-            tests/benchmark_replay/test_governed_setup_matched_evidence.py
-          poetry run mypy alpha
-          poetry run pytest -q \
-            tests/benchmark_replay/test_governed_setup_matched_evidence.py
-
-      - name: Commit the clean HTR-010B7 implementation
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf .tmp/htr010b7
-          rm -f .github/workflows/htr010b7-integrate.yml
+            .tmp/htr010b7/fixed3.part-02-02-02-01; do
+            wc -c "$part" >> "$D" 2>&1
+            sha256sum "$part" >> "$D" 2>&1
+          done
+          cat "$D"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git diff --cached --check
-          git diff --cached --name-only | sort > /tmp/htr010b7-actual-paths
-          while IFS= read -r path; do
-            case "$path" in
-              .github/workflows/htr010b7-integrate.yml|.tmp/htr010b7/*|alpha/application/benchmark_cli.py|alpha/application/governed_setup_matched_evidence_cli.py|alpha/benchmark_replay/__init__.py|alpha/benchmark_replay/governed_setup_matched_evidence.py|docs/HTR-010B7_GOVERNED_SETUP_MATCHED_EVIDENCE.md|tests/benchmark_replay/test_governed_setup_matched_evidence.py)
-                ;;
-              *)
-                echo "Unexpected staged path: $path"
-                exit 1
-                ;;
-            esac
-          done < /tmp/htr010b7-actual-paths
-          for required in \
-            alpha/application/benchmark_cli.py \
-            alpha/application/governed_setup_matched_evidence_cli.py \
-            alpha/benchmark_replay/__init__.py \
-            alpha/benchmark_replay/governed_setup_matched_evidence.py \
-            docs/HTR-010B7_GOVERNED_SETUP_MATCHED_EVIDENCE.md \
-            tests/benchmark_replay/test_governed_setup_matched_evidence.py; do
-            grep -Fx "$required" /tmp/htr010b7-actual-paths
-          done
-          git commit -m "feat(htr-010b7): certify setup-matched evidence coverage"
+          git add -f "$D"
+          git commit -m "chore(htr-010b7): publish final fragment diagnostic"
           git push origin HEAD:feature/htr-010b7-governed-setup-matched-evidence
+          exit 1
