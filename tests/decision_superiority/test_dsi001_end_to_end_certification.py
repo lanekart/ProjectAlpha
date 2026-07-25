@@ -238,7 +238,7 @@ def test_signed_end_to_end_fails_closed_without_resolved_outcomes(
     confidence = result.report["confidence_summary"][0]
 
     assert recommendation["recommendation"] == "INSUFFICIENT_EVIDENCE"
-    assert recommendation["reason_code"] == "NO_RESOLVED_OUTCOMES"
+    assert recommendation["reason_code"] == "NO_ISOLATED_RESOLVED_OUTCOMES"
     assert evidence["confidence_status"] == "UNAVAILABLE"
     assert evidence["sufficient"] is False
     assert confidence["mean_interval_lower"] == ""
