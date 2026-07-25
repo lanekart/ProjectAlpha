@@ -39,16 +39,9 @@ class FrozenBaselineCandidate:
             raise ValueError("observed_failure_codes must be unique and sorted")
         if not self.outcome_status.strip():
             raise ValueError("outcome_status cannot be empty")
-        if not all(
-            (
-                self.b5_present,
-                self.b7_present,
-                self.b10_present,
-                self.dsi001_present,
-            )
-        ):
+        if not self.b5_present or not self.dsi001_present:
             raise ValueError(
-                "baseline candidate must be present in every governed source"
+                "baseline candidate must be present in B5 and DSI-001"
             )
         if self.resolved_outcome and self.realized_return_pct is None:
             raise ValueError("resolved outcome requires realized_return_pct")
@@ -108,22 +101,22 @@ class FrozenBaselineReconstructor:
             )
 
         canonical_partial = _canonical_partial_identity_map(canonical_keys)
-        _validate_partial_population("B7", set(b7), set(canonical_partial))
-        _validate_partial_population("B10", set(b10), set(canonical_partial))
+        _validate_partial_subset("B7", set(b7), set(canonical_partial))
+        _validate_partial_subset("B10", set(b10), set(canonical_partial))
 
         candidates = tuple(
             self._candidate(
                 key=key,
                 b5=b5[key],
-                b7=_bridge_partial_row(
+                b7=_optional_bridged_row(
                     source="B7",
                     candidate=key,
-                    row=b7[_partial_key_from_candidate(key)],
+                    row=b7.get(_partial_key_from_candidate(key)),
                 ),
-                b10=_bridge_partial_row(
+                b10=_optional_bridged_row(
                     source="B10",
                     candidate=key,
-                    row=b10[_partial_key_from_candidate(key)],
+                    row=b10.get(_partial_key_from_candidate(key)),
                 ),
                 dsi001=dsi001[key],
             )
@@ -152,29 +145,37 @@ class FrozenBaselineReconstructor:
         *,
         key: FrozenCandidateKey,
         b5: Mapping[str, str],
-        b7: Mapping[str, str],
-        b10: Mapping[str, str],
+        b7: Mapping[str, str] | None,
+        b10: Mapping[str, str] | None,
         dsi001: Mapping[str, str],
     ) -> FrozenBaselineCandidate:
+        b7_row: Mapping[str, str] = {} if b7 is None else b7
+        b10_row: Mapping[str, str] = {} if b10 is None else b10
         failures = _failure_codes(dsi001)
         b5_failures = _failure_codes(b5)
         if b5_failures and b5_failures != failures:
             raise GateIsolationBaselineError(
                 f"GATE_FAILURE_LINEAGE_MISMATCH:{_key_text(key)}"
             )
-        if _truthy(b10.get("point_in_time_leakage")):
+        if _truthy(b10_row.get("point_in_time_leakage")):
             raise GateIsolationBaselineError(
                 f"POINT_IN_TIME_LEAKAGE_DETECTED:{_key_text(key)}"
             )
-        resolved = _truthy(dsi001.get("resolved_outcome") or b7.get("resolved_outcome"))
+        resolved = _truthy(
+            dsi001.get("resolved_outcome") or b7_row.get("resolved_outcome")
+        )
         realized_return = _decimal_or_none(
             dsi001.get("realized_return_pct")
-            or b7.get("realized_return_pct")
-            or b7.get("return_pct")
+            or b7_row.get("realized_return_pct")
+            or b7_row.get("return_pct")
         )
-        realized_r = _decimal_or_none(dsi001.get("realized_r") or b7.get("realized_r"))
-        status = b7.get("outcome_status") or (
-            "RESOLVED" if resolved else "OUTCOME_UNAVAILABLE"
+        realized_r = _decimal_or_none(
+            dsi001.get("realized_r") or b7_row.get("realized_r")
+        )
+        status = (
+            b7_row.get("outcome_status")
+            or dsi001.get("outcome_status")
+            or ("RESOLVED" if resolved else "OUTCOME_UNAVAILABLE")
         )
         return FrozenBaselineCandidate(
             candidate=key,
@@ -184,8 +185,8 @@ class FrozenBaselineReconstructor:
             realized_return_pct=realized_return,
             realized_r=realized_r,
             b5_present=True,
-            b7_present=True,
-            b10_present=True,
+            b7_present=b7 is not None,
+            b10_present=b10 is not None,
             dsi001_present=True,
         )
 
@@ -246,17 +247,30 @@ def _canonical_partial_identity_map(
     return result
 
 
-def _validate_partial_population(
+def _validate_partial_subset(
     source: str,
     observed: set[_PartialCandidateKey],
-    expected: set[_PartialCandidateKey],
+    canonical: set[_PartialCandidateKey],
 ) -> None:
-    if observed == expected:
-        return
-    missing = sorted(expected - observed)
-    extra = sorted(observed - expected)
-    raise GateIsolationBaselineError(
-        f"{source}_IDENTITY_LINEAGE_MISMATCH:missing={len(missing)}:extra={len(extra)}"
+    extra = sorted(observed - canonical)
+    if extra:
+        raise GateIsolationBaselineError(
+            f"{source}_IDENTITY_LINEAGE_MISMATCH:missing=0:extra={len(extra)}"
+        )
+
+
+def _optional_bridged_row(
+    *,
+    source: str,
+    candidate: FrozenCandidateKey,
+    row: Mapping[str, str] | None,
+) -> dict[str, str] | None:
+    if row is None:
+        return None
+    return _bridge_partial_row(
+        source=source,
+        candidate=candidate,
+        row=row,
     )
 
 
