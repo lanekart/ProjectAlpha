@@ -84,7 +84,9 @@ def test_missing_snapshots_are_explicitly_recorded() -> None:
     assert audit.missing_snapshot_count == 2
     assert audit.population_replay_ready is False
     assert tuple(row.candidate.symbol for row in audit.rows) == ("AAA", "BBB")
-    assert all(len(row.missing_sections) == len(FrozenInputSection) for row in audit.rows)
+    assert all(
+        len(row.missing_sections) == len(FrozenInputSection) for row in audit.rows
+    )
 
 
 def test_complete_snapshots_make_population_ready() -> None:

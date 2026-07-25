@@ -93,7 +93,9 @@ class FrozenInputPopulationAuditor:
         canonical = {item.candidate for item in population.candidates}
         extra = sorted(set(indexed) - canonical)
         if extra:
-            raise ValueError(f"frozen input snapshots contain extra candidates:{len(extra)}")
+            raise ValueError(
+                f"frozen input snapshots contain extra candidates:{len(extra)}"
+            )
 
         validator = FrozenInputContractValidator()
         rows: list[FrozenInputLedgerRow] = []
