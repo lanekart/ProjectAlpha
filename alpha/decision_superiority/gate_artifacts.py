@@ -13,17 +13,22 @@ GATE_CONCLUSION_FIELDS = (
     "statistical_direction",
     "recommendation",
     "reason_code",
+    "isolation_status",
     "production_influence",
 )
 EVIDENCE_SUMMARY_FIELDS = (
     "gate_code",
-    "sample_count",
-    "resolved_count",
+    "observed_blocked_count",
+    "observed_resolved_count",
+    "co_blocked_count",
+    "isolated_sample_count",
+    "isolated_resolved_count",
     "minimum_required",
     "evidence_strength",
     "sufficient",
     "confidence_status",
     "insufficiency_reason",
+    "isolation_status",
     "production_influence",
 )
 CONFIDENCE_SUMMARY_FIELDS = (
@@ -38,6 +43,7 @@ CONFIDENCE_SUMMARY_FIELDS = (
     "mean_interval_lower",
     "mean_interval_upper",
     "mean_interval_method",
+    "isolation_status",
     "production_influence",
 )
 GATE_RECOMMENDATION_FIELDS = (
@@ -46,7 +52,8 @@ GATE_RECOMMENDATION_FIELDS = (
     "reason_code",
     "evidence_strength",
     "confidence_status",
-    "net_gate_value",
+    "isolated_net_gate_value",
+    "isolation_status",
     "production_influence",
 )
 
@@ -65,7 +72,6 @@ def build_gate_artifact_rows(
     pipelines_by_gate: Mapping[str, GatePipelineResult],
 ) -> GateArtifactRows:
     """Project canonical pipeline results into deterministic artifact rows."""
-
     conclusions: list[dict[str, object]] = []
     evidence_rows: list[dict[str, object]] = []
     confidence_rows: list[dict[str, object]] = []
@@ -82,6 +88,11 @@ def build_gate_artifact_rows(
         evidence = pipeline.evidence_strength
         success_interval = confidence.success_rate_interval
         mean_interval = confidence.mean_return_interval
+        isolated_value: object = (
+            pipeline.economic_value.net_gate_value
+            if pipeline.distribution.resolved_count > 0
+            else "UNAVAILABLE"
+        )
 
         conclusions.append(
             {
@@ -90,19 +101,24 @@ def build_gate_artifact_rows(
                 "statistical_direction": conclusion.statistical_direction.value,
                 "recommendation": conclusion.recommendation.value,
                 "reason_code": conclusion.reason_code,
+                "isolation_status": pipeline.isolation_status,
                 "production_influence": False,
             }
         )
         evidence_rows.append(
             {
                 "gate_code": gate_code,
-                "sample_count": evidence.sample_count,
-                "resolved_count": evidence.resolved_count,
+                "observed_blocked_count": pipeline.observed_blocked_count,
+                "observed_resolved_count": pipeline.observed_resolved_count,
+                "co_blocked_count": pipeline.co_blocked_count,
+                "isolated_sample_count": evidence.sample_count,
+                "isolated_resolved_count": evidence.resolved_count,
                 "minimum_required": evidence.minimum_required,
                 "evidence_strength": evidence.level.value,
                 "sufficient": evidence.sufficient,
                 "confidence_status": confidence.status.value,
                 "insufficiency_reason": confidence.insufficiency_reason,
+                "isolation_status": pipeline.isolation_status,
                 "production_influence": False,
             }
         )
@@ -137,6 +153,7 @@ def build_gate_artifact_rows(
                 "mean_interval_method": (
                     mean_interval.method if mean_interval is not None else ""
                 ),
+                "isolation_status": pipeline.isolation_status,
                 "production_influence": False,
             }
         )
@@ -147,7 +164,8 @@ def build_gate_artifact_rows(
                 "reason_code": conclusion.reason_code,
                 "evidence_strength": evidence.level.value,
                 "confidence_status": confidence.status.value,
-                "net_gate_value": pipeline.economic_value.net_gate_value,
+                "isolated_net_gate_value": isolated_value,
+                "isolation_status": pipeline.isolation_status,
                 "production_influence": False,
             }
         )
