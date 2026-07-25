@@ -26,8 +26,8 @@ def _snapshot(
     *,
     complete: bool = True,
 ) -> FrozenCandidateInputSnapshot:
-    sections = tuple(FrozenInputSection) if complete else (
-        FrozenInputSection.SOURCE_LINEAGE,
+    sections = (
+        tuple(FrozenInputSection) if complete else (FrozenInputSection.SOURCE_LINEAGE,)
     )
     return FrozenCandidateInputSnapshot.build(
         candidate=candidate,

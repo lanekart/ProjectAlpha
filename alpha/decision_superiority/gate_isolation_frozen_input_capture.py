@@ -58,7 +58,9 @@ class FrozenInputCaptureWriter:
         snapshot_path = snapshot_dir / filename
 
         if snapshot_path.exists():
-            raise FileExistsError(f"frozen input snapshot already exists:{snapshot_path}")
+            raise FileExistsError(
+                f"frozen input snapshot already exists:{snapshot_path}"
+            )
 
         existing = _read_index(index_path)
         identity = _candidate_identity(snapshot.candidate)
@@ -113,9 +115,7 @@ def _snapshot_payload(snapshot: FrozenCandidateInputSnapshot) -> dict[str, objec
                 "payload_sha256": item.payload_sha256,
                 "source_version": item.source_version,
                 "observed_on": item.observed_on,
-                "contains_post_observation_data": (
-                    item.contains_post_observation_data
-                ),
+                "contains_post_observation_data": (item.contains_post_observation_data),
             }
             for item in snapshot.sections
         ],
@@ -125,14 +125,17 @@ def _snapshot_payload(snapshot: FrozenCandidateInputSnapshot) -> dict[str, objec
 
 def _snapshot_filename(candidate: FrozenCandidateKey, sha256: str) -> str:
     safe_symbol = candidate.symbol.replace("/", "_")
-    return "__".join(
-        (
-            candidate.observed_on,
-            candidate.price_view,
-            safe_symbol,
-            sha256,
+    return (
+        "__".join(
+            (
+                candidate.observed_on,
+                candidate.price_view,
+                safe_symbol,
+                sha256,
+            )
         )
-    ) + ".json"
+        + ".json"
+    )
 
 
 def _candidate_identity(candidate: FrozenCandidateKey) -> str:
