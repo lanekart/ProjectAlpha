@@ -49,7 +49,9 @@ def test_verifies_bound_certificate_and_support_artifact(tmp_path: Path) -> None
     assert verified.contract_version == "UPSTREAM-v1"
     assert verified.readiness_decision == "READY_FOR_RESEARCH"
     assert verified.file_sha256 == _sha256(certificate)
-    assert verified.artifact_hashes == (("support.csv", _sha256(tmp_path / "support.csv")),)
+    assert verified.artifact_hashes == (
+        ("support.csv", _sha256(tmp_path / "support.csv")),
+    )
 
 
 def test_rejects_tampered_support_artifact(tmp_path: Path) -> None:
