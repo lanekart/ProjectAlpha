@@ -34,9 +34,7 @@ class ExecutionStateCaptureInput:
         required = (
             ("cash_state", self.cash_state),
             ("sizing_state", self.sizing_state),
-            ("liquidity_constraints", self.liquidity_constraints),
             ("participation_constraints", self.participation_constraints),
-            ("queue_state", self.queue_state),
             ("risk_budget_state", self.risk_budget_state),
         )
         for name, value in required:
@@ -63,17 +61,8 @@ class OutcomePolicyCaptureInput:
     observed_on: str
 
     def __post_init__(self) -> None:
-        required = (
-            ("exit_policy", self.exit_policy),
-            ("stop_policy", self.stop_policy),
-            ("target_policy", self.target_policy),
-            ("trailing_policy", self.trailing_policy),
-            ("time_exit_policy", self.time_exit_policy),
-            ("ambiguity_policy", self.ambiguity_policy),
-        )
-        for name, value in required:
-            if not value:
-                raise ValueError(f"{name} cannot be empty")
+        if not self.exit_policy:
+            raise ValueError("exit_policy cannot be empty")
         if not self.policy_version.strip():
             raise ValueError("policy_version cannot be empty")
         if not self.dependency_versions:
