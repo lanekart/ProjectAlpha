@@ -1,0 +1,51 @@
+name: HTR-010B10 Finalize
+
+on:
+  push:
+    branches:
+      - feature/htr-010b10-governed-adaptive-institutional-trade-shadow
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-010b10-governed-adaptive-institutional-trade-shadow
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Apply exact MyPy narrowing and clean diagnostics
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('alpha/application/governed_adaptive_institutional_trade_shadow_cli.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('from typing import Annotated\n', 'from collections.abc import Sequence\nfrom typing import Annotated, cast\n')
+          old = '    blockers = report["readiness_blockers"]\n'
+          new = '    blockers = cast(Sequence[object], report["readiness_blockers"])\n'
+          if old not in text and new not in text:
+              raise SystemExit('expected blockers assignment not found')
+          if old in text:
+              text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+
+          Path('.github/workflows/htr010b10-mypy-diagnostics.yml').unlink(missing_ok=True)
+          Path('.github/workflows/htr010b10-finalize.yml').unlink(missing_ok=True)
+          PY
+          pip install ruff==0.15.20
+          ruff check --fix alpha/application/governed_adaptive_institutional_trade_shadow_cli.py
+          ruff format alpha/application/governed_adaptive_institutional_trade_shadow_cli.py
+      - name: Commit finalized B10 source
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add alpha/application/governed_adaptive_institutional_trade_shadow_cli.py .github/workflows
+          git commit -m 'fix(htr-010b10): satisfy strict typing and remove diagnostics'
+          git push origin HEAD:feature/htr-010b10-governed-adaptive-institutional-trade-shadow
