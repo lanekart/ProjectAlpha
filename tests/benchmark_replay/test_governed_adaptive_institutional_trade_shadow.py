@@ -155,32 +155,29 @@ def test_readiness_precedence_is_fail_closed_and_zero_trades_can_be_ready() -> N
     assert _readiness(**base) == (B10_READY, ())
     assert _readiness(**{**base, "population_nonempty": False})[0] == B10_BLOCKED_EMPTY
     assert (
-    _readiness(**{**base, "default_path_drift_count": 1})[0]
-    == B10_BLOCKED_DEFAULT
-)
+        _readiness(**{**base, "default_path_drift_count": 1})[0] == B10_BLOCKED_DEFAULT
+    )
     assert _readiness(**{**base, "leakage_count": 1})[0] == B10_BLOCKED_LEAKAGE
     assert (
-    _readiness(**{**base, "recommendation_semantic_drift_count": 1})[0]
-    == B10_BLOCKED_RECOMMENDATION
-)
+        _readiness(**{**base, "recommendation_semantic_drift_count": 1})[0]
+        == B10_BLOCKED_RECOMMENDATION
+    )
     assert (
-    _readiness(
-        **{**base, "unexplained_institutional_divergence_count": 1}
-    )[0]
-    == B10_BLOCKED_INSTITUTIONAL
-)
+        _readiness(**{**base, "unexplained_institutional_divergence_count": 1})[0]
+        == B10_BLOCKED_INSTITUTIONAL
+    )
     assert (
-    _readiness(**{**base, "unexplained_trade_divergence_count": 1})[0]
-    == B10_BLOCKED_TRADE
-)
+        _readiness(**{**base, "unexplained_trade_divergence_count": 1})[0]
+        == B10_BLOCKED_TRADE
+    )
     assert (
-    _readiness(**{**base, "unexplained_arm_divergence_count": 1})[0]
-    == B10_BLOCKED_ARM
-)
+        _readiness(**{**base, "unexplained_arm_divergence_count": 1})[0]
+        == B10_BLOCKED_ARM
+    )
     assert (
-    _readiness(**{**base, "implementation_defects": ("DEFECT",)})[0]
-    == B10_BLOCKED_DEFECT
-)
+        _readiness(**{**base, "implementation_defects": ("DEFECT",)})[0]
+        == B10_BLOCKED_DEFECT
+    )
 
 
 def test_raw_adjusted_effect_difference_requires_signed_input_difference() -> None:

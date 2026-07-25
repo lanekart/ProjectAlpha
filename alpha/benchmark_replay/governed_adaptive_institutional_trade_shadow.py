@@ -282,9 +282,7 @@ class GovernedAdaptiveInstitutionalTradeShadowEngine:
             )
         except (OSError, ValueError) as error:
             b9, b8, b7 = {}, {}, {}
-            handoff_defects.append(
-                f"HANDOFF_VALIDATION_FAILED:{_safe_error(error)}"
-            )
+            handoff_defects.append(f"HANDOFF_VALIDATION_FAILED:{_safe_error(error)}")
 
         _progress(progress, 2, 4, "Binding immutable governed inputs")
         input_paths = {
@@ -301,9 +299,7 @@ class GovernedAdaptiveInstitutionalTradeShadowEngine:
             try:
                 input_hashes[key] = _file_sha256(path)
             except OSError as error:
-                handoff_defects.append(
-                    f"INPUT_UNAVAILABLE@{key}:{_safe_error(error)}"
-                )
+                handoff_defects.append(f"INPUT_UNAVAILABLE@{key}:{_safe_error(error)}")
 
         probe_rows, probe_summary, probe_defects = _non_vacuity_probes()
         readiness, blockers = _readiness(
@@ -512,9 +508,7 @@ def _arm_effect_comparison(
         raw_signature = _effect_signature(raw, raw_trade)
         adjusted_signature = _effect_signature(adjusted, adjusted_trade)
         raw_input = input_fingerprints.get(("RAW", observed_on, symbol), "")
-        adjusted_input = input_fingerprints.get(
-            ("ADJUSTED", observed_on, symbol), ""
-        )
+        adjusted_input = input_fingerprints.get(("ADJUSTED", observed_on, symbol), "")
         effect_changed = raw_signature != adjusted_signature
         input_changed = raw_input != adjusted_input
         explained = not effect_changed or input_changed
@@ -605,9 +599,7 @@ def _non_vacuity_probes() -> tuple[
     second = run_once()
     rows = tuple({**row, "deterministic": first == second} for row in first)
     defects = tuple(
-        f"B10_PROBE_FAILED@{row['probe_id']}"
-        for row in rows
-        if not row["passed"]
+        f"B10_PROBE_FAILED@{row['probe_id']}" for row in rows if not row["passed"]
     )
     summary: dict[str, object] = {
         "probe_count": len(rows),
@@ -635,17 +627,12 @@ def _readiness(
     if implementation_defects:
         return B10_BLOCKED_DEFECT, tuple(sorted(set(implementation_defects)))
     if default_path_drift_count:
-        return B10_BLOCKED_DEFAULT, (
-            f"DEFAULT_PATH_DRIFT={default_path_drift_count}",
-        )
+        return B10_BLOCKED_DEFAULT, (f"DEFAULT_PATH_DRIFT={default_path_drift_count}",)
     if leakage_count:
-        return B10_BLOCKED_LEAKAGE, (
-            f"POINT_IN_TIME_ADAPTIVE_LEAKAGE={leakage_count}",
-        )
+        return B10_BLOCKED_LEAKAGE, (f"POINT_IN_TIME_ADAPTIVE_LEAKAGE={leakage_count}",)
     if recommendation_semantic_drift_count:
         return B10_BLOCKED_RECOMMENDATION, (
-            "RECOMMENDATION_SEMANTIC_DRIFT="
-            f"{recommendation_semantic_drift_count}",
+            f"RECOMMENDATION_SEMANTIC_DRIFT={recommendation_semantic_drift_count}",
         )
     if unexplained_institutional_divergence_count:
         return B10_BLOCKED_INSTITUTIONAL, (
@@ -658,8 +645,7 @@ def _readiness(
         )
     if unexplained_arm_divergence_count:
         return B10_BLOCKED_ARM, (
-            "UNEXPLAINED_ADAPTIVE_ARM_DIVERGENCES="
-            f"{unexplained_arm_divergence_count}",
+            f"UNEXPLAINED_ADAPTIVE_ARM_DIVERGENCES={unexplained_arm_divergence_count}",
         )
     if not population_nonempty:
         return B10_BLOCKED_EMPTY, ("ADAPTIVE_SHADOW_POPULATION_EMPTY",)
@@ -742,9 +728,7 @@ def export_governed_adaptive_institutional_trade_shadow(
             _markdown(report),
         ),
     )
-    report["artifact_hashes"] = {
-        path.name: _file_sha256(path) for path in support
-    }
+    report["artifact_hashes"] = {path.name: _file_sha256(path) for path in support}
     report["report_sha256"] = _digest_mapping(report)
     certificate = _write_json(certificate_path, report)
     return (certificate, *support)
@@ -768,9 +752,7 @@ def validate_governed_adaptive_institutional_trade_shadow_certificate(
         raise ValueError("HTR-010B10 supporting artifact set mismatch")
     for name, expected in sorted(hashes.items()):
         if _file_sha256(path.parent / str(name)) != str(expected):
-            raise ValueError(
-                f"HTR-010B10 supporting artifact changed: {name}"
-            )
+            raise ValueError(f"HTR-010B10 supporting artifact changed: {name}")
     readiness = str(payload.get("readiness_decision") or "")
     expected, blockers = _readiness(
         handoff_defects=tuple(
@@ -790,9 +772,7 @@ def validate_governed_adaptive_institutional_trade_shadow_certificate(
             "semantic drift",
         ),
         unexplained_institutional_divergence_count=_integer(
-            payload.get(
-                "unexplained_institutional_decision_divergence_count"
-            ),
+            payload.get("unexplained_institutional_decision_divergence_count"),
             "institutional divergence",
         ),
         unexplained_trade_divergence_count=_integer(
@@ -809,9 +789,7 @@ def validate_governed_adaptive_institutional_trade_shadow_certificate(
     )
     if (
         readiness != expected
-        or tuple(
-            str(item) for item in _list_value(payload, "readiness_blockers")
-        )
+        or tuple(str(item) for item in _list_value(payload, "readiness_blockers"))
         != blockers
     ):
         raise ValueError("HTR-010B10 readiness evidence is inconsistent")
@@ -845,9 +823,7 @@ def _validate_flags(payload: Mapping[str, object]) -> None:
     )
     for key in false_keys:
         if payload.get(key) is not False:
-            raise ValueError(
-                f"HTR-010B10 governance flag must remain false: {key}"
-            )
+            raise ValueError(f"HTR-010B10 governance flag must remain false: {key}")
 
 
 def _progress(
@@ -930,9 +906,7 @@ def _write_csv(
         writer = csv.DictWriter(temporary, fieldnames=fieldnames)
         writer.writeheader()
         for row in rows:
-            writer.writerow(
-                {key: _csv_value(row.get(key)) for key in fieldnames}
-            )
+            writer.writerow({key: _csv_value(row.get(key)) for key in fieldnames})
         temporary_path = Path(temporary.name)
     os.replace(temporary_path, path)
     return path
