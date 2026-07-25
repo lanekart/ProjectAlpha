@@ -13,6 +13,10 @@ from alpha.decision_superiority.gate_isolation_frozen_inputs import (
     FrozenInputSection,
 )
 from alpha.decision_superiority.gate_isolation_models import FrozenCandidateKey
+from alpha.decision_superiority.gate_isolation_policy_producers import (
+    ApprovalPolicyCaptureInput,
+    EntryPolicyCaptureInput,
+)
 
 
 def _request() -> FrozenInputAssemblyRequest:
@@ -31,25 +35,43 @@ def _request() -> FrozenInputAssemblyRequest:
             source_hashes={"analysis": "abc"},
             observed_on="2026-07-26",
         ),
+        approval_policy=ApprovalPolicyCaptureInput(
+            policy_payload={"minimum_score": "70"},
+            policy_version="approval-v1",
+            threshold_provenance={"minimum_score": "governed"},
+            dependency_versions={"recommendation": "v1"},
+            observed_on="2026-07-26",
+        ),
         portfolio_state=PortfolioStateCaptureInput(
             recommendation_context={"cash": "1000"},
             allocation_context={"heat": "0.25"},
             state_version="portfolio-v1",
             observed_on="2026-07-26",
         ),
+        entry_policy=EntryPolicyCaptureInput(
+            policy_payload={"trigger_style": "BREAKOUT"},
+            policy_version="entry-v1",
+            trigger_payload={"status": "PENDING"},
+            trigger_source_hashes={"price_history": "def"},
+            observed_on="2026-07-26",
+        ),
     )
 
 
-def test_assembler_preserves_only_available_sections() -> None:
+def test_assembler_preserves_four_available_sections() -> None:
     result = FrozenInputAssembler().assemble(_request())
 
     assert result.present_sections == (
+        FrozenInputSection.APPROVAL_POLICY,
         FrozenInputSection.CANDIDATE_FEATURES,
+        FrozenInputSection.ENTRY_POLICY,
         FrozenInputSection.PORTFOLIO_STATE,
     )
-    assert len(result.missing_sections) == 5
-    assert FrozenInputSection.EXECUTION_STATE in result.missing_sections
-    assert FrozenInputSection.OUTCOME_POLICY in result.missing_sections
+    assert result.missing_sections == (
+        FrozenInputSection.EXECUTION_STATE,
+        FrozenInputSection.OUTCOME_POLICY,
+        FrozenInputSection.SOURCE_LINEAGE,
+    )
 
 
 def test_incomplete_snapshot_is_not_persistable() -> None:
@@ -75,14 +97,16 @@ def test_observation_date_mismatch_fails_closed() -> None:
     try:
         FrozenInputAssemblyRequest(
             candidate=request.candidate,
-            candidate_features=CandidateFeatureCaptureInput(
-                candidate_payload={"symbol": "AAA"},
-                market_payload={"regime": "BULL"},
-                feature_version="feature-v1",
-                source_hashes={"analysis": "abc"},
+            candidate_features=request.candidate_features,
+            approval_policy=request.approval_policy,
+            portfolio_state=request.portfolio_state,
+            entry_policy=EntryPolicyCaptureInput(
+                policy_payload={"trigger_style": "BREAKOUT"},
+                policy_version="entry-v1",
+                trigger_payload={"status": "PENDING"},
+                trigger_source_hashes={"price_history": "def"},
                 observed_on="2026-07-25",
             ),
-            portfolio_state=request.portfolio_state,
         )
     except ValueError as exc:
         assert "observation date mismatch" in str(exc)
