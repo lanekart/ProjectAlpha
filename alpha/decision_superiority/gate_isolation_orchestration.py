@@ -27,6 +27,8 @@ from alpha.decision_superiority.gate_isolation_transitions import (
     GateIsolationTransitionEngine,
 )
 
+_PartialCandidateKey = tuple[str, str, str]
+
 
 @dataclass(frozen=True, slots=True)
 class GateIsolationDryRunSummary:
@@ -76,7 +78,10 @@ class GateIsolationDryRunOrchestrator:
     ) -> GateIsolationDryRunResult:
         verified = GateIsolationSourceContractVerifier().verify(source_paths)
         population = FrozenBaselineReconstructor().reconstruct(baseline_paths)
-        downstream = _baseline_states(baseline_paths.b10_decision_ledger)
+        downstream = _baseline_states(
+            baseline_paths.b10_decision_ledger,
+            population,
+        )
         builder = GateIsolationArmBuilder(
             max_remediation_set_size=max_remediation_set_size
         )
@@ -216,21 +221,33 @@ def _summarize(
 
 def _baseline_states(
     path: Path,
+    population: FrozenBaselinePopulation,
 ) -> dict[FrozenCandidateKey, BaselineDownstreamState]:
+    canonical = _canonical_partial_identity_map(population)
     with path.open("r", encoding="utf-8", newline="") as handle:
         rows = tuple(dict(row) for row in csv.DictReader(handle))
-    result: dict[FrozenCandidateKey, BaselineDownstreamState] = {}
+    observed: dict[_PartialCandidateKey, dict[str, str]] = {}
     for row in rows:
-        key = FrozenCandidateKey(
-            price_view=str(row.get("price_view") or "").strip().upper(),
-            observed_on=str(row.get("observed_on") or "").strip(),
-            symbol=str(row.get("symbol") or "").strip().upper(),
-            input_fingerprint=str(
-                row.get("input_fingerprint") or row.get("fingerprint_key") or ""
-            ).strip(),
-        )
-        if key in result:
+        partial = _partial_key_from_row(row)
+        if partial in observed:
             raise ValueError("duplicate B10 downstream candidate identity")
+        observed[partial] = row
+    if set(observed) != set(canonical):
+        missing = sorted(set(canonical) - set(observed))
+        extra = sorted(set(observed) - set(canonical))
+        raise ValueError(
+            "B10 downstream identity lineage mismatch:"
+            f"missing={len(missing)}:extra={len(extra)}"
+        )
+
+    result: dict[FrozenCandidateKey, BaselineDownstreamState] = {}
+    for partial, row in sorted(observed.items()):
+        key = canonical[partial]
+        supplied_fingerprint = str(
+            row.get("input_fingerprint") or row.get("fingerprint_key") or ""
+        ).strip()
+        if supplied_fingerprint and supplied_fingerprint != key.input_fingerprint:
+            raise ValueError("B10 downstream fingerprint mismatch")
         approved = _truthy(row.get("default_accepted") or row.get("approved"))
         portfolio = _truthy(
             row.get("default_portfolio_eligible") or row.get("portfolio_eligible")
@@ -248,6 +265,40 @@ def _baseline_states(
             outcome_available=outcome,
         )
     return result
+
+
+def _canonical_partial_identity_map(
+    population: FrozenBaselinePopulation,
+) -> dict[_PartialCandidateKey, FrozenCandidateKey]:
+    result: dict[_PartialCandidateKey, FrozenCandidateKey] = {}
+    for item in population.candidates:
+        candidate = item.candidate
+        partial = _partial_key_from_candidate(candidate)
+        existing = result.get(partial)
+        if (
+            existing is not None
+            and existing.input_fingerprint != candidate.input_fingerprint
+        ):
+            raise ValueError("ambiguous canonical B10 downstream identity")
+        result[partial] = candidate
+    return result
+
+
+def _partial_key_from_row(row: dict[str, str]) -> _PartialCandidateKey:
+    key = (
+        str(row.get("price_view") or "").strip().upper(),
+        str(row.get("observed_on") or "").strip(),
+        str(row.get("symbol") or "").strip().upper(),
+    )
+    if any(not value for value in key):
+        raise ValueError("invalid B10 downstream candidate identity")
+    return key
+
+
+def _partial_key_from_candidate(
+    candidate: FrozenCandidateKey,
+) -> _PartialCandidateKey:
+    return candidate.price_view, candidate.observed_on, candidate.symbol
 
 
 def _truthy(value: str | None) -> bool:
