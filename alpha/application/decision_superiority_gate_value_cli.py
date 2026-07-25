@@ -1,4 +1,4 @@
-"""CLI for the governed DSI-001 gate value audit."""
+"""CLI for the governed DSI-001 gate value audit with signed B5/B7 orchestration."""
 
 from __future__ import annotations
 
@@ -7,7 +7,8 @@ from typing import Annotated
 
 import typer
 
-from alpha.decision_superiority import GovernedGateValueAudit
+from alpha.decision_superiority.input_contract import GovernedInputContractError
+from alpha.decision_superiority.signed_audit import GovernedSignedGateValueAudit
 
 DEFAULT_DSI001_OUTPUT = Path(".alpha/benchmark/dsi001_gate_value_audit")
 
@@ -17,6 +18,8 @@ def register_decision_superiority_gate_value_command(app: typer.Typer) -> None:
 
 
 def decision_superiority_gate_value(
+    b5_certificate: Annotated[Path, typer.Option("--b5-certificate")],
+    b7_certificate: Annotated[Path, typer.Option("--b7-certificate")],
     candidate_gate_forensics: Annotated[
         Path, typer.Option("--candidate-gate-forensics")
     ],
@@ -24,12 +27,21 @@ def decision_superiority_gate_value(
     outcome_coverage_ledger: Annotated[Path, typer.Option("--outcome-coverage-ledger")],
     output: Annotated[Path, typer.Option("--output")] = DEFAULT_DSI001_OUTPUT,
 ) -> None:
-    result = GovernedGateValueAudit().run(
-        candidate_gate_forensics=candidate_gate_forensics,
-        gate_event_ledger=gate_event_ledger,
-        outcome_coverage_ledger=outcome_coverage_ledger,
-        output=output,
-    )
+    """Run DSI-001 audit exclusively through signed B5/B7 orchestration."""
+
+    try:
+        result = GovernedSignedGateValueAudit().run(
+            b5_certificate=b5_certificate,
+            b7_certificate=b7_certificate,
+            candidate_gate_forensics=candidate_gate_forensics,
+            gate_event_ledger=gate_event_ledger,
+            outcome_coverage_ledger=outcome_coverage_ledger,
+            output=output,
+        )
+    except GovernedInputContractError as exc:
+        typer.echo(f"SIGNED_EXECUTION_FAILED: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
     report = result.report
     values = report["gate_value_summary"]
     positive = [
@@ -62,6 +74,13 @@ def decision_superiority_gate_value(
         )
     )
     typer.echo(f"Report SHA256: {report['report_sha256']}")
+    typer.echo(
+        f"B5 Contract: {report['upstream_certificates']['b5']['contract_version']}"
+    )
+    typer.echo(
+        f"B7 Contract: {report['upstream_certificates']['b7']['contract_version']}"
+    )
+    typer.echo(f"Source Contract Verified: {report['source_contract_verified']}")
     typer.echo("RECOMMENDATION_INFLUENCE=false")
     typer.echo("EXECUTION_INFLUENCE=false")
     typer.echo("ACTIVE_REPLAY_INTEGRATION=false")
