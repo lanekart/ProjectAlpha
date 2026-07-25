@@ -1,0 +1,88 @@
+name: HTR-010B10E1 Probe Diagnostics
+
+on:
+  pull_request:
+    branches:
+      - feature/recovery-foundation-v1
+
+permissions:
+  contents: read
+
+jobs:
+  probes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-010b10-governed-adaptive-institutional-trade-shadow
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Reconstruct engine
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import base64
+          import io
+          import json
+          import os
+          import shutil
+          import urllib.request
+          import zipfile
+          from pathlib import Path
+
+          shas = (
+              'a1a694ebbb82caae1d63beac9ebb21ed3470c09a',
+              'baf994a0a638060327eedfa90f8ef02b7366fd79',
+              'b440ec86ad203858817959e6cf9b59d9ac23be2f',
+              'dd5f552df11b0f82173fd7b04ef44f976e856a4f',
+              '53896c5cb7683ec8c365fab92ee3c445ee11122d',
+              '697c807e1575fd8e722019ea29ab0dfe3398ea96',
+              'ea707ad3b23c799dbe7aba2e2f8b868171cd42cc',
+              '5ded10566e9fc2d38856d72e3f7f843dd78cefbd',
+              'af4b7af8851dddd0adc79f6fd2de044fe0e3c033',
+              'fd74c1365ef80bd971389adc4da41e03d6d0fbfc',
+          )
+          chunks = []
+          for sha in shas:
+              request = urllib.request.Request(
+                  f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/git/blobs/{sha}",
+                  headers={
+                      'Authorization': f"Bearer {os.environ['GH_TOKEN']}",
+                      'Accept': 'application/vnd.github+json',
+                  },
+              )
+              with urllib.request.urlopen(request) as response:
+                  payload = json.load(response)
+              chunks.append(base64.b64decode(payload['content']).decode('ascii'))
+          archive = base64.b64decode(''.join(chunks), validate=True)
+          with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
+              source = bundle.read(
+                  'alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py'
+              )
+          Path(
+              'alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py'
+          ).write_bytes(source)
+          PY
+      - run: pip install poetry
+      - run: poetry install --with dev --no-interaction
+      - name: Capture probe rows
+        run: |
+          poetry run python - <<'PY' > b10e1-probes.txt
+          from pprint import pprint
+          from alpha.benchmark_replay.governed_adaptive_institutional_trade_shadow import _non_vacuity_probes
+
+          rows, summary, defects = _non_vacuity_probes()
+          for row in rows:
+              pprint(row, sort_dicts=True)
+          print('SUMMARY')
+          pprint(summary, sort_dicts=True)
+          print('DEFECTS')
+          pprint(defects)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: htr010b10e1-probe-diagnostics
+          path: b10e1-probes.txt
+          if-no-files-found: error
