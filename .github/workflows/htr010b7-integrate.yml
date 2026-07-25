@@ -137,56 +137,38 @@ jobs:
           module = Path(
               "alpha/benchmark_replay/governed_setup_matched_evidence.py"
           )
-          replace_once(
-              module,
-              '''    for price_view, audit in (("RAW", raw_audit), ("ADJUSTED", adjusted_audit)):
-              for ranking in audit.rankings:
-                  key = price_view, ranking.observed_on, ranking.symbol
-                  if key in rankings:
-                      defects.append(_key_defect("DUPLICATE_RERUN_RANKING", key))
-                  rankings[key] = ranking
-              for outcome in audit.outcomes:
-                  key = price_view, outcome.observed_on, outcome.symbol
-                  if key in outcomes:
-                      defects.append(_key_defect("DUPLICATE_RERUN_OUTCOME", key))
-                  outcomes[key] = outcome
-          ''',
-              '''    for price_view, audit in (("RAW", raw_audit), ("ADJUSTED", adjusted_audit)):
-              for audit_ranking in audit.rankings:
-                  key = price_view, audit_ranking.observed_on, audit_ranking.symbol
-                  if key in rankings:
-                      defects.append(_key_defect("DUPLICATE_RERUN_RANKING", key))
-                  rankings[key] = audit_ranking
-              for audit_outcome in audit.outcomes:
-                  key = price_view, audit_outcome.observed_on, audit_outcome.symbol
-                  if key in outcomes:
-                      defects.append(_key_defect("DUPLICATE_RERUN_OUTCOME", key))
-                  outcomes[key] = audit_outcome
-          ''',
+          semantic_replacements = (
+              (
+                  "for ranking in audit.rankings:",
+                  "for audit_ranking in audit.rankings:",
+              ),
+              (
+                  "key = price_view, ranking.observed_on, ranking.symbol",
+                  "key = price_view, audit_ranking.observed_on, audit_ranking.symbol",
+              ),
+              ("rankings[key] = ranking", "rankings[key] = audit_ranking"),
+              (
+                  "for outcome in audit.outcomes:",
+                  "for audit_outcome in audit.outcomes:",
+              ),
+              (
+                  "key = price_view, outcome.observed_on, outcome.symbol",
+                  "key = price_view, audit_outcome.observed_on, audit_outcome.symbol",
+              ),
+              ("outcomes[key] = outcome", "outcomes[key] = audit_outcome"),
           )
-          replace_once(
-              module,
-              '''        (
-              "STRONG_OVERRIDE",
-              0,
-              "STRONG",
-              10,
-              0,
-              "NONE",
-              "NONE",
-          ),
-          ''',
-              '''        (
-              "STRONG_OVERRIDE",
-              0,
-              "STRONG",
-              10,
-              0,
-              "ZERO_MATCHED_OUTCOMES",
-              "NONE",
-          ),
-          ''',
-          )
+          for anchor, replacement in semantic_replacements:
+              replace_once(module, anchor, replacement)
+
+          text = module.read_text(encoding="utf-8")
+          marker = '"STRONG_OVERRIDE"'
+          start = text.index(marker)
+          end = text.index("        ),", start)
+          block = text[start:end]
+          if block.count('"NONE"') != 2:
+              raise SystemExit("B7 STRONG_OVERRIDE probe anchor mismatch")
+          block = block.replace('"NONE"', '"ZERO_MATCHED_OUTCOMES"', 1)
+          module.write_text(text[:start] + block + text[end:], encoding="utf-8")
           PY
 
       - name: Install the locked project environment
