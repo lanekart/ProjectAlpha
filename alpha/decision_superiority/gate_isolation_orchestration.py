@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import csv
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
 from alpha.decision_superiority.gate_isolation_arms import GateIsolationArmBuilder
@@ -12,7 +12,10 @@ from alpha.decision_superiority.gate_isolation_baseline import (
     FrozenBaselineReconstructor,
     FrozenBaselineSourcePaths,
 )
-from alpha.decision_superiority.gate_isolation_models import CounterfactualArmType
+from alpha.decision_superiority.gate_isolation_models import (
+    CounterfactualArmType,
+    FrozenCandidateKey,
+)
 from alpha.decision_superiority.gate_isolation_source_contract import (
     GateIsolationSourceContractVerifier,
     GateIsolationSourcePaths,
@@ -45,9 +48,10 @@ class GateIsolationDryRunSummary:
     def __post_init__(self) -> None:
         if self.production_influence:
             raise ValueError("DSI-002 dry runs must remain diagnostic-only")
-        for name, value in self.__dict__.items():
-            if name != "production_influence" and value < 0:
-                raise ValueError(f"{name} cannot be negative")
+        for item in fields(self):
+            value = getattr(self, item.name)
+            if item.name != "production_influence" and value < 0:
+                raise ValueError(f"{item.name} cannot be negative")
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,11 +168,11 @@ def export_gate_isolation_dry_run(
                     "production_influence": "false",
                 }
             )
+    summary_row = asdict(result.summary)
     with summary_path.open("w", encoding="utf-8", newline="") as handle:
-        fields = tuple(result.summary.__dict__)
-        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer = csv.DictWriter(handle, fieldnames=tuple(summary_row))
         writer.writeheader()
-        writer.writerow(result.summary.__dict__)
+        writer.writerow(summary_row)
     return transition_path, summary_path
 
 
@@ -210,14 +214,21 @@ def _summarize(
     )
 
 
-def _baseline_states(path: Path) -> dict[object, BaselineDownstreamState]:
-    from alpha.decision_superiority.gate_isolation_baseline import _candidate_key
-
+def _baseline_states(
+    path: Path,
+) -> dict[FrozenCandidateKey, BaselineDownstreamState]:
     with path.open("r", encoding="utf-8", newline="") as handle:
         rows = tuple(dict(row) for row in csv.DictReader(handle))
-    result: dict[object, BaselineDownstreamState] = {}
+    result: dict[FrozenCandidateKey, BaselineDownstreamState] = {}
     for row in rows:
-        key = _candidate_key(row, "B10")
+        key = FrozenCandidateKey(
+            price_view=str(row.get("price_view") or "").strip().upper(),
+            observed_on=str(row.get("observed_on") or "").strip(),
+            symbol=str(row.get("symbol") or "").strip().upper(),
+            input_fingerprint=str(
+                row.get("input_fingerprint") or row.get("fingerprint_key") or ""
+            ).strip(),
+        )
         if key in result:
             raise ValueError("duplicate B10 downstream candidate identity")
         approved = _truthy(row.get("default_accepted") or row.get("approved"))
