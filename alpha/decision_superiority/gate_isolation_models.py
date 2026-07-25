@@ -14,13 +14,9 @@ class GateIsolationReadiness(StrEnum):
 
     READY = "READY_FOR_GOVERNED_GATE_ISOLATION_RESEARCH"
     NO_EFFECTIVE_SINGLE_GATE_ARMS = "BLOCKED_BY_NO_EFFECTIVE_SINGLE_GATE_ARMS"
-    NO_VALID_MINIMAL_REMEDIATION_SETS = (
-        "BLOCKED_BY_NO_VALID_MINIMAL_REMEDIATION_SETS"
-    )
+    NO_VALID_MINIMAL_REMEDIATION_SETS = "BLOCKED_BY_NO_VALID_MINIMAL_REMEDIATION_SETS"
     INSUFFICIENT_ISOLATED_OUTCOMES = "BLOCKED_BY_INSUFFICIENT_ISOLATED_OUTCOMES"
-    COUNTERFACTUAL_SEMANTIC_INVALIDITY = (
-        "BLOCKED_BY_COUNTERFACTUAL_SEMANTIC_INVALIDITY"
-    )
+    COUNTERFACTUAL_SEMANTIC_INVALIDITY = "BLOCKED_BY_COUNTERFACTUAL_SEMANTIC_INVALIDITY"
     COMBINATORIAL_LIMIT = "BLOCKED_BY_COMBINATORIAL_LIMIT"
     MULTIPLE_TESTING_RISK = "BLOCKED_BY_MULTIPLE_TESTING_RISK"
     POINT_IN_TIME_LEAKAGE = "BLOCKED_BY_POINT_IN_TIME_LEAKAGE"
@@ -91,7 +87,10 @@ class GateIsolationArm:
             raise ValueError("DSI-002 arms must remain diagnostic-only")
         if tuple(sorted(set(self.passed_gate_codes))) != self.passed_gate_codes:
             raise ValueError("passed_gate_codes must be unique and sorted")
-        if tuple(sorted(set(self.observed_failure_codes))) != self.observed_failure_codes:
+        if (
+            tuple(sorted(set(self.observed_failure_codes)))
+            != self.observed_failure_codes
+        ):
             raise ValueError("observed_failure_codes must be unique and sorted")
         unknown = set(self.passed_gate_codes) - set(self.observed_failure_codes)
         if unknown:
