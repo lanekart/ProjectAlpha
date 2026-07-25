@@ -90,8 +90,10 @@ class GateIsolationDryRunOrchestrator:
         transitions: list[GateIsolationTransition] = []
         for candidate in population.candidates:
             state = downstream.get(candidate.candidate)
+            if candidate.b10_present and state is None:
+                raise ValueError("B10 downstream state missing for covered candidate")
             if state is None:
-                raise ValueError("B10 downstream state missing for baseline candidate")
+                state = _empty_downstream_state()
             batch = builder.build(
                 candidate=candidate.candidate,
                 observed_failure_codes=candidate.observed_failure_codes,
@@ -232,12 +234,11 @@ def _baseline_states(
         if partial in observed:
             raise ValueError("duplicate B10 downstream candidate identity")
         observed[partial] = row
-    if set(observed) != set(canonical):
-        missing = sorted(set(canonical) - set(observed))
-        extra = sorted(set(observed) - set(canonical))
+    extra = sorted(set(observed) - set(canonical))
+    if extra:
         raise ValueError(
             "B10 downstream identity lineage mismatch:"
-            f"missing={len(missing)}:extra={len(extra)}"
+            f"missing=0:extra={len(extra)}"
         )
 
     result: dict[FrozenCandidateKey, BaselineDownstreamState] = {}
@@ -299,6 +300,16 @@ def _partial_key_from_candidate(
     candidate: FrozenCandidateKey,
 ) -> _PartialCandidateKey:
     return candidate.price_view, candidate.observed_on, candidate.symbol
+
+
+def _empty_downstream_state() -> BaselineDownstreamState:
+    return BaselineDownstreamState(
+        approved=False,
+        portfolio_eligible=False,
+        entry_ready=False,
+        trade_formed=False,
+        outcome_available=False,
+    )
 
 
 def _truthy(value: str | None) -> bool:
