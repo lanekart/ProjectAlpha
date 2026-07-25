@@ -65,7 +65,7 @@ def _write(
     return path
 
 
-def _b7_without_fingerprint(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+def _without_fingerprint(rows: list[dict[str, str]]) -> list[dict[str, str]]:
     return [
         {key: value for key, value in row.items() if key != "input_fingerprint"}
         for row in rows
@@ -77,11 +77,12 @@ def _paths(
     rows: list[dict[str, str]],
     *,
     b7_rows: list[dict[str, str]] | None = None,
+    b10_rows: list[dict[str, str]] | None = None,
 ) -> FrozenBaselineSourcePaths:
     selected_b7 = rows if b7_rows is None else b7_rows
-    b7_fields = (
-        tuple(selected_b7[0]) if selected_b7 else tuple(field for field in FIELDS)
-    )
+    selected_b10 = rows if b10_rows is None else b10_rows
+    b7_fields = tuple(selected_b7[0]) if selected_b7 else FIELDS
+    b10_fields = tuple(selected_b10[0]) if selected_b10 else FIELDS
     return FrozenBaselineSourcePaths(
         b5_candidate_ledger=_write(tmp_path / "b5.csv", rows),
         b7_outcome_ledger=_write(
@@ -89,7 +90,11 @@ def _paths(
             selected_b7,
             fields=b7_fields,
         ),
-        b10_decision_ledger=_write(tmp_path / "b10.csv", rows),
+        b10_decision_ledger=_write(
+            tmp_path / "b10.csv",
+            selected_b10,
+            fields=b10_fields,
+        ),
         dsi001_candidate_ledger=_write(tmp_path / "dsi001.csv", rows),
     )
 
@@ -111,12 +116,22 @@ def test_reconstructs_deterministic_complete_baseline(tmp_path: Path) -> None:
 
 def test_b7_without_fingerprint_joins_to_canonical_identity(tmp_path: Path) -> None:
     rows = [_row()]
-    paths = _paths(tmp_path, rows, b7_rows=_b7_without_fingerprint(rows))
+    paths = _paths(tmp_path, rows, b7_rows=_without_fingerprint(rows))
 
     result = FrozenBaselineReconstructor().reconstruct(paths)
 
     assert result.candidates[0].candidate.input_fingerprint == "fp-a"
     assert result.candidates[0].b7_present is True
+
+
+def test_b10_without_fingerprint_joins_to_canonical_identity(tmp_path: Path) -> None:
+    rows = [_row()]
+    paths = _paths(tmp_path, rows, b10_rows=_without_fingerprint(rows))
+
+    result = FrozenBaselineReconstructor().reconstruct(paths)
+
+    assert result.candidates[0].candidate.input_fingerprint == "fp-a"
+    assert result.candidates[0].b10_present is True
 
 
 def test_b7_present_fingerprint_must_match_canonical_identity(
@@ -132,24 +147,38 @@ def test_b7_present_fingerprint_must_match_canonical_identity(
         FrozenBaselineReconstructor().reconstruct(paths)
 
 
-def test_b7_ambiguous_canonical_identity_fails_closed(tmp_path: Path) -> None:
-    rows = [
-        _row(fingerprint="fp-a"),
-        _row(fingerprint="fp-b"),
-    ]
-    paths = _paths(tmp_path, rows, b7_rows=_b7_without_fingerprint([rows[0]]))
+def test_b10_present_fingerprint_must_match_canonical_identity(
+    tmp_path: Path,
+) -> None:
+    rows = [_row()]
+    paths = _paths(tmp_path, rows, b10_rows=[_row(fingerprint="wrong")])
 
     with pytest.raises(
         GateIsolationBaselineError,
-        match="B7_AMBIGUOUS_CANONICAL_IDENTITY",
+        match="B10_FINGERPRINT_MISMATCH",
+    ):
+        FrozenBaselineReconstructor().reconstruct(paths)
+
+
+def test_ambiguous_canonical_identity_fails_closed(tmp_path: Path) -> None:
+    rows = [_row(fingerprint="fp-a"), _row(fingerprint="fp-b")]
+    partial = _without_fingerprint([rows[0]])
+    paths = _paths(tmp_path, rows, b7_rows=partial, b10_rows=partial)
+
+    with pytest.raises(
+        GateIsolationBaselineError,
+        match="AMBIGUOUS_CANONICAL_IDENTITY",
     ):
         FrozenBaselineReconstructor().reconstruct(paths)
 
 
 def test_b7_duplicate_available_identity_fails_closed(tmp_path: Path) -> None:
     rows = [_row()]
-    b7_rows = _b7_without_fingerprint([_row(), _row()])
-    paths = _paths(tmp_path, rows, b7_rows=b7_rows)
+    paths = _paths(
+        tmp_path,
+        rows,
+        b7_rows=_without_fingerprint([_row(), _row()]),
+    )
 
     with pytest.raises(
         GateIsolationBaselineError,
@@ -158,11 +187,23 @@ def test_b7_duplicate_available_identity_fails_closed(tmp_path: Path) -> None:
         FrozenBaselineReconstructor().reconstruct(paths)
 
 
+def test_b10_duplicate_available_identity_fails_closed(tmp_path: Path) -> None:
+    rows = [_row()]
+    paths = _paths(
+        tmp_path,
+        rows,
+        b10_rows=_without_fingerprint([_row(), _row()]),
+    )
+
+    with pytest.raises(
+        GateIsolationBaselineError,
+        match="B10_DUPLICATE_CANDIDATE_IDENTITY",
+    ):
+        FrozenBaselineReconstructor().reconstruct(paths)
+
+
 def test_raw_adjusted_parity_is_arm_neutral(tmp_path: Path) -> None:
-    rows = [
-        _row(price_view="RAW"),
-        _row(price_view="ADJUSTED"),
-    ]
+    rows = [_row(price_view="RAW"), _row(price_view="ADJUSTED")]
     result = FrozenBaselineReconstructor().reconstruct(_paths(tmp_path, rows))
 
     assert result.raw_candidate_count == 1
@@ -170,10 +211,9 @@ def test_raw_adjusted_parity_is_arm_neutral(tmp_path: Path) -> None:
     assert result.raw_adjusted_identity_mismatch_count == 0
 
 
-def test_rejects_missing_candidate_in_any_source(tmp_path: Path) -> None:
+def test_rejects_missing_b7_candidate(tmp_path: Path) -> None:
     rows = [_row()]
-    paths = _paths(tmp_path, rows)
-    _write(paths.b7_outcome_ledger, [])
+    paths = _paths(tmp_path, rows, b7_rows=[])
 
     with pytest.raises(
         GateIsolationBaselineError,
@@ -182,17 +222,43 @@ def test_rejects_missing_candidate_in_any_source(tmp_path: Path) -> None:
         FrozenBaselineReconstructor().reconstruct(paths)
 
 
+def test_rejects_missing_b10_candidate(tmp_path: Path) -> None:
+    rows = [_row()]
+    paths = _paths(tmp_path, rows, b10_rows=[])
+
+    with pytest.raises(
+        GateIsolationBaselineError,
+        match="B10_IDENTITY_LINEAGE_MISMATCH",
+    ):
+        FrozenBaselineReconstructor().reconstruct(paths)
+
+
 def test_rejects_extra_b7_candidate(tmp_path: Path) -> None:
     rows = [_row()]
-    b7_rows = [
-        _row(),
-        _row(symbol="EXTRA", fingerprint="fp-extra"),
-    ]
-    paths = _paths(tmp_path, rows, b7_rows=b7_rows)
+    paths = _paths(
+        tmp_path,
+        rows,
+        b7_rows=[_row(), _row(symbol="EXTRA", fingerprint="fp-extra")],
+    )
 
     with pytest.raises(
         GateIsolationBaselineError,
         match="B7_IDENTITY_LINEAGE_MISMATCH",
+    ):
+        FrozenBaselineReconstructor().reconstruct(paths)
+
+
+def test_rejects_extra_b10_candidate(tmp_path: Path) -> None:
+    rows = [_row()]
+    paths = _paths(
+        tmp_path,
+        rows,
+        b10_rows=[_row(), _row(symbol="EXTRA", fingerprint="fp-extra")],
+    )
+
+    with pytest.raises(
+        GateIsolationBaselineError,
+        match="B10_IDENTITY_LINEAGE_MISMATCH",
     ):
         FrozenBaselineReconstructor().reconstruct(paths)
 
@@ -222,8 +288,7 @@ def test_rejects_gate_failure_lineage_conflict(tmp_path: Path) -> None:
 
 def test_rejects_point_in_time_leakage(tmp_path: Path) -> None:
     rows = [_row()]
-    paths = _paths(tmp_path, rows)
-    _write(paths.b10_decision_ledger, [_row(leakage="true")])
+    paths = _paths(tmp_path, rows, b10_rows=[_row(leakage="true")])
 
     with pytest.raises(
         GateIsolationBaselineError,
