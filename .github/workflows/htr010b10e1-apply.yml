@@ -95,6 +95,24 @@ jobs:
               target = Path(relative)
               target.parent.mkdir(parents=True, exist_ok=True)
               shutil.copyfile(source, target)
+
+          engine = Path(
+              'alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py'
+          )
+          text = engine.read_text(encoding='utf-8')
+          replacements = (
+              ('"adaptive_adjusted_confidence": "HIGH"',
+               '"adaptive_adjusted_confidence": "MEDIUM"'),
+              ('risk_reward_ratio=Decimal("2"),',
+               'risk_reward_ratio=Decimal("3"),'),
+              ('historical_bar_count=250,',
+               'historical_bar_count=1260,'),
+          )
+          for old, new in replacements:
+              if text.count(old) != 1:
+                  raise SystemExit(f'expected one fixture token: {old}')
+              text = text.replace(old, new, 1)
+          engine.write_text(text, encoding='utf-8')
           shutil.rmtree(stage)
           PY
 
@@ -102,6 +120,17 @@ jobs:
         run: |
           pip install poetry
           poetry install --with dev --no-interaction
+
+      - name: Apply locked Ruff fixes and formatting
+        run: |
+          poetry run ruff check --fix \
+            alpha/application/governed_adaptive_institutional_trade_shadow_cli.py \
+            alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py \
+            tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py
+          poetry run ruff format \
+            alpha/application/governed_adaptive_institutional_trade_shadow_cli.py \
+            alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py \
+            tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py
 
       - name: Capture focused B10E1 validation
         run: |
@@ -164,6 +193,7 @@ jobs:
       - name: Commit full B10E1 implementation
         run: |
           rm .github/workflows/htr010b10e1-apply.yml
+          rm .github/workflows/htr010b10e1-probe-diagnostics.yml
           rm -f b10e1-validation.txt b10e1-validation.status
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -172,6 +202,8 @@ jobs:
             alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py \
             tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py \
             docs/HTR-010B10_GOVERNED_ADAPTIVE_INSTITUTIONAL_TRADE_SHADOW.md \
-            .github/workflows/htr010b10e1-apply.yml
+            .github/workflows
           git commit -m 'feat(htr-010b10e1): integrate empirical adaptive shadow population'
+          git fetch origin feature/htr-010b10-governed-adaptive-institutional-trade-shadow
+          git rebase origin/feature/htr-010b10-governed-adaptive-institutional-trade-shadow
           git push origin HEAD:feature/htr-010b10-governed-adaptive-institutional-trade-shadow
