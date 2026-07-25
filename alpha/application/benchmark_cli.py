@@ -13,6 +13,9 @@ import typer
 from alpha.application.governed_adaptive_evidence_lineage_cli import (
     register_governed_adaptive_evidence_lineage_command,
 )
+from alpha.application.governed_adaptive_institutional_trade_shadow_cli import (
+    register_governed_adaptive_institutional_trade_shadow_command,
+)
 from alpha.application.governed_adaptive_publication_bridge_cli import (
     register_governed_adaptive_publication_bridge_command,
 )
@@ -59,6 +62,7 @@ register_governed_adjusted_benchmark_command(benchmark_app)
 register_governed_adjusted_stability_command(benchmark_app)
 register_governed_adaptive_evidence_lineage_command(benchmark_app)
 register_governed_adaptive_publication_bridge_command(benchmark_app)
+register_governed_adaptive_institutional_trade_shadow_command(benchmark_app)
 register_governed_approval_gate_forensics_command(benchmark_app)
 register_governed_approval_constraint_frontier_command(benchmark_app)
 register_governed_setup_matched_evidence_command(benchmark_app)
