@@ -20,6 +20,10 @@ from alpha.decision_superiority.gate_attribution import (
     RETAIN_ONLY_FIELDS,
     build_attribution_artifacts,
 )
+from alpha.decision_superiority.gate_pipeline import (
+    GatePipelineInput,
+    run_gate_pipeline,
+)
 
 DSI001_CONTRACT_VERSION = "DSI-001-v1.0.0"
 DSI001_READY = "READY_FOR_GOVERNED_DECISION_SUPERIORITY_RESEARCH"
@@ -80,6 +84,8 @@ _VALUE_FIELDS = (
     "conclusion",
 )
 
+GateStatValue = Decimal | int | list[Decimal]
+
 
 @dataclass(frozen=True, slots=True)
 class DSI001Result:
@@ -119,7 +125,7 @@ class GovernedGateValueAudit:
         candidate_rows: list[dict[str, object]] = []
         counterfactual_rows: list[dict[str, object]] = []
         gate_inventory = self._gate_inventory(gate_events)
-        gate_stats: dict[str, dict[str, Decimal | int]] = defaultdict(
+        gate_stats: dict[str, dict[str, GateStatValue]] = defaultdict(
             lambda: {
                 "blocked": 0,
                 "unique": 0,
@@ -129,8 +135,7 @@ class GovernedGateValueAudit:
                 "negative": 0,
                 "flat": 0,
                 "return_sum": Decimal("0"),
-                "avoided": Decimal("0"),
-                "cost": Decimal("0"),
+                "unique_returns": [],
             }
         )
 
@@ -187,8 +192,10 @@ class GovernedGateValueAudit:
                     else:
                         stats["flat"] = int(stats["flat"]) + 1
                     if unique:
-                        stats["avoided"] = Decimal(stats["avoided"]) + avoided
-                        stats["cost"] = Decimal(stats["cost"]) + cost
+                        unique_returns = stats["unique_returns"]
+                        if not isinstance(unique_returns, list):
+                            raise TypeError("unique_returns must be a list")
+                        unique_returns.append(realized_return)
                 counterfactual_rows.append(
                     {
                         "price_view": candidate.get("price_view", ""),
@@ -368,7 +375,7 @@ class GovernedGateValueAudit:
 
     @staticmethod
     def _value_rows(
-        stats_by_gate: dict[str, dict[str, Decimal | int]],
+        stats_by_gate: dict[str, dict[str, GateStatValue]],
     ) -> list[dict[str, object]]:
         rows: list[dict[str, object]] = []
         for gate, stats in sorted(stats_by_gate.items()):
@@ -378,7 +385,19 @@ class GovernedGateValueAudit:
                 if resolved
                 else Decimal("0")
             )
-            net = Decimal(stats["avoided"]) - Decimal(stats["cost"])
+            unique_returns = stats["unique_returns"]
+            if not isinstance(unique_returns, list):
+                raise TypeError("unique_returns must be a list")
+            pipeline = run_gate_pipeline(
+                GatePipelineInput(
+                    gate_code=gate,
+                    sample_count=int(stats["unique"]),
+                    returns_pct=tuple(unique_returns),
+                    minimum_required=0,
+                )
+            )
+            economic_value = pipeline.economic_value
+            net = economic_value.net_gate_value
             conclusion = (
                 "INSUFFICIENT_RESOLVED_OUTCOMES"
                 if resolved == 0
@@ -399,8 +418,8 @@ class GovernedGateValueAudit:
                     "negative_outcome_count": stats["negative"],
                     "flat_outcome_count": stats["flat"],
                     "average_return_pct": average,
-                    "avoided_loss_benefit": stats["avoided"],
-                    "profitable_rejection_cost": stats["cost"],
+                    "avoided_loss_benefit": economic_value.avoided_loss_benefit,
+                    "profitable_rejection_cost": economic_value.profitable_rejection_cost,
                     "net_gate_value": net,
                     "conclusion": conclusion,
                 }
