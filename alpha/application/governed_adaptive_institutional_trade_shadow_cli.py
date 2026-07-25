@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
-from typing import Annotated, cast
+from typing import Annotated
 
 import typer
 from rich.console import Console
@@ -193,7 +192,7 @@ def governed_adaptive_institutional_trade_shadow(
         f"{report['recommendation_semantic_drift_count']}"
     )
     typer.echo(f"Implementation defects: {report['implementation_defect_count']}")
-    blockers = cast(Sequence[str], report["readiness_blockers"])
+    blockers = report["readiness_blockers"]
     typer.echo(f"Readiness blockers: {','.join(blockers) if blockers else 'NONE'}")
     typer.echo(
         "Governed shadow adaptive publication enabled: "
