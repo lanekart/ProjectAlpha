@@ -56,11 +56,11 @@ jobs:
           text = path.read_text(encoding='utf-8')
           text = text.replace(
               'int(entry["minimum_ordinal"])',
-              '_int(entry["minimum_ordinal"])',
+              'int(str(entry["minimum_ordinal"]))',
           )
           text = text.replace(
               'int(entry["maximum_ordinal"])',
-              '_int(entry["maximum_ordinal"])',
+              'int(str(entry["maximum_ordinal"]))',
           )
           path.write_text(text, encoding='utf-8')
           PY
