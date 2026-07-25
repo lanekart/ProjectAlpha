@@ -1,0 +1,57 @@
+ruff_check_status=0
+ruff_format_status=0
+mypy_status=1
+pytest_status=1
+
+--- ruff check ---
+All checks passed!
+
+--- ruff format ---
+5 files already formatted
+
+--- strict mypy ---
+alpha/benchmark_replay/governed_setup_matched_evidence.py:828: error:
+Incompatible types in assignment (expression has type
+"CandidateRankingRecord | None", variable has type "CandidateRankingRecord") 
+[assignment]
+            ranking = rankings.get(key)
+                      ^~~~~~~~~~~~~~~~~
+alpha/benchmark_replay/governed_setup_matched_evidence.py:850: error:
+Incompatible types in assignment (expression has type
+"CandidateOutcomeRecord | None", variable has type "CandidateOutcomeRecord") 
+[assignment]
+            outcome = outcomes.get(key)
+                      ^~~~~~~~~~~~~~~~~
+Found 2 errors in 1 file (checked 970 source files)
+
+--- focused pytest ---
+.........F.............                                                  [100%]
+=================================== FAILURES ===================================
+_________ test_evidence_boundary_probes_are_complete_and_deterministic _________
+
+    def test_evidence_boundary_probes_are_complete_and_deterministic() -> None:
+        rows, summary, defects = _evidence_probes()
+    
+>       assert defects == ()
+E       AssertionError: assert ('EVIDENCE_PR...NG_OVERRIDE',) == ()
+E         
+E         Left contains one more item: 'EVIDENCE_PROBE_FAILED@STRONG_OVERRIDE'
+E         
+E         Full diff:
+E         - ()
+E         + (
+E         +     'EVIDENCE_PROBE_FAILED@STRONG_OVERRIDE',
+E         + )
+
+tests/benchmark_replay/test_governed_setup_matched_evidence.py:405: AssertionError
+=========================== short test summary info ============================
+FAILED tests/benchmark_replay/test_governed_setup_matched_evidence.py::test_evidence_boundary_probes_are_complete_and_deterministic - AssertionError: assert ('EVIDENCE_PR...NG_OVERRIDE',) == ()
+  
+  Left contains one more item: 'EVIDENCE_PROBE_FAILED@STRONG_OVERRIDE'
+  
+  Full diff:
+  - ()
+  + (
+  +     'EVIDENCE_PROBE_FAILED@STRONG_OVERRIDE',
+  + )
+1 failed, 22 passed in 0.68s
