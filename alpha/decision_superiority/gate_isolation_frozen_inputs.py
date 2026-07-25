@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Mapping
 
 from alpha.decision_superiority.gate_isolation_models import FrozenCandidateKey
 
@@ -213,9 +213,7 @@ def _snapshot_sha256(
                 "payload_sha256": item.payload_sha256,
                 "source_version": item.source_version,
                 "observed_on": item.observed_on,
-                "contains_post_observation_data": (
-                    item.contains_post_observation_data
-                ),
+                "contains_post_observation_data": (item.contains_post_observation_data),
             }
             for item in sections
         ],

@@ -144,7 +144,9 @@ def test_snapshot_hash_tampering_is_rejected() -> None:
 
 def test_duplicate_sections_are_rejected() -> None:
     sections = _complete_sections()
-    duplicate = tuple(sorted((*sections, sections[0]), key=lambda item: item.section.value))
+    duplicate = tuple(
+        sorted((*sections, sections[0]), key=lambda item: item.section.value)
+    )
 
     with pytest.raises(ValueError, match="sections must be unique"):
         FrozenCandidateInputSnapshot.build(
@@ -159,8 +161,7 @@ def test_non_object_payload_is_rejected() -> None:
             section=FrozenInputSection.CANDIDATE_FEATURES,
             payload_json="[]",
             payload_sha256=(
-                "4f53cda18c2baa0c0354bb5f9a3ecbe5"
-                "ed12ab4d8e0152c8f880fedc6a7b845"
+                "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e0152c8f880fedc6a7b845"
             ),
             source_version="v1",
             observed_on="2026-01-02",
