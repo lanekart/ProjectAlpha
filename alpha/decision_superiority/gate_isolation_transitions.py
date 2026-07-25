@@ -26,6 +26,15 @@ class DownstreamStage(StrEnum):
     OUTCOME = "OUTCOME"
 
 
+class StageEvaluationStatus(StrEnum):
+    """Governed status for one stage-specific counterfactual reevaluation."""
+
+    PASSED = "PASSED"
+    FAILED = "FAILED"
+    NOT_REACHED = "NOT_REACHED"
+    UNAVAILABLE = "UNAVAILABLE"
+
+
 @dataclass(frozen=True, slots=True)
 class BaselineDownstreamState:
     """Observed frozen downstream state for one governed candidate."""
@@ -46,12 +55,60 @@ class BaselineDownstreamState:
 
 
 @dataclass(frozen=True, slots=True)
+class StageEvaluation:
+    """Stage-by-stage counterfactual reevaluation outcome."""
+
+    approval: StageEvaluationStatus
+    portfolio_eligibility: StageEvaluationStatus
+    entry_readiness: StageEvaluationStatus
+    trade_formation: StageEvaluationStatus
+    outcome: StageEvaluationStatus
+
+    @classmethod
+    def unavailable(cls) -> StageEvaluation:
+        """Return an explicit fail-closed evaluation when canonical replay is absent."""
+
+        return cls(
+            approval=StageEvaluationStatus.UNAVAILABLE,
+            portfolio_eligibility=StageEvaluationStatus.NOT_REACHED,
+            entry_readiness=StageEvaluationStatus.NOT_REACHED,
+            trade_formation=StageEvaluationStatus.NOT_REACHED,
+            outcome=StageEvaluationStatus.NOT_REACHED,
+        )
+
+    def to_state(self, baseline: BaselineDownstreamState) -> BaselineDownstreamState:
+        """Convert a complete stage evaluation to a downstream state.
+
+        Unavailable or not-reached stages preserve the observed baseline rather than
+        fabricating a positive transition.
+        """
+
+        if self.approval is not StageEvaluationStatus.PASSED:
+            return baseline
+        approved = True
+        if self.portfolio_eligibility is not StageEvaluationStatus.PASSED:
+            return BaselineDownstreamState(approved, False, False, False, False)
+        if self.entry_readiness is not StageEvaluationStatus.PASSED:
+            return BaselineDownstreamState(approved, True, False, False, False)
+        if self.trade_formation is not StageEvaluationStatus.PASSED:
+            return BaselineDownstreamState(approved, True, True, False, False)
+        return BaselineDownstreamState(
+            approved=True,
+            portfolio_eligible=True,
+            entry_ready=True,
+            trade_formed=True,
+            outcome_available=self.outcome is StageEvaluationStatus.PASSED,
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class GateIsolationTransition:
     """Candidate-level result of one frozen-policy arm replay."""
 
     arm: GateIsolationArm
     baseline: BaselineDownstreamState
     counterfactual: BaselineDownstreamState
+    stage_evaluation: StageEvaluation
     first_changed_stage: DownstreamStage
     newly_approved: bool
     newly_portfolio_eligible: bool
@@ -87,7 +144,7 @@ class GateIsolationTransition:
 
 
 class GateIsolationTransitionEngine:
-    """Replay deterministic downstream transitions under frozen semantics."""
+    """Replay transitions without inventing unavailable canonical stage outcomes."""
 
     def replay(
         self,
@@ -95,34 +152,30 @@ class GateIsolationTransitionEngine:
         candidate: FrozenBaselineCandidate,
         arm: GateIsolationArm,
         baseline: BaselineDownstreamState,
+        stage_evaluation: StageEvaluation | None = None,
     ) -> GateIsolationTransition:
         if arm.candidate != candidate.candidate:
             raise ValueError("arm candidate identity does not match baseline candidate")
         if arm.observed_failure_codes != candidate.observed_failure_codes:
             raise ValueError("arm blocker lineage does not match baseline candidate")
 
-        remaining = arm.remaining_failure_codes
-        clears = not remaining
+        clears = not arm.remaining_failure_codes
         semantic_status = _semantic_status(arm, clears)
+        evaluation = stage_evaluation or StageEvaluation.unavailable()
 
-        if arm.arm_type is CounterfactualArmType.BASELINE:
+        if arm.arm_type is CounterfactualArmType.BASELINE or not clears:
             counterfactual = baseline
-        elif clears:
-            counterfactual = BaselineDownstreamState(
-                approved=True,
-                portfolio_eligible=True,
-                entry_ready=True,
-                trade_formed=True,
-                outcome_available=candidate.resolved_outcome,
-            )
         else:
-            counterfactual = baseline
+            counterfactual = evaluation.to_state(baseline)
+            if evaluation.approval is StageEvaluationStatus.UNAVAILABLE:
+                semantic_status = CounterfactualSemanticStatus.NOT_SEMANTICALLY_VALID
 
         first_changed = _first_changed_stage(baseline, counterfactual)
         return GateIsolationTransition(
             arm=arm,
             baseline=baseline,
             counterfactual=counterfactual,
+            stage_evaluation=evaluation,
             first_changed_stage=first_changed,
             newly_approved=(not baseline.approved and counterfactual.approved),
             newly_portfolio_eligible=(
@@ -189,4 +242,6 @@ __all__ = [
     "DownstreamStage",
     "GateIsolationTransition",
     "GateIsolationTransitionEngine",
+    "StageEvaluation",
+    "StageEvaluationStatus",
 ]
