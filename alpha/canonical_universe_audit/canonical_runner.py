@@ -30,6 +30,7 @@ from alpha.decision_intelligence import (
     InstitutionalDecisionEngine,
     InstitutionalDecisionReport,
 )
+from alpha.learning_intelligence import AdaptiveMetadataPublisher
 from alpha.portfolio_intelligence import AllocationCandidate
 from alpha.recommendation_intelligence import OHLCVBar, RecommendationReport
 
@@ -196,12 +197,25 @@ class CanonicalAlphaRunner:
         store: LegacyMarketDataStore,
         daily_report: DailyMarketReport | None = None,
         institutional_engine: InstitutionalDecisionEngine | None = None,
+        adaptive_metadata_publisher: AdaptiveMetadataPublisher | None = None,
+        adaptive_metadata_publication_enabled: bool = False,
     ) -> None:
         self.store = store
         self.daily_report = daily_report or DailyMarketReport()
         self.institutional_engine = (
             institutional_engine or InstitutionalDecisionEngine()
         )
+        self.adaptive_metadata_publisher = adaptive_metadata_publisher
+        self.adaptive_metadata_publication_enabled = (
+            adaptive_metadata_publication_enabled
+        )
+        if (
+            self.adaptive_metadata_publication_enabled
+            and self.adaptive_metadata_publisher is None
+        ):
+            raise ValueError(
+                "adaptive metadata publication requires an injected publisher"
+            )
 
     def run_day(self, observed_on: date) -> CanonicalDailyResult:
         prices = self.store.find_by_trade_date(observed_on)
@@ -224,9 +238,13 @@ class CanonicalAlphaRunner:
                 history_window=CANONICAL_HISTORY_WINDOW,
             ),
         )
-        intelligence = IntelligenceApplicationService(input_provider=provider).run(
-            observed_on=observed_on
-        )
+        intelligence = IntelligenceApplicationService(
+            input_provider=provider,
+            adaptive_metadata_publisher=self.adaptive_metadata_publisher,
+            adaptive_metadata_publication_enabled=(
+                self.adaptive_metadata_publication_enabled
+            ),
+        ).run(observed_on=observed_on)
         institutional = self.institutional_engine.evaluate_recommendations(
             intelligence.recommendations,
             allocation_plan=intelligence.allocation_plan,

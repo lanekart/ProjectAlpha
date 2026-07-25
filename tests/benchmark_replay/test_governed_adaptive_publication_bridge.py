@@ -116,54 +116,72 @@ def test_readiness_precedence_is_fail_closed() -> None:
         implementation_defects=(),
         unexplained_arm_divergence_count=0,
     ) == (B9_READY, ())
-    assert _readiness(
-        round_trip_defect_count=1,
-        recorder_parity_defect_count=0,
-        default_path_drift_count=0,
-        point_in_time_leakage_count=0,
-        implementation_defects=(),
-        unexplained_arm_divergence_count=0,
-    )[0] == B9_BLOCKED_ROUND_TRIP
-    assert _readiness(
-        round_trip_defect_count=0,
-        recorder_parity_defect_count=1,
-        default_path_drift_count=0,
-        point_in_time_leakage_count=0,
-        implementation_defects=(),
-        unexplained_arm_divergence_count=0,
-    )[0] == B9_BLOCKED_FINGERPRINT
-    assert _readiness(
-        round_trip_defect_count=0,
-        recorder_parity_defect_count=0,
-        default_path_drift_count=1,
-        point_in_time_leakage_count=0,
-        implementation_defects=(),
-        unexplained_arm_divergence_count=0,
-    )[0] == B9_BLOCKED_DEFAULT
-    assert _readiness(
-        round_trip_defect_count=0,
-        recorder_parity_defect_count=0,
-        default_path_drift_count=0,
-        point_in_time_leakage_count=1,
-        implementation_defects=(),
-        unexplained_arm_divergence_count=0,
-    )[0] == B9_BLOCKED_LEAKAGE
-    assert _readiness(
-        round_trip_defect_count=0,
-        recorder_parity_defect_count=0,
-        default_path_drift_count=0,
-        point_in_time_leakage_count=0,
-        implementation_defects=("DEFECT",),
-        unexplained_arm_divergence_count=0,
-    )[0] == B9_BLOCKED_DEFECT
-    assert _readiness(
-        round_trip_defect_count=0,
-        recorder_parity_defect_count=0,
-        default_path_drift_count=0,
-        point_in_time_leakage_count=0,
-        implementation_defects=(),
-        unexplained_arm_divergence_count=1,
-    )[0] == B9_BLOCKED_ARM
+    assert (
+        _readiness(
+            round_trip_defect_count=1,
+            recorder_parity_defect_count=0,
+            default_path_drift_count=0,
+            point_in_time_leakage_count=0,
+            implementation_defects=(),
+            unexplained_arm_divergence_count=0,
+        )[0]
+        == B9_BLOCKED_ROUND_TRIP
+    )
+    assert (
+        _readiness(
+            round_trip_defect_count=0,
+            recorder_parity_defect_count=1,
+            default_path_drift_count=0,
+            point_in_time_leakage_count=0,
+            implementation_defects=(),
+            unexplained_arm_divergence_count=0,
+        )[0]
+        == B9_BLOCKED_FINGERPRINT
+    )
+    assert (
+        _readiness(
+            round_trip_defect_count=0,
+            recorder_parity_defect_count=0,
+            default_path_drift_count=1,
+            point_in_time_leakage_count=0,
+            implementation_defects=(),
+            unexplained_arm_divergence_count=0,
+        )[0]
+        == B9_BLOCKED_DEFAULT
+    )
+    assert (
+        _readiness(
+            round_trip_defect_count=0,
+            recorder_parity_defect_count=0,
+            default_path_drift_count=0,
+            point_in_time_leakage_count=1,
+            implementation_defects=(),
+            unexplained_arm_divergence_count=0,
+        )[0]
+        == B9_BLOCKED_LEAKAGE
+    )
+    assert (
+        _readiness(
+            round_trip_defect_count=0,
+            recorder_parity_defect_count=0,
+            default_path_drift_count=0,
+            point_in_time_leakage_count=0,
+            implementation_defects=("DEFECT",),
+            unexplained_arm_divergence_count=0,
+        )[0]
+        == B9_BLOCKED_DEFECT
+    )
+    assert (
+        _readiness(
+            round_trip_defect_count=0,
+            recorder_parity_defect_count=0,
+            default_path_drift_count=0,
+            point_in_time_leakage_count=0,
+            implementation_defects=(),
+            unexplained_arm_divergence_count=1,
+        )[0]
+        == B9_BLOCKED_ARM
+    )
 
 
 def test_signed_b8_shadow_transport_round_trips_all_five_fields() -> None:

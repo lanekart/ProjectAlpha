@@ -17,7 +17,10 @@ from alpha.explainability import (
     ExplainabilityReport,
     IntelligenceExplainabilityEngine,
 )
-from alpha.learning_intelligence import concise_adaptive_line
+from alpha.learning_intelligence import (
+    AdaptiveMetadataPublisher,
+    concise_adaptive_line,
+)
 from alpha.market_intelligence import (
     IntelligenceBias,
     MarketIntelligenceCompositeEngine,
@@ -143,6 +146,8 @@ class IntelligenceApplicationService:
         allocation_engine: CapitalAllocationEngine | None = None,
         construction_engine: PortfolioConstructionEngine | None = None,
         explainability_engine: IntelligenceExplainabilityEngine | None = None,
+        adaptive_metadata_publisher: AdaptiveMetadataPublisher | None = None,
+        adaptive_metadata_publication_enabled: bool = False,
     ) -> None:
         self._input_provider = input_provider or DemoIntelligenceInputBuilder()
         self._market_engine = market_engine or MarketIntelligenceCompositeEngine()
@@ -154,6 +159,17 @@ class IntelligenceApplicationService:
         self._explainability_engine = (
             explainability_engine or IntelligenceExplainabilityEngine()
         )
+        self._adaptive_metadata_publisher = adaptive_metadata_publisher
+        self._adaptive_metadata_publication_enabled = (
+            adaptive_metadata_publication_enabled
+        )
+        if (
+            self._adaptive_metadata_publication_enabled
+            and self._adaptive_metadata_publisher is None
+        ):
+            raise ValueError(
+                "adaptive metadata publication requires an injected publisher"
+            )
 
     @classmethod
     def from_analysis(
@@ -162,6 +178,8 @@ class IntelligenceApplicationService:
         analysis: pd.DataFrame,
         price_repository: HistoricalPriceRepository | None = None,
         history_window: int = 250,
+        adaptive_metadata_publisher: AdaptiveMetadataPublisher | None = None,
+        adaptive_metadata_publication_enabled: bool = False,
     ) -> IntelligenceApplicationService:
         """
         Build a production-style service backed by analyzed market data.
@@ -177,7 +195,11 @@ class IntelligenceApplicationService:
                     price_repository=price_repository,
                     history_window=history_window,
                 ),
-            )
+            ),
+            adaptive_metadata_publisher=adaptive_metadata_publisher,
+            adaptive_metadata_publication_enabled=(
+                adaptive_metadata_publication_enabled
+            ),
         )
 
     def run(self, *, observed_on: date) -> IntelligenceRun:
@@ -195,6 +217,17 @@ class IntelligenceApplicationService:
             inputs.recommendation_candidates,
             portfolio=inputs.recommendation_portfolio_context,
         )
+        if self._adaptive_metadata_publication_enabled:
+            publisher = self._adaptive_metadata_publisher
+            if publisher is None:
+                raise ValueError(
+                    "adaptive metadata publication requires an injected publisher"
+                )
+            recommendations = publisher.publish(
+                recommendations=recommendations,
+                observed_on=observed_on,
+                market_regime=market_report.bias.value,
+            ).recommendations
         allocation_plan = self._construction_engine.construct(
             inputs.allocation_candidates(recommendations),
             inputs.allocation_portfolio_context,

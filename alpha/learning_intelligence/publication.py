@@ -173,7 +173,9 @@ class PointInTimeAdaptiveMetadataPublisher:
                         outcome_status=(
                             "MISSING" if outcome is None else outcome.status.value
                         ),
-                        outcome_exit_date=None if outcome is None else outcome.exit_date,
+                        outcome_exit_date=None
+                        if outcome is None
+                        else outcome.exit_date,
                         fingerprint_match=fingerprint_match,
                         eligible=eligible,
                         reason=reason,
@@ -277,9 +279,7 @@ class PointInTimeAdaptiveMetadataPublisher:
             "adaptive_expectancy": (
                 "unavailable" if expectancy is None else str(expectancy)
             ),
-            "adaptive_sample_count": str(
-                getattr(statistics, "completed_trade_count")
-            ),
+            "adaptive_sample_count": str(getattr(statistics, "completed_trade_count")),
         }
 
 

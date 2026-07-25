@@ -110,9 +110,7 @@ def governed_adaptive_publication_bridge(
     typer.echo(f"Disabled publisher calls: {defaults['publisher_call_count']}")
     typer.echo(f"Recorder parity defects: {recorder['defect_count']}")
     typer.echo(f"Candle pattern recorded: {recorder['candle_pattern_recorded']}")
-    typer.echo(
-        f"Retracement state recorded: {recorder['retracement_state_recorded']}"
-    )
+    typer.echo(f"Retracement state recorded: {recorder['retracement_state_recorded']}")
     typer.echo(f"Strictly prior eligible outcomes: {point_in_time['eligible_count']}")
     typer.echo(f"Point-in-time leakage: {point_in_time['leakage_count']}")
     typer.echo(

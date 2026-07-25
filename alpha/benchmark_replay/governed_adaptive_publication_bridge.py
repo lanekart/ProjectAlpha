@@ -6,14 +6,14 @@ import csv
 import hashlib
 import json
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from types import SimpleNamespace
-from typing import Any, Callable, cast
+from typing import Any, cast
 
 from alpha.application.intelligence import IntelligenceApplicationService
 from alpha.benchmark_replay.governed_adaptive_evidence_lineage import (
@@ -292,8 +292,7 @@ class GovernedAdaptivePublicationBridgeEngine:
                 "probe_count": len(default_rows),
                 "drift_count": default_path_drift_count,
                 "publisher_call_count": sum(
-                    int(cast(int, row["publisher_call_count"]))
-                    for row in default_rows
+                    int(cast(int, row["publisher_call_count"])) for row in default_rows
                 ),
             },
             "recorder_parity_summary": {
@@ -309,8 +308,12 @@ class GovernedAdaptivePublicationBridgeEngine:
             },
             "point_in_time_summary": {
                 "eligibility_row_count": len(eligibility_rows),
-                "eligible_count": sum(bool(row["eligible"]) for row in eligibility_rows),
-                "excluded_count": sum(not bool(row["eligible"]) for row in eligibility_rows),
+                "eligible_count": sum(
+                    bool(row["eligible"]) for row in eligibility_rows
+                ),
+                "excluded_count": sum(
+                    not bool(row["eligible"]) for row in eligibility_rows
+                ),
                 "leakage_count": leakage_count,
                 "strict_prior_completion_required": True,
             },
@@ -544,7 +547,7 @@ def _publisher_round_trip(
             defects.append(f"PUBLISHER_ROUND_TRIP_DEFECT@{key}")
     if record.eligible_completed_sample_count != 1:
         defects.append("PUBLISHER_POINT_IN_TIME_SAMPLE_COUNT_DEFECT")
-    eligibility = tuple(
+    eligibility: tuple[dict[str, object], ...] = tuple(
         {
             "recommendation_symbol": item.recommendation_symbol,
             "recommendation_observed_on": item.recommendation_observed_on,
@@ -607,7 +610,9 @@ def _b8_transport_rows(
 def _shadow_metadata(row: Mapping[str, object]) -> dict[str, str]:
     return {
         "adaptive_adjusted_confidence": str(row.get("adjusted_confidence") or "LOW"),
-        "adaptive_evidence_strength": str(row.get("evidence_strength") or "insufficient"),
+        "adaptive_evidence_strength": str(
+            row.get("evidence_strength") or "insufficient"
+        ),
         "adaptive_posterior_probability": str(
             row.get("posterior_win_probability") or "unavailable"
         ),
@@ -632,7 +637,11 @@ def _arm_transport_comparison(
     shadow_rows: Sequence[dict[str, str]],
 ) -> tuple[tuple[dict[str, object], ...], int]:
     indexed = {
-        (row.get("price_view", ""), row.get("observed_on", ""), row.get("symbol", "")): row
+        (
+            row.get("price_view", ""),
+            row.get("observed_on", ""),
+            row.get("symbol", ""),
+        ): row
         for row in shadow_rows
     }
     keys = sorted({(key[1], key[2]) for key in indexed})
@@ -888,9 +897,7 @@ def _readiness(
             f"POINT_IN_TIME_PUBLICATION_LEAKAGE={point_in_time_leakage_count}",
         )
     if default_path_drift_count:
-        return B9_BLOCKED_DEFAULT, (
-            f"DEFAULT_PATH_DRIFT={default_path_drift_count}",
-        )
+        return B9_BLOCKED_DEFAULT, (f"DEFAULT_PATH_DRIFT={default_path_drift_count}",)
     if recorder_parity_defect_count:
         return B9_BLOCKED_FINGERPRINT, (
             f"FINGERPRINT_RECORDER_PARITY_DEFECTS={recorder_parity_defect_count}",
@@ -1036,7 +1043,10 @@ def validate_governed_adaptive_publication_bridge_certificate(
     )
     if readiness != expected:
         raise ValueError("HTR-010B9 readiness disagrees with certificate evidence")
-    if tuple(str(item) for item in _list_value(payload, "readiness_blockers")) != blockers:
+    if (
+        tuple(str(item) for item in _list_value(payload, "readiness_blockers"))
+        != blockers
+    ):
         raise ValueError("HTR-010B9 readiness blockers are inconsistent")
     enabled = payload.get("governed_shadow_adaptive_publication_enabled") is True
     if enabled != (readiness == B9_READY):
@@ -1114,7 +1124,10 @@ def _markdown(report: Mapping[str, object]) -> str:
             "- Publication is available only through explicit dependency injection.",
             "- Existing ledger rows are not backfilled or mutated.",
             "- Evidence thresholds and fingerprint matching policy are unchanged.",
-            "- Recommendation, approval, portfolio, execution and production influence remain false.",
+            (
+                "- Recommendation, approval, portfolio, execution and "
+                "production influence remain false."
+            ),
             "",
         )
     )
@@ -1191,7 +1204,9 @@ def _write_text(path: Path, text: str) -> Path:
 
 
 def _write_json(path: Path, payload: Mapping[str, object]) -> Path:
-    return _write_text(path, json.dumps(payload, indent=2, sort_keys=True, default=_json))
+    return _write_text(
+        path, json.dumps(payload, indent=2, sort_keys=True, default=_json)
+    )
 
 
 def _mapping(path: Path) -> dict[str, Any]:
@@ -1261,7 +1276,9 @@ def _validate_digest(payload: Mapping[str, object], label: str) -> None:
 
 
 def _is_sha256(value: str) -> bool:
-    return len(value) == 64 and all(character in "0123456789abcdef" for character in value)
+    return len(value) == 64 and all(
+        character in "0123456789abcdef" for character in value
+    )
 
 
 def _csv_value(value: object) -> object:

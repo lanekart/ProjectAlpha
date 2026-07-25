@@ -103,9 +103,7 @@ def test_point_in_time_publisher_uses_only_strictly_prior_completed_outcome() ->
     assert batch.records[0].eligible_completed_sample_count == 1
     assert batch.recommendations[0].metadata["adaptive_sample_count"] == "1"
     assert sum(item.eligible for item in batch.eligibility) == 1
-    assert {
-        item.reason for item in batch.eligibility if not item.eligible
-    } == {
+    assert {item.reason for item in batch.eligibility if not item.eligible} == {
         "SAME_DATE_OR_FUTURE_COMPLETION_EXCLUDED",
         "OUTCOME_NOT_COMPLETED",
     }
