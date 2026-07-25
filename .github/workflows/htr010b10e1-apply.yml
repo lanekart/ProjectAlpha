@@ -46,7 +46,7 @@ jobs:
               'baf994a0a638060327eedfa90f8ef02b7366fd79',
               'b440ec86ad203858817959e6cf9b59d9ac23be2f',
           )
-          chunks: list[str] = []
+          chunks: list[bytes] = []
           for sha in blob_shas:
               request = urllib.request.Request(
                   f'https://api.github.com/repos/{repository}/git/blobs/{sha}',
@@ -58,9 +58,9 @@ jobs:
               )
               with urllib.request.urlopen(request) as response:
                   payload = json.load(response)
-              chunks.append(base64.b64decode(payload['content']).decode('ascii'))
+              chunks.append(base64.b64decode(payload['content']))
 
-          archive = base64.b64decode(''.join(chunks), validate=True)
+          archive = b''.join(chunks)
           digest = hashlib.sha256(archive).hexdigest()
           expected = '267400eb2135b4f23c69cafa4bcf2ac0c9378d976866d7b8ef4f37c85110cf05'
           if digest != expected:
