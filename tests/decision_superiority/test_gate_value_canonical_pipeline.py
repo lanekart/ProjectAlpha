@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import NoReturn
 
 import pytest
 
 from alpha.decision_superiority import gate_value_audit
 from alpha.decision_superiority.gate_pipeline import (
     GatePipelineInput,
+    GatePipelineResult,
     run_gate_pipeline,
 )
 from alpha.decision_superiority.gate_value_audit import (
@@ -39,7 +41,9 @@ def test_gate_states_builds_one_canonical_pipeline_result_per_gate(
 ) -> None:
     observed: list[GatePipelineInput] = []
 
-    def recording_pipeline(pipeline_input: GatePipelineInput):
+    def recording_pipeline(
+        pipeline_input: GatePipelineInput,
+    ) -> GatePipelineResult:
         observed.append(pipeline_input)
         return run_gate_pipeline(pipeline_input)
 
@@ -75,7 +79,7 @@ def test_value_rows_consumes_existing_pipeline_result_without_reexecution(
         }
     )
 
-    def fail_if_called(pipeline_input: GatePipelineInput):
+    def fail_if_called(pipeline_input: GatePipelineInput) -> NoReturn:
         raise AssertionError(f"pipeline unexpectedly re-executed: {pipeline_input}")
 
     monkeypatch.setattr(gate_value_audit, "run_gate_pipeline", fail_if_called)
