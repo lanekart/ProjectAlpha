@@ -6,7 +6,10 @@ import csv
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
-from alpha.decision_superiority.gate_isolation_arms import GateIsolationArmBuilder
+from alpha.decision_superiority.gate_isolation_arms import (
+    DEFAULT_MAX_REMEDIATION_SET_SIZE,
+    GateIsolationArmBuilder,
+)
 from alpha.decision_superiority.gate_isolation_baseline import (
     FrozenBaselinePopulation,
     FrozenBaselineReconstructor,
@@ -74,7 +77,7 @@ class GateIsolationDryRunOrchestrator:
         *,
         source_paths: GateIsolationSourcePaths,
         baseline_paths: FrozenBaselineSourcePaths,
-        max_remediation_set_size: int = 8,
+        max_remediation_set_size: int = DEFAULT_MAX_REMEDIATION_SET_SIZE,
     ) -> GateIsolationDryRunResult:
         verified = GateIsolationSourceContractVerifier().verify(source_paths)
         population = FrozenBaselineReconstructor().reconstruct(baseline_paths)
@@ -137,6 +140,11 @@ def export_gate_isolation_dry_run(
         "passed_gate_codes",
         "remaining_failure_codes",
         "semantic_status",
+        "approval_evaluation",
+        "portfolio_eligibility_evaluation",
+        "entry_readiness_evaluation",
+        "trade_formation_evaluation",
+        "outcome_evaluation",
         "first_changed_stage",
         "newly_approved",
         "newly_portfolio_eligible",
@@ -162,6 +170,17 @@ def export_gate_isolation_dry_run(
                         item.arm.remaining_failure_codes
                     ),
                     "semantic_status": item.semantic_status.value,
+                    "approval_evaluation": item.stage_evaluation.approval.value,
+                    "portfolio_eligibility_evaluation": (
+                        item.stage_evaluation.portfolio_eligibility.value
+                    ),
+                    "entry_readiness_evaluation": (
+                        item.stage_evaluation.entry_readiness.value
+                    ),
+                    "trade_formation_evaluation": (
+                        item.stage_evaluation.trade_formation.value
+                    ),
+                    "outcome_evaluation": item.stage_evaluation.outcome.value,
                     "first_changed_stage": item.first_changed_stage.value,
                     "newly_approved": str(item.newly_approved).lower(),
                     "newly_portfolio_eligible": str(
