@@ -864,7 +864,7 @@ def _markdown(report: Mapping[str, object]) -> str:
             ),
             (
                 "- Readiness blockers: "
-                f"`{', '.join(str(item) for item in blockers) or 'NONE'}`"
+                f"`{', '.join(str(item) for item in cast(Sequence[object], blockers)) or 'NONE'}`"
             ),
             "",
             "## Governance",
