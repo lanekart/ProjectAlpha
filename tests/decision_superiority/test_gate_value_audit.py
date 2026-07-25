@@ -31,6 +31,19 @@ def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _signed_report(payload: dict[str, object]) -> dict[str, object]:
+    import hashlib
+
+    report = dict(payload)
+    encoded = json.dumps(
+        report,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    report["report_sha256"] = hashlib.sha256(encoded).hexdigest()
+    return report
+
+
 def _fixtures(tmp_path: Path) -> tuple[Path, Path, Path]:
     candidates = tmp_path / "candidates.csv"
     gates = tmp_path / "gates.csv"
@@ -246,15 +259,16 @@ def _make_signed_certificates(
 
     b5_cert.write_text(
         json.dumps(
-            {
-                "contract_version": "HTR-010B5-v1.0.0",
-                "readiness_decision": B5_READY,
-                "report_sha256": "a" * 64,
-                "artifact_hashes": {
-                    candidates.name: _sha256_file(candidates),
-                    gates.name: _sha256_file(gates),
-                },
-            },
+            _signed_report(
+                {
+                    "contract_version": "HTR-010B5-v1.0.0",
+                    "readiness_decision": B5_READY,
+                    "artifact_hashes": {
+                        candidates.name: _sha256_file(candidates),
+                        gates.name: _sha256_file(gates),
+                    },
+                }
+            ),
             indent=2,
             sort_keys=True,
         )
@@ -264,14 +278,15 @@ def _make_signed_certificates(
 
     b7_cert.write_text(
         json.dumps(
-            {
-                "contract_version": "HTR-010B7-v1.0.0",
-                "readiness_decision": B7_READY,
-                "report_sha256": "b" * 64,
-                "artifact_hashes": {
-                    outcomes.name: _sha256_file(outcomes),
-                },
-            },
+            _signed_report(
+                {
+                    "contract_version": "HTR-010B7-v1.0.0",
+                    "readiness_decision": B7_READY,
+                    "artifact_hashes": {
+                        outcomes.name: _sha256_file(outcomes),
+                    },
+                }
+            ),
             indent=2,
             sort_keys=True,
         )
