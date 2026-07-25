@@ -7,6 +7,9 @@ from typing import Annotated
 
 import typer
 
+from alpha.application.decision_superiority_gate_value_rendering import (
+    render_gate_diagnostics,
+)
 from alpha.decision_superiority.input_contract import GovernedInputContractError
 from alpha.decision_superiority.signed_audit import GovernedSignedGateValueAudit
 
@@ -73,6 +76,8 @@ def decision_superiority_gate_value(
             else "NONE"
         )
     )
+    for line in render_gate_diagnostics(report):
+        typer.echo(line)
     typer.echo(f"Report SHA256: {report['report_sha256']}")
     typer.echo(
         f"B5 Contract: {report['upstream_certificates']['b5']['contract_version']}"
