@@ -37,6 +37,13 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _report_digest(payload: dict[str, object]) -> str:
+    report = dict(payload)
+    report.pop("report_sha256", None)
+    encoded = json.dumps(report, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def _serialized(value: object) -> object:
     """Return the exact JSON-compatible representation written to certificates."""
 
@@ -122,35 +129,27 @@ def _signed_inputs(
 
     b5_certificate = tmp_path / "b5-certificate.json"
     b7_certificate = tmp_path / "b7-certificate.json"
+    b5_payload: dict[str, object] = {
+        "contract_version": "HTR-010B5-v1.0.0",
+        "readiness_decision": B5_READY,
+        "artifact_hashes": {
+            candidates.name: _sha256(candidates),
+            gates.name: _sha256(gates),
+        },
+    }
+    b5_payload["report_sha256"] = _report_digest(b5_payload)
     b5_certificate.write_text(
-        json.dumps(
-            {
-                "contract_version": "HTR-010B5-v1.0.0",
-                "readiness_decision": B5_READY,
-                "report_sha256": "a" * 64,
-                "artifact_hashes": {
-                    candidates.name: _sha256(candidates),
-                    gates.name: _sha256(gates),
-                },
-            },
-            indent=2,
-            sort_keys=True,
-        )
-        + "\n",
+        json.dumps(b5_payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    b7_payload: dict[str, object] = {
+        "contract_version": "HTR-010B7-v1.0.0",
+        "readiness_decision": B7_READY,
+        "artifact_hashes": {outcomes.name: _sha256(outcomes)},
+    }
+    b7_payload["report_sha256"] = _report_digest(b7_payload)
     b7_certificate.write_text(
-        json.dumps(
-            {
-                "contract_version": "HTR-010B7-v1.0.0",
-                "readiness_decision": B7_READY,
-                "report_sha256": "b" * 64,
-                "artifact_hashes": {outcomes.name: _sha256(outcomes)},
-            },
-            indent=2,
-            sort_keys=True,
-        )
-        + "\n",
+        json.dumps(b7_payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     return b5_certificate, b7_certificate, candidates, gates, outcomes
