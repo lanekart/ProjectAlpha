@@ -1,0 +1,58 @@
+name: HTR-010B10 Final Ruff Format
+
+on:
+  push:
+    branches:
+      - feature/htr-010b10-governed-adaptive-institutional-trade-shadow
+    paths:
+      - .github/workflows/htr010b10-final-ruff-format.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-010b10-governed-adaptive-institutional-trade-shadow
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install locked Ruff
+        run: pip install ruff==0.15.20
+      - name: Format every B10 Python file
+        run: |
+          ruff format \
+            alpha/application/benchmark_cli.py \
+            alpha/application/governed_adaptive_institutional_trade_shadow_cli.py \
+            alpha/benchmark_replay/__init__.py \
+            alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py \
+            tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py
+          ruff check \
+            alpha/application/benchmark_cli.py \
+            alpha/application/governed_adaptive_institutional_trade_shadow_cli.py \
+            alpha/benchmark_replay/__init__.py \
+            alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py \
+            tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py
+          ruff format --check \
+            alpha/application/benchmark_cli.py \
+            alpha/application/governed_adaptive_institutional_trade_shadow_cli.py \
+            alpha/benchmark_replay/__init__.py \
+            alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py \
+            tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py
+      - name: Remove temporary workflow and publish formatting
+        run: |
+          rm .github/workflows/htr010b10-final-ruff-format.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add alpha/application/benchmark_cli.py \
+            alpha/application/governed_adaptive_institutional_trade_shadow_cli.py \
+            alpha/benchmark_replay/__init__.py \
+            alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py \
+            tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py \
+            .github/workflows/htr010b10-final-ruff-format.yml
+          git commit -m "style(htr010b10): format all touched Python files"
+          git push origin HEAD:feature/htr-010b10-governed-adaptive-institutional-trade-shadow
