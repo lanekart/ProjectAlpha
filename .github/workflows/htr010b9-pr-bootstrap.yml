@@ -63,7 +63,7 @@ jobs:
             alpha/performance_intelligence/recorder.py \
             tests/benchmark_replay/test_governed_adaptive_publication_bridge.py \
             tests/learning_intelligence/test_adaptive_metadata_publication.py \
-            --fix
+            --fix || true
           poetry run ruff format \
             alpha/application/benchmark_cli.py \
             alpha/application/intelligence.py \
@@ -77,21 +77,72 @@ jobs:
             tests/benchmark_replay/test_governed_adaptive_publication_bridge.py \
             tests/learning_intelligence/test_adaptive_metadata_publication.py
 
-      - name: Focused quality gates
+      - name: Run focused gates and capture diagnostics
+        id: gates
+        shell: bash
         run: |
-          poetry run ruff check .
-          poetry run ruff format --check .
-          poetry run mypy alpha
+          set +e
+          poetry run ruff check . > /tmp/b9-ruff.log 2>&1
+          RUFF=$?
+          poetry run ruff format --check . > /tmp/b9-format.log 2>&1
+          FORMAT=$?
+          poetry run mypy alpha > /tmp/b9-mypy.log 2>&1
+          MYPY=$?
           poetry run pytest -q \
             tests/learning_intelligence/test_adaptive_metadata_publication.py \
             tests/benchmark_replay/test_governed_adaptive_publication_bridge.py \
             tests/performance_intelligence/test_performance_intelligence.py \
             tests/application/test_intelligence.py \
-            tests/canonical_universe_audit
-          poetry run python -m alpha benchmark --help | \
-            grep governed-adaptive-publication-bridge
+            tests/canonical_universe_audit \
+            > /tmp/b9-pytest.log 2>&1
+          PYTEST=$?
+          poetry run python -m alpha benchmark --help > /tmp/b9-cli.log 2>&1
+          CLI_COMMAND=$?
+          grep -q governed-adaptive-publication-bridge /tmp/b9-cli.log
+          CLI_REGISTERED=$?
+          echo "ruff=$RUFF" >> "$GITHUB_OUTPUT"
+          echo "format=$FORMAT" >> "$GITHUB_OUTPUT"
+          echo "mypy=$MYPY" >> "$GITHUB_OUTPUT"
+          echo "pytest=$PYTEST" >> "$GITHUB_OUTPUT"
+          echo "cli_command=$CLI_COMMAND" >> "$GITHUB_OUTPUT"
+          echo "cli_registered=$CLI_REGISTERED" >> "$GITHUB_OUTPUT"
+          if [ "$RUFF" -ne 0 ] || [ "$FORMAT" -ne 0 ] || \
+             [ "$MYPY" -ne 0 ] || [ "$PYTEST" -ne 0 ] || \
+             [ "$CLI_COMMAND" -ne 0 ] || [ "$CLI_REGISTERED" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Comment failure diagnostics
+        if: failure() && steps.gates.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo '## HTR-010B9 bootstrap validation failed'
+            echo
+            echo 'Exit codes:'
+            echo '- Ruff: `${{ steps.gates.outputs.ruff }}`'
+            echo '- Format: `${{ steps.gates.outputs.format }}`'
+            echo '- MyPy: `${{ steps.gates.outputs.mypy }}`'
+            echo '- Pytest: `${{ steps.gates.outputs.pytest }}`'
+            echo '- CLI command: `${{ steps.gates.outputs.cli_command }}`'
+            echo '- CLI registration: `${{ steps.gates.outputs.cli_registered }}`'
+            for item in ruff format mypy pytest cli; do
+              echo
+              echo "### ${item} tail"
+              echo '```text'
+              tail -n 140 "/tmp/b9-${item}.log" || true
+              echo '```'
+            done
+          } > /tmp/b9-comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/b9-comment.md
+
+      - name: Stop after published diagnostics
+        if: failure() && steps.gates.outcome == 'failure'
+        run: exit 1
 
       - name: Remove temporary B9 scaffolding
+        if: success()
         run: |
           rm -f .tmp/htr010b9_patch.py
           rm -f .github/workflows/htr010b9-integrate.yml
@@ -106,6 +157,7 @@ jobs:
           rmdir .tmp 2>/dev/null || true
 
       - name: Verify final source-only file set
+        if: success()
         run: |
           git add -A
           python - <<'PY'
@@ -140,6 +192,7 @@ jobs:
           PY
 
       - name: Commit and push clean B9 head
+        if: success()
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
