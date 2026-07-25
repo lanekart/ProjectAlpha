@@ -1,27 +1,105 @@
-# HTR-010B10 Governed Adaptive Institutional and Trade Shadow Replay
+# HTR-010B10 Governed Adaptive Institutional Decision and Trade-Formation Shadow Replay
 
 ## Purpose
 
-HTR-010B10 extends the signed HTR-010B9 publication bridge into an isolated,
-research-only institutional and trade-formation shadow contract. The default runtime
-continues to keep adaptive publication disabled.
+HTR-010B10 exercises the opt-in adaptive metadata publisher certified by
+HTR-010B9 through the unchanged institutional-decision and trade-formation stack.
+It runs only as a governed shadow replay. The default canonical runtime remains
+unchanged and adaptive publication remains disabled unless the B10 engine injects
+the publisher explicitly.
 
-The milestone validates the signed B9 → B8 → B7 lineage, binds the governed identity,
-action, closure, admission, and universe inputs, preserves all policy and execution
-boundaries, and emits a deterministic signed certificate plus support ledgers.
+The milestone answers a narrow question: after exact point-in-time adaptive
+metadata reaches the institutional consumer, which approval gates, portfolio
+eligibility states, and frozen recorded-plan trades change? It does not optimise
+policy or claim economic superiority.
 
-## Fail-closed boundary
+## Signed handoff
 
-The engine must not manufacture adaptive observations, approvals, allocations, trades,
-or economic outcomes. Until the existing governed replay and publisher seams supply a
-non-empty empirical shadow population, B10 returns
-`BLOCKED_BY_EMPTY_ADAPTIVE_SHADOW_POPULATION` while still certifying handoff,
-readiness precedence, support-artifact hashing, tamper detection, and governance flags.
+The command requires ready, hash-bound certificates for:
 
-A zero-trade result is not itself a defect. A ready state requires a non-empty adaptive
-shadow population and zero unexplained default drift, point-in-time leakage,
-recommendation semantic drift, institutional divergence, trade-formation divergence,
-arm divergence, handoff defect, or implementation defect.
+- HTR-010B9 adaptive publication bridge;
+- HTR-010B8 adaptive evidence lineage;
+- HTR-010B7 setup-matched evidence sufficiency.
+
+It also requires the exact identity, corporate-action, final-closure, admission,
+identity-admission, RAW-universe, and ADJUSTED-universe artifacts already bound by
+B7. B10 verifies the B9→B8→B7 report and certificate-file chain, validates every
+B7 input-file hash, and rebuilds the governed RAW and ADJUSTED stores rather than
+trusting a moving directory.
+
+## Two-pass replay
+
+### 1. Immutable default pass
+
+B10 first runs the unchanged canonical pipeline chronologically for each price
+arm with adaptive publication disabled. It preserves:
+
+- immutable recommendation objects;
+- market regime and institutional decisions;
+- allocation reports;
+- recorder-generated recommendation-ledger entries;
+- frozen recorded-plan outcomes from the existing trade simulator.
+
+Only BUY and STRONG_BUY recommendations enter the adaptive evidence ledger. RAW
+and ADJUSTED entries and outcomes are isolated permanently and are never pooled.
+
+### 2. Adaptive-published shadow pass
+
+B10 reruns the same dates and stores with an injected
+`PointInTimeAdaptiveMetadataPublisher`. For each recommendation, the publisher may
+use only exact-fingerprint outcomes whose ledger date and completion date are both
+strictly before the current recommendation date. Pending, active, not-triggered,
+missing, same-date, future, incomplete, and fingerprint-mismatched evidence stays
+excluded.
+
+The five authorised metadata fields are:
+
+- `adaptive_adjusted_confidence`;
+- `adaptive_evidence_strength`;
+- `adaptive_posterior_probability`;
+- `adaptive_expectancy`;
+- `adaptive_sample_count`.
+
+## Comparison and attribution
+
+B10 compares DEFAULT and ADAPTIVE_PUBLISHED candidates by price arm, decision date,
+and symbol.
+
+Recommendation objects must be identical after removing only the five authorised
+adaptive keys. Any other recommendation, trade-plan, price, setup, or risk-field
+change is semantic drift and blocks readiness.
+
+Institutional comparison records:
+
+- adaptive evidence values;
+- opportunity score and grade;
+- acceptance state;
+- full rejection-code set and primary gate;
+- approval and gate transitions;
+- whether the transition is attributable to the adaptive consumer contract.
+
+Only transitions involving the existing adaptive-sensitive gates are explainable:
+`INSUFFICIENT_EVIDENCE`, `POOR_HISTORICAL_EDGE`, `WEAK_CONFIDENCE`, and
+`WEAK_SETUP`. No new gate or threshold is introduced.
+
+Portfolio and trade comparison records the unchanged allocation amount, portfolio
+eligibility, shadow trade formation, entry status, and completed recorded-plan
+outcome. Adaptive metadata is not permitted to alter allocation policy, entry,
+stop, targets, execution assumptions, or a paired trade's realised result.
+
+## RAW and ADJUSTED separation
+
+B10 compares adaptive effects across RAW and ADJUSTED arms without merging their
+evidence. A different adaptive effect is explained only when the signed B7 input
+fingerprint differs. An effect difference with unchanged signed inputs blocks
+readiness.
+
+## Zero approvals and zero trades
+
+A zero-approval or zero-trade real-data result is not itself a defect. It may be
+the correct result of the unchanged institutional gates. Readiness certifies the
+point-in-time shadow path and its attribution contract, not the existence of an
+economic edge.
 
 ## Readiness states
 
@@ -38,29 +116,23 @@ arm divergence, handoff defect, or implementation defect.
 
 ## Outputs
 
-The command writes one certificate and eleven deterministic support artifacts:
+The command writes one signed certificate and eleven deterministic support files:
 
-- `htr010b10_adaptive_institutional_trade_shadow_certificate.json`
-- `htr010b10_adaptive_publication_ledger.csv`
-- `htr010b10_institutional_decision_comparison.csv`
-- `htr010b10_gate_transition_ledger.csv`
-- `htr010b10_portfolio_trade_formation_comparison.csv`
-- `htr010b10_completed_trade_outcome_comparison.csv`
-- `htr010b10_point_in_time_eligibility.csv`
-- `htr010b10_raw_adjusted_effect_comparison.csv`
-- `htr010b10_default_path_invariance.csv`
-- `htr010b10_source_contract_snapshot.csv`
-- `htr010b10_non_vacuity_probe_ledger.csv`
-- `htr010b10_executive_report.md`
+- `htr010b10_adaptive_institutional_trade_shadow_certificate.json`;
+- `htr010b10_adaptive_publication_ledger.csv`;
+- `htr010b10_institutional_decision_comparison.csv`;
+- `htr010b10_gate_transition_ledger.csv`;
+- `htr010b10_portfolio_trade_formation_comparison.csv`;
+- `htr010b10_completed_trade_outcome_comparison.csv`;
+- `htr010b10_point_in_time_eligibility.csv`;
+- `htr010b10_raw_adjusted_effect_comparison.csv`;
+- `htr010b10_default_path_invariance.csv`;
+- `htr010b10_source_contract_snapshot.csv`;
+- `htr010b10_non_vacuity_probe_ledger.csv`;
+- `htr010b10_executive_report.md`.
 
-## Governance
-
-Every certificate records that default adaptive publication, policy changes, threshold
-changes, fingerprint changes, portfolio-policy changes, execution-policy changes,
-production-ledger mutation, synthetic outcomes, counterfactual approval claims,
-economic-superiority claims, live scoring, recommendation influence, portfolio
-influence, execution influence, learning mutation, active replay integration, and
-production influence are all disabled.
+Every support-file hash, upstream certificate hash, explicit input hash, and frozen
+source-contract hash is bound into the certificate.
 
 ## Command
 
@@ -80,3 +152,30 @@ poetry run python -m alpha benchmark governed-adaptive-institutional-trade-shado
   --historical-truth-snapshots alpha_data/snapshots \
   --output artifacts/htr010b10_governed_adaptive_institutional_trade_shadow
 ```
+
+## Guardrails
+
+Every B10 certificate records:
+
+- `DEFAULT_RUNTIME_ADAPTIVE_PUBLICATION_ENABLED=false`;
+- `APPROVAL_POLICY_CHANGE_PERMITTED=false`;
+- `EVIDENCE_THRESHOLD_CHANGE_PERMITTED=false`;
+- `FINGERPRINT_MATCHING_CHANGE_PERMITTED=false`;
+- `PORTFOLIO_POLICY_CHANGE_PERMITTED=false`;
+- `EXECUTION_POLICY_CHANGE_PERMITTED=false`;
+- `PRODUCTION_LEDGER_MUTATION_ENABLED=false`;
+- `SYNTHETIC_OUTCOMES_PERMITTED=false`;
+- `COUNTERFACTUAL_APPROVAL_CLAIMED=false`;
+- `ECONOMIC_SUPERIORITY_CLAIMED=false`;
+- `LIVE_SCORING_ENABLED=false`;
+- `RECOMMENDATION_INFLUENCE=false`;
+- `PORTFOLIO_POLICY_INFLUENCE=false`;
+- `EXECUTION_INFLUENCE=false`;
+- `LEARNING_MUTATION_ENABLED=false`;
+- `ACTIVE_REPLAY_INTEGRATION=false`;
+- `PRODUCTION_INFLUENCE=false`.
+
+A ready B10 certificate permits only governed adaptive institutional and
+trade-formation shadow research. Production activation, policy optimisation,
+threshold changes, portfolio deployment, and live scoring require separate
+signed milestones.
