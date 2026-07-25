@@ -1,0 +1,125 @@
+name: HTR-010B10E1 Apply Full Implementation
+
+on:
+  pull_request:
+    branches:
+      - feature/recovery-foundation-v1
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-010b10-governed-adaptive-institutional-trade-shadow
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Reconstruct governed B10E1 implementation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import base64
+          import hashlib
+          import io
+          import json
+          import os
+          import shutil
+          import urllib.request
+          import zipfile
+          from pathlib import Path
+
+          repository = os.environ['GITHUB_REPOSITORY']
+          token = os.environ['GH_TOKEN']
+          blob_shas = (
+              'a1a694ebbb82caae1d63beac9ebb21ed3470c09a',
+              'baf994a0a638060327eedfa90f8ef02b7366fd79',
+              'b440ec86ad203858817959e6cf9b59d9ac23be2f',
+          )
+          chunks: list[str] = []
+          for sha in blob_shas:
+              request = urllib.request.Request(
+                  f'https://api.github.com/repos/{repository}/git/blobs/{sha}',
+                  headers={
+                      'Authorization': f'Bearer {token}',
+                      'Accept': 'application/vnd.github+json',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                  },
+              )
+              with urllib.request.urlopen(request) as response:
+                  payload = json.load(response)
+              chunks.append(base64.b64decode(payload['content']).decode('ascii'))
+
+          archive = base64.b64decode(''.join(chunks), validate=True)
+          digest = hashlib.sha256(archive).hexdigest()
+          expected = '267400eb2135b4f23c69cafa4bcf2ac0c9378d976866d7b8ef4f37c85110cf05'
+          if digest != expected:
+              raise SystemExit(f'archive SHA-256 mismatch: {digest}')
+
+          stage = Path('.b10e1_stage')
+          shutil.rmtree(stage, ignore_errors=True)
+          stage.mkdir()
+          with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
+              bundle.extractall(stage)
+
+          paths = (
+              'alpha/application/governed_adaptive_institutional_trade_shadow_cli.py',
+              'alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py',
+              'tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py',
+              'docs/HTR-010B10_GOVERNED_ADAPTIVE_INSTITUTIONAL_TRADE_SHADOW.md',
+          )
+          for relative in paths:
+              source = stage / relative
+              if not source.is_file():
+                  raise SystemExit(f'missing staged file: {relative}')
+              target = Path(relative)
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copyfile(source, target)
+
+          shutil.rmtree(stage)
+          PY
+
+      - name: Install locked project dependencies
+        run: |
+          pip install poetry
+          poetry install --with dev --no-interaction
+
+      - name: Validate focused B10E1 implementation
+        run: |
+          poetry run ruff check \
+            alpha/application/governed_adaptive_institutional_trade_shadow_cli.py \
+            alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py \
+            tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py
+          poetry run ruff format --check \
+            alpha/application/governed_adaptive_institutional_trade_shadow_cli.py \
+            alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py \
+            tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py
+          poetry run mypy \
+            alpha/application/governed_adaptive_institutional_trade_shadow_cli.py \
+            alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py
+          poetry run pytest -q \
+            tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py
+
+      - name: Commit full B10E1 implementation
+        run: |
+          rm .github/workflows/htr010b10e1-apply.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            alpha/application/governed_adaptive_institutional_trade_shadow_cli.py \
+            alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py \
+            tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py \
+            docs/HTR-010B10_GOVERNED_ADAPTIVE_INSTITUTIONAL_TRADE_SHADOW.md \
+            .github/workflows/htr010b10e1-apply.yml
+          git commit -m 'feat(htr-010b10e1): integrate empirical adaptive shadow population'
+          git push origin HEAD:feature/htr-010b10-governed-adaptive-institutional-trade-shadow
