@@ -17,6 +17,9 @@ from alpha.decision_superiority.gate_isolation_policy_producers import (
     ApprovalPolicyCaptureInput,
     EntryPolicyCaptureInput,
 )
+from alpha.decision_superiority.gate_isolation_source_lineage_producer import (
+    SourceLineageCaptureInput,
+)
 
 
 def _request() -> FrozenInputAssemblyRequest:
@@ -55,10 +58,17 @@ def _request() -> FrozenInputAssemblyRequest:
             trigger_source_hashes={"price_history": "def"},
             observed_on="2026-07-26",
         ),
+        source_lineage=SourceLineageCaptureInput(
+            artifact_hashes={"analysis": "abc"},
+            provider_versions={"nse": "v1"},
+            source_paths={"analysis": "artifacts/analysis.csv"},
+            dataset_versions={"historical_truth": "2026-07-26"},
+            observed_on="2026-07-26",
+        ),
     )
 
 
-def test_assembler_preserves_four_available_sections() -> None:
+def test_assembler_preserves_five_available_sections() -> None:
     result = FrozenInputAssembler().assemble(_request())
 
     assert result.present_sections == (
@@ -66,11 +76,11 @@ def test_assembler_preserves_four_available_sections() -> None:
         FrozenInputSection.CANDIDATE_FEATURES,
         FrozenInputSection.ENTRY_POLICY,
         FrozenInputSection.PORTFOLIO_STATE,
+        FrozenInputSection.SOURCE_LINEAGE,
     )
     assert result.missing_sections == (
         FrozenInputSection.EXECUTION_STATE,
         FrozenInputSection.OUTCOME_POLICY,
-        FrozenInputSection.SOURCE_LINEAGE,
     )
 
 
@@ -100,11 +110,12 @@ def test_observation_date_mismatch_fails_closed() -> None:
             candidate_features=request.candidate_features,
             approval_policy=request.approval_policy,
             portfolio_state=request.portfolio_state,
-            entry_policy=EntryPolicyCaptureInput(
-                policy_payload={"trigger_style": "BREAKOUT"},
-                policy_version="entry-v1",
-                trigger_payload={"status": "PENDING"},
-                trigger_source_hashes={"price_history": "def"},
+            entry_policy=request.entry_policy,
+            source_lineage=SourceLineageCaptureInput(
+                artifact_hashes={"analysis": "abc"},
+                provider_versions={"nse": "v1"},
+                source_paths={"analysis": "artifacts/analysis.csv"},
+                dataset_versions={"historical_truth": "2026-07-26"},
                 observed_on="2026-07-25",
             ),
         )
