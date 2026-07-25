@@ -209,7 +209,7 @@ def test_signed_audit_rejects_certificate_metadata_tampering(
     b5, b7, candidate, gates, outcomes = _inputs(tmp_path)
     certificate = b5 if certificate_name == "b5" else b7
     payload = json.loads(certificate.read_text(encoding="utf-8"))
-    payload["contract_version"] = str(payload["contract_version"]) + "-TAMPERED"
+    payload["tampered_metadata"] = True
     certificate.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
