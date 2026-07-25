@@ -1,7 +1,7 @@
-# HTR-010B10 Validation Trigger
+# HTR-010B10E1 Validation Trigger
 
-This connector-authored commit intentionally retriggers normal repository validation after the strict-MyPy narrowing was applied and the temporary diagnostic and finalizer workflows removed.
+This connector-authored commit retriggers ordinary repository Lint and CI after the empirical adaptive shadow population implementation was committed and all temporary build and diagnostic workflows were removed.
 
-Acceptance remains bound to the exact reviewed commit SHA. This file has no runtime, policy, portfolio, execution, learning, or production influence.
+The implementation adds the chronological DEFAULT and ADAPTIVE_PUBLISHED replay paths, point-in-time evidence isolation, institutional and trade attribution, and deterministic non-empty population diagnostics. It does not enable adaptive publication in the default runtime or change evidence, approval, portfolio, execution, learning, or production policy.
 
-The final validation source uses `Sequence[str]` for CLI readiness blockers so strict MyPy and `str.join` agree without weakening the report contract. The engine report renderer narrows its blocker sequence before iteration, and the exact layout is produced by locked Ruff 0.15.20.
+Acceptance remains bound to the exact reviewed commit SHA. A signed real-data acceptance run is still required after repository validation succeeds.
