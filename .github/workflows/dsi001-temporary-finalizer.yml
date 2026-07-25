@@ -96,21 +96,22 @@ jobs:
           git commit -m 'fix(dsi-001): normalize governed gate ordinal typing'
           git push origin HEAD:feature/dsi-001-governed-decision-superiority-gate-value-audit
       - name: Focused MyPy
-        id: mypy
+        run: |
+          poetry run mypy \
+            alpha/application/decision_superiority_gate_value_cli.py \
+            alpha/decision_superiority
+      - name: Focused pytest
+        id: pytest
         continue-on-error: true
         run: |
           set -o pipefail
-          poetry run mypy \
-            alpha/application/decision_superiority_gate_value_cli.py \
-            alpha/decision_superiority 2>&1 | tee dsi001-mypy.txt
-      - name: Upload MyPy diagnostics
+          poetry run pytest -q tests/decision_superiority 2>&1 | tee dsi001-pytest.txt
+      - name: Upload pytest diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: dsi001-mypy-diagnostics
-          path: dsi001-mypy.txt
-      - name: Enforce MyPy
-        if: steps.mypy.outcome == 'failure'
+          name: dsi001-pytest-diagnostics
+          path: dsi001-pytest.txt
+      - name: Enforce pytest
+        if: steps.pytest.outcome == 'failure'
         run: exit 1
-      - name: Focused pytest
-        run: poetry run pytest -q tests/decision_superiority
