@@ -22,6 +22,7 @@ from alpha.decision_superiority.gate_attribution import (
 )
 from alpha.decision_superiority.gate_pipeline import (
     GatePipelineInput,
+    GatePipelineResult,
     run_gate_pipeline,
 )
 
@@ -137,6 +138,26 @@ class GateAccumulator:
 
 
 @dataclass(frozen=True, slots=True)
+class GateAuditState:
+    """Canonical internal audit state for one governed gate."""
+
+    accumulator: GateAccumulator
+    pipeline: GatePipelineResult
+
+    def __post_init__(self) -> None:
+        if self.pipeline.production_influence:
+            raise ValueError("canonical gate audit state must remain diagnostic-only")
+        if self.pipeline.distribution.sample_count != self.accumulator.unique:
+            raise ValueError("pipeline sample_count must match unique blocker count")
+        if self.pipeline.distribution.resolved_count != len(
+            self.accumulator.unique_returns
+        ):
+            raise ValueError(
+                "pipeline resolved_count must match unique resolved return count"
+            )
+
+
+@dataclass(frozen=True, slots=True)
 class DSI001Result:
     """Exported DSI-001 result."""
 
@@ -241,7 +262,8 @@ class GovernedGateValueAudit:
             gate_events=gate_events,
             outcomes_by_key=outcome_by_key,
         )
-        value_rows = self._value_rows(gate_stats)
+        gate_states = self._gate_states(gate_stats)
+        value_rows = self._value_rows(gate_states)
         cooccurrence_rows = self._cooccurrence_rows(failures_by_key)
         resolved_count = sum(
             1 for row in candidate_rows if row["resolved_outcome"] is True
@@ -403,23 +425,36 @@ class GovernedGateValueAudit:
         return result
 
     @staticmethod
-    def _value_rows(
+    def _gate_states(
         stats_by_gate: dict[str, GateAccumulator],
+    ) -> dict[str, GateAuditState]:
+        return {
+            gate: GateAuditState(
+                accumulator=stats,
+                pipeline=run_gate_pipeline(
+                    GatePipelineInput(
+                        gate_code=gate,
+                        sample_count=stats.unique,
+                        returns_pct=tuple(stats.unique_returns),
+                        minimum_required=0,
+                    )
+                ),
+            )
+            for gate, stats in sorted(stats_by_gate.items())
+        }
+
+    @staticmethod
+    def _value_rows(
+        states_by_gate: dict[str, GateAuditState],
     ) -> list[dict[str, object]]:
         rows: list[dict[str, object]] = []
-        for gate, stats in sorted(stats_by_gate.items()):
+        for gate, state in sorted(states_by_gate.items()):
+            stats = state.accumulator
+            pipeline = state.pipeline
             average = (
                 stats.return_sum / Decimal(stats.resolved)
                 if stats.resolved
                 else Decimal("0")
-            )
-            pipeline = run_gate_pipeline(
-                GatePipelineInput(
-                    gate_code=gate,
-                    sample_count=stats.unique,
-                    returns_pct=tuple(stats.unique_returns),
-                    minimum_required=0,
-                )
             )
             economic_value = pipeline.economic_value
             net = economic_value.net_gate_value
