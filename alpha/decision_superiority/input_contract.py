@@ -92,9 +92,7 @@ def verify_bound_artifact(
     declared = dict(certificate.artifact_hashes)
     expected_sha256 = declared.get(expected_name)
     if expected_sha256 is None:
-        raise GovernedInputContractError(
-            f"BOUND_ARTIFACT_NOT_DECLARED:{expected_name}"
-        )
+        raise GovernedInputContractError(f"BOUND_ARTIFACT_NOT_DECLARED:{expected_name}")
 
     actual_sha256 = _sha256(artifact)
     if actual_sha256 != expected_sha256:
@@ -109,9 +107,7 @@ def _read_json_object(path: Path) -> dict[str, Any]:
     try:
         parsed = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise GovernedInputContractError(
-            f"CERTIFICATE_JSON_INVALID:{path}"
-        ) from exc
+        raise GovernedInputContractError(f"CERTIFICATE_JSON_INVALID:{path}") from exc
     if not isinstance(parsed, dict):
         raise GovernedInputContractError(f"CERTIFICATE_JSON_NOT_OBJECT:{path}")
     return parsed
@@ -146,9 +142,7 @@ def _artifact_hashes(payload: dict[str, Any]) -> tuple[tuple[str, str], ...]:
             )
         name = raw_name.strip()
         if Path(name).is_absolute() or ".." in Path(name).parts:
-            raise GovernedInputContractError(
-                f"CERTIFICATE_ARTIFACT_PATH_UNSAFE:{name}"
-            )
+            raise GovernedInputContractError(f"CERTIFICATE_ARTIFACT_PATH_UNSAFE:{name}")
         verified.append((name, raw_hash.lower()))
     return tuple(sorted(verified))
 

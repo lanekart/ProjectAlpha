@@ -161,8 +161,7 @@ def test_signed_audit_binds_b5_b7_and_source_snapshot(tmp_path: Path) -> None:
 def test_signed_audit_rejects_substituted_ledger(tmp_path: Path) -> None:
     b5, b7, candidate, gates, outcomes = _inputs(tmp_path)
     candidate.write_text(
-        "price_view,observed_on,symbol,input_fingerprint\n"
-        "RAW,2026-01-02,BBB,fp-b\n",
+        "price_view,observed_on,symbol,input_fingerprint\nRAW,2026-01-02,BBB,fp-b\n",
         encoding="utf-8",
     )
 
