@@ -75,7 +75,10 @@ class EvidenceAssessment:
         if self.positive_count > self.resolved_count:
             raise ValueError("positive_count cannot exceed resolved_count")
 
-        sufficient = self.resolved_count >= self.minimum_required
+        sufficient = (
+            self.resolved_count > 0
+            and self.resolved_count >= self.minimum_required
+        )
         if sufficient and self.status is not ConfidenceStatus.SUFFICIENT:
             raise ValueError("sufficient population must use SUFFICIENT status")
 
