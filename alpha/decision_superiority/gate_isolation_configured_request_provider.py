@@ -163,8 +163,9 @@ class ConfiguredFrozenInputAssemblyRequestProvider:
                 sizing_state={
                     "sizing_limit": execution.get("sizing_limit")
                 },
-                liquidity_constraints=dict(
-                    execution.get("liquidity_constraints", {})
+                liquidity_constraints=_mapping_field(
+                    execution,
+                    "liquidity_constraints",
                 ),
                 participation_constraints={
                     "participation_limit": execution.get(
@@ -180,14 +181,16 @@ class ConfiguredFrozenInputAssemblyRequestProvider:
             ),
             outcome_policy=OutcomePolicyCaptureInput(
                 exit_policy={"exit_rules": outcome.get("exit_rules", [])},
-                stop_policy=dict(outcome.get("stop_policy", {})),
-                target_policy=dict(outcome.get("target_policy", {})),
-                trailing_policy=dict(outcome.get("trailing_policy", {})),
-                time_exit_policy=dict(
-                    outcome.get("time_exit_policy", {})
+                stop_policy=_mapping_field(outcome, "stop_policy"),
+                target_policy=_mapping_field(outcome, "target_policy"),
+                trailing_policy=_mapping_field(outcome, "trailing_policy"),
+                time_exit_policy=_mapping_field(
+                    outcome,
+                    "time_exit_policy",
                 ),
-                ambiguity_policy=dict(
-                    outcome.get("ambiguity_policy", {})
+                ambiguity_policy=_mapping_field(
+                    outcome,
+                    "ambiguity_policy",
                 ),
                 policy_version=self._bundle.outcome_policy_version,
                 dependency_versions=(
@@ -203,6 +206,16 @@ class ConfiguredFrozenInputAssemblyRequestProvider:
                 observed_on=observed_text,
             ),
         )
+
+
+def _mapping_field(
+    container: Mapping[str, object],
+    key: str,
+) -> dict[str, object]:
+    value = container.get(key, {})
+    if not isinstance(value, Mapping):
+        raise TypeError(f"{key} must be a mapping")
+    return {str(item_key): item for item_key, item in value.items()}
 
 
 def _payload_hash(payload: Mapping[str, object]) -> str:
