@@ -110,9 +110,10 @@ class FrozenStageSourceAuditor:
                     ),
                     present=("gate input lineage",),
                     rationale=(
-                        "Signed ledgers preserve observed failures and decisions but do "
-                        "not preserve the complete candidate feature snapshot and frozen "
-                        "approval policy state required to recompute approval."
+                        "Signed ledgers preserve observed failures and decisions "
+                        "but do not preserve the complete candidate feature "
+                        "snapshot and frozen approval policy state required to "
+                        "recompute approval."
                     ),
                 ),
                 _finding(
@@ -141,9 +142,9 @@ class FrozenStageSourceAuditor:
                     ),
                     present=("point-in-time trigger outcome",),
                     rationale=(
-                        "Observed pending-entry outcomes are available, but the signed "
-                        "inputs required to recompute the trigger under the frozen entry "
-                        "policy are incomplete."
+                        "Observed pending-entry outcomes are available, but the "
+                        "signed inputs required to recompute the trigger under "
+                        "the frozen entry policy are incomplete."
                     ),
                 ),
                 _finding(
@@ -157,9 +158,10 @@ class FrozenStageSourceAuditor:
                     ),
                     present=(),
                     rationale=(
-                        "The signed ledgers report observed trade-formation outcomes but "
-                        "do not preserve the complete execution, sizing, cash, liquidity, "
-                        "and risk-budget state needed for counterfactual formation."
+                        "The signed ledgers report observed trade-formation "
+                        "outcomes but do not preserve the complete execution, "
+                        "sizing, cash, liquidity, and risk-budget state needed "
+                        "for counterfactual formation."
                     ),
                 ),
                 _finding(
@@ -176,9 +178,10 @@ class FrozenStageSourceAuditor:
                         "signed completed-trade outcome",
                     ),
                     rationale=(
-                        "Some observed outcomes exist, but no counterfactual formed-trade "
-                        "identity or frozen exit-policy lineage exists to bind those "
-                        "outcomes to a newly formed shadow trade."
+                        "Some observed outcomes exist, but no counterfactual "
+                        "formed-trade identity or frozen exit-policy lineage "
+                        "exists to bind those outcomes to a newly formed shadow "
+                        "trade."
                     ),
                 ),
             )
