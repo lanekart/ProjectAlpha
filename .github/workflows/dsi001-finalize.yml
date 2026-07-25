@@ -1,0 +1,77 @@
+name: DSI-001 Finalize First Slice
+
+on:
+  push:
+    branches:
+      - feature/dsi-001-governed-decision-superiority-gate-value-audit
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-001-governed-decision-superiority-gate-value-audit
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Register DSI-001 CLI
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('alpha/application/benchmark_cli.py')
+          text = path.read_text(encoding='utf-8')
+          import_block = '''from alpha.application.decision_superiority_gate_value_cli import (\n    register_decision_superiority_gate_value_command,\n)\n'''
+          anchor = 'from alpha.application.governed_adaptive_evidence_lineage_cli import (\n'
+          if import_block not in text:
+              text = text.replace(anchor, import_block + anchor)
+          registration = 'register_decision_superiority_gate_value_command(benchmark_app)\n'
+          anchor_registration = 'register_governed_adjusted_benchmark_command(benchmark_app)\n'
+          if registration not in text:
+              text = text.replace(anchor_registration, registration + anchor_registration)
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Install dependencies
+        run: |
+          pip install poetry
+          poetry install --with dev --no-interaction
+      - name: Format and validate
+        run: |
+          poetry run ruff format \
+            alpha/decision_superiority \
+            alpha/application/decision_superiority_gate_value_cli.py \
+            tests/decision_superiority/test_gate_value_audit.py \
+            alpha/application/benchmark_cli.py
+          poetry run ruff check \
+            alpha/decision_superiority \
+            alpha/application/decision_superiority_gate_value_cli.py \
+            tests/decision_superiority/test_gate_value_audit.py \
+            alpha/application/benchmark_cli.py --fix
+          poetry run ruff format --check \
+            alpha/decision_superiority \
+            alpha/application/decision_superiority_gate_value_cli.py \
+            tests/decision_superiority/test_gate_value_audit.py \
+            alpha/application/benchmark_cli.py
+          poetry run mypy \
+            alpha/decision_superiority \
+            alpha/application/decision_superiority_gate_value_cli.py
+          poetry run pytest -q tests/decision_superiority/test_gate_value_audit.py
+      - name: Commit finalized first slice
+        run: |
+          rm .github/workflows/dsi001-finalize.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            alpha/decision_superiority \
+            alpha/application/decision_superiority_gate_value_cli.py \
+            alpha/application/benchmark_cli.py \
+            tests/decision_superiority/test_gate_value_audit.py \
+            .github/workflows/dsi001-finalize.yml
+          git commit -m 'feat(dsi-001): finalize governed gate value audit slice'
+          git push origin HEAD:feature/dsi-001-governed-decision-superiority-gate-value-audit
