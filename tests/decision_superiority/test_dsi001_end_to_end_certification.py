@@ -37,6 +37,12 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _serialized(value: object) -> object:
+    """Return the exact JSON-compatible representation written to certificates."""
+
+    return json.loads(json.dumps(value, sort_keys=True, default=str))
+
+
 def _signed_inputs(
     tmp_path: Path,
     *,
@@ -191,7 +197,7 @@ def test_signed_end_to_end_run_is_deterministic_and_hash_bound(
             / "dsi001_gate_value_audit_certificate.json"
         ).read_text(encoding="utf-8")
     )
-    assert certificate == first.report
+    assert certificate == _serialized(first.report)
 
 
 def test_signed_end_to_end_cli_renders_governed_diagnostics(tmp_path: Path) -> None:
