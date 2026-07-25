@@ -3,8 +3,14 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
+from pytest import MonkeyPatch
+
 from alpha.decision_superiority import gate_value_audit
-from alpha.decision_superiority.gate_pipeline import run_gate_pipeline
+from alpha.decision_superiority.gate_pipeline import (
+    GatePipelineInput,
+    GatePipelineResult,
+    run_gate_pipeline,
+)
 from alpha.decision_superiority.gate_value_audit import GovernedGateValueAudit
 
 
@@ -132,12 +138,14 @@ def _inputs(tmp_path: Path) -> tuple[Path, Path, Path]:
 
 def test_audit_routes_unique_gate_value_through_pipeline(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: MonkeyPatch,
 ) -> None:
     candidates, gates, outcomes = _inputs(tmp_path)
-    observed_inputs = []
+    observed_inputs: list[GatePipelineInput] = []
 
-    def recording_pipeline(pipeline_input):
+    def recording_pipeline(
+        pipeline_input: GatePipelineInput,
+    ) -> GatePipelineResult:
         observed_inputs.append(pipeline_input)
         return run_gate_pipeline(pipeline_input)
 
@@ -155,6 +163,11 @@ def test_audit_routes_unique_gate_value_through_pipeline(
     assert gate_a_input.sample_count == 1
     assert tuple(str(value) for value in gate_a_input.returns_pct) == ("-8",)
     assert gate_a_input.minimum_required == 0
+
+    gate_b_input = observed_inputs[1]
+    assert gate_b_input.sample_count == 0
+    assert gate_b_input.returns_pct == ()
+    assert gate_b_input.minimum_required == 0
 
     values = {row["gate_code"]: row for row in result.report["gate_value_summary"]}
     assert values["GATE_A"]["resolved_outcome_count"] == 2
