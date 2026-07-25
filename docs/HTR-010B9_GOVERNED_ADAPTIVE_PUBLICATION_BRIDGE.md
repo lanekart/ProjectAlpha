@@ -99,6 +99,18 @@ Production publication requires an explicitly injected read-only publisher backe
 by immutable ledger entries and outcomes. No B8 CSV is wired into the normal
 application path.
 
+## B8 compatibility after the guarded seam
+
+B8 source inspection now reports that the orchestrator contains an adaptive
+assessment invocation seam. This is expected after B9 and does not mean default
+publication is active. The default flag remains false, the producer still does not
+unconditionally emit the five adaptive keys, and publication still requires an
+explicitly injected publisher.
+
+The B8 compatibility test therefore distinguishes availability of the guarded seam
+from activation of adaptive publication. Its original signed B8 evidence and report
+hash remain unchanged.
+
 ## Certification
 
 B9 certifies:
