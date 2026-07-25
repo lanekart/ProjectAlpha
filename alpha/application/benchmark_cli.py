@@ -10,6 +10,9 @@ from typing import Annotated, Any
 
 import typer
 
+from alpha.application.decision_superiority_gate_value_cli import (
+    register_decision_superiority_gate_value_command,
+)
 from alpha.application.governed_adaptive_evidence_lineage_cli import (
     register_governed_adaptive_evidence_lineage_command,
 )
@@ -58,6 +61,7 @@ benchmark_app = typer.Typer(
     no_args_is_help=True,
 )
 
+register_decision_superiority_gate_value_command(benchmark_app)
 register_governed_adjusted_benchmark_command(benchmark_app)
 register_governed_adjusted_stability_command(benchmark_app)
 register_governed_adaptive_evidence_lineage_command(benchmark_app)

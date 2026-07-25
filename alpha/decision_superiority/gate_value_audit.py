@@ -97,10 +97,11 @@ class GovernedGateValueAudit:
         outcome_by_key = {
             _key(row): row
             for row in outcomes
-            if _truthy(row.get("completed"))
-            or _truthy(row.get("forward_completed"))
+            if _truthy(row.get("completed")) or _truthy(row.get("forward_completed"))
         }
-        failures_by_key: dict[tuple[str, str, str], list[dict[str, str]]] = defaultdict(list)
+        failures_by_key: dict[tuple[str, str, str], list[dict[str, str]]] = defaultdict(
+            list
+        )
         for row in gate_events:
             if str(row.get("outcome", "")).upper() == "FAIL":
                 failures_by_key[_key(row)].append(row)
@@ -159,9 +160,9 @@ class GovernedGateValueAudit:
             for gate_code in failure_codes:
                 stats = gate_stats[gate_code]
                 stats["blocked"] = int(stats["blocked"]) + 1
-                stats["unique" if unique else "co"] = int(
-                    stats["unique" if unique else "co"]
-                ) + 1
+                stats["unique" if unique else "co"] = (
+                    int(stats["unique" if unique else "co"]) + 1
+                )
                 avoided = Decimal("0")
                 cost = Decimal("0")
                 if resolved:
@@ -197,7 +198,9 @@ class GovernedGateValueAudit:
 
         value_rows = self._value_rows(gate_stats)
         cooccurrence_rows = self._cooccurrence_rows(failures_by_key)
-        resolved_count = sum(1 for row in candidate_rows if row["resolved_outcome"] is True)
+        resolved_count = sum(
+            1 for row in candidate_rows if row["resolved_outcome"] is True
+        )
         readiness = (
             DSI001_BLOCKED_EMPTY
             if not candidate_rows
