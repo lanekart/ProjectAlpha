@@ -184,8 +184,7 @@ def governed_adaptive_institutional_trade_shadow(
     typer.echo(f"Point-in-time eligible outcomes: {point_in_time['eligible_count']}")
     typer.echo(f"Point-in-time leakage: {point_in_time['leakage_count']}")
     typer.echo(
-        "Unexplained RAW/ADJUSTED effects: "
-        f"{arms['unexplained_divergence_count']}"
+        f"Unexplained RAW/ADJUSTED effects: {arms['unexplained_divergence_count']}"
     )
     typer.echo(f"Non-vacuity probes passed: {probes['passed_probe_count']}")
     typer.echo(
