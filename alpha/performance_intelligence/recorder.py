@@ -102,6 +102,8 @@ def recommendation_to_ledger_entry(
             "price_trend": recommendation.price_evidence.trend_state,
             "price_structure": recommendation.price_evidence.structure_state,
             "price_breakout": recommendation.price_evidence.breakout_state,
+            "retracement_state": (recommendation.price_evidence.retracement_state),
+            "candle_pattern": recommendation.candle_pattern,
             "price_score": _decimal_text(recommendation.price_evidence.price_score),
             "volume_score": _decimal_text(recommendation.volume_evidence.volume_score),
             "relative_volume": _optional_decimal_text(recommendation.relative_volume),

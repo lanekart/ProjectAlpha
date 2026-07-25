@@ -14,6 +14,13 @@ from alpha.learning_intelligence.models import (
     LearningOutcomeSample,
     SetupFingerprint,
 )
+from alpha.learning_intelligence.publication import (
+    AdaptiveMetadataPublicationBatch,
+    AdaptiveMetadataPublicationRecord,
+    AdaptiveMetadataPublisher,
+    AdaptivePublicationEligibility,
+    PointInTimeAdaptiveMetadataPublisher,
+)
 from alpha.learning_intelligence.rendering import (
     concise_adaptive_line,
     render_learning_explain,
@@ -23,6 +30,10 @@ from alpha.learning_intelligence.service import AdaptiveLearningService
 
 __all__ = [
     "AdaptiveLearningAssessment",
+    "AdaptiveMetadataPublicationBatch",
+    "AdaptiveMetadataPublicationRecord",
+    "AdaptiveMetadataPublisher",
+    "AdaptivePublicationEligibility",
     "AdaptiveLearningEngine",
     "AdaptiveLearningReport",
     "AdaptiveLearningService",
@@ -32,6 +43,7 @@ __all__ = [
     "FeatureContribution",
     "FingerprintStatistics",
     "LearningOutcomeSample",
+    "PointInTimeAdaptiveMetadataPublisher",
     "SetupFingerprint",
     "concise_adaptive_line",
     "fingerprint_from_ledger_entry",
