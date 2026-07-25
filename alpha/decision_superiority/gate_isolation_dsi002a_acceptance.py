@@ -104,9 +104,7 @@ def run_dsi002a_acceptance(output: Path) -> DSI002AAcceptanceResult:
     """Execute capture, parity, duplicate, and fail-closed checks."""
 
     observed_on = date(2026, 7, 26)
-    provider = ConfiguredFrozenInputAssemblyRequestProvider(
-        default_acceptance_bundle()
-    )
+    provider = ConfiguredFrozenInputAssemblyRequestProvider(default_acceptance_bundle())
     baseline = IntelligenceApplicationService(
         input_provider=DemoIntelligenceInputBuilder()
     ).run(observed_on=observed_on)
@@ -157,12 +155,9 @@ def run_dsi002a_acceptance(output: Path) -> DSI002AAcceptanceResult:
         candidate=assembly.snapshot.candidate,
         sections=(post_observation_section, *assembly.snapshot.sections[1:]),
     )
-    post_validation = FrozenInputContractValidator().validate(
-        post_observation_snapshot
-    )
+    post_validation = FrozenInputContractValidator().validate(post_observation_snapshot)
     post_observation_block_verified = (
-        post_validation.readiness
-        is FrozenInputReadiness.POST_OBSERVATION_INPUT
+        post_validation.readiness is FrozenInputReadiness.POST_OBSERVATION_INPUT
     )
 
     capture_failure_isolation_verified = False
@@ -184,9 +179,7 @@ def run_dsi002a_acceptance(output: Path) -> DSI002AAcceptanceResult:
         duplicate_protection_verified=duplicate_protection_verified,
         missing_section_block_verified=missing_section_block_verified,
         post_observation_block_verified=post_observation_block_verified,
-        capture_failure_isolation_verified=(
-            capture_failure_isolation_verified
-        ),
+        capture_failure_isolation_verified=(capture_failure_isolation_verified),
     )
     export_dsi002a_acceptance(result, output)
     return result

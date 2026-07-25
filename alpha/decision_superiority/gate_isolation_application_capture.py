@@ -169,9 +169,7 @@ def export_dsi002a_acceptance(
         "duplicate_protection_verified": result.duplicate_protection_verified,
         "missing_section_block_verified": result.missing_section_block_verified,
         "parity_verified": result.parity_verified,
-        "post_observation_block_verified": (
-            result.post_observation_block_verified
-        ),
+        "post_observation_block_verified": (result.post_observation_block_verified),
         "production_influence": result.production_influence,
         "replay_ready": result.capture.replay_ready,
         "snapshot_sha256": result.capture.snapshot_sha256,

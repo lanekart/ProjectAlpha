@@ -138,15 +138,11 @@ class ConfiguredFrozenInputAssemblyRequestProvider:
                 policy_payload=self._bundle.approval_policy,
                 policy_version=self._bundle.approval_policy_version,
                 threshold_provenance=self._bundle.threshold_provenance,
-                dependency_versions=(
-                    self._bundle.approval_dependency_versions
-                ),
+                dependency_versions=(self._bundle.approval_dependency_versions),
                 observed_on=observed_text,
             ),
             portfolio_state=PortfolioStateCaptureInput(
-                recommendation_context=(
-                    inputs.recommendation_portfolio_context
-                ),
+                recommendation_context=(inputs.recommendation_portfolio_context),
                 allocation_context=inputs.allocation_portfolio_context,
                 state_version=self._bundle.portfolio_state_version,
                 observed_on=observed_text,
@@ -160,22 +156,16 @@ class ConfiguredFrozenInputAssemblyRequestProvider:
             ),
             execution_state=ExecutionStateCaptureInput(
                 cash_state={"cash": execution.get("cash")},
-                sizing_state={
-                    "sizing_limit": execution.get("sizing_limit")
-                },
+                sizing_state={"sizing_limit": execution.get("sizing_limit")},
                 liquidity_constraints=_mapping_field(
                     execution,
                     "liquidity_constraints",
                 ),
                 participation_constraints={
-                    "participation_limit": execution.get(
-                        "participation_limit"
-                    )
+                    "participation_limit": execution.get("participation_limit")
                 },
                 queue_state={"queue": execution.get("queue", [])},
-                risk_budget_state={
-                    "risk_budget": execution.get("risk_budget")
-                },
+                risk_budget_state={"risk_budget": execution.get("risk_budget")},
                 state_version=self._bundle.execution_state_version,
                 observed_on=observed_text,
             ),
@@ -193,9 +183,7 @@ class ConfiguredFrozenInputAssemblyRequestProvider:
                     "ambiguity_policy",
                 ),
                 policy_version=self._bundle.outcome_policy_version,
-                dependency_versions=(
-                    self._bundle.outcome_dependency_versions
-                ),
+                dependency_versions=(self._bundle.outcome_dependency_versions),
                 observed_on=observed_text,
             ),
             source_lineage=SourceLineageCaptureInput(

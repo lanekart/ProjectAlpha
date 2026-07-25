@@ -72,9 +72,7 @@ class OutcomePolicyCaptureInput:
             not key.strip() or not value.strip()
             for key, value in self.dependency_versions.items()
         ):
-            raise ValueError(
-                "dependency_versions keys and values cannot be empty"
-            )
+            raise ValueError("dependency_versions keys and values cannot be empty")
         if not self.observed_on.strip():
             raise ValueError("observed_on cannot be empty")
 
@@ -90,16 +88,12 @@ class ExecutionStateSnapshotProducer:
 
         payload = {
             "cash_state": _normalise(capture_input.cash_state),
-            "liquidity_constraints": _normalise(
-                capture_input.liquidity_constraints
-            ),
+            "liquidity_constraints": _normalise(capture_input.liquidity_constraints),
             "participation_constraints": _normalise(
                 capture_input.participation_constraints
             ),
             "queue_state": _normalise(capture_input.queue_state),
-            "risk_budget_state": _normalise(
-                capture_input.risk_budget_state
-            ),
+            "risk_budget_state": _normalise(capture_input.risk_budget_state),
             "sizing_state": _normalise(capture_input.sizing_state),
             "state_version": capture_input.state_version,
         }
@@ -121,23 +115,15 @@ class OutcomePolicySnapshotProducer:
         """Return a deterministic outcome-policy snapshot."""
 
         payload = {
-            "ambiguity_policy": _normalise(
-                capture_input.ambiguity_policy
-            ),
-            "dependency_versions": _normalise(
-                capture_input.dependency_versions
-            ),
+            "ambiguity_policy": _normalise(capture_input.ambiguity_policy),
+            "dependency_versions": _normalise(capture_input.dependency_versions),
             "exit_policy": _normalise(capture_input.exit_policy),
             "formed_trade_identity": None,
             "policy_version": capture_input.policy_version,
             "stop_policy": _normalise(capture_input.stop_policy),
             "target_policy": _normalise(capture_input.target_policy),
-            "time_exit_policy": _normalise(
-                capture_input.time_exit_policy
-            ),
-            "trailing_policy": _normalise(
-                capture_input.trailing_policy
-            ),
+            "time_exit_policy": _normalise(capture_input.time_exit_policy),
+            "trailing_policy": _normalise(capture_input.trailing_policy),
         }
         return FrozenInputSectionSnapshot.from_mapping(
             section=FrozenInputSection.OUTCOME_POLICY,

@@ -92,9 +92,7 @@ class PortfolioStateSnapshotProducer:
 
         payload = {
             "allocation_context": _normalise(capture_input.allocation_context),
-            "recommendation_context": _normalise(
-                capture_input.recommendation_context
-            ),
+            "recommendation_context": _normalise(capture_input.recommendation_context),
             "state_version": capture_input.state_version,
         }
         return FrozenInputSectionSnapshot.from_mapping(

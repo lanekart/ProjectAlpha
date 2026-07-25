@@ -79,9 +79,7 @@ def test_application_capture_writes_snapshot_without_output_change(
         input_provider=DemoIntelligenceInputBuilder()
     ).run(observed_on=observed_on)
     observer = GovernedFrozenInputApplicationObserver(
-        request_provider=ConfiguredFrozenInputAssemblyRequestProvider(
-            _bundle()
-        ),
+        request_provider=ConfiguredFrozenInputAssemblyRequestProvider(_bundle()),
         capture_root=tmp_path,
     )
     captured = IntelligenceApplicationService(
@@ -107,6 +105,4 @@ def test_request_provider_is_deterministic() -> None:
     second = provider.build(inputs=inputs, observed_on=observed_on)
 
     assert first == second
-    assert first.candidate.input_fingerprint == (
-        second.candidate.input_fingerprint
-    )
+    assert first.candidate.input_fingerprint == (second.candidate.input_fingerprint)
