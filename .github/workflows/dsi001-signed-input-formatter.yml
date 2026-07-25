@@ -1,0 +1,58 @@
+name: DSI-001 Signed Input Formatter
+
+on:
+  pull_request:
+    branches:
+      - feature/recovery-foundation-v1
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  format:
+    if: github.event.pull_request.head.ref == 'feature/dsi-001-governed-decision-superiority-gate-value-audit' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-001-governed-decision-superiority-gate-value-audit
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Format signed input files
+        run: |
+          poetry run ruff format \
+            alpha/decision_superiority/input_contract.py \
+            alpha/decision_superiority/signed_audit.py \
+            tests/decision_superiority/test_input_contract.py \
+            tests/decision_superiority/test_signed_audit.py
+          poetry run ruff check \
+            alpha/decision_superiority/input_contract.py \
+            alpha/decision_superiority/signed_audit.py \
+            tests/decision_superiority/test_input_contract.py \
+            tests/decision_superiority/test_signed_audit.py \
+            --fix
+          poetry run ruff format --check \
+            alpha/decision_superiority/input_contract.py \
+            alpha/decision_superiority/signed_audit.py \
+            tests/decision_superiority/test_input_contract.py \
+            tests/decision_superiority/test_signed_audit.py
+          poetry run mypy \
+            alpha/decision_superiority/input_contract.py \
+            alpha/decision_superiority/signed_audit.py
+          poetry run pytest -q tests/decision_superiority
+      - name: Commit signed input normalization
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add alpha/decision_superiority tests/decision_superiority
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'style(dsi-001): normalize signed input contract'
+          git push origin HEAD:feature/dsi-001-governed-decision-superiority-gate-value-audit
