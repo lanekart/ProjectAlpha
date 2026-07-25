@@ -233,8 +233,7 @@ def _baseline_states(
             raise ValueError("duplicate B10 downstream candidate identity")
         approved = _truthy(row.get("default_accepted") or row.get("approved"))
         portfolio = _truthy(
-            row.get("default_portfolio_eligible")
-            or row.get("portfolio_eligible")
+            row.get("default_portfolio_eligible") or row.get("portfolio_eligible")
         )
         entry = _truthy(row.get("default_entry_ready") or row.get("entry_ready"))
         trade = _truthy(row.get("default_trade_formed") or row.get("trade_formed"))
