@@ -115,11 +115,11 @@ class FrozenBaselineReconstructor:
         b7_keys = set(b7)
         canonical_b7_keys = set(canonical_b7)
         if b7_keys != canonical_b7_keys:
-            missing = sorted(canonical_b7_keys - b7_keys)
-            extra = sorted(b7_keys - canonical_b7_keys)
+            missing_b7 = sorted(canonical_b7_keys - b7_keys)
+            extra_b7 = sorted(b7_keys - canonical_b7_keys)
             raise GateIsolationBaselineError(
                 "B7_IDENTITY_LINEAGE_MISMATCH:"
-                f"missing={len(missing)}:extra={len(extra)}"
+                f"missing={len(missing_b7)}:extra={len(extra_b7)}"
             )
 
         candidates = tuple(
@@ -133,9 +133,7 @@ class FrozenBaselineReconstructor:
             for key in sorted(canonical_keys)
         )
         raw = {
-            item.candidate
-            for item in candidates
-            if item.candidate.price_view == "RAW"
+            item.candidate for item in candidates if item.candidate.price_view == "RAW"
         }
         adjusted = {
             item.candidate
@@ -171,17 +169,13 @@ class FrozenBaselineReconstructor:
             raise GateIsolationBaselineError(
                 f"POINT_IN_TIME_LEAKAGE_DETECTED:{_key_text(key)}"
             )
-        resolved = _truthy(
-            dsi001.get("resolved_outcome") or b7.get("resolved_outcome")
-        )
+        resolved = _truthy(dsi001.get("resolved_outcome") or b7.get("resolved_outcome"))
         realized_return = _decimal_or_none(
             dsi001.get("realized_return_pct")
             or b7.get("realized_return_pct")
             or b7.get("return_pct")
         )
-        realized_r = _decimal_or_none(
-            dsi001.get("realized_r") or b7.get("realized_r")
-        )
+        realized_r = _decimal_or_none(dsi001.get("realized_r") or b7.get("realized_r"))
         status = b7.get("outcome_status") or (
             "RESOLVED" if resolved else "OUTCOME_UNAVAILABLE"
         )
@@ -241,7 +235,10 @@ def _canonical_b7_identity_map(
     for candidate in sorted(canonical_keys):
         key = _b7_key_from_candidate(candidate)
         existing = result.get(key)
-        if existing is not None and existing.input_fingerprint != candidate.input_fingerprint:
+        if (
+            existing is not None
+            and existing.input_fingerprint != candidate.input_fingerprint
+        ):
             raise GateIsolationBaselineError(
                 f"B7_AMBIGUOUS_CANONICAL_IDENTITY:{'|'.join(key)}"
             )
@@ -313,9 +310,7 @@ def _failure_codes(row: Mapping[str, str]) -> tuple[str, ...]:
         parsed = [item.strip() for item in value.replace("|", ",").split(",")]
     if not isinstance(parsed, list):
         raise GateIsolationBaselineError("FAILURE_CODES_NOT_A_LIST")
-    return tuple(
-        sorted({str(item).strip() for item in parsed if str(item).strip()})
-    )
+    return tuple(sorted({str(item).strip() for item in parsed if str(item).strip()}))
 
 
 def _decimal_or_none(value: str | None) -> Decimal | None:
