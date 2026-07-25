@@ -83,26 +83,26 @@ class FrozenBaselineSourcePaths:
     dsi001_candidate_ledger: Path
 
 
+_B7CandidateKey = tuple[str, str, str]
+
+
 class FrozenBaselineReconstructor:
-    """Join governed ledgers using the exact frozen candidate identity."""
+    """Join governed ledgers using canonical DSI-001 candidate identity."""
 
     def reconstruct(
         self,
         paths: FrozenBaselineSourcePaths,
     ) -> FrozenBaselinePopulation:
         b5 = _index_rows(paths.b5_candidate_ledger, "B5")
-        b7 = _index_rows(paths.b7_outcome_ledger, "B7")
         b10 = _index_rows(paths.b10_decision_ledger, "B10")
         dsi001 = _index_rows(paths.dsi001_candidate_ledger, "DSI001")
+        b7 = _index_b7_rows(paths.b7_outcome_ledger)
 
-        populations = {
-            "B5": set(b5),
-            "B7": set(b7),
-            "B10": set(b10),
-            "DSI001": set(dsi001),
-        }
-        canonical_keys = populations["DSI001"]
-        for source, keys in populations.items():
+        canonical_keys = set(dsi001)
+        for source, keys in (
+            ("B5", set(b5)),
+            ("B10", set(b10)),
+        ):
             if keys != canonical_keys:
                 missing = sorted(canonical_keys - keys)
                 extra = sorted(keys - canonical_keys)
@@ -111,18 +111,31 @@ class FrozenBaselineReconstructor:
                     f"missing={len(missing)}:extra={len(extra)}"
                 )
 
+        canonical_b7 = _canonical_b7_identity_map(canonical_keys)
+        b7_keys = set(b7)
+        canonical_b7_keys = set(canonical_b7)
+        if b7_keys != canonical_b7_keys:
+            missing = sorted(canonical_b7_keys - b7_keys)
+            extra = sorted(b7_keys - canonical_b7_keys)
+            raise GateIsolationBaselineError(
+                "B7_IDENTITY_LINEAGE_MISMATCH:"
+                f"missing={len(missing)}:extra={len(extra)}"
+            )
+
         candidates = tuple(
             self._candidate(
                 key=key,
                 b5=b5[key],
-                b7=b7[key],
+                b7=_bridge_b7_row(key, b7[_b7_key_from_candidate(key)]),
                 b10=b10[key],
                 dsi001=dsi001[key],
             )
             for key in sorted(canonical_keys)
         )
         raw = {
-            item.candidate for item in candidates if item.candidate.price_view == "RAW"
+            item.candidate
+            for item in candidates
+            if item.candidate.price_view == "RAW"
         }
         adjusted = {
             item.candidate
@@ -158,13 +171,17 @@ class FrozenBaselineReconstructor:
             raise GateIsolationBaselineError(
                 f"POINT_IN_TIME_LEAKAGE_DETECTED:{_key_text(key)}"
             )
-        resolved = _truthy(dsi001.get("resolved_outcome") or b7.get("resolved_outcome"))
+        resolved = _truthy(
+            dsi001.get("resolved_outcome") or b7.get("resolved_outcome")
+        )
         realized_return = _decimal_or_none(
             dsi001.get("realized_return_pct")
             or b7.get("realized_return_pct")
             or b7.get("return_pct")
         )
-        realized_r = _decimal_or_none(dsi001.get("realized_r") or b7.get("realized_r"))
+        realized_r = _decimal_or_none(
+            dsi001.get("realized_r") or b7.get("realized_r")
+        )
         status = b7.get("outcome_status") or (
             "RESOLVED" if resolved else "OUTCOME_UNAVAILABLE"
         )
@@ -182,7 +199,10 @@ class FrozenBaselineReconstructor:
         )
 
 
-def _index_rows(path: Path, source: str) -> dict[FrozenCandidateKey, dict[str, str]]:
+def _index_rows(
+    path: Path,
+    source: str,
+) -> dict[FrozenCandidateKey, dict[str, str]]:
     if not path.is_file():
         raise GateIsolationBaselineError(f"{source}_LEDGER_MISSING:{path}")
     with path.open("r", encoding="utf-8", newline="") as handle:
@@ -196,6 +216,53 @@ def _index_rows(path: Path, source: str) -> dict[FrozenCandidateKey, dict[str, s
             )
         result[key] = row
     return result
+
+
+def _index_b7_rows(path: Path) -> dict[_B7CandidateKey, dict[str, str]]:
+    if not path.is_file():
+        raise GateIsolationBaselineError(f"B7_LEDGER_MISSING:{path}")
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        rows = tuple(dict(row) for row in csv.DictReader(handle))
+    result: dict[_B7CandidateKey, dict[str, str]] = {}
+    for row in rows:
+        key = _b7_key_from_row(row)
+        if key in result:
+            raise GateIsolationBaselineError(
+                f"B7_DUPLICATE_CANDIDATE_IDENTITY:{'|'.join(key)}"
+            )
+        result[key] = row
+    return result
+
+
+def _canonical_b7_identity_map(
+    canonical_keys: set[FrozenCandidateKey],
+) -> dict[_B7CandidateKey, FrozenCandidateKey]:
+    result: dict[_B7CandidateKey, FrozenCandidateKey] = {}
+    for candidate in sorted(canonical_keys):
+        key = _b7_key_from_candidate(candidate)
+        existing = result.get(key)
+        if existing is not None and existing.input_fingerprint != candidate.input_fingerprint:
+            raise GateIsolationBaselineError(
+                f"B7_AMBIGUOUS_CANONICAL_IDENTITY:{'|'.join(key)}"
+            )
+        result[key] = candidate
+    return result
+
+
+def _bridge_b7_row(
+    candidate: FrozenCandidateKey,
+    row: Mapping[str, str],
+) -> dict[str, str]:
+    fingerprint = str(
+        row.get("input_fingerprint") or row.get("fingerprint_key") or ""
+    ).strip()
+    if fingerprint and fingerprint != candidate.input_fingerprint:
+        raise GateIsolationBaselineError(
+            f"B7_FINGERPRINT_MISMATCH:{_key_text(candidate)}"
+        )
+    bridged = dict(row)
+    bridged["input_fingerprint"] = candidate.input_fingerprint
+    return bridged
 
 
 def _candidate_key(row: Mapping[str, str], source: str) -> FrozenCandidateKey:
@@ -215,6 +282,21 @@ def _candidate_key(row: Mapping[str, str], source: str) -> FrozenCandidateKey:
         ) from exc
 
 
+def _b7_key_from_row(row: Mapping[str, str]) -> _B7CandidateKey:
+    key = (
+        str(row.get("price_view") or "").strip().upper(),
+        str(row.get("observed_on") or "").strip(),
+        str(row.get("symbol") or "").strip().upper(),
+    )
+    if any(not value for value in key):
+        raise GateIsolationBaselineError("B7_INVALID_CANDIDATE_IDENTITY")
+    return key
+
+
+def _b7_key_from_candidate(candidate: FrozenCandidateKey) -> _B7CandidateKey:
+    return candidate.price_view, candidate.observed_on, candidate.symbol
+
+
 def _failure_codes(row: Mapping[str, str]) -> tuple[str, ...]:
     value = str(
         row.get("failure_codes")
@@ -231,8 +313,9 @@ def _failure_codes(row: Mapping[str, str]) -> tuple[str, ...]:
         parsed = [item.strip() for item in value.replace("|", ",").split(",")]
     if not isinstance(parsed, list):
         raise GateIsolationBaselineError("FAILURE_CODES_NOT_A_LIST")
-    codes = tuple(sorted({str(item).strip() for item in parsed if str(item).strip()}))
-    return codes
+    return tuple(
+        sorted({str(item).strip() for item in parsed if str(item).strip()})
+    )
 
 
 def _decimal_or_none(value: str | None) -> Decimal | None:
