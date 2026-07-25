@@ -7,12 +7,10 @@ from collections.abc import Mapping
 
 def render_gate_diagnostics(report: Mapping[str, object]) -> tuple[str, ...]:
     """Render deterministic gate evidence, confidence, and recommendations."""
-
     recommendations = _rows_by_gate(report.get("gate_recommendations"))
     conclusions = _rows_by_gate(report.get("gate_conclusions"))
     evidence = _rows_by_gate(report.get("evidence_summary"))
     confidence = _rows_by_gate(report.get("confidence_summary"))
-
     gate_codes = sorted(
         set(recommendations) | set(conclusions) | set(evidence) | set(confidence)
     )
@@ -26,7 +24,6 @@ def render_gate_diagnostics(report: Mapping[str, object]) -> tuple[str, ...]:
         conclusion = conclusions.get(gate_code, {})
         evidence_row = evidence.get(gate_code, {})
         confidence_row = confidence.get(gate_code, {})
-
         _require_diagnostic_only(
             gate_code,
             recommendation,
@@ -34,7 +31,11 @@ def render_gate_diagnostics(report: Mapping[str, object]) -> tuple[str, ...]:
             evidence_row,
             confidence_row,
         )
-
+        net_key = (
+            "isolated_net_gate_value"
+            if "isolated_net_gate_value" in recommendation
+            else "net_gate_value"
+        )
         lines.append(
             f"- {gate_code}: "
             f"recommendation={_value(recommendation, 'recommendation')}; "
@@ -42,11 +43,11 @@ def render_gate_diagnostics(report: Mapping[str, object]) -> tuple[str, ...]:
             f"confidence={_value(evidence_row, 'confidence_status')}; "
             f"economic={_value(conclusion, 'economic_direction')}; "
             f"statistical={_value(conclusion, 'statistical_direction')}; "
-            f"net={_value(recommendation, 'net_gate_value')}; "
+            f"net={_value(recommendation, net_key)}; "
+            f"isolation={_value(recommendation, 'isolation_status')}; "
             f"mean_ci={_interval(confidence_row)}; "
             f"reason={_value(recommendation, 'reason_code')}"
         )
-
     return tuple(lines)
 
 
@@ -55,7 +56,6 @@ def _rows_by_gate(value: object) -> dict[str, Mapping[str, object]]:
         return {}
     if not isinstance(value, list):
         raise ValueError("diagnostic report rows must be a list")
-
     rows: dict[str, Mapping[str, object]] = {}
     for item in value:
         if not isinstance(item, Mapping):
