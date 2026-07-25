@@ -41,7 +41,8 @@ def _baseline(candidate: FrozenCandidateKey) -> FrozenBaselineCandidate:
 
 
 def _population(*candidates: FrozenCandidateKey) -> FrozenBaselinePopulation:
-    ordered = tuple(sorted(_baseline(candidate) for candidate in candidates))
+    ordered_keys = tuple(sorted(candidates))
+    ordered = tuple(_baseline(candidate) for candidate in ordered_keys)
     return FrozenBaselinePopulation(
         candidates=ordered,
         raw_candidate_count=len(ordered),
