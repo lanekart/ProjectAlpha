@@ -120,6 +120,8 @@ class ConfiguredFrozenInputAssemblyRequestProvider:
                 "market_input": market_hash,
             }
         )
+        execution = self._bundle.execution_state
+        outcome = self._bundle.outcome_policy
         return FrozenInputAssemblyRequest(
             candidate=key,
             candidate_features=CandidateFeatureCaptureInput(
@@ -157,13 +159,36 @@ class ConfiguredFrozenInputAssemblyRequestProvider:
                 observed_on=observed_text,
             ),
             execution_state=ExecutionStateCaptureInput(
-                state_payload=self._bundle.execution_state,
+                cash_state={"cash": execution.get("cash")},
+                sizing_state={
+                    "sizing_limit": execution.get("sizing_limit")
+                },
+                liquidity_constraints=dict(
+                    execution.get("liquidity_constraints", {})
+                ),
+                participation_constraints={
+                    "participation_limit": execution.get(
+                        "participation_limit"
+                    )
+                },
+                queue_state={"queue": execution.get("queue", [])},
+                risk_budget_state={
+                    "risk_budget": execution.get("risk_budget")
+                },
                 state_version=self._bundle.execution_state_version,
-                source_hashes=self._bundle.execution_source_hashes,
                 observed_on=observed_text,
             ),
             outcome_policy=OutcomePolicyCaptureInput(
-                policy_payload=self._bundle.outcome_policy,
+                exit_policy={"exit_rules": outcome.get("exit_rules", [])},
+                stop_policy=dict(outcome.get("stop_policy", {})),
+                target_policy=dict(outcome.get("target_policy", {})),
+                trailing_policy=dict(outcome.get("trailing_policy", {})),
+                time_exit_policy=dict(
+                    outcome.get("time_exit_policy", {})
+                ),
+                ambiguity_policy=dict(
+                    outcome.get("ambiguity_policy", {})
+                ),
                 policy_version=self._bundle.outcome_policy_version,
                 dependency_versions=(
                     self._bundle.outcome_dependency_versions
