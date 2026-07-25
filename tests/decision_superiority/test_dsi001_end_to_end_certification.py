@@ -181,9 +181,7 @@ def test_signed_end_to_end_run_is_deterministic_and_hash_bound(
 
     assert first.report == second.report
     assert first.report["source_contract_verified"] is True
-    assert first.report["diagnostic_artifact_names"] == list(
-        _DIAGNOSTIC_ARTIFACTS
-    )
+    assert first.report["diagnostic_artifact_names"] == list(_DIAGNOSTIC_ARTIFACTS)
     for name in _DIAGNOSTIC_ARTIFACTS:
         first_path = tmp_path / "first" / name
         second_path = tmp_path / "second" / name
@@ -191,11 +189,9 @@ def test_signed_end_to_end_run_is_deterministic_and_hash_bound(
         assert first.report["artifact_hashes"][name] == _sha256(first_path)
 
     certificate = json.loads(
-        (
-            tmp_path
-            / "first"
-            / "dsi001_gate_value_audit_certificate.json"
-        ).read_text(encoding="utf-8")
+        (tmp_path / "first" / "dsi001_gate_value_audit_certificate.json").read_text(
+            encoding="utf-8"
+        )
     )
     assert certificate == _serialized(first.report)
 
@@ -277,6 +273,5 @@ def test_signed_end_to_end_preserves_all_governance_boundaries(
         "gate_recommendations",
     ):
         assert all(
-            row["production_influence"] is False
-            for row in result.report[section]
+            row["production_influence"] is False for row in result.report[section]
         )

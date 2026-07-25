@@ -82,8 +82,7 @@ class EvidenceStrength:
             raise ValueError("resolved_count cannot exceed sample_count")
 
         expected_sufficient = (
-            self.resolved_count > 0
-            and self.resolved_count >= self.minimum_required
+            self.resolved_count > 0 and self.resolved_count >= self.minimum_required
         )
         if self.sufficient is not expected_sufficient:
             raise ValueError(
