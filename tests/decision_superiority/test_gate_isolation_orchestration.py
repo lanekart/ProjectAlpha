@@ -20,6 +20,9 @@ from alpha.decision_superiority.gate_isolation_source_contract import (
     GateIsolationSourcePaths,
     VerifiedGateIsolationSources,
 )
+from alpha.decision_superiority.gate_isolation_transitions import (
+    StageEvaluationStatus,
+)
 
 
 def _candidate() -> FrozenBaselineCandidate:
@@ -123,12 +126,23 @@ def test_orchestrator_bridges_b10_without_fingerprint(
 
     assert result.summary.candidate_count == 1
     assert result.summary.single_gate_arm_count == 1
-    assert result.summary.effective_single_gate_arm_count == 1
+    assert result.summary.effective_single_gate_arm_count == 0
     assert result.summary.minimal_remediation_arm_count == 1
-    assert result.summary.newly_approved_count == 2
-    assert result.summary.newly_trade_formed_count == 2
-    assert result.summary.resolved_outcome_transition_count == 2
+    assert result.summary.newly_approved_count == 0
+    assert result.summary.newly_trade_formed_count == 0
+    assert result.summary.resolved_outcome_transition_count == 0
     assert result.summary.production_influence is False
+    clear_arms = [
+        item
+        for item in result.transitions
+        if item.arm.clears_all_observed_failures
+        and item.arm.arm_type.value != "BASELINE"
+    ]
+    assert clear_arms
+    assert all(
+        item.stage_evaluation.approval is StageEvaluationStatus.UNAVAILABLE
+        for item in clear_arms
+    )
     assert tuple(item.arm.arm_id for item in result.transitions) == tuple(
         sorted(item.arm.arm_id for item in result.transitions)
     )
