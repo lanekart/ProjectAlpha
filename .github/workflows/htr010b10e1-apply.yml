@@ -32,7 +32,6 @@ jobs:
           import base64
           import hashlib
           import io
-          import itertools
           import json
           import os
           import shutil
@@ -46,11 +45,15 @@ jobs:
               'a1a694ebbb82caae1d63beac9ebb21ed3470c09a',
               'baf994a0a638060327eedfa90f8ef02b7366fd79',
               'b440ec86ad203858817959e6cf9b59d9ac23be2f',
+              'dd5f552df11b0f82173fd7b04ef44f976e856a4f',
+              '53896c5cb7683ec8c365fab92ee3c445ee11122d',
+              '697c807e1575fd8e722019ea29ab0dfe3398ea96',
+              'ea707ad3b23c799dbe7aba2e2f8b868171cd42cc',
+              '5ded10566e9fc2d38856d72e3f7f843dd78cefbd',
+              'af4b7af8851dddd0adc79f6fd2de044fe0e3c033',
+              'fd74c1365ef80bd971389adc4da41e03d6d0fbfc',
           )
-          expected = '267400eb2135b4f23c69cafa4bcf2ac0c9378d976866d7b8ef4f37c85110cf05'
-          parts: dict[str, bytes] = {}
-          diagnostics: list[str] = []
-
+          chunks: list[str] = []
           for sha in blob_shas:
               request = urllib.request.Request(
                   f'https://api.github.com/repos/{repository}/git/blobs/{sha}',
@@ -62,58 +65,16 @@ jobs:
               )
               with urllib.request.urlopen(request) as response:
                   payload = json.load(response)
-              raw = base64.b64decode(payload['content'])
-              parts[sha] = raw
-              diagnostics.append(
-                  f'part {sha} bytes={len(raw)} sha256={hashlib.sha256(raw).hexdigest()}'
-              )
+              chunks.append(base64.b64decode(payload['content']).decode('ascii'))
 
-          archive: bytes | None = None
-          for order in itertools.permutations(blob_shas):
-              ordered = [parts[sha] for sha in order]
-              candidates: list[tuple[str, bytes]] = [('raw', b''.join(ordered))]
-
-              try:
-                  text = b''.join(ordered).decode('ascii')
-              except UnicodeDecodeError:
-                  text = ''
-              if text:
-                  try:
-                      candidates.append(
-                          ('joined-base64', base64.b64decode(text, validate=False))
-                      )
-                  except Exception:
-                      pass
-
-              decoded_parts: list[bytes] = []
-              individually_decodable = True
-              for part in ordered:
-                  try:
-                      decoded_parts.append(
-                          base64.b64decode(part.decode('ascii'), validate=False)
-                      )
-                  except Exception:
-                      individually_decodable = False
-                      break
-              if individually_decodable:
-                  candidates.append(('per-part-base64', b''.join(decoded_parts)))
-
-              for mode, candidate in candidates:
-                  digest = hashlib.sha256(candidate).hexdigest()
-                  diagnostics.append(
-                      f'candidate mode={mode} order={order} bytes={len(candidate)} sha256={digest}'
-                  )
-                  if digest == expected:
-                      archive = candidate
-                      break
-              if archive is not None:
-                  break
-
-          Path('b10e1-reconstruction-diagnostics.txt').write_text(
-              '\n'.join(diagnostics) + '\n', encoding='utf-8'
-          )
-          if archive is None:
-              raise SystemExit('no staged reconstruction matched the expected SHA-256')
+          encoded = ''.join(chunks)
+          if len(encoded) != 38504:
+              raise SystemExit(f'base64 length mismatch: {len(encoded)}')
+          archive = base64.b64decode(encoded, validate=True)
+          digest = hashlib.sha256(archive).hexdigest()
+          expected = '267400eb2135b4f23c69cafa4bcf2ac0c9378d976866d7b8ef4f37c85110cf05'
+          if digest != expected:
+              raise SystemExit(f'archive SHA-256 mismatch: {digest}')
 
           stage = Path('.b10e1_stage')
           shutil.rmtree(stage, ignore_errors=True)
@@ -134,17 +95,8 @@ jobs:
               target = Path(relative)
               target.parent.mkdir(parents=True, exist_ok=True)
               shutil.copyfile(source, target)
-
           shutil.rmtree(stage)
           PY
-
-      - name: Upload reconstruction diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: htr010b10e1-reconstruction-diagnostics
-          path: b10e1-reconstruction-diagnostics.txt
-          if-no-files-found: warn
 
       - name: Install locked project dependencies
         run: |
