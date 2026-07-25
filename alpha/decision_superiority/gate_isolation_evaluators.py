@@ -28,7 +28,9 @@ class GateIsolationStageEvaluator(Protocol):
         """Return deterministic stage outcomes for a cleared counterfactual arm."""
 
 
-StageCallable = Callable[[FrozenBaselineCandidate, GateIsolationArm], StageEvaluationStatus]
+StageCallable = Callable[
+    [FrozenBaselineCandidate, GateIsolationArm], StageEvaluationStatus
+]
 
 
 @dataclass(frozen=True, slots=True)
