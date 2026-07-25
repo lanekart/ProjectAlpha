@@ -112,13 +112,13 @@ def test_shadow_assessment_uses_existing_adaptive_engine() -> None:
     assert assessment["evidence_strength"] == "insufficient"
 
 
-def test_publication_source_contract_attributes_current_gap() -> None:
+def test_publication_source_contract_attributes_guarded_b9_gap() -> None:
     rows, summary = _publication_source_contract()
 
     assert len(rows) == len(_ADAPTIVE_METADATA_CONTRACT) == 5
     assert summary["consumer_contract_key_count"] == 5
     assert summary["producer_publication_key_count"] == 0
-    assert summary["orchestrator_invokes_adaptive_assessment"] is False
+    assert summary["orchestrator_invokes_adaptive_assessment"] is True
     assert summary["attributed_gap_count"] == 5
     assert summary["unexplained_gap_count"] == 0
     assert all(row["gap_explained"] is True for row in rows)
