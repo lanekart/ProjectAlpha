@@ -179,3 +179,11 @@ A ready B10 certificate permits only governed adaptive institutional and
 trade-formation shadow research. Production activation, policy optimisation,
 threshold changes, portfolio deployment, and live scoring require separate
 signed milestones.
+
+## Acceptance source pin
+
+Repository validation and signed real-data acceptance must run from a clean
+worktree at the exact reviewed B10 commit SHA recorded on the pull request. A
+moving branch name is not an acceptance identity. Record both the internal report
+SHA-256 and the certificate-file SHA-256 before changing the branch or removing
+the acceptance worktree.
