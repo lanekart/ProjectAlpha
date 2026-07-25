@@ -1,0 +1,43 @@
+name: HTR-010B10 Ruff Format
+
+on:
+  push:
+    branches:
+      - feature/htr-010b10-governed-adaptive-institutional-trade-shadow
+    paths:
+      - .github/workflows/htr010b10-ruff-format.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/htr-010b10-governed-adaptive-institutional-trade-shadow
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install locked Ruff
+        run: pip install ruff==0.15.20
+      - name: Format B10 files
+        run: |
+          ruff format \
+            alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py \
+            tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py
+          ruff check \
+            alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py \
+            tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py
+      - name: Remove temporary workflow and publish formatting
+        run: |
+          rm .github/workflows/htr010b10-ruff-format.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py \
+            tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py \
+            .github/workflows/htr010b10-ruff-format.yml
+          git commit -m "style(htr010b10): apply locked Ruff formatting"
+          git push origin HEAD:feature/htr-010b10-governed-adaptive-institutional-trade-shadow
