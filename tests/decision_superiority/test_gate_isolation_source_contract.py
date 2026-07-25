@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -70,12 +71,16 @@ def _paths(root: Path) -> GateIsolationSourcePaths:
     b5_candidate = _write(root / "htr010b5_candidate_gate_forensics.csv")
     b5_gates = _write(root / "htr010b5_gate_event_ledger.csv")
     b7_outcomes = _write(root / "htr010b7_outcome_coverage_ledger.csv")
-    b10_decisions = _write(root / "htr010b10_institutional_decision_comparison.csv")
+    b10_decisions = _write(
+        root / "htr010b10_institutional_decision_comparison.csv"
+    )
     b10_gates = _write(root / "htr010b10_gate_transition_ledger.csv")
     b10_trades = _write(
         root / "htr010b10_portfolio_trade_formation_comparison.csv"
     )
-    b10_outcomes = _write(root / "htr010b10_completed_trade_outcome_comparison.csv")
+    b10_outcomes = _write(
+        root / "htr010b10_completed_trade_outcome_comparison.csv"
+    )
     dsi001 = _signed_dsi001(root)
     return GateIsolationSourcePaths(
         b5_certificate=_write(root / "b5.json", "{}\n"),
@@ -112,6 +117,17 @@ def _verified(path: Path, contract: str, readiness: str) -> VerifiedCertificate:
     )
 
 
+def _fake_bound(
+    certificate: VerifiedCertificate,
+    artifact: Path,
+    *,
+    expected_name: str,
+) -> str:
+    del certificate
+    assert artifact.name == expected_name
+    return _sha256(artifact)
+
+
 def test_verified_sources_require_sorted_unique_populations() -> None:
     first = SourceCertificateSnapshot("B5", "a", "1", "v", "r", "h")
     second = SourceCertificateSnapshot("B7", "b", "2", "v", "r", "h")
@@ -142,18 +158,12 @@ def test_verifier_binds_all_selected_sources(
     ) -> VerifiedCertificate:
         del required_artifacts
         readiness = next(iter(accepted_readiness))
-        contract = "HTR-010B5-v1.0.0" if readiness == B5_READY else "HTR-010B7-v1.0.0"
+        contract = (
+            "HTR-010B5-v1.0.0"
+            if readiness == B5_READY
+            else "HTR-010B7-v1.0.0"
+        )
         return _verified(path, contract, readiness)
-
-    def fake_bound(
-        certificate: VerifiedCertificate,
-        artifact: Path,
-        *,
-        expected_name: str,
-    ) -> str:
-        del certificate
-        assert artifact.name == expected_name
-        return _sha256(artifact)
 
     b10_hashes = {
         path.name: _sha256(path)
@@ -177,7 +187,7 @@ def test_verifier_binds_all_selected_sources(
     )
     monkeypatch.setattr(
         "alpha.decision_superiority.gate_isolation_source_contract.verify_bound_artifact",
-        fake_bound,
+        _fake_bound,
     )
     monkeypatch.setattr(
         "alpha.decision_superiority.gate_isolation_source_contract."
@@ -218,6 +228,10 @@ def test_rejects_dsi001_metadata_tampering(
         ),
     )
     monkeypatch.setattr(
+        "alpha.decision_superiority.gate_isolation_source_contract.verify_bound_artifact",
+        _fake_bound,
+    )
+    monkeypatch.setattr(
         "alpha.decision_superiority.gate_isolation_source_contract."
         "validate_governed_adaptive_institutional_trade_shadow_certificate",
         lambda path, require_ready: {
@@ -240,12 +254,9 @@ def test_rejects_wrong_selected_artifact_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     paths = _paths(tmp_path)
-    wrong = _write(tmp_path / "wrong.csv")
-    paths = GateIsolationSourcePaths(
-        **{
-            **paths.__dict__,
-            "b10_decision_ledger": wrong,
-        }
+    paths = replace(
+        paths,
+        b10_decision_ledger=_write(tmp_path / "wrong.csv"),
     )
     monkeypatch.setattr(
         "alpha.decision_superiority.gate_isolation_source_contract.verify_certificate",
@@ -257,7 +268,7 @@ def test_rejects_wrong_selected_artifact_name(
     )
     monkeypatch.setattr(
         "alpha.decision_superiority.gate_isolation_source_contract.verify_bound_artifact",
-        lambda certificate, artifact, expected_name: _sha256(artifact),
+        _fake_bound,
     )
     monkeypatch.setattr(
         "alpha.decision_superiority.gate_isolation_source_contract."
