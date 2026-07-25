@@ -43,7 +43,10 @@ class FrozenInputBackfillFinding:
     def __post_init__(self) -> None:
         if not self.rationale.strip():
             raise ValueError("rationale cannot be empty")
-        if tuple(sorted(set(self.reconstructable_inputs))) != self.reconstructable_inputs:
+        if (
+            tuple(sorted(set(self.reconstructable_inputs)))
+            != self.reconstructable_inputs
+        ):
             raise ValueError("reconstructable_inputs must be unique and sorted")
         if tuple(sorted(set(self.missing_inputs))) != self.missing_inputs:
             raise ValueError("missing_inputs must be unique and sorted")
@@ -103,9 +106,10 @@ class FrozenInputBackfillPlanner:
                             "historical truth warehouse",
                         ),
                         rationale=(
-                            "Some market-derived features may be recomputed from point-in-time "
-                            "history, but the exact original feature vector and computation "
-                            "version were not preserved."
+                            "Some market-derived features may be recomputed from "
+                            "point-in-time history, but the exact original "
+                            "feature vector and computation version were not "
+                            "preserved."
                         ),
                     ),
                     FrozenInputBackfillFinding(
@@ -126,8 +130,9 @@ class FrozenInputBackfillPlanner:
                             "policy registry history",
                         ),
                         rationale=(
-                            "Observed approval decisions are available, but the exact historical "
-                            "policy state required for counterfactual recomputation is incomplete."
+                            "Observed approval decisions are available, but the "
+                            "exact historical policy state required for "
+                            "counterfactual recomputation is incomplete."
                         ),
                     ),
                     FrozenInputBackfillFinding(
@@ -141,12 +146,12 @@ class FrozenInputBackfillPlanner:
                             "portfolio heat",
                             "sector exposure",
                         ),
-                        required_sources=(
-                            "append-only portfolio state snapshots",
-                        ),
+                        required_sources=("append-only portfolio state snapshots",),
                         rationale=(
-                            "The signed research ledgers do not preserve historical portfolio state; "
-                            "reconstructing it now would require assumptions and would not be governed."
+                            "The signed research ledgers do not preserve "
+                            "historical portfolio state; reconstructing it now "
+                            "would require assumptions and would not be "
+                            "governed."
                         ),
                     ),
                     FrozenInputBackfillFinding(
@@ -154,8 +159,8 @@ class FrozenInputBackfillPlanner:
                         mode=FrozenInputBackfillMode.HYBRID,
                         readiness=FrozenInputBackfillReadiness.PARTIAL,
                         reconstructable_inputs=(
-                            "observed entry blocker",
                             "historical daily candles",
+                            "observed entry blocker",
                         ),
                         missing_inputs=(
                             "exact historical entry policy",
@@ -168,8 +173,9 @@ class FrozenInputBackfillPlanner:
                             "policy registry history",
                         ),
                         rationale=(
-                            "Daily history may support limited trigger reconstruction, but exact "
-                            "historical entry semantics and intraday evidence are incomplete."
+                            "Daily history may support limited trigger "
+                            "reconstruction, but exact historical entry "
+                            "semantics and intraday evidence are incomplete."
                         ),
                     ),
                     FrozenInputBackfillFinding(
@@ -183,12 +189,11 @@ class FrozenInputBackfillPlanner:
                             "liquidity and participation constraints",
                             "sizing and fill state",
                         ),
-                        required_sources=(
-                            "append-only execution state snapshots",
-                        ),
+                        required_sources=("append-only execution state snapshots",),
                         rationale=(
-                            "Execution state was not preserved at observation time and cannot be "
-                            "recreated from end-of-day decision ledgers without fabrication."
+                            "Execution state was not preserved at observation "
+                            "time and cannot be recreated from end-of-day "
+                            "decision ledgers without fabrication."
                         ),
                     ),
                     FrozenInputBackfillFinding(
@@ -210,8 +215,9 @@ class FrozenInputBackfillPlanner:
                             "policy registry history",
                         ),
                         rationale=(
-                            "Observed outcomes can be retained, but they cannot be rebound to a "
-                            "new counterfactual trade without its exact identity and exit policy."
+                            "Observed outcomes can be retained, but they cannot "
+                            "be rebound to a new counterfactual trade without "
+                            "its exact identity and exit policy."
                         ),
                     ),
                     FrozenInputBackfillFinding(
@@ -226,14 +232,15 @@ class FrozenInputBackfillPlanner:
                         ),
                         missing_inputs=(),
                         required_sources=(
+                            "B10 certificate",
                             "B5 certificate",
                             "B7 certificate",
-                            "B10 certificate",
                             "DSI-001 certificate",
                         ),
                         rationale=(
-                            "Signed certificates and bound artifact hashes permit deterministic "
-                            "historical reconstruction of the current source-lineage boundary."
+                            "Signed certificates and bound artifact hashes permit "
+                            "deterministic historical reconstruction of the "
+                            "current source-lineage boundary."
                         ),
                     ),
                 ),
@@ -247,7 +254,8 @@ class FrozenInputBackfillPlanner:
             item.readiness is FrozenInputBackfillReadiness.PARTIAL for item in findings
         )
         forward_only = sum(
-            item.mode is FrozenInputBackfillMode.FORWARD_CAPTURE_ONLY for item in findings
+            item.mode is FrozenInputBackfillMode.FORWARD_CAPTURE_ONLY
+            for item in findings
         )
         return FrozenInputBackfillPlan(
             findings=findings,
