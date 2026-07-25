@@ -6,7 +6,7 @@ import csv
 import hashlib
 import json
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -84,7 +84,56 @@ _VALUE_FIELDS = (
     "conclusion",
 )
 
-GateStatValue = Decimal | int | list[Decimal]
+
+@dataclass(slots=True)
+class GateAccumulator:
+    """Typed mutable aggregation state for one observed gate population."""
+
+    blocked: int = 0
+    unique: int = 0
+    co: int = 0
+    resolved: int = 0
+    positive: int = 0
+    negative: int = 0
+    flat: int = 0
+    return_sum: Decimal = Decimal("0")
+    unique_returns: list[Decimal] = field(default_factory=list)
+
+    def record_block(self, *, unique: bool) -> None:
+        """Record one observed gate failure."""
+
+        self.blocked += 1
+        if unique:
+            self.unique += 1
+        else:
+            self.co += 1
+
+    def record_resolved_return(
+        self,
+        *,
+        realized_return: Decimal,
+        unique: bool,
+    ) -> tuple[Decimal, Decimal]:
+        """Record one resolved rejected return and return legacy economics."""
+
+        self.resolved += 1
+        self.return_sum += realized_return
+
+        avoided = Decimal("0")
+        cost = Decimal("0")
+        if realized_return > 0:
+            self.positive += 1
+            cost = realized_return
+        elif realized_return < 0:
+            self.negative += 1
+            avoided = abs(realized_return)
+        else:
+            self.flat += 1
+
+        if unique:
+            self.unique_returns.append(realized_return)
+
+        return avoided, cost
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,19 +174,7 @@ class GovernedGateValueAudit:
         candidate_rows: list[dict[str, object]] = []
         counterfactual_rows: list[dict[str, object]] = []
         gate_inventory = self._gate_inventory(gate_events)
-        gate_stats: dict[str, dict[str, GateStatValue]] = defaultdict(
-            lambda: {
-                "blocked": 0,
-                "unique": 0,
-                "co": 0,
-                "resolved": 0,
-                "positive": 0,
-                "negative": 0,
-                "flat": 0,
-                "return_sum": Decimal("0"),
-                "unique_returns": [],
-            }
-        )
+        gate_stats: dict[str, GateAccumulator] = defaultdict(GateAccumulator)
 
         for candidate in candidates:
             key = _key(candidate)
@@ -174,28 +211,14 @@ class GovernedGateValueAudit:
             )
             for gate_code in failure_codes:
                 stats = gate_stats[gate_code]
-                stats["blocked"] = int(stats["blocked"]) + 1
-                stats["unique" if unique else "co"] = (
-                    int(stats["unique" if unique else "co"]) + 1
-                )
+                stats.record_block(unique=unique)
                 avoided = Decimal("0")
                 cost = Decimal("0")
                 if resolved:
-                    stats["resolved"] = int(stats["resolved"]) + 1
-                    stats["return_sum"] = Decimal(stats["return_sum"]) + realized_return
-                    if realized_return > 0:
-                        stats["positive"] = int(stats["positive"]) + 1
-                        cost = realized_return
-                    elif realized_return < 0:
-                        stats["negative"] = int(stats["negative"]) + 1
-                        avoided = abs(realized_return)
-                    else:
-                        stats["flat"] = int(stats["flat"]) + 1
-                    if unique:
-                        unique_returns = stats["unique_returns"]
-                        if not isinstance(unique_returns, list):
-                            raise TypeError("unique_returns must be a list")
-                        unique_returns.append(realized_return)
+                    avoided, cost = stats.record_resolved_return(
+                        realized_return=realized_return,
+                        unique=unique,
+                    )
                 counterfactual_rows.append(
                     {
                         "price_view": candidate.get("price_view", ""),
@@ -352,8 +375,14 @@ class GovernedGateValueAudit:
                     "maximum_ordinal": ordinal,
                 },
             )
-            entry["minimum_ordinal"] = min(int(str(entry["minimum_ordinal"])), ordinal)
-            entry["maximum_ordinal"] = max(int(str(entry["maximum_ordinal"])), ordinal)
+            entry["minimum_ordinal"] = min(
+                int(str(entry["minimum_ordinal"])),
+                ordinal,
+            )
+            entry["maximum_ordinal"] = max(
+                int(str(entry["maximum_ordinal"])),
+                ordinal,
+            )
             key = _key(row)
             if _truthy(row.get("stage_reached")):
                 reached[code].add(key)
@@ -375,24 +404,20 @@ class GovernedGateValueAudit:
 
     @staticmethod
     def _value_rows(
-        stats_by_gate: dict[str, dict[str, GateStatValue]],
+        stats_by_gate: dict[str, GateAccumulator],
     ) -> list[dict[str, object]]:
         rows: list[dict[str, object]] = []
         for gate, stats in sorted(stats_by_gate.items()):
-            resolved = int(stats["resolved"])
             average = (
-                Decimal(stats["return_sum"]) / Decimal(resolved)
-                if resolved
+                stats.return_sum / Decimal(stats.resolved)
+                if stats.resolved
                 else Decimal("0")
             )
-            unique_returns = stats["unique_returns"]
-            if not isinstance(unique_returns, list):
-                raise TypeError("unique_returns must be a list")
             pipeline = run_gate_pipeline(
                 GatePipelineInput(
                     gate_code=gate,
-                    sample_count=int(stats["unique"]),
-                    returns_pct=tuple(unique_returns),
+                    sample_count=stats.unique,
+                    returns_pct=tuple(stats.unique_returns),
                     minimum_required=0,
                 )
             )
@@ -400,7 +425,7 @@ class GovernedGateValueAudit:
             net = economic_value.net_gate_value
             conclusion = (
                 "INSUFFICIENT_RESOLVED_OUTCOMES"
-                if resolved == 0
+                if stats.resolved == 0
                 else "GATE_ADDS_MEASURABLE_VALUE"
                 if net > 0
                 else "GATE_DESTROYS_MEASURABLE_VALUE"
@@ -410,16 +435,18 @@ class GovernedGateValueAudit:
             rows.append(
                 {
                     "gate_code": gate,
-                    "blocked_candidate_count": stats["blocked"],
-                    "unique_blocked_candidate_count": stats["unique"],
-                    "co_blocked_candidate_count": stats["co"],
-                    "resolved_outcome_count": resolved,
-                    "positive_outcome_count": stats["positive"],
-                    "negative_outcome_count": stats["negative"],
-                    "flat_outcome_count": stats["flat"],
+                    "blocked_candidate_count": stats.blocked,
+                    "unique_blocked_candidate_count": stats.unique,
+                    "co_blocked_candidate_count": stats.co,
+                    "resolved_outcome_count": stats.resolved,
+                    "positive_outcome_count": stats.positive,
+                    "negative_outcome_count": stats.negative,
+                    "flat_outcome_count": stats.flat,
                     "average_return_pct": average,
                     "avoided_loss_benefit": economic_value.avoided_loss_benefit,
-                    "profitable_rejection_cost": economic_value.profitable_rejection_cost,
+                    "profitable_rejection_cost": (
+                        economic_value.profitable_rejection_cost
+                    ),
                     "net_gate_value": net,
                     "conclusion": conclusion,
                 }
