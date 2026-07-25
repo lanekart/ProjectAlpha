@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.14'
-      - name: Reconstruct engine
+      - name: Reconstruct final engine fixture
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -27,7 +27,6 @@ jobs:
           import io
           import json
           import os
-          import shutil
           import urllib.request
           import zipfile
           from pathlib import Path
@@ -60,26 +59,80 @@ jobs:
           with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
               source = bundle.read(
                   'alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py'
-              )
+              ).decode('utf-8')
+          replacements = (
+              ('"adaptive_adjusted_confidence": "HIGH"',
+               '"adaptive_adjusted_confidence": "MEDIUM"'),
+              ('risk_reward_ratio=Decimal("2"),',
+               'risk_reward_ratio=Decimal("4"),'),
+              ('historical_bar_count=250,',
+               'historical_bar_count=1260,'),
+              ('sample_count="1"',
+               'sample_count="10"'),
+          )
+          for old, new in replacements:
+              if source.count(old) != 1:
+                  raise SystemExit(f'unexpected fixture count for {old!r}')
+              source = source.replace(old, new, 1)
           Path(
               'alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py'
-          ).write_bytes(source)
+          ).write_text(source, encoding='utf-8')
           PY
       - run: pip install poetry
       - run: poetry install --with dev --no-interaction
-      - name: Capture probe rows
+      - name: Capture final probe and stress rows
         run: |
           poetry run python - <<'PY' > b10e1-probes.txt
           from pprint import pprint
-          from alpha.benchmark_replay.governed_adaptive_institutional_trade_shadow import _non_vacuity_probes
+          from alpha.benchmark_replay.governed_adaptive_institutional_trade_shadow import (
+              _non_vacuity_probes,
+              _probe_recommendation,
+          )
+          from alpha.decision_intelligence.engine import InstitutionalDecisionEngine
 
           rows, summary, defects = _non_vacuity_probes()
+          print('PROBES')
           for row in rows:
               pprint(row, sort_dicts=True)
           print('SUMMARY')
           pprint(summary, sort_dicts=True)
           print('DEFECTS')
           pprint(defects)
+
+          cases = (
+              ('EXACT_60', _probe_recommendation(
+                  sample_count='60', evidence_strength='moderate',
+                  posterior='0.6000', expectancy='0.20')),
+              ('STRONG_10', _probe_recommendation(
+                  sample_count='10', evidence_strength='strong',
+                  posterior='0.6000', expectancy='0.20')),
+          )
+          engine = InstitutionalDecisionEngine()
+          print('DECISION_DETAILS')
+          for label, recommendation in cases:
+              decision = engine.evaluate_recommendations((recommendation,)).decisions[0]
+              print(label)
+              pprint({
+                  'accepted': decision.accepted,
+                  'gate_decision': decision.gate_decision.value,
+                  'opportunity_score': str(decision.opportunity_score),
+                  'rejection_reasons': [reason.code.value for reason in decision.rejection_reasons],
+                  'candidate_sample_count': decision.candidate.evidence_sample_count,
+                  'candidate_confidence': decision.candidate.adjusted_confidence,
+                  'candidate_reward_risk': str(decision.candidate.reward_risk_ratio),
+                  'candidate_history': decision.candidate.historical_bar_count,
+                  'failed_stress_tests': [
+                      {
+                          'reason': result.reason_code.value,
+                          'severity': result.severity.value,
+                          'action': result.suggested_action.value,
+                      }
+                      for result in decision.stress_tests if not result.passed
+                  ],
+                  'quality_score': None if decision.decision_quality is None else str(decision.decision_quality.decision_quality_score),
+                  'final_action': None if decision.decision_quality is None else decision.decision_quality.final_action.value,
+                  'overconfidence_penalty': None if decision.decision_quality is None else str(decision.decision_quality.overconfidence.penalty_points),
+              }, sort_dicts=True)
           PY
       - uses: actions/upload-artifact@v4
         with:
