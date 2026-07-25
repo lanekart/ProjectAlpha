@@ -130,9 +130,7 @@ class FrozenBaselineReconstructor:
             for key in sorted(canonical_keys)
         )
         raw = {
-            item.candidate
-            for item in candidates
-            if item.candidate.price_view == "RAW"
+            item.candidate for item in candidates if item.candidate.price_view == "RAW"
         }
         adjusted = {
             item.candidate
@@ -168,17 +166,13 @@ class FrozenBaselineReconstructor:
             raise GateIsolationBaselineError(
                 f"POINT_IN_TIME_LEAKAGE_DETECTED:{_key_text(key)}"
             )
-        resolved = _truthy(
-            dsi001.get("resolved_outcome") or b7.get("resolved_outcome")
-        )
+        resolved = _truthy(dsi001.get("resolved_outcome") or b7.get("resolved_outcome"))
         realized_return = _decimal_or_none(
             dsi001.get("realized_return_pct")
             or b7.get("realized_return_pct")
             or b7.get("return_pct")
         )
-        realized_r = _decimal_or_none(
-            dsi001.get("realized_r") or b7.get("realized_r")
-        )
+        realized_r = _decimal_or_none(dsi001.get("realized_r") or b7.get("realized_r"))
         status = b7.get("outcome_status") or (
             "RESOLVED" if resolved else "OUTCOME_UNAVAILABLE"
         )
@@ -262,8 +256,7 @@ def _validate_partial_population(
     missing = sorted(expected - observed)
     extra = sorted(observed - expected)
     raise GateIsolationBaselineError(
-        f"{source}_IDENTITY_LINEAGE_MISMATCH:"
-        f"missing={len(missing)}:extra={len(extra)}"
+        f"{source}_IDENTITY_LINEAGE_MISMATCH:missing={len(missing)}:extra={len(extra)}"
     )
 
 
@@ -312,9 +305,7 @@ def _partial_key_from_row(
         str(row.get("symbol") or "").strip().upper(),
     )
     if any(not value for value in key):
-        raise GateIsolationBaselineError(
-            f"{source}_INVALID_CANDIDATE_IDENTITY"
-        )
+        raise GateIsolationBaselineError(f"{source}_INVALID_CANDIDATE_IDENTITY")
     return key
 
 
@@ -340,9 +331,7 @@ def _failure_codes(row: Mapping[str, str]) -> tuple[str, ...]:
         parsed = [item.strip() for item in value.replace("|", ",").split(",")]
     if not isinstance(parsed, list):
         raise GateIsolationBaselineError("FAILURE_CODES_NOT_A_LIST")
-    return tuple(
-        sorted({str(item).strip() for item in parsed if str(item).strip()})
-    )
+    return tuple(sorted({str(item).strip() for item in parsed if str(item).strip()}))
 
 
 def _decimal_or_none(value: str | None) -> Decimal | None:
