@@ -103,8 +103,9 @@ class CandidateCreationFlowAuditor:
                             "source-level feature hashes",
                         ),
                         rationale=(
-                            "IntelligenceInputSet is the canonical engine-ready input seam, "
-                            "but version and source hashes are not yet emitted."
+                            "IntelligenceInputSet is the canonical engine-ready "
+                            "input seam, but version and source hashes are not "
+                            "yet emitted."
                         ),
                     ),
                     CandidateFlowFinding(
@@ -118,8 +119,9 @@ class CandidateCreationFlowAuditor:
                             "threshold provenance",
                         ),
                         rationale=(
-                            "The application service invokes the recommendation engine, but "
-                            "does not preserve a serialised frozen approval policy."
+                            "The application service invokes the recommendation "
+                            "engine, but does not preserve a serialised frozen "
+                            "approval policy."
                         ),
                     ),
                     CandidateFlowFinding(
@@ -135,8 +137,9 @@ class CandidateCreationFlowAuditor:
                             "portfolio-state version",
                         ),
                         rationale=(
-                            "Both portfolio contexts are available before recommendation and "
-                            "allocation, but are not persisted as immutable snapshots."
+                            "Both portfolio contexts are available before "
+                            "recommendation and allocation, but are not "
+                            "persisted as immutable snapshots."
                         ),
                     ),
                     CandidateFlowFinding(
@@ -150,8 +153,9 @@ class CandidateCreationFlowAuditor:
                             "trigger source hashes",
                         ),
                         rationale=(
-                            "Candidate models carry entry semantics, but the governing policy "
-                            "and exact source lineage are not captured."
+                            "Candidate models carry entry semantics, but the "
+                            "governing policy and exact source lineage are not "
+                            "captured."
                         ),
                     ),
                     CandidateFlowFinding(
@@ -165,8 +169,9 @@ class CandidateCreationFlowAuditor:
                             "sizing state",
                         ),
                         rationale=(
-                            "The intelligence workflow constructs recommendations and an "
-                            "allocation plan; it does not expose an execution-state snapshot."
+                            "The intelligence workflow constructs recommendations "
+                            "and an allocation plan; it does not expose an "
+                            "execution-state snapshot."
                         ),
                     ),
                     CandidateFlowFinding(
@@ -180,8 +185,9 @@ class CandidateCreationFlowAuditor:
                             "outcome policy version",
                         ),
                         rationale=(
-                            "Outcome policy is downstream of candidate creation and is not "
-                            "available in the current application transaction."
+                            "Outcome policy is downstream of candidate creation "
+                            "and is not available in the current application "
+                            "transaction."
                         ),
                     ),
                     CandidateFlowFinding(
@@ -195,8 +201,9 @@ class CandidateCreationFlowAuditor:
                             "source path lineage",
                         ),
                         rationale=(
-                            "Candidate identity and observation date exist, but complete input "
-                            "artifact lineage is not emitted by the current builder."
+                            "Candidate identity and observation date exist, but "
+                            "complete input artifact lineage is not emitted by "
+                            "the current builder."
                         ),
                     ),
                 ),
@@ -207,7 +214,8 @@ class CandidateCreationFlowAuditor:
             authoritative_service_path="alpha/application/intelligence.py",
             authoritative_method="IntelligenceApplicationService.run",
             capture_seam=(
-                "after IntelligenceInputSet construction and before recommendation engine build"
+                "after IntelligenceInputSet construction and before "
+                "recommendation engine build"
             ),
             findings=findings,
             capture_ready=all(
