@@ -81,9 +81,15 @@ class EvidenceStrength:
         if self.resolved_count > self.sample_count:
             raise ValueError("resolved_count cannot exceed sample_count")
 
-        expected_sufficient = self.resolved_count >= self.minimum_required
+        expected_sufficient = (
+            self.resolved_count > 0
+            and self.resolved_count >= self.minimum_required
+        )
         if self.sufficient is not expected_sufficient:
-            raise ValueError("sufficient must equal resolved_count >= minimum_required")
+            raise ValueError(
+                "sufficient must equal resolved_count > 0 and "
+                "resolved_count >= minimum_required"
+            )
 
 
 @dataclass(frozen=True, slots=True)
