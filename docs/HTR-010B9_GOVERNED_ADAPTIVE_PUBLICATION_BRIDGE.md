@@ -146,6 +146,14 @@ The command writes one certificate and eight bound support artifacts:
 Every support-file hash, B8 input hash, and current source-contract hash is bound
 into the certificate.
 
+## Acceptance source pin
+
+Signed acceptance must use the exact reviewed commit SHA recorded on the pull
+request after repository Lint and CI pass. A branch name may move and an unpublished
+tag must never be assumed. Create the acceptance worktree directly from that
+immutable commit SHA and verify both `HEAD` and a clean working tree before running
+the command.
+
 ## Command
 
 ```bash
