@@ -300,8 +300,8 @@ class GovernedGateValueAudit:
                     "maximum_ordinal": ordinal,
                 },
             )
-            entry["minimum_ordinal"] = min(int(entry["minimum_ordinal"]), ordinal)
-            entry["maximum_ordinal"] = max(int(entry["maximum_ordinal"]), ordinal)
+            entry["minimum_ordinal"] = min(int(str(entry["minimum_ordinal"])), ordinal)
+            entry["maximum_ordinal"] = max(int(str(entry["maximum_ordinal"])), ordinal)
             key = _key(row)
             if _truthy(row.get("stage_reached")):
                 reached[code].add(key)
