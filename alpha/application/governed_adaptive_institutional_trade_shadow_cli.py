@@ -193,7 +193,7 @@ def governed_adaptive_institutional_trade_shadow(
         f"{report['recommendation_semantic_drift_count']}"
     )
     typer.echo(f"Implementation defects: {report['implementation_defect_count']}")
-    blockers = cast(Sequence[object], report["readiness_blockers"])
+    blockers = cast(Sequence[str], report["readiness_blockers"])
     typer.echo(f"Readiness blockers: {','.join(blockers) if blockers else 'NONE'}")
     typer.echo(
         "Governed shadow adaptive publication enabled: "
