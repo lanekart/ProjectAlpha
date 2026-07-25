@@ -211,26 +211,23 @@ def test_raw_adjusted_parity_is_arm_neutral(tmp_path: Path) -> None:
     assert result.raw_adjusted_identity_mismatch_count == 0
 
 
-def test_rejects_missing_b7_candidate(tmp_path: Path) -> None:
+def test_missing_b7_candidate_is_preserved_as_uncovered(tmp_path: Path) -> None:
     rows = [_row()]
     paths = _paths(tmp_path, rows, b7_rows=[])
 
-    with pytest.raises(
-        GateIsolationBaselineError,
-        match="B7_IDENTITY_LINEAGE_MISMATCH",
-    ):
-        FrozenBaselineReconstructor().reconstruct(paths)
+    result = FrozenBaselineReconstructor().reconstruct(paths)
+
+    assert result.candidates[0].b7_present is False
+    assert result.candidates[0].resolved_outcome is True
 
 
-def test_rejects_missing_b10_candidate(tmp_path: Path) -> None:
+def test_missing_b10_candidate_is_preserved_as_unreached(tmp_path: Path) -> None:
     rows = [_row()]
     paths = _paths(tmp_path, rows, b10_rows=[])
 
-    with pytest.raises(
-        GateIsolationBaselineError,
-        match="B10_IDENTITY_LINEAGE_MISMATCH",
-    ):
-        FrozenBaselineReconstructor().reconstruct(paths)
+    result = FrozenBaselineReconstructor().reconstruct(paths)
+
+    assert result.candidates[0].b10_present is False
 
 
 def test_rejects_extra_b7_candidate(tmp_path: Path) -> None:
