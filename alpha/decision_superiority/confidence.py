@@ -233,6 +233,13 @@ def mean_confidence_interval(
         raise ValueError("standard_deviation cannot be negative")
     if resolved_count == 0:
         return None
+    if resolved_count == 1:
+        return DecimalInterval(
+            lower=mean,
+            upper=mean,
+            confidence_level=Decimal("0.95"),
+            method="SINGLE_OBSERVATION_DEGENERATE",
+        )
     standard_error = standard_deviation / _sqrt(Decimal(resolved_count))
     margin = Z_95 * standard_error
     return DecimalInterval(
