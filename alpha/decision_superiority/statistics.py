@@ -113,7 +113,7 @@ def build_evidence_strength(
         resolved_count=resolved_count,
         minimum_required=minimum_required,
         level=evidence_strength_level(resolved_count),
-        sufficient=resolved_count >= minimum_required,
+        sufficient=resolved_count > 0 and resolved_count >= minimum_required,
     )
 
 
