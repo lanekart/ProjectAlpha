@@ -53,37 +53,40 @@ def _source_paths(root: Path) -> GateIsolationSourcePaths:
     return GateIsolationSourcePaths(*files)
 
 
-def _baseline_paths(root: Path) -> FrozenBaselineSourcePaths:
+def _baseline_paths(
+    root: Path,
+    *,
+    fingerprint: str | None = None,
+) -> FrozenBaselineSourcePaths:
     b10 = root / "b10.csv"
+    fieldnames = [
+        "price_view",
+        "observed_on",
+        "symbol",
+        "default_accepted",
+        "default_portfolio_eligible",
+        "default_entry_ready",
+        "default_trade_formed",
+        "default_outcome_available",
+    ]
+    if fingerprint is not None:
+        fieldnames.append("input_fingerprint")
+    row = {
+        "price_view": "RAW",
+        "observed_on": "2026-01-02",
+        "symbol": "AAA",
+        "default_accepted": "false",
+        "default_portfolio_eligible": "false",
+        "default_entry_ready": "false",
+        "default_trade_formed": "false",
+        "default_outcome_available": "false",
+    }
+    if fingerprint is not None:
+        row["input_fingerprint"] = fingerprint
     with b10.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=(
-                "price_view",
-                "observed_on",
-                "symbol",
-                "input_fingerprint",
-                "default_accepted",
-                "default_portfolio_eligible",
-                "default_entry_ready",
-                "default_trade_formed",
-                "default_outcome_available",
-            ),
-        )
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
-        writer.writerow(
-            {
-                "price_view": "RAW",
-                "observed_on": "2026-01-02",
-                "symbol": "AAA",
-                "input_fingerprint": "fp-a",
-                "default_accepted": "false",
-                "default_portfolio_eligible": "false",
-                "default_entry_ready": "false",
-                "default_trade_formed": "false",
-                "default_outcome_available": "false",
-            }
-        )
+        writer.writerow(row)
     placeholder = root / "placeholder.csv"
     placeholder.write_text("value\n1\n", encoding="utf-8")
     return FrozenBaselineSourcePaths(
@@ -94,10 +97,7 @@ def _baseline_paths(root: Path) -> FrozenBaselineSourcePaths:
     )
 
 
-def test_orchestrator_executes_and_summarizes_checkpoint(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def _patch_governed_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "alpha.decision_superiority.gate_isolation_orchestration."
         "GateIsolationSourceContractVerifier.verify",
@@ -108,6 +108,13 @@ def test_orchestrator_executes_and_summarizes_checkpoint(
         "FrozenBaselineReconstructor.reconstruct",
         lambda self, paths: _population(),
     )
+
+
+def test_orchestrator_bridges_b10_without_fingerprint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_governed_inputs(monkeypatch)
 
     result = GateIsolationDryRunOrchestrator().run(
         source_paths=_source_paths(tmp_path),
@@ -131,16 +138,7 @@ def test_export_is_deterministic(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        "alpha.decision_superiority.gate_isolation_orchestration."
-        "GateIsolationSourceContractVerifier.verify",
-        lambda self, paths: VerifiedGateIsolationSources((), ()),
-    )
-    monkeypatch.setattr(
-        "alpha.decision_superiority.gate_isolation_orchestration."
-        "FrozenBaselineReconstructor.reconstruct",
-        lambda self, paths: _population(),
-    )
+    _patch_governed_inputs(monkeypatch)
     result = GateIsolationDryRunOrchestrator().run(
         source_paths=_source_paths(tmp_path),
         baseline_paths=_baseline_paths(tmp_path),
@@ -158,24 +156,28 @@ def test_missing_b10_state_fails_closed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        "alpha.decision_superiority.gate_isolation_orchestration."
-        "GateIsolationSourceContractVerifier.verify",
-        lambda self, paths: VerifiedGateIsolationSources((), ()),
-    )
-    monkeypatch.setattr(
-        "alpha.decision_superiority.gate_isolation_orchestration."
-        "FrozenBaselineReconstructor.reconstruct",
-        lambda self, paths: _population(),
-    )
+    _patch_governed_inputs(monkeypatch)
     paths = _baseline_paths(tmp_path)
     paths.b10_decision_ledger.write_text(
-        "price_view,observed_on,symbol,input_fingerprint\n",
+        "price_view,observed_on,symbol\n",
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="B10 downstream state missing"):
+    with pytest.raises(ValueError, match="B10 downstream identity lineage mismatch"):
         GateIsolationDryRunOrchestrator().run(
             source_paths=_source_paths(tmp_path),
             baseline_paths=paths,
+        )
+
+
+def test_b10_downstream_fingerprint_conflict_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_governed_inputs(monkeypatch)
+
+    with pytest.raises(ValueError, match="B10 downstream fingerprint mismatch"):
+        GateIsolationDryRunOrchestrator().run(
+            source_paths=_source_paths(tmp_path),
+            baseline_paths=_baseline_paths(tmp_path, fingerprint="wrong"),
         )
