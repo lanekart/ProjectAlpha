@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   finalize:
-    if: github.event.pull_request.head.ref == 'feature/dsi-001-governed-decision-superiority-gate-value-audit'
+    if: github.event.pull_request.head.ref == 'feature/dsi-001-governed-decision-superiority-gate-value-audit' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -65,12 +65,6 @@ jobs:
             alpha/application/benchmark_cli.py \
             alpha/decision_superiority \
             tests/decision_superiority
-      - name: Focused validation
-        run: |
-          poetry run mypy \
-            alpha/application/decision_superiority_gate_value_cli.py \
-            alpha/decision_superiority
-          poetry run pytest -q tests/decision_superiority
       - name: Commit validated normalization
         run: |
           git config user.name github-actions[bot]
@@ -82,5 +76,12 @@ jobs:
           if git diff --cached --quiet; then
             exit 0
           fi
-          git commit -m 'build(dsi-001): register format and validate governed audit'
+          git commit -m 'build(dsi-001): register and format governed audit'
           git push origin HEAD:feature/dsi-001-governed-decision-superiority-gate-value-audit
+      - name: Focused MyPy
+        run: |
+          poetry run mypy \
+            alpha/application/decision_superiority_gate_value_cli.py \
+            alpha/decision_superiority
+      - name: Focused pytest
+        run: poetry run pytest -q tests/decision_superiority
