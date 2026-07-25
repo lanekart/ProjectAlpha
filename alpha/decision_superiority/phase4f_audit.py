@@ -8,7 +8,6 @@ import json
 from collections import defaultdict
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
 
 from alpha.decision_superiority.gate_artifacts import (
     CONFIDENCE_SUMMARY_FIELDS,
@@ -228,9 +227,7 @@ def _value_row(
             else "UNAVAILABLE"
         ),
         "net_gate_value": (
-            pipeline.economic_value.net_gate_value
-            if not unavailable
-            else "UNAVAILABLE"
+            pipeline.economic_value.net_gate_value if not unavailable else "UNAVAILABLE"
         ),
         "conclusion": conclusion,
     }
