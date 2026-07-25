@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import csv
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Mapping
 
 from alpha.decision_superiority.gate_isolation_models import FrozenCandidateKey
 
@@ -32,7 +32,10 @@ class FrozenBaselineCandidate:
     dsi001_present: bool
 
     def __post_init__(self) -> None:
-        if tuple(sorted(set(self.observed_failure_codes))) != self.observed_failure_codes:
+        if (
+            tuple(sorted(set(self.observed_failure_codes)))
+            != self.observed_failure_codes
+        ):
             raise ValueError("observed_failure_codes must be unique and sorted")
         if not self.outcome_status.strip():
             raise ValueError("outcome_status cannot be empty")
@@ -44,7 +47,9 @@ class FrozenBaselineCandidate:
                 self.dsi001_present,
             )
         ):
-            raise ValueError("baseline candidate must be present in every governed source")
+            raise ValueError(
+                "baseline candidate must be present in every governed source"
+            )
         if self.resolved_outcome and self.realized_return_pct is None:
             raise ValueError("resolved outcome requires realized_return_pct")
 
@@ -116,7 +121,9 @@ class FrozenBaselineReconstructor:
             )
             for key in sorted(canonical_keys)
         )
-        raw = {item.candidate for item in candidates if item.candidate.price_view == "RAW"}
+        raw = {
+            item.candidate for item in candidates if item.candidate.price_view == "RAW"
+        }
         adjusted = {
             item.candidate
             for item in candidates
@@ -151,20 +158,15 @@ class FrozenBaselineReconstructor:
             raise GateIsolationBaselineError(
                 f"POINT_IN_TIME_LEAKAGE_DETECTED:{_key_text(key)}"
             )
-        resolved = _truthy(
-            dsi001.get("resolved_outcome") or b7.get("resolved_outcome")
-        )
+        resolved = _truthy(dsi001.get("resolved_outcome") or b7.get("resolved_outcome"))
         realized_return = _decimal_or_none(
             dsi001.get("realized_return_pct")
             or b7.get("realized_return_pct")
             or b7.get("return_pct")
         )
-        realized_r = _decimal_or_none(
-            dsi001.get("realized_r") or b7.get("realized_r")
-        )
-        status = (
-            b7.get("outcome_status")
-            or ("RESOLVED" if resolved else "OUTCOME_UNAVAILABLE")
+        realized_r = _decimal_or_none(dsi001.get("realized_r") or b7.get("realized_r"))
+        status = b7.get("outcome_status") or (
+            "RESOLVED" if resolved else "OUTCOME_UNAVAILABLE"
         )
         return FrozenBaselineCandidate(
             candidate=key,
@@ -202,9 +204,7 @@ def _candidate_key(row: Mapping[str, str], source: str) -> FrozenCandidateKey:
         "observed_on": str(row.get("observed_on") or "").strip(),
         "symbol": str(row.get("symbol") or "").strip().upper(),
         "input_fingerprint": str(
-            row.get("input_fingerprint")
-            or row.get("fingerprint_key")
-            or ""
+            row.get("input_fingerprint") or row.get("fingerprint_key") or ""
         ).strip(),
     }
     try:

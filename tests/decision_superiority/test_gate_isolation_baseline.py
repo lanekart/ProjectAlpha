@@ -11,7 +11,6 @@ from alpha.decision_superiority.gate_isolation_baseline import (
     GateIsolationBaselineError,
 )
 
-
 FIELDS = (
     "price_view",
     "observed_on",
