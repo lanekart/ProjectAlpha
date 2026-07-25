@@ -103,26 +103,68 @@ jobs:
           pip install poetry
           poetry install --with dev --no-interaction
 
-      - name: Validate focused B10E1 implementation
+      - name: Capture focused B10E1 validation
         run: |
+          set +e
+          status=0
+          : > b10e1-validation.txt
+
+          echo '=== RUFF CHECK ===' >> b10e1-validation.txt
           poetry run ruff check \
             alpha/application/governed_adaptive_institutional_trade_shadow_cli.py \
             alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py \
-            tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py
+            tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py \
+            >> b10e1-validation.txt 2>&1
+          rc=$?
+          echo "ruff_check=$rc" >> b10e1-validation.txt
+          [ "$rc" -eq 0 ] || status=1
+
+          echo '=== RUFF FORMAT ===' >> b10e1-validation.txt
           poetry run ruff format --check \
             alpha/application/governed_adaptive_institutional_trade_shadow_cli.py \
             alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py \
-            tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py
+            tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py \
+            >> b10e1-validation.txt 2>&1
+          rc=$?
+          echo "ruff_format=$rc" >> b10e1-validation.txt
+          [ "$rc" -eq 0 ] || status=1
+
+          echo '=== MYPY ===' >> b10e1-validation.txt
           poetry run mypy \
             alpha/application/governed_adaptive_institutional_trade_shadow_cli.py \
-            alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py
+            alpha/benchmark_replay/governed_adaptive_institutional_trade_shadow.py \
+            >> b10e1-validation.txt 2>&1
+          rc=$?
+          echo "mypy=$rc" >> b10e1-validation.txt
+          [ "$rc" -eq 0 ] || status=1
+
+          echo '=== PYTEST ===' >> b10e1-validation.txt
           poetry run pytest -q \
-            tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py
+            tests/benchmark_replay/test_governed_adaptive_institutional_trade_shadow.py \
+            >> b10e1-validation.txt 2>&1
+          rc=$?
+          echo "pytest=$rc" >> b10e1-validation.txt
+          [ "$rc" -eq 0 ] || status=1
+
+          echo "$status" > b10e1-validation.status
+          exit 0
+
+      - name: Upload focused validation diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: htr010b10e1-focused-validation
+          path: |
+            b10e1-validation.txt
+            b10e1-validation.status
+          if-no-files-found: error
+
+      - name: Enforce focused validation
+        run: test "$(cat b10e1-validation.status)" = 0
 
       - name: Commit full B10E1 implementation
         run: |
           rm .github/workflows/htr010b10e1-apply.yml
-          rm -f b10e1-reconstruction-diagnostics.txt
+          rm -f b10e1-validation.txt b10e1-validation.status
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add \
