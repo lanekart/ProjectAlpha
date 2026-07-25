@@ -177,9 +177,10 @@ def test_audit_writes_and_hash_binds_new_diagnostic_artifacts(
     for name in expected:
         path = output / name
         assert path.exists()
-        assert result.report["artifact_hashes"][name] == hashlib.sha256(
-            path.read_bytes()
-        ).hexdigest()
+        assert (
+            result.report["artifact_hashes"][name]
+            == hashlib.sha256(path.read_bytes()).hexdigest()
+        )
 
     conclusions = list(
         csv.DictReader(

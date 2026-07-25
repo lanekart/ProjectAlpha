@@ -294,9 +294,7 @@ class GovernedGateValueAudit:
         )
 
         output.mkdir(parents=True, exist_ok=True)
-        legacy_support: dict[
-            str, tuple[list[dict[str, object]], tuple[str, ...]]
-        ] = {
+        legacy_support: dict[str, tuple[list[dict[str, object]], tuple[str, ...]]] = {
             "dsi001_gate_inventory.csv": (gate_inventory, _GATE_INVENTORY_FIELDS),
             "dsi001_candidate_gate_failure_ledger.csv": (
                 candidate_rows,
@@ -437,12 +435,8 @@ class GovernedGateValueAudit:
                     "maximum_ordinal": ordinal,
                 },
             )
-            entry["minimum_ordinal"] = min(
-                int(str(entry["minimum_ordinal"])), ordinal
-            )
-            entry["maximum_ordinal"] = max(
-                int(str(entry["maximum_ordinal"])), ordinal
-            )
+            entry["minimum_ordinal"] = min(int(str(entry["minimum_ordinal"])), ordinal)
+            entry["maximum_ordinal"] = max(int(str(entry["maximum_ordinal"])), ordinal)
             key = _key(row)
             if _truthy(row.get("stage_reached")):
                 reached[code].add(key)
