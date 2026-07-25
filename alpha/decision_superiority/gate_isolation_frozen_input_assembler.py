@@ -23,6 +23,10 @@ from alpha.decision_superiority.gate_isolation_policy_producers import (
     EntryPolicyCaptureInput,
     EntryPolicySnapshotProducer,
 )
+from alpha.decision_superiority.gate_isolation_source_lineage_producer import (
+    SourceLineageCaptureInput,
+    SourceLineageSnapshotProducer,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +38,7 @@ class FrozenInputAssemblyRequest:
     approval_policy: ApprovalPolicyCaptureInput
     portfolio_state: PortfolioStateCaptureInput
     entry_policy: EntryPolicyCaptureInput
+    source_lineage: SourceLineageCaptureInput
 
     def __post_init__(self) -> None:
         observed_on = self.candidate.observed_on
@@ -42,6 +47,7 @@ class FrozenInputAssemblyRequest:
             ("approval policy", self.approval_policy.observed_on),
             ("portfolio state", self.portfolio_state.observed_on),
             ("entry policy", self.entry_policy.observed_on),
+            ("source lineage", self.source_lineage.observed_on),
         )
         for name, section_date in dated_inputs:
             if section_date != observed_on:
@@ -90,6 +96,9 @@ class FrozenInputAssembler:
             EntryPolicySnapshotProducer().produce(request.entry_policy),
             PortfolioStateSnapshotProducer().produce(
                 request.portfolio_state
+            ),
+            SourceLineageSnapshotProducer().produce(
+                request.source_lineage
             ),
         )
         snapshot = FrozenCandidateInputSnapshot.build(
