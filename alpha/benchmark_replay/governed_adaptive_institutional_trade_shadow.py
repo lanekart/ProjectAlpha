@@ -13,13 +13,13 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, cast
 
-from alpha.benchmark_replay.governed_adaptive_publication_bridge import (
-    HTR010B9_CONTRACT_VERSION,
-    validate_governed_adaptive_publication_bridge_certificate,
-)
 from alpha.benchmark_replay.governed_adaptive_evidence_lineage import (
     HTR010B8_CONTRACT_VERSION,
     validate_governed_adaptive_evidence_lineage_certificate,
+)
+from alpha.benchmark_replay.governed_adaptive_publication_bridge import (
+    HTR010B9_CONTRACT_VERSION,
+    validate_governed_adaptive_publication_bridge_certificate,
 )
 from alpha.benchmark_replay.governed_setup_matched_evidence import (
     HTR010B7_CONTRACT_VERSION,
