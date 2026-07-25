@@ -41,7 +41,9 @@ class FrozenInputCaptureIntegrationResult:
 
     def __post_init__(self) -> None:
         if self.capture.candidate != self.candidate:
-            raise ValueError("capture candidate identity does not match integration result")
+            raise ValueError(
+                "capture candidate identity does not match integration result"
+            )
         if any(
             (
                 self.recommendation_influence,
@@ -51,7 +53,9 @@ class FrozenInputCaptureIntegrationResult:
                 self.production_influence,
             )
         ):
-            raise ValueError("frozen-input integration influence flags must remain false")
+            raise ValueError(
+                "frozen-input integration influence flags must remain false"
+            )
 
 
 class FrozenInputCaptureIntegration:
