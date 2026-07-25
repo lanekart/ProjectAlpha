@@ -1,0 +1,185 @@
+name: HTR-010B9 final full-suite validation
+
+on:
+  push:
+    branches:
+      - feature/htr-010b9-governed-adaptive-publication-bridge
+    paths:
+      - .github/workflows/htr010b9-final-full-suite.yml
+  workflow_dispatch:
+
+concurrency:
+  group: htr010b9-final-full-suite
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/htr-010b9-governed-adaptive-publication-bridge
+          fetch-depth: 0
+
+      - name: Synchronize latest branch head
+        run: git pull --ff-only origin feature/htr-010b9-governed-adaptive-publication-bridge
+
+      - name: Verify integrated B9 source is present
+        run: |
+          test -f alpha/learning_intelligence/publication.py
+          test -f alpha/benchmark_replay/governed_adaptive_publication_bridge.py
+          test -f alpha/application/governed_adaptive_publication_bridge_cli.py
+          grep -q 'adaptive_metadata_publication_enabled' alpha/application/intelligence.py
+          grep -q 'retracement_state' alpha/performance_intelligence/recorder.py
+          grep -q 'candle_pattern' alpha/performance_intelligence/recorder.py
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install locked environment
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install poetry
+          poetry install --no-interaction
+
+      - name: Ruff and formatting
+        run: |
+          poetry run ruff check .
+          poetry run ruff format --check .
+
+      - name: Strict MyPy
+        run: poetry run mypy alpha
+
+      - name: Full repository pytest
+        run: poetry run pytest -q
+
+      - name: Public CLI registration
+        run: |
+          poetry run python -m alpha benchmark --help | \
+            grep governed-adaptive-publication-bridge
+
+      - name: Remove all temporary B9 workflows and payloads
+        run: |
+          rm -f .tmp/htr010b9_patch.py
+          rm -f .github/workflows/htr010b9-integrate.yml
+          rm -f .github/workflows/htr010b9-finalize.yml
+          rm -f .github/workflows/htr010b9-validate.yml
+          rm -f .github/workflows/htr010b9-repair.yml
+          rm -f .github/workflows/htr010b9-authoritative.yml
+          rm -f .github/workflows/htr010b9-authoritative-v2.yml
+          rm -f .github/workflows/htr010b9-release-gate.yml
+          rm -f .github/workflows/htr010b9-final-full-suite.yml
+          rmdir .tmp 2>/dev/null || true
+          git add -A
+
+      - name: Verify final effective file set
+        run: |
+          python - <<'PY'
+          import subprocess
+
+          expected = {
+              'alpha/application/benchmark_cli.py',
+              'alpha/application/governed_adaptive_publication_bridge_cli.py',
+              'alpha/application/intelligence.py',
+              'alpha/benchmark_replay/__init__.py',
+              'alpha/benchmark_replay/governed_adaptive_publication_bridge.py',
+              'alpha/canonical_universe_audit/canonical_runner.py',
+              'alpha/learning_intelligence/__init__.py',
+              'alpha/learning_intelligence/publication.py',
+              'alpha/performance_intelligence/recorder.py',
+              'docs/HTR-010B9_GOVERNED_ADAPTIVE_PUBLICATION_BRIDGE.md',
+              'tests/benchmark_replay/test_governed_adaptive_publication_bridge.py',
+              'tests/learning_intelligence/test_adaptive_metadata_publication.py',
+          }
+          observed = set(
+              subprocess.check_output(
+                  [
+                      'git', 'diff', '--cached', '--name-only',
+                      'origin/feature/recovery-foundation-v1',
+                  ],
+                  text=True,
+              ).splitlines()
+          )
+          if observed != expected:
+              raise SystemExit(
+                  f'B9 final file set mismatch: observed={sorted(observed)}; '
+                  f'expected={sorted(expected)}'
+              )
+          print('B9 final source-only file set verified')
+          PY
+
+      - name: Commit and push final clean head
+        id: clean
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          if ! git diff --cached --quiet; then
+            git commit -m 'chore(htr-010b9): finalize full-suite validated source tree'
+          fi
+          git fetch origin feature/htr-010b9-governed-adaptive-publication-bridge
+          git rebase origin/feature/htr-010b9-governed-adaptive-publication-bridge
+          git push origin HEAD:feature/htr-010b9-governed-adaptive-publication-bridge
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for normal repository checks on final head
+        id: checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLEAN_SHA: ${{ steps.clean.outputs.sha }}
+        run: |
+          for attempt in $(seq 1 120); do
+            payload=$(gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${CLEAN_SHA}&per_page=100")
+            lint=$(echo "$payload" | jq -c \
+              '[.workflow_runs[] | select(.name == "Lint")][0] // {}')
+            ci=$(echo "$payload" | jq -c \
+              '[.workflow_runs[] | select(.name == "CI")][0] // {}')
+            lint_status=$(echo "$lint" | jq -r '.status // "missing"')
+            lint_conclusion=$(echo "$lint" | jq -r '.conclusion // "pending"')
+            ci_status=$(echo "$ci" | jq -r '.status // "missing"')
+            ci_conclusion=$(echo "$ci" | jq -r '.conclusion // "pending"')
+            echo "attempt=${attempt}: lint=${lint_status}/${lint_conclusion}; ci=${ci_status}/${ci_conclusion}"
+            if [ "$lint_status" = completed ] && [ "$ci_status" = completed ]; then
+              lint_id=$(echo "$lint" | jq -r '.id')
+              ci_id=$(echo "$ci" | jq -r '.id')
+              if [ "$lint_conclusion" != success ] || [ "$ci_conclusion" != success ]; then
+                gh pr comment 57 --body "Final HTR-010B9 repository checks failed at \`${CLEAN_SHA}\`: Lint \`${lint_conclusion}\` (run ${lint_id}); CI \`${ci_conclusion}\` (run ${ci_id})."
+                exit 1
+              fi
+              echo "lint_id=$lint_id" >> "$GITHUB_OUTPUT"
+              echo "ci_id=$ci_id" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 30
+          done
+          gh pr comment 57 --body "Final HTR-010B9 repository checks timed out at \`${CLEAN_SHA}\`."
+          exit 1
+
+      - name: Publish immutable validation tag and PR record
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLEAN_SHA: ${{ steps.clean.outputs.sha }}
+          LINT_ID: ${{ steps.checks.outputs.lint_id }}
+          CI_ID: ${{ steps.checks.outputs.ci_id }}
+        run: |
+          TAG=htr-010b9-validated-source-final
+          existing=$(git ls-remote --tags origin "refs/tags/${TAG}" | awk '{print $1}')
+          if [ -n "$existing" ] && [ "$existing" != "$CLEAN_SHA" ]; then
+            gh pr comment 57 --body "Refusing to move existing immutable B9 validation tag \`${TAG}\` from \`${existing}\` to \`${CLEAN_SHA}\`."
+            exit 1
+          fi
+          if [ -z "$existing" ]; then
+            git tag "$TAG" "$CLEAN_SHA"
+            git push origin "refs/tags/${TAG}"
+          fi
+          gh pr comment 57 --body "Final HTR-010B9 source validation passed. Full repository pytest, Ruff, formatting, strict MyPy, CLI registration, exact 12-file source-only diff, normal Lint run \`${LINT_ID}\`, and normal CI run \`${CI_ID}\` all passed at \`${CLEAN_SHA}\`. Immutable validation tag: \`${TAG}\`. Signed real-data acceptance is the only remaining boundary; PR #57 remains draft."
