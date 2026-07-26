@@ -1,0 +1,7 @@
+stage_id,invocation_count,duplicate_invocation,semantically_applicable,result,output_recorded
+institutional_candidate_construction,1,false,true,AVAILABLE,true
+institutional_base_decision,1,false,true,REJECT,true
+institutional_stress,1,false,false,NOT_APPLICABLE_BASE_REJECTED,true
+institutional_trade_plan_optimizer,1,false,false,NOT_APPLICABLE_UPSTREAM_REJECTED,true
+terminal_institutional_decision,1,false,true,REJECT,true
+portfolio_allocation,1,false,true,SKIP,true

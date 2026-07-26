@@ -1,0 +1,39 @@
+{
+  "b2_certificate_sha256": "1ff592dfd26b6ff7f6c6d86a09eedd7a8b6c388c5617ee3e0897e90ebd27002d",
+  "blockers": [],
+  "candidate_identity": "RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda",
+  "contract_version": "DSI-002C2-v1.0.0",
+  "deterministic_replay_verified": true,
+  "governance_flags": {
+    "ACTIVE_REPLAY_INTEGRATION": false,
+    "APPROVAL_POLICY_CHANGE_PERMITTED": false,
+    "CAUSAL_CLAIM_PERMITTED": false,
+    "COUNTERFACTUAL_APPROVAL_CLAIMED": false,
+    "COUNTERFACTUAL_GATE_OVERRIDE_ENABLED": false,
+    "DEFAULT_RUNTIME_BEHAVIOUR_CHANGED": false,
+    "ECONOMIC_SUPERIORITY_CLAIMED": false,
+    "EXECUTION_INFLUENCE": false,
+    "EXECUTION_POLICY_CHANGE_PERMITTED": false,
+    "GATE_ORDER_CHANGE_PERMITTED": false,
+    "LEARNING_MUTATION_ENABLED": false,
+    "LIVE_SCORING_ENABLED": false,
+    "PORTFOLIO_POLICY_CHANGE_PERMITTED": false,
+    "PORTFOLIO_POLICY_INFLUENCE": false,
+    "PRODUCTION_INFLUENCE": false,
+    "RECOMMENDATION_INFLUENCE": false,
+    "SYNTHETIC_APPROVALS_PERMITTED": false,
+    "SYNTHETIC_OUTCOMES_PERMITTED": false,
+    "SYNTHETIC_RECOMMENDATIONS_PERMITTED": false,
+    "SYNTHETIC_TRADES_PERMITTED": false,
+    "THRESHOLD_CHANGE_PERMITTED": false
+  },
+  "output_sha256": "0c211e32eb6879bfb8a694675226b4fd63520040f7eabc165cf7833dc7f5e2d1",
+  "readiness_decision": "READY_FOR_COMPLETE_STACK_STAGE_ATTRIBUTION",
+  "report_sha256": "788e452cce5a492a7b039530f9a4be8727656cef8b3a645a30d8fe9aa140cc03",
+  "snapshot_sha256": "014ed356f0b8546ea696aa096c52b014354bbe676e3685dc326597b854392db2",
+  "source_commit": "315cd395f91f5c02ceff9a3df6ef0c3510316abb",
+  "support_artifact_manifest": {
+    "dsi002c2_complete_stack_baseline.json": "54bd9859af7b0213317bc038918fdeb647fcb3d8474a853781ddf4799226cc1a",
+    "dsi002c2_old_new_baseline_comparison.csv": "f3c51ed595ffb55dca6b66c56afb6490b54f1cc3f6736c0829c835e29d823970"
+  }
+}
