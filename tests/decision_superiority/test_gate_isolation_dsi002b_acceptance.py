@@ -10,11 +10,11 @@ from alpha.decision_superiority.gate_isolation_dsi002a_acceptance import (
 from alpha.decision_superiority.gate_isolation_dsi002b_acceptance import (
     run_dsi002b_acceptance,
 )
-from alpha.decision_superiority.gate_isolation_frozen_policy_replay import (
-    FrozenReplayReadiness,
-)
 from alpha.decision_superiority.gate_isolation_frozen_inputs import (
     FrozenInputSection,
+)
+from alpha.decision_superiority.gate_isolation_frozen_policy_replay import (
+    FrozenReplayReadiness,
 )
 
 
