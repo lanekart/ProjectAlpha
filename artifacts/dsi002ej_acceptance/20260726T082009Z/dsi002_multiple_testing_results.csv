@@ -1,0 +1,2 @@
+hypothesis_family,hypothesis_count,hypothesis_id,raw_p_value,bh_adjusted_p_value,holm_adjusted_p_value,test_state,inferential_claim_permitted
+NONE_VALID,0,NONE,UNKNOWN,UNKNOWN,UNKNOWN,INSUFFICIENT_INDEPENDENT_SAMPLE,false

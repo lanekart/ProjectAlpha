@@ -1,0 +1,176 @@
+{
+  "baseline_identity": "RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda",
+  "blockers": [],
+  "captured_population_identity": "RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda",
+  "contract_version": "DSI-002J-v1.0.0",
+  "evaluator_inventory_sha256": "27fd2e677b02b96b0646dc8b10a0ee29e13f8106b51b57992070feb22652f07b",
+  "executive_report_sha256": "fd5b664660d8537df2fdea56b0786431c24fd8c3d33c7bee57b78025f0a47bfb",
+  "governance_flags": {
+    "ACTIVE_REPLAY_INTEGRATION": false,
+    "APPROVAL_POLICY_CHANGE_PERMITTED": false,
+    "AUTOMATIC_POLICY_RECOMMENDATION_ENABLED": false,
+    "CAUSAL_CLAIM_PERMITTED": false,
+    "COUNTERFACTUAL_APPROVAL_CLAIMED": false,
+    "COUNTERFACTUAL_PRODUCTION_MUTATION_ENABLED": false,
+    "DEFAULT_RUNTIME_BEHAVIOUR_CHANGED": false,
+    "ECONOMIC_SUPERIORITY_CLAIMED": false,
+    "EXECUTION_INFLUENCE": false,
+    "EXECUTION_POLICY_CHANGE_PERMITTED": false,
+    "GATE_ORDER_CHANGE_PERMITTED": false,
+    "LEARNING_MUTATION_ENABLED": false,
+    "LIVE_SCORING_ENABLED": false,
+    "PORTFOLIO_POLICY_CHANGE_PERMITTED": false,
+    "PORTFOLIO_POLICY_INFLUENCE": false,
+    "PRODUCTION_INFLUENCE": false,
+    "RECOMMENDATION_INFLUENCE": false,
+    "SYNTHETIC_APPROVALS_PERMITTED": false,
+    "SYNTHETIC_OUTCOMES_PERMITTED": false,
+    "SYNTHETIC_RECOMMENDATIONS_PERMITTED": false,
+    "SYNTHETIC_TRADES_PERMITTED": false,
+    "THRESHOLD_CHANGE_PERMITTED": false
+  },
+  "implementation_defect_count": 0,
+  "original_and_renewed_source_chain": [
+    {
+      "boundary": "D1",
+      "certificate_sha256": "9f77ab011b1151d7f7e5a3227dca7ccc464cc9d6685be469a62fba15dad0fe8d",
+      "contract_version": "DSI-002D1-v1.0.0",
+      "readiness": "READY_FOR_COMPLETE_STACK_BASELINE_RENEWAL",
+      "report_sha256": "0f73bee7f0855f0818aecdedcff40b7e969efd08e6b8f2f3c8eef5a5883d4f1a",
+      "source_commit": "315cd395f91f5c02ceff9a3df6ef0c3510316abb"
+    },
+    {
+      "boundary": "B2",
+      "certificate_sha256": "1ff592dfd26b6ff7f6c6d86a09eedd7a8b6c388c5617ee3e0897e90ebd27002d",
+      "contract_version": "DSI-002B2-v1.0.0",
+      "readiness": "READY_FOR_COMPLETE_STACK_RECORDED_BASELINE",
+      "report_sha256": "02a0be123328cbf9330a5a9b8405748a2865e875ff5bf4e46344375ec64eb32a",
+      "source_commit": "315cd395f91f5c02ceff9a3df6ef0c3510316abb"
+    },
+    {
+      "boundary": "C2",
+      "certificate_sha256": "4ae21dc7ced023a25652043e2681e244eef1320816d3d755d81d220a76dfe8f6",
+      "contract_version": "DSI-002C2-v1.0.0",
+      "readiness": "READY_FOR_COMPLETE_STACK_STAGE_ATTRIBUTION",
+      "report_sha256": "788e452cce5a492a7b039530f9a4be8727656cef8b3a645a30d8fe9aa140cc03",
+      "source_commit": "315cd395f91f5c02ceff9a3df6ef0c3510316abb"
+    },
+    {
+      "boundary": "D2",
+      "certificate_sha256": "17dbd547f3ee46db01e203cca07126fe5472225bda893a8d6c28fc72855b07c2",
+      "contract_version": "DSI-002D2-v1.0.0",
+      "readiness": "READY_FOR_GOVERNED_STAGE_ATTRIBUTION_RESEARCH",
+      "report_sha256": "945b696dba091a6dbfb52094860053fd9025b9afe87b2ce89accba25c5127e5f",
+      "source_commit": "315cd395f91f5c02ceff9a3df6ef0c3510316abb"
+    }
+  ],
+  "point_in_time_leakage_count": 0,
+  "population_reconciliation_defect_count": 0,
+  "population_reconciliation_sha256": "36e011f55acdf84f07b5c37482e2ba6a8abc33794242c3a6adac9e4fc50f60a4",
+  "readiness_decision": "READY_WITH_VALID_MECHANICS_AND_NO_COMPARABLE_OUTCOMES",
+  "report_sha256": "424067b3727da85c02f34cc0cfee3cd50cf26f23f9ae8fcc57dc910317d1752c",
+  "slice_certificate_sha256": {
+    "dsi002e_single_gate_shadow_certificate.json": "58babd9c84ffb90d43421acd7864c2a41eb4cf915728abc42e4cb75ed96acb42",
+    "dsi002f_remediation_search_certificate.json": "b4431034d3c1dee70962a405719a9771c129eec4051676fcf59d382bcc6ed4e5",
+    "dsi002g_downstream_shadow_certificate.json": "761ee2f3e49485997040bdb8b5ac2d0e90ca7da762a22150e998ef8463280613",
+    "dsi002h_gate_value_certificate.json": "5e337e41fd46bb9a4662abb7220e3aa4688482285d11c2faf64c3d936cfa4ecc",
+    "dsi002i_interpretation_certificate.json": "cd387d6b8b70653200e536f67b6df7e3aec50b1058b9ea720d19e995c3c194ad"
+  },
+  "slice_readiness": {
+    "E": "READY_WITH_PARTIAL_OVERRIDE_ELIGIBILITY",
+    "F": "READY_WITH_PARTIAL_REMEDIATION_POPULATION",
+    "G": "READY_WITH_ZERO_APPROVAL_POPULATION",
+    "H": "READY_WITH_NO_COMPARABLE_COMPLETED_OUTCOMES",
+    "I": "READY_WITH_DESCRIPTIVE_INTERPRETATION_ONLY"
+  },
+  "snapshot_sha256": "014ed356f0b8546ea696aa096c52b014354bbe676e3685dc326597b854392db2",
+  "source_commit": "d8a668383961c1876dc927be29cdfa6d8a326218",
+  "source_contract_sha256": "5335523bd9bd129b4e9386bff01df8d1047bc2aa33ae93837a37be050add298b",
+  "summaries": {
+    "E": {
+      "arms_reaching_approval": 0,
+      "arms_still_rejected": 7,
+      "eligible_gate_count": 7,
+      "ineligible_gate_count": 3,
+      "observed_failed_gate_count": 10,
+      "pre_intervention_drift_count": 0,
+      "semantic_defect_count": 0,
+      "single_gate_arm_count": 7
+    },
+    "F": {
+      "inclusion_minimal_set_count": 0,
+      "minimality_defect_count": 0,
+      "minimum_cardinality_set_count": 0,
+      "search_exhaustion_count": 0,
+      "searched_candidate_count": 1,
+      "sufficient_set_count": 0,
+      "tested_subset_count": 128
+    },
+    "G": {
+      "allocation_eligible_count": 0,
+      "approval_count": 0,
+      "entry_ready_count": 0,
+      "portfolio_eligible_count": 0,
+      "trade_formed_count": 0,
+      "unexplained_transition_count": 0
+    },
+    "H": {
+      "avoided_loss_benefit_pct": "UNKNOWN",
+      "benchmark_unknown_count": 7,
+      "comparable_outcome_count": 0,
+      "losses": "UNKNOWN",
+      "net_gate_value_pct": "UNKNOWN",
+      "opportunity_cost_pct": "UNKNOWN",
+      "wins": "UNKNOWN"
+    },
+    "I": {
+      "analysis_unit": "candidate",
+      "dependence_state": "SAME_CANDIDATE_REUSED_ACROSS_ARMS",
+      "hypothesis_family_count": 0,
+      "raw_arm_row_count": 135,
+      "robustness_grade": "DESCRIPTIVE_ONLY",
+      "unique_candidate_count": 1,
+      "unique_outcome_count": 0
+    },
+    "J": {
+      "artifact_row_group_count": 22,
+      "candidate_count": 1,
+      "final_readiness": "READY_WITH_VALID_MECHANICS_AND_NO_COMPARABLE_OUTCOMES",
+      "implementation_defect_count": 0,
+      "point_in_time_leakage_count": 0,
+      "reconciliation_defect_count": 0,
+      "unexplained_divergence_count": 0
+    }
+  },
+  "support_artifact_manifest": {
+    "dsi002_allocation_portfolio_entry_trade_transitions.csv": "dcf6b258d18ae2eaadcb96001c6524f75b53ebdb19b4dd6ae385763afd77a209",
+    "dsi002_candidate_rejection_attribution.csv": "676f82c001e47e1268a1f1a35e7b6a9ff9293ef748e33766b3f45dc9ef9e702c",
+    "dsi002_candidate_stage_event_ledger.csv": "dc1fad553eb721c30c1bae03bda639c0661662aa8409a31ce11c3cc22d068d9a",
+    "dsi002_downstream_approval_transitions.csv": "377fe94b4f0a2a9ef7e53d02b141bde94d02896950c200b05fe303353436768b",
+    "dsi002_executive_report.md": "fd5b664660d8537df2fdea56b0786431c24fd8c3d33c7bee57b78025f0a47bfb",
+    "dsi002_gate_economic_value.csv": "55e052b488576136147082abb0a322188d2aecd4b4231d59b22a7945eaff155f",
+    "dsi002_gate_overlap_and_dependence.csv": "262fdfb19775fef8fcb9dff9619ba1972fc12219f09e508b32c3345d8314e563",
+    "dsi002_inclusion_minimal_remediation_sets.csv": "da456163cf56452c74ab4d57ab449c69fbb6eb5b5256c8d271e3dfe423b4ed1a",
+    "dsi002_minimum_cardinality_remediation_sets.csv": "da456163cf56452c74ab4d57ab449c69fbb6eb5b5256c8d271e3dfe423b4ed1a",
+    "dsi002_multiple_testing_results.csv": "166543e08a1b10ad80ed11f717862dc4f4450d17b4cd357f42ac4ebb5f56a786",
+    "dsi002_non_vacuity_probe_ledger.csv": "7c11e0ff3bdb97ca178b6e5eb9a0c3cb7d67c4346b9b127c1067d438bfc8d028",
+    "dsi002_outcome_comparability_ledger.csv": "6f3f2ad42b26ca3d1acfec0cdcfbe065605b5587afb16206801008087eb9122a",
+    "dsi002_population_reconciliation.csv": "36e011f55acdf84f07b5c37482e2ba6a8abc33794242c3a6adac9e4fc50f60a4",
+    "dsi002_raw_adjusted_comparison.csv": "44a4fa851ec91ed88350f97789953475e81ffa529feb52bc700f184cbfb95dc7",
+    "dsi002_remediation_search_ledger.csv": "8c9d5595f6800390f9f7c8ea61c89d86f2ae1b001e2ba98b537b0ae2b9828229",
+    "dsi002_remediation_set_economic_value.csv": "157d315ef44ef389cd157ffd91e6589a1e7149db03d53221a6c52b4fe26dd41d",
+    "dsi002_robustness_sensitivity.csv": "3c66cd341a36d0daa475b13a033022aecdfa23f382dcc4c45db5130f8a30be4e",
+    "dsi002_single_gate_override_eligibility.csv": "e26b1049b2132d72a15a31fefe93c0b3377903efeaa121a08cede83ae2a00dd4",
+    "dsi002_single_gate_shadow_arms.csv": "3a4c2917d2f2f9d35994c27159aac521270af4b9c7cfaad528a1fc529ccb41a0",
+    "dsi002_single_gate_transition_ledger.csv": "e6304ec60c73f314e8b0f864bf983e0b6c7a35e7a26abcb12c8650a35285f87e",
+    "dsi002_source_contract_snapshot.csv": "5335523bd9bd129b4e9386bff01df8d1047bc2aa33ae93837a37be050add298b",
+    "dsi002_stage_inventory.csv": "27fd2e677b02b96b0646dc8b10a0ee29e13f8106b51b57992070feb22652f07b",
+    "dsi002_uncertainty_intervals.csv": "b660f72e87b8e4729eacb1fa7c3b09e0cf4ec65986d43cade31b94f551ed2d07",
+    "dsi002e_single_gate_shadow_certificate.json": "58babd9c84ffb90d43421acd7864c2a41eb4cf915728abc42e4cb75ed96acb42",
+    "dsi002f_remediation_search_certificate.json": "b4431034d3c1dee70962a405719a9771c129eec4051676fcf59d382bcc6ed4e5",
+    "dsi002g_downstream_shadow_certificate.json": "761ee2f3e49485997040bdb8b5ac2d0e90ca7da762a22150e998ef8463280613",
+    "dsi002h_gate_value_certificate.json": "5e337e41fd46bb9a4662abb7220e3aa4688482285d11c2faf64c3d936cfa4ecc",
+    "dsi002i_interpretation_certificate.json": "cd387d6b8b70653200e536f67b6df7e3aec50b1058b9ea720d19e995c3c194ad"
+  },
+  "unexplained_divergence_count": 0
+}

@@ -1,0 +1,3 @@
+metric,analysis_unit,sample_count,success_count,estimate,interval_method,lower,upper,confidence_grade
+institutional_approval_rate,candidate,1,0,0,WILSON_95,0.000000,0.793451,INSUFFICIENT_SAMPLE
+realized_return,unique_observed_outcome,0,UNKNOWN,UNKNOWN,DETERMINISTIC_BOOTSTRAP,UNKNOWN,UNKNOWN,NO_RELIABLE_GATE_VALUE_CONCLUSION
