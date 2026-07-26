@@ -59,33 +59,36 @@ def export_pre2016_external_validation(
     """Write and hash-bind the complete deterministic DSI-010 package."""
 
     output.mkdir(parents=True, exist_ok=True)
-    support: list[Path] = []
-    for key, filename in DSI010_ARTIFACTS.items():
-        support.append(_write_csv(output / filename, result.rows[key]))
+    support = [
+        _write_csv(output / filename, result.rows[key])
+        for key, filename in DSI010_ARTIFACTS.items()
+    ]
     report = _write_text(output / DSI010_REPORT, _executive_report(result))
     support.append(report)
     manifest = {
-        path.name: _sha256(path) for path in sorted(support, key=lambda item: item.name)
+        path.name: _sha256(path)
+        for path in sorted(support, key=lambda item: item.name)
     }
+    summary = result.summaries
     payload: dict[str, Any] = {
         "contract_version": DSI010_CONTRACT_VERSION,
         "research_scope": DSI010_RESEARCH_SCOPE,
         "source_commit": result.source_commit,
-        "protocol": result.summaries["protocol"],
-        "source_coverage": result.summaries["source_coverage"],
-        "frozen_mapping": result.summaries["frozen_mapping"],
-        "test_a_incumbent": result.summaries["test_a_incumbent"],
-        "test_a_challenger": result.summaries["test_a_challenger"],
-        "benchmark": result.summaries["benchmark"],
-        "test_b_regime_aware": result.summaries["test_b_regime_aware"],
-        "test_b_fixed": result.summaries["test_b_fixed"],
-        "test_b_momentum": result.summaries["test_b_momentum"],
-        "test_b_trend": result.summaries["test_b_trend"],
-        "external_validation_classification": result.summaries[
+        "protocol": summary["protocol"],
+        "source_coverage": summary["source_coverage"],
+        "frozen_mapping": summary["frozen_mapping"],
+        "test_a_incumbent": summary["test_a_incumbent"],
+        "test_a_challenger": summary["test_a_challenger"],
+        "benchmark": summary["benchmark"],
+        "test_b_regime_aware": summary["test_b_regime_aware"],
+        "test_b_fixed": summary["test_b_fixed"],
+        "test_b_momentum": summary["test_b_momentum"],
+        "test_b_trend": summary["test_b_trend"],
+        "external_validation_classification": summary[
             "external_validation_classification"
         ],
-        "forward_paper_eligible": result.summaries["forward_paper_eligible"],
-        "automatic_promotion_count": result.summaries["automatic_promotion_count"],
+        "forward_paper_eligible": summary["forward_paper_eligible"],
+        "automatic_promotion_count": summary["automatic_promotion_count"],
         "readiness_by_slice": dict(result.readiness),
         "readiness_decision": result.readiness["I"],
         "blockers": list(result.blockers),
@@ -113,7 +116,9 @@ def validate_pre2016_external_validation_certificate(
     if payload.get("governance_flags") != governance_flags():
         raise Pre2016ExternalValidationError("DSI010_GOVERNANCE_FLAGS_INVALID")
     if payload.get("report_sha256") != _canonical_payload_sha256(payload):
-        raise Pre2016ExternalValidationError("DSI010_CERTIFICATE_PAYLOAD_TAMPERED")
+        raise Pre2016ExternalValidationError(
+            "DSI010_CERTIFICATE_PAYLOAD_TAMPERED"
+        )
     manifest = payload.get("support_artifact_manifest")
     expected = frozenset((*DSI010_ARTIFACTS.values(), DSI010_REPORT))
     if not isinstance(manifest, dict) or frozenset(manifest) != expected:
@@ -124,20 +129,29 @@ def validate_pre2016_external_validation_certificate(
         if not path.is_relative_to(root) or not path.is_file():
             raise Pre2016ExternalValidationError("DSI010_SUPPORT_PATH_UNSAFE")
         if _sha256(path) != str(digest):
-            raise Pre2016ExternalValidationError(f"DSI010_ARTIFACT_TAMPERED:{name}")
+            raise Pre2016ExternalValidationError(
+                f"DSI010_ARTIFACT_TAMPERED:{name}"
+            )
         raw = path.read_bytes()
         if b"/Users/" in raw or b"C:\\Users\\" in raw:
             raise Pre2016ExternalValidationError(
                 f"DSI010_MACHINE_LOCAL_PATH_LEAK:{name}"
             )
-    if payload.get("executive_report_sha256") != _sha256(root / DSI010_REPORT):
+    report = root / DSI010_REPORT
+    if payload.get("executive_report_sha256") != _sha256(report):
         raise Pre2016ExternalValidationError("DSI010_REPORT_HASH_MISMATCH")
     if payload.get("automatic_promotion_count") != 0:
         raise Pre2016ExternalValidationError("DSI010_AUTOMATIC_PROMOTION")
+    valid_promotions = {
+        "EXTERNAL_VALIDATION_PASSED",
+        "CHALLENGER_BEATS_BENCHMARK",
+    }
     if payload.get("forward_paper_eligible") and payload.get(
         "external_validation_classification"
-    ) not in {"EXTERNAL_VALIDATION_PASSED", "CHALLENGER_BEATS_BENCHMARK"}:
-        raise Pre2016ExternalValidationError("DSI010_UNSUPPORTED_FORWARD_ELIGIBILITY")
+    ) not in valid_promotions:
+        raise Pre2016ExternalValidationError(
+            "DSI010_UNSUPPORTED_FORWARD_ELIGIBILITY"
+        )
     readiness = str(payload.get("readiness_decision") or "")
     if require_ready and not readiness.startswith("READY_"):
         raise Pre2016ExternalValidationError(f"DSI010_NOT_READY:{readiness}")
@@ -150,6 +164,14 @@ def _executive_report(result: Pre2016ExternalValidationResult) -> str:
     challenger = summary["test_a_challenger"]
     benchmark = summary["benchmark"]
     test_b = summary["test_b_regime_aware"]
+    incumbent_delta = _difference(
+        challenger.get("net_cagr"),
+        incumbent.get("net_cagr"),
+    )
+    benchmark_delta = _difference(
+        challenger.get("net_cagr"),
+        benchmark.get("net_cagr"),
+    )
     lines = [
         "# DSI-010 Governed 2005-2015 External-Era Validation",
         "",
@@ -172,16 +194,16 @@ def _executive_report(result: Pre2016ExternalValidationResult) -> str:
         f"- Incumbent net CAGR: {_percent(incumbent.get('net_cagr'))}",
         f"- Challenger net CAGR: {_percent(challenger.get('net_cagr'))}",
         f"- Benchmark CAGR: {_percent(benchmark.get('net_cagr'))}",
+        f"- Challenger minus incumbent CAGR: {_percent(incumbent_delta)}",
+        f"- Challenger minus benchmark CAGR: {_percent(benchmark_delta)}",
         (
-            "- Challenger minus incumbent CAGR: "
-            f"{_percent(_difference(challenger.get('net_cagr'), incumbent.get('net_cagr')))}"
+            "- Incumbent drawdown: "
+            f"{_percent(incumbent.get('maximum_drawdown'))}"
         ),
         (
-            "- Challenger minus benchmark CAGR: "
-            f"{_percent(_difference(challenger.get('net_cagr'), benchmark.get('net_cagr')))}"
+            "- Challenger drawdown: "
+            f"{_percent(challenger.get('maximum_drawdown'))}"
         ),
-        f"- Incumbent drawdown: {_percent(incumbent.get('maximum_drawdown'))}",
-        f"- Challenger drawdown: {_percent(challenger.get('maximum_drawdown'))}",
         f"- Incumbent trades: {incumbent.get('trade_count', 0)}",
         f"- Challenger trades: {challenger.get('trade_count', 0)}",
         f"- Challenger win rate: {_percent(challenger.get('win_rate'))}",
@@ -190,7 +212,10 @@ def _executive_report(result: Pre2016ExternalValidationResult) -> str:
         "## Independent Test B",
         "",
         f"- Regime-aware net CAGR: {_percent(test_b.get('net_cagr'))}",
-        f"- Regime-aware drawdown: {_percent(test_b.get('maximum_drawdown'))}",
+        (
+            "- Regime-aware drawdown: "
+            f"{_percent(test_b.get('maximum_drawdown'))}"
+        ),
         f"- Regime-aware trades: {test_b.get('trade_count', 0)}",
         "",
         "## Slice Readiness",
@@ -202,10 +227,12 @@ def _executive_report(result: Pre2016ExternalValidationResult) -> str:
         "",
         "## Interpretation Boundary",
         "",
-        "The 2005-2015 period was not used to tune STOP-STRUCTURAL-10D. "
-        "Test A transports a frozen mapping and changes only the stop. Test B "
-        "is a separate walk-forward replication. Neither result activates a live "
-        "or production mechanism.",
+        (
+            "The 2005-2015 period was not used to tune STOP-STRUCTURAL-10D. "
+            "Test A transports a frozen mapping and changes only the stop. "
+            "Test B is a separate walk-forward replication. Neither result "
+            "activates a live or production mechanism."
+        ),
     ]
     if result.blockers:
         lines.extend(["", "## Remaining Limitations", ""])
@@ -217,7 +244,11 @@ def _write_csv(path: Path, rows: Sequence[Mapping[str, Any]]) -> Path:
     materialized = [dict(row) for row in rows]
     headers = _headers(materialized)
     stream = StringIO(newline="")
-    writer = csv.DictWriter(stream, fieldnames=headers, extrasaction="raise")
+    writer = csv.DictWriter(
+        stream,
+        fieldnames=headers,
+        extrasaction="raise",
+    )
     writer.writeheader()
     for row in materialized:
         writer.writerow({key: _csv_value(row.get(key)) for key in headers})
@@ -242,7 +273,11 @@ def _csv_value(value: Any) -> Any:
     if isinstance(value, bool):
         return str(value).lower()
     if isinstance(value, (dict, list, tuple, set)):
-        return json.dumps(_jsonable(value), sort_keys=True, separators=(",", ":"))
+        return json.dumps(
+            _jsonable(value),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
     return value
 
 
@@ -277,7 +312,11 @@ def _read_json(path: Path) -> dict[str, Any]:
 def _canonical_payload_sha256(payload: Mapping[str, Any]) -> str:
     canonical = dict(payload)
     canonical.pop("report_sha256", None)
-    raw = json.dumps(_jsonable(canonical), sort_keys=True, separators=(",", ":"))
+    raw = json.dumps(
+        _jsonable(canonical),
+        sort_keys=True,
+        separators=(",", ":"),
+    )
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -289,7 +328,10 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, Enum):
         return value.value
     if isinstance(value, Mapping):
-        return {str(key): _jsonable(item) for key, item in sorted(value.items())}
+        return {
+            str(key): _jsonable(item)
+            for key, item in sorted(value.items())
+        }
     if isinstance(value, (list, tuple, set)):
         return [_jsonable(item) for item in value]
     if hasattr(value, "item"):
@@ -306,9 +348,9 @@ def _sha256(path: Path) -> str:
 
 
 def _difference(left: object, right: object) -> float | None:
+    if left is None or right is None:
+        return None
     try:
-        if left is None or right is None:
-            return None
         return float(left) - float(right)
     except (TypeError, ValueError):
         return None
