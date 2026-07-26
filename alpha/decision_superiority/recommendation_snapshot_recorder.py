@@ -212,6 +212,7 @@ def replay_snapshot_package(path: Path) -> SnapshotRoundTripResult:
     """Re-execute a prospective package without mutable application state."""
 
     from alpha.application.intelligence import IntelligenceApplicationService
+    from alpha.decision_intelligence import InstitutionalDecisionEngine
 
     payload = validate_snapshot_package(path)
     inputs = _decode_dataclass(payload["input_snapshot"], IntelligenceInputSet)
@@ -226,10 +227,19 @@ def replay_snapshot_package(path: Path) -> SnapshotRoundTripResult:
     ):
         raise ReplayRetentionError("RECOMMENDATION_ROUND_TRIP_TYPE_INVALID")
     observed_on = date.fromisoformat(str(payload["observed_on"]))
+    complete_stack = _required_mapping(payload, "complete_stack")
+    expected_institutional = complete_stack.get("institutional_evaluation")
+    institutional_enabled = expected_institutional is not None
     rerun = IntelligenceApplicationService(
-        input_provider=_FixedInputProvider(inputs)
+        input_provider=_FixedInputProvider(inputs),
+        institutional_engine=(
+            InstitutionalDecisionEngine() if institutional_enabled else None
+        ),
+        governed_institutional_evaluation_enabled=institutional_enabled,
     ).run(observed_on=observed_on)
-    input_parity = canonical_json(inputs) == canonical_json(payload["input_snapshot"])
+    input_parity = canonical_json(inputs) == canonical_json(
+        _normalize_midnight_dates(payload["input_snapshot"])
+    )
     recommendation_parity = canonical_json(rerun.recommendations) == canonical_json(
         expected_recommendations
     )
@@ -243,14 +253,17 @@ def replay_snapshot_package(path: Path) -> SnapshotRoundTripResult:
     actual_plan_ids = tuple(
         stable_sha256(item.trade_plan) for item in rerun.recommendations
     )
-    complete_stack = _required_mapping(payload, "complete_stack")
     return SnapshotRoundTripResult(
         capture_id=str(payload["capture_id"]),
         input_parity=input_parity,
         recommendation_parity=recommendation_parity,
         fingerprint_parity=actual_fingerprints == expected_fingerprints,
-        complete_stack_parity=canonical_json(rerun.allocation_plan)
-        == canonical_json(complete_stack.get("allocation_plan")),
+        complete_stack_parity=(
+            canonical_json(rerun.allocation_plan)
+            == canonical_json(complete_stack.get("allocation_plan"))
+            and canonical_json(rerun.institutional_evaluation)
+            == canonical_json(expected_institutional)
+        ),
         plan_identity_parity=actual_plan_ids == expected_plan_ids,
         tamper_validation_passed=True,
     )
@@ -385,7 +398,7 @@ def _decode_dataclass(value: object, target: Any) -> object:
     if target is Decimal:
         return Decimal(str(value))
     if target is date:
-        return date.fromisoformat(str(value))
+        return date.fromisoformat(str(value).split("T", maxsplit=1)[0])
     if isinstance(target, type) and issubclass(target, Enum):
         return target(value)
     if isinstance(target, type) and is_dataclass(target):
@@ -403,6 +416,22 @@ def _decode_dataclass(value: object, target: Any) -> object:
 
 def _payload(value: object) -> Any:
     return json.loads(canonical_json(value))
+
+
+def _normalize_midnight_dates(value: object) -> object:
+    if isinstance(value, dict):
+        return {
+            key: _normalize_midnight_dates(item) for key, item in sorted(value.items())
+        }
+    if isinstance(value, list):
+        return [_normalize_midnight_dates(item) for item in value]
+    if isinstance(value, str) and value.endswith("T00:00:00"):
+        candidate = value.removesuffix("T00:00:00")
+        try:
+            return date.fromisoformat(candidate).isoformat()
+        except ValueError:
+            return value
+    return value
 
 
 def _assert_no_secrets(value: object, path: str = "") -> None:

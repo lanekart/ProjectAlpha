@@ -1,0 +1,126 @@
+{
+  "activation_summary": {
+    "default_snapshot_capture_enabled": false,
+    "production_snapshot_writes_enabled": false
+  },
+  "append_only_repository_summary": {
+    "capture_conflict_count": 0,
+    "event_reused_count": 0,
+    "index_reconciled": true
+  },
+  "blockers": [
+    "OUTCOME_POPULATION_NOT_MATURE"
+  ],
+  "capture_session_summary": {
+    "capture_session_count": 1,
+    "failed_session_count": 0,
+    "recommendation_count": 10,
+    "unavailable_session_count": 0,
+    "zero_recommendation_session_count": 0
+  },
+  "contract_version": "DSI-006-v1.0.0",
+  "default_runtime_invariance": true,
+  "dsi005_certificate_hashes": {
+    "activation_contract_sha256": "1d55ba7b33cb009e943d74676bb9c65fb044e2f71bc271003ff9f27d288fbd22",
+    "certificate_file_sha256": "c03b754013b719296b92179669901777c0b6cc68ed205266384f13bbd248c613",
+    "report_sha256": "34e6f7a6757f2bada4d41e2c36ba25807ff3d99b3c05e0f547995db618e1e22e"
+  },
+  "executive_report_sha256": "c43f7fc0b72addb1e7b055ce4358480bd5f1f4ee9a27dc0c0eae1a05d5345b61",
+  "governance_flags": {
+    "ACTIVE_REPLAY_INTEGRATION": false,
+    "APPROVAL_POLICY_CHANGE_PERMITTED": false,
+    "AUTOMATIC_POLICY_RECOMMENDATION_ENABLED": false,
+    "CAUSAL_CLAIM_PERMITTED": false,
+    "DEFAULT_RUNTIME_BEHAVIOUR_CHANGED": false,
+    "DEFAULT_SNAPSHOT_CAPTURE_ENABLED": false,
+    "ECONOMIC_SUPERIORITY_CLAIMED": false,
+    "EXECUTION_INFLUENCE": false,
+    "EXECUTION_POLICY_CHANGE_PERMITTED": false,
+    "GATE_ORDER_CHANGE_PERMITTED": false,
+    "HISTORICAL_BACKFILL_PERMITTED": false,
+    "HISTORICAL_OBJECT_FABRICATION_PERMITTED": false,
+    "LEARNING_MUTATION_ENABLED": false,
+    "LIVE_SCORING_ENABLED": false,
+    "OUTCOME_HISTORY_MUTATION_ENABLED": false,
+    "PORTFOLIO_POLICY_CHANGE_PERMITTED": false,
+    "PORTFOLIO_POLICY_INFLUENCE": false,
+    "PRODUCTION_INFLUENCE": false,
+    "PRODUCTION_SNAPSHOT_WRITES_ENABLED": false,
+    "RECOMMENDATION_INFLUENCE": false,
+    "SOURCE_POPULATION_SYNTHESIS_PERMITTED": false,
+    "SYNTHETIC_APPROVALS_PERMITTED": false,
+    "SYNTHETIC_CANDIDATES_PERMITTED": false,
+    "SYNTHETIC_OUTCOMES_PERMITTED": false,
+    "SYNTHETIC_RECOMMENDATIONS_PERMITTED": false,
+    "SYNTHETIC_TRADES_PERMITTED": false,
+    "THRESHOLD_CHANGE_PERMITTED": false
+  },
+  "implementation_defect_count": 0,
+  "outcome_event_summary": {
+    "comparable_outcome_count": 0,
+    "completed_outcome_count": 0,
+    "entry_count": 0,
+    "event_count": 20
+  },
+  "point_in_time_leakage_count": 0,
+  "population_readiness_summary": {
+    "completed_outcome_count": 0,
+    "economic_candidate_count": 10,
+    "top_security_share": "0.1"
+  },
+  "readiness_by_slice": {
+    "A": "READY_FOR_GOVERNED_FORWARD_SHADOW_CAPTURE",
+    "B": "READY_FOR_GOVERNED_FORWARD_CAPTURE_OPERATIONS",
+    "C": "READY_FOR_GOVERNED_APPEND_ONLY_SNAPSHOT_STORAGE",
+    "D": "READY_FOR_GOVERNED_FORWARD_POPULATION_IDENTITY",
+    "E": "READY_WITH_NO_MATURE_OUTCOMES",
+    "F": "READY_WITH_NO_MATURE_COUNTERFACTUAL_OUTCOMES",
+    "G": "READY_FOR_GOVERNED_FORWARD_CAPTURE_OPERATIONS",
+    "H": "READY_FOR_FORWARD_POPULATION_ACCRUAL_ONLY",
+    "I": "READY_FOR_FORWARD_POPULATION_ACCRUAL_ONLY"
+  },
+  "readiness_decision": "READY_FOR_FORWARD_POPULATION_ACCRUAL_ONLY",
+  "replay_summary": {
+    "dsi002_replayable_candidate_count": 0,
+    "replay_package_count": 1,
+    "shadow_approval_count": 0,
+    "shadow_trade_count": 0
+  },
+  "report_sha256": "b1746cc62b9e97d440290cbc0a740410327cf4fc7a323747eefd1447eeb93eaf",
+  "research_scope": "GOVERNED_FORWARD_SNAPSHOT_ACCRUAL_ONLY",
+  "snapshot_package_summary": {
+    "candidate_arm_package_count": 10,
+    "economic_candidate_count": 10,
+    "package_count": 1,
+    "package_verification_rate_percent": "100.00",
+    "raw_adjusted_pair_count": 0
+  },
+  "source_commit": "770001b2b265095697b4d288035dc43bf0cbb661",
+  "support_artifact_manifest": {
+    "dsi006_capture_activation_contract.csv": "57bac6813434ead2eb1d453f824a04d90ce31696f625ac8bc5dbb2e4ad884631",
+    "dsi006_capture_session_ledger.csv": "cdb68626dec146732d8db5adfcf032c31af0d23d797a035f1e7e411d30de2301",
+    "dsi006_capture_write_integrity.csv": "fdcbf466074c569f09b36b0ff3eb219b0b6167933664cc4e1469aafdc95472f6",
+    "dsi006_dsi002_transfer_ledger.csv": "d849d5bcb55ab8cd3b2b1efae9e8ba721c9ee14fe649035b2534ffa7a8cc9d6d",
+    "dsi006_duplicate_and_conflict_ledger.csv": "f3ddb1932cfa1b249297cc44cc2fe4cd6c04e5a846db4fc005ef0601683695dd",
+    "dsi006_economic_candidate_identity.csv": "5bfae9a240a156e1153b14c4d4a26006b57ccec36d81fef62d0be5878824bf44",
+    "dsi006_executive_report.md": "c43f7fc0b72addb1e7b055ce4358480bd5f1f4ee9a27dc0c0eae1a05d5345b61",
+    "dsi006_independence_and_concentration.csv": "62ed1e122ff30307bd80e78aeac4027920385e6dfb365fe3cab3d5572aa7047d",
+    "dsi006_non_vacuity_probe_ledger.csv": "e9afdb4512fdf40e1b6a0e2cf74cf94a279a4d3431c473a18d0f5d84033179a5",
+    "dsi006_operational_recovery_probes.csv": "901ef44cf9f4980bda3dd62cf47ca0c912738469fd1e1bf40f2b403c7a3ec792",
+    "dsi006_outcome_event_ledger.jsonl": "ff859ba1db173dadd80c0a0d67b77e98156f95467d331f27dff6e054950ad5ca",
+    "dsi006_outcome_event_reconciliation.csv": "64837c4abe969f18ceb43149ea57e820130a2d0a46f47dc871884d6e4cf02d27",
+    "dsi006_plan_identity_ledger.csv": "a6dcc8d50ebaf7772e2a1d5a0fe50790f55d7a901bcfbdf3ff3fff66c21da1a8",
+    "dsi006_population_accrual.csv": "d01b7564dc2b304c3bacf699f2c8e11cde4bad6cca2d0660f0c24c6b68d740a6",
+    "dsi006_population_reconciliation.csv": "9c99b47b7a4d514a2ba560c714b79759a2bfb244484489090fe3be0a7797f5e5",
+    "dsi006_raw_adjusted_pairing.csv": "3adfeb189739eea30390377fd2d36944818464a6dd0addbdaec25ad067952ffb",
+    "dsi006_research_readiness.csv": "e101b9321b4bab3396f47d019293ee77cfbd67f4d9e5fba271bc484fd6b52d2c",
+    "dsi006_retention_contract.csv": "277cb0b5cadc894d6ff425b9115fa31be7e1b30f9ddae3de9ca795f4631b09ca",
+    "dsi006_round_trip_parity.csv": "32d3d976725bf2c19befe845a761f48f9b96eaf38e8117b646608d549227214d",
+    "dsi006_secret_and_path_safety.csv": "124536a555f65a3b4dbd8849c6f4dbea0ca38cfbc43e337b872707285c8140d4",
+    "dsi006_snapshot_manifest_ledger.csv": "294dfd443fbadbcf00fe4ce9ee160edd0fca78c815a2294fcc2411c2bb2f18d4",
+    "dsi006_snapshot_package_index.csv": "9d3c4a1637b141dbc447efcda5a6b7a023da0ceff07b139491fe0a4abdf6ca3e",
+    "dsi006_snapshot_replay_ledger.csv": "20171af20a1534010e21632c7cba9809bd8191558ca7557d04fcced352de505c",
+    "dsi006_source_contract_snapshot.csv": "f8fee81fdaa55e9e58f786045402bc65c1c13720a655c000e09071d2f838c38b"
+  },
+  "unexplained_divergence_count": 0
+}

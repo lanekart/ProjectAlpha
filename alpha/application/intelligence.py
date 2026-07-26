@@ -244,6 +244,13 @@ class IntelligenceApplicationService:
         history_window: int = 250,
         adaptive_metadata_publisher: AdaptiveMetadataPublisher | None = None,
         adaptive_metadata_publication_enabled: bool = False,
+        institutional_engine: InstitutionalEvaluationEngine | None = None,
+        governed_institutional_evaluation_enabled: bool = False,
+        governed_institutional_symbols: frozenset[str] | None = None,
+        governed_recommendation_snapshot_recorder: (
+            GovernedRecommendationSnapshotRecorder | None
+        ) = None,
+        governed_recommendation_snapshot_capture_enabled: bool = False,
     ) -> IntelligenceApplicationService:
         """
         Build a production-style service backed by analyzed market data.
@@ -263,6 +270,17 @@ class IntelligenceApplicationService:
             adaptive_metadata_publisher=adaptive_metadata_publisher,
             adaptive_metadata_publication_enabled=(
                 adaptive_metadata_publication_enabled
+            ),
+            institutional_engine=institutional_engine,
+            governed_institutional_evaluation_enabled=(
+                governed_institutional_evaluation_enabled
+            ),
+            governed_institutional_symbols=governed_institutional_symbols,
+            governed_recommendation_snapshot_recorder=(
+                governed_recommendation_snapshot_recorder
+            ),
+            governed_recommendation_snapshot_capture_enabled=(
+                governed_recommendation_snapshot_capture_enabled
             ),
         )
 

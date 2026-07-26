@@ -1,0 +1,2 @@
+allocation_parity,classification,fingerprint_parity,input_parity,package_sha256,package_tamper_validation,plan_identity_parity,recommendation_parity,stage_trace_parity,terminal_parity
+true,FULL_ROUND_TRIP_PARITY,true,true,cd845a4d8dae09d56a199218dc2c51148f3bc24aa4349a24308ad1804abb125a,true,true,true,true,true
