@@ -159,6 +159,7 @@ def validate_replay_retention_certificate(
     *,
     require_ready: bool = False,
     project_root: Path = Path("."),
+    validate_current_sources: bool = True,
 ) -> dict[str, object]:
     """Fail closed on certificate, artifact, source, or governance drift."""
 
@@ -191,10 +192,11 @@ def validate_replay_retention_certificate(
             raise ReplayRetentionError(f"DSI005_ARTIFACT_TAMPERED:{name}")
     if payload.get("executive_report_sha256") != _sha256(root / DSI005_REPORT):
         raise ReplayRetentionError("DSI005_EXECUTIVE_REPORT_HASH_MISMATCH")
-    _validate_sources(
-        root / DSI005_ARTIFACTS["source_contract"],
-        project_root.resolve(),
-    )
+    if validate_current_sources:
+        _validate_sources(
+            root / DSI005_ARTIFACTS["source_contract"],
+            project_root.resolve(),
+        )
     readiness = str(payload.get("readiness_decision") or "")
     if require_ready and not readiness.startswith("READY_"):
         raise ReplayRetentionError(f"DSI005_NOT_READY:{readiness}")
