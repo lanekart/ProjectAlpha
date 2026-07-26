@@ -1,0 +1,12 @@
+stage_id,stage_order,reached_count,invoked_count,omission_state,explanation
+recommendation.price_volume,1,1,1,NONE,Observed in the canonical DSI-002C application path.
+recommendation.candle_pattern,2,1,1,NONE,Observed in the canonical DSI-002C application path.
+recommendation.evidence_scoring,3,1,1,NONE,Observed in the canonical DSI-002C application path.
+recommendation.trade_setup,4,1,1,NONE,Observed in the canonical DSI-002C application path.
+recommendation.score_and_rules,5,1,1,NONE,Observed in the canonical DSI-002C application path.
+recommendation.trade_plan,6,1,1,NONE,Observed in the canonical DSI-002C application path.
+institutional.base_decision,7,0,0,MISSING_EVALUATOR_WIRING,The evaluator is present in source but absent from IntelligenceApplicationService.run; no result was inferred.
+institutional.stress,8,0,0,MISSING_EVALUATOR_WIRING,The evaluator is present in source but absent from IntelligenceApplicationService.run; no result was inferred.
+institutional.trade_plan_optimizer,9,0,0,MISSING_EVALUATOR_WIRING,The evaluator is present in source but absent from IntelligenceApplicationService.run; no result was inferred.
+portfolio.allocation,10,1,1,NONE,Observed in the canonical DSI-002C application path.
+terminal.reconciliation,11,1,1,NONE,Observed in the canonical DSI-002C application path.

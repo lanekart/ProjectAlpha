@@ -1,0 +1,10 @@
+candidate_key,transition_order,transition,count,reconciled,terminal_decision,stage_event_count
+RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda,1,accepted_captured_input,1,true,WATCHLIST,11
+RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda,2,request_assembly,1,true,WATCHLIST,11
+RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda,3,recommendation_availability,1,true,WATCHLIST,11
+RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda,4,institutional_candidate_formation,0,false,WATCHLIST,11
+RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda,5,base_decision_stages,1,true,WATCHLIST,11
+RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda,6,stress_stages,0,true,WATCHLIST,11
+RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda,7,trade_plan_stages,1,true,WATCHLIST,11
+RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda,8,terminal_decision,1,true,WATCHLIST,11
+RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda,9,portfolio_handoff,1,true,WATCHLIST,11

@@ -1,0 +1,17 @@
+probe_id,probe_scope,passed,included_in_empirical_counts,production_influence
+fully_passing_stage_path,STRUCTURAL_ONLY,true,false,false
+failure_at_first_stage,STRUCTURAL_ONLY,true,false,false
+failure_at_intermediate_base_stage,STRUCTURAL_ONLY,true,false,false
+stress_stage_rejection,STRUCTURAL_ONLY,true,false,false
+trade_plan_stage_rejection,STRUCTURAL_ONLY,true,false,false
+multiple_observed_blockers,STRUCTURAL_ONLY,true,false,false
+unknown_input_state,STRUCTURAL_ONLY,true,false,false
+not_applicable_stage,STRUCTURAL_ONLY,true,false,false
+canonical_early_return,STRUCTURAL_ONLY,true,false,false
+semantic_diagnostic_observation,STRUCTURAL_ONLY,true,false,false
+semantically_invalid_downstream_stage,STRUCTURAL_ONLY,true,false,false
+duplicate_evaluator_invocation,STRUCTURAL_ONLY,true,false,false
+missing_evaluator_stage_wiring,STRUCTURAL_ONLY,true,false,false
+unexplained_terminal_rejection,STRUCTURAL_ONLY,true,false,false
+raw_adjusted_explained_divergence,STRUCTURAL_ONLY,true,false,false
+raw_adjusted_unexplained_divergence,STRUCTURAL_ONLY,true,false,false

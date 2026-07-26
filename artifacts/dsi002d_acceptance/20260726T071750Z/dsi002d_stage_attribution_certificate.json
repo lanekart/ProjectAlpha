@@ -1,0 +1,153 @@
+{
+  "adjusted_summary": {
+    "candidate_count": 0,
+    "fail_count": 0,
+    "pass_count": 0,
+    "stage_event_count": 0,
+    "unknown_count": 0
+  },
+  "attribution_summary": {
+    "complete_count": 0,
+    "incomplete_count": 1,
+    "observed_failure_count": 4,
+    "unexplained_terminal_decision_count": 0
+  },
+  "blockers": [
+    "BLOCKED_BY_INCOMPLETE_STAGE_INVENTORY",
+    "BLOCKED_BY_INCOMPLETE_REJECTION_ATTRIBUTION"
+  ],
+  "candidate_flow_summary": {
+    "candidate_count": 1,
+    "input_count": 1,
+    "stage_event_count": 11,
+    "terminal_state_count": 1,
+    "unexplained_drop_count": 0
+  },
+  "captured_population_identity": "RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda",
+  "contract_version": "DSI-002D-v1.0.0",
+  "frozen_policy_and_evaluator_hashes": {
+    "institutional.base_decision": {
+      "configuration_sha256": "",
+      "source_sha256": "485738b89904e1463bbe03efa1bdf703f5852a038312025561c0ba0e6709032d"
+    },
+    "institutional.stress": {
+      "configuration_sha256": "",
+      "source_sha256": "34476ce8eed112c591db479f2596725824126bef691abebd242a44d54515bfa5"
+    },
+    "institutional.trade_plan_optimizer": {
+      "configuration_sha256": "",
+      "source_sha256": "35e7462226e8e2c74980ea2381c515d9b2cc5de2035805f078dfda9377f1a48d"
+    },
+    "portfolio.allocation": {
+      "configuration_sha256": "bdfaa97602867c77e10862e2efcefe6c97fd503e9b79935e2bda8bed810efaa4",
+      "source_sha256": "c0de34b55c836fe535895795e6f9f650f1618b101b3e3f01d5efebbd4814b76a"
+    },
+    "recommendation.candle_pattern": {
+      "configuration_sha256": "397ce503d18d1358b732f00ae299f9666b481d084d810172bb973f15ac651a4e",
+      "source_sha256": "14e422f385ace3eee69561acbd518948f18a7c0411fe704157aff43d60d21c3c"
+    },
+    "recommendation.evidence_scoring": {
+      "configuration_sha256": "feacc7436a8f41c2d222c7451280f64b8e43fe933ee4491513c505e7c533b5c4",
+      "source_sha256": "14e422f385ace3eee69561acbd518948f18a7c0411fe704157aff43d60d21c3c"
+    },
+    "recommendation.price_volume": {
+      "configuration_sha256": "397ce503d18d1358b732f00ae299f9666b481d084d810172bb973f15ac651a4e",
+      "source_sha256": "14e422f385ace3eee69561acbd518948f18a7c0411fe704157aff43d60d21c3c"
+    },
+    "recommendation.score_and_rules": {
+      "configuration_sha256": "feacc7436a8f41c2d222c7451280f64b8e43fe933ee4491513c505e7c533b5c4",
+      "source_sha256": "14e422f385ace3eee69561acbd518948f18a7c0411fe704157aff43d60d21c3c"
+    },
+    "recommendation.trade_plan": {
+      "configuration_sha256": "a94de40a5c4a33e91f8a4e8458cab05889f5148c0f3a083caddd6db060233d4a",
+      "source_sha256": "14e422f385ace3eee69561acbd518948f18a7c0411fe704157aff43d60d21c3c"
+    },
+    "recommendation.trade_setup": {
+      "configuration_sha256": "a94de40a5c4a33e91f8a4e8458cab05889f5148c0f3a083caddd6db060233d4a",
+      "source_sha256": "14e422f385ace3eee69561acbd518948f18a7c0411fe704157aff43d60d21c3c"
+    },
+    "terminal.reconciliation": {
+      "configuration_sha256": "5b39fe74c7a8233a8a99f1c1c97e9245d3d5062761587c3ff3a7dbb76b1623f9",
+      "source_sha256": "285ffa06c8d410895d49344db0fec7494c69dc289708790297f66eea9b74a8bb"
+    }
+  },
+  "governance_flags": {
+    "ACTIVE_REPLAY_INTEGRATION": false,
+    "APPROVAL_POLICY_CHANGE_PERMITTED": false,
+    "CAUSAL_CLAIM_PERMITTED": false,
+    "COUNTERFACTUAL_APPROVAL_CLAIMED": false,
+    "COUNTERFACTUAL_GATE_OVERRIDE_ENABLED": false,
+    "ECONOMIC_SUPERIORITY_CLAIMED": false,
+    "EXECUTION_INFLUENCE": false,
+    "EXECUTION_POLICY_CHANGE_PERMITTED": false,
+    "GATE_ORDER_CHANGE_PERMITTED": false,
+    "LEARNING_MUTATION_ENABLED": false,
+    "LIVE_SCORING_ENABLED": false,
+    "PORTFOLIO_POLICY_CHANGE_PERMITTED": false,
+    "PORTFOLIO_POLICY_INFLUENCE": false,
+    "PRODUCTION_INFLUENCE": false,
+    "RECOMMENDATION_INFLUENCE": false,
+    "SYNTHETIC_APPROVALS_PERMITTED": false,
+    "SYNTHETIC_OUTCOMES_PERMITTED": false,
+    "SYNTHETIC_RECOMMENDATIONS_PERMITTED": false,
+    "SYNTHETIC_TRADES_PERMITTED": false,
+    "THRESHOLD_CHANGE_PERMITTED": false
+  },
+  "invocation_integrity_summary": {
+    "duplicate_invocation_count": 0,
+    "implementation_defect_count": 0
+  },
+  "omission_summary": {
+    "missing_evaluator_wiring_count": 3,
+    "unexplained_stage_omission_count": 0
+  },
+  "prerequisite_certificate_hashes": {
+    "DSI-002A": "22d075439746a700364fcb1dac6147e0cf3dd31dedfa2cfd06a407300cad24dd",
+    "DSI-002B": "5a5ccbab6bbae06bab104e21c3ee18157086fa4c3f474ccd6dcb63370bb7d09a",
+    "DSI-002C": "3a89f392901def77debe477da2e0428f8e951994ec52373ca9c9fff515b4f7a0"
+  },
+  "prerequisite_contract_versions": {
+    "DSI-002A": "DSI-002A-v1.0.0",
+    "DSI-002B": "DSI-002B-v1.0.0",
+    "DSI-002C": "DSI-002C-v1.0.0"
+  },
+  "prerequisite_internal_report_hashes": {
+    "DSI-002A": "ae263932c161416fb4c6e05a7e8542eb27c217567a39da2c91f0abd29fe6803d",
+    "DSI-002B": "35f20b521e75a4130eca6f9834e6504abf782dec855181540c9e9918c2236c5b",
+    "DSI-002C": "9e72ba62bc018d78b88e11cba504ba8865e85dbbe8dd46950e14b654c142f9f8"
+  },
+  "prerequisite_support_hashes": {
+    "DSI-002A": "36d0198b3f44063dd3d00246312ea913e83e5ab61e9565d7836dfdf1228a51a4",
+    "DSI-002B": "c0cfbc6ac07a5d17f2e44e5cf1fbd5aa375324cdfea598953b3e3d73aa1a94ac",
+    "DSI-002C": "cd57ff0a5717a2f3c7df1ea56119080a6b428dc6899476aa1b896c7043d9c69c"
+  },
+  "probe_summary": {
+    "empirical_count_contamination": 0,
+    "passed_count": 16,
+    "probe_count": 16
+  },
+  "raw_summary": {
+    "candidate_count": 1,
+    "fail_count": 4,
+    "pass_count": 3,
+    "stage_event_count": 11,
+    "unknown_count": 0
+  },
+  "readiness_decision": "BLOCKED_BY_INCOMPLETE_STAGE_INVENTORY",
+  "report_sha256": "bd2dfb00a0539cbd02bacda432596d83ca725d8a159c2495f0024ca1184d76ee",
+  "snapshot_sha256": "014ed356f0b8546ea696aa096c52b014354bbe676e3685dc326597b854392db2",
+  "source_commit": "533797c1ac270be85ec4fa59ceb58824c574d563",
+  "stage_inventory_hash": "473601567d791319837cd3eb132001eafa8851f79ebd77205bc6af9043874d1c",
+  "support_artifact_manifest": {
+    "dsi002d_candidate_flow_reconciliation.csv": "d3c55fca141a3a07bdee44875337e16045369489f665b51ee461cc8096c23e66",
+    "dsi002d_candidate_rejection_attribution.csv": "c15868471788e1df70e2b032bb8cba471a15426d95805cc07bba9e360a838b4f",
+    "dsi002d_candidate_stage_event_ledger.csv": "c9b6297fef2719d9e842cce927a37e97cce6a0512ba4ddb533ca0bc45df29fa6",
+    "dsi002d_evaluator_invocation_integrity.csv": "b7e25aa459f4253d49b5dc20a2f27f619c3cce8015246a61a8acc125860b5eb1",
+    "dsi002d_executive_report.md": "7f04b3bf8f4569a99ca2535c98566217140002869708409b6439e76209fa4136",
+    "dsi002d_non_vacuity_probe_ledger.csv": "6ddf2249862b3918d603a155536b41def30f44da86b3bf44962b3e4a698919b2",
+    "dsi002d_raw_adjusted_stage_comparison.csv": "8da3710927175caa512a67c853a74cb5c0abd043e23c42e719468908a6b2dde2",
+    "dsi002d_source_contract_snapshot.csv": "6af8335cbc5c421d52a3a21cd472a16371c0114223f44eb73a95a0cd700bba4c",
+    "dsi002d_stage_inventory.csv": "2d4f99060943d99cfcea906a9ada32cc3d7fd4fed9317a75b28c6bc7d719dfed",
+    "dsi002d_stage_reachability_and_omission.csv": "b0164b69b00761e29bb14d2c6527e5a62e2af8e9884f1f5c9c8407192768433a"
+  }
+}
