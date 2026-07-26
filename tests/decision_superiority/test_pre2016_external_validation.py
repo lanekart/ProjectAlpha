@@ -51,10 +51,12 @@ def test_governance_is_research_only() -> None:
 def test_latest_frozen_mapping_uses_last_dsi007_fold(tmp_path: Path) -> None:
     mapping = tmp_path / "dsi007_regime_strategy_mapping.csv"
     mapping.write_text(
-        "walk_forward_fold_id,regime_state,selected_strategy_variant_id,test_end\n"
+        "walk_forward_fold_id,regime_state,"
+        "selected_strategy_variant_id,test_end\n"
         "WF-2024,BEAR_TREND,NO_TRADE,2024-12-31\n"
         "WF-2025,BEAR_TREND,TREND_FOLLOWING_60D_V1,2025-12-24\n"
-        "WF-2025,BULL_TREND_LOW_VOLATILITY,RS_CONTINUATION_V1,2025-12-24\n"
+        "WF-2025,BULL_TREND_LOW_VOLATILITY,"
+        "RS_CONTINUATION_V1,2025-12-24\n"
     )
     frozen, rows = _latest_frozen_mapping(tmp_path)
     assert frozen == {
@@ -62,7 +64,9 @@ def test_latest_frozen_mapping_uses_last_dsi007_fold(tmp_path: Path) -> None:
         "BULL_TREND_LOW_VOLATILITY": "RS_CONTINUATION_V1",
     }
     assert len(rows) == 2
-    assert all(row["external_results_used_for_mapping"] is False for row in rows)
+    assert all(
+        row["external_results_used_for_mapping"] is False for row in rows
+    )
 
 
 def test_structural_stop_uses_prior_ten_session_support() -> None:
@@ -71,7 +75,20 @@ def test_structural_stop_uses_prior_ten_session_support() -> None:
         {
             "identity_key": ["ABC"] * 12,
             "trading_date": sessions,
-            "low": [100.0, 99.0, 98.0, 97.0, 96.0, 95.0, 94.0, 93.0, 92.0, 91.0, 90.0, 89.0],
+            "low": [
+                100.0,
+                99.0,
+                98.0,
+                97.0,
+                96.0,
+                95.0,
+                94.0,
+                93.0,
+                92.0,
+                91.0,
+                90.0,
+                89.0,
+            ],
         }
     )
     selected = pd.DataFrame(
@@ -96,7 +113,11 @@ def test_structural_stop_uses_prior_ten_session_support() -> None:
 def test_external_classification_requires_minimum_sample() -> None:
     state = _external_classification(
         {"net_cagr": 0.10, "maximum_drawdown": -0.10},
-        {"net_cagr": 0.20, "maximum_drawdown": -0.08, "trade_count": 5},
+        {
+            "net_cagr": 0.20,
+            "maximum_drawdown": -0.08,
+            "trade_count": 5,
+        },
         {"net_cagr": 0.15},
         minimum_trades=20,
     )
@@ -106,14 +127,20 @@ def test_external_classification_requires_minimum_sample() -> None:
 def test_external_classification_can_beat_benchmark() -> None:
     state = _external_classification(
         {"net_cagr": 0.10, "maximum_drawdown": -0.10},
-        {"net_cagr": 0.20, "maximum_drawdown": -0.08, "trade_count": 25},
+        {
+            "net_cagr": 0.20,
+            "maximum_drawdown": -0.08,
+            "trade_count": 25,
+        },
         {"net_cagr": 0.15},
         minimum_trades=20,
     )
     assert state == "CHALLENGER_BEATS_BENCHMARK"
 
 
-def test_artifact_package_round_trip_and_tamper_detection(tmp_path: Path) -> None:
+def test_artifact_package_round_trip_and_tamper_detection(
+    tmp_path: Path,
+) -> None:
     rows = {
         key: (
             {
@@ -142,17 +169,37 @@ def test_artifact_package_round_trip_and_tamper_detection(tmp_path: Path) -> Non
         rows=MappingProxyType(rows),
         summaries=MappingProxyType(
             {
-                "protocol": {"external_start": "2005-01-01", "external_end": "2015-12-31"},
-                "source_coverage": {"actual_start": "2005-01-01", "actual_end": "2015-12-31"},
+                "protocol": {
+                    "external_start": "2005-01-01",
+                    "external_end": "2015-12-31",
+                },
+                "source_coverage": {
+                    "actual_start": "2005-01-01",
+                    "actual_end": "2015-12-31",
+                },
                 "frozen_mapping": {"BEAR_TREND": "NO_TRADE"},
-                "test_a_incumbent": {"net_cagr": 0.10, "maximum_drawdown": -0.10, "trade_count": 20},
-                "test_a_challenger": {"net_cagr": 0.20, "maximum_drawdown": -0.08, "trade_count": 20},
+                "test_a_incumbent": {
+                    "net_cagr": 0.10,
+                    "maximum_drawdown": -0.10,
+                    "trade_count": 20,
+                },
+                "test_a_challenger": {
+                    "net_cagr": 0.20,
+                    "maximum_drawdown": -0.08,
+                    "trade_count": 20,
+                },
                 "benchmark": {"net_cagr": 0.15},
-                "test_b_regime_aware": {"net_cagr": 0.12, "maximum_drawdown": -0.09, "trade_count": 20},
+                "test_b_regime_aware": {
+                    "net_cagr": 0.12,
+                    "maximum_drawdown": -0.09,
+                    "trade_count": 20,
+                },
                 "test_b_fixed": {"net_cagr": 0.05},
                 "test_b_momentum": {"net_cagr": 0.08},
                 "test_b_trend": {"net_cagr": 0.07},
-                "external_validation_classification": "CHALLENGER_BEATS_BENCHMARK",
+                "external_validation_classification": (
+                    "CHALLENGER_BEATS_BENCHMARK"
+                ),
                 "forward_paper_eligible": True,
                 "automatic_promotion_count": 0,
             }
@@ -166,9 +213,15 @@ def test_artifact_package_round_trip_and_tamper_detection(tmp_path: Path) -> Non
         certificate,
         require_ready=True,
     )
-    assert payload["external_validation_classification"] == "CHALLENGER_BEATS_BENCHMARK"
+    assert (
+        payload["external_validation_classification"]
+        == "CHALLENGER_BEATS_BENCHMARK"
+    )
 
     support = tmp_path / next(iter(DSI010_ARTIFACTS.values()))
     support.write_text(support.read_text() + "tampered\n")
-    with pytest.raises(Pre2016ExternalValidationError, match="DSI010_ARTIFACT_TAMPERED"):
+    with pytest.raises(
+        Pre2016ExternalValidationError,
+        match="DSI010_ARTIFACT_TAMPERED",
+    ):
         validate_pre2016_external_validation_certificate(certificate)
