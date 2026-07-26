@@ -1,0 +1,4 @@
+run_a and run_b were compared recursively before run_b cleanup.
+All 21 governed DSI-003 artifacts were byte-for-byte identical.
+The per-file SHA-256 manifests were identical.
+deterministic_rerun_byte_identical=true

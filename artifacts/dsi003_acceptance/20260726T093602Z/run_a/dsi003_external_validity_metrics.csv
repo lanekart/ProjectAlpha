@@ -1,0 +1,9 @@
+dimension,effective_count,grade,hhi,top_share,unique_known_count,unknown_count
+security,29.2583,,0.0342,0.0924,237,0
+date,133.1901,,0.0075,0.0075,134,0
+month,6.9153,,0.1446,0.1578,7,0
+setup,1.0000,,1.0000,1.0000,1,1172
+setup_stage,3.7999,,0.2632,0.3223,4,0
+sector,1.0000,,1.0000,1.0000,1,1330
+regime,1.0000,,1.0000,1.0000,1,1330
+external_validity_grade,0,LIMITED_REGIME_COVERAGE,0,0,0,0

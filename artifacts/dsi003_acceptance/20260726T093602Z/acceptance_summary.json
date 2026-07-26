@@ -1,0 +1,19 @@
+{
+  "acceptance_root": "artifacts/dsi003_acceptance/20260726T093602Z",
+  "artifact_count": 21,
+  "candidate_arm_count": 2661,
+  "certificate_file_sha256": "ff7e2590c6a5f1cbf19200f8f79bbbecc61e085548afafe49c07f4fd34d9cfae",
+  "completed_outcome_count": 86,
+  "deterministic_rerun_byte_identical": true,
+  "economic_candidate_count": 1331,
+  "exact_dsi002_candidate_count": 1,
+  "external_validity_grade": "LIMITED_REGIME_COVERAGE",
+  "final_readiness": "READY_FOR_DESCRIPTIVE_DSI_RESEARCH_ONLY",
+  "plans_count": 158,
+  "production_influence": false,
+  "report_file_sha256": "a928a200debb5e786a7f0912203106149baa0c9f3741420af35b79c08edc9e6f",
+  "research_sufficiency_tier": "SUFFICIENT_FOR_DESCRIPTIVE_GATE_VALUE",
+  "security_count": 237,
+  "source_commit": "e9b8dea38a661d410d46e4dcbb635ae3cb07a172",
+  "unique_date_count": 134
+}

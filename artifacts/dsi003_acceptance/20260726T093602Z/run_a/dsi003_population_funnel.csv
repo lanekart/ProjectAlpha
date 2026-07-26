@@ -1,0 +1,11 @@
+dominant_exclusion_reason,incoming_count,loss_rate,lost_count,outgoing_count,stage,stage_order
+NONE,5642,0.0000,0,5642,source_rows,1
+SOURCE_DEDUPLICATION,5642,0.5284,2981,2661,admissible_rows,2
+NONE,2661,0.0000,0,2661,point_in_time_valid_rows,3
+RAW_ADJUSTED_PAIRING,2661,0.4998,1330,1331,unique_economic_candidates,4
+NONE,1331,0.0000,0,1331,recommendations,5
+NONE,1331,0.0000,0,1331,institutional_candidates,6
+NONE,1331,0.0000,0,1331,complete_stack_evaluated_candidates,7
+NONE,1331,0.0000,0,1331,terminal_decisions,8
+EVIDENCE_NOT_CAPTURED,1331,0.8813,1173,158,candidates_with_recorded_plans,9
+CENSORING_OR_NO_PLAN,158,0.4557,72,86,candidates_with_completed_outcomes,10

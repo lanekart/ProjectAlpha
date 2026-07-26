@@ -1,0 +1,11 @@
+admissibility_status,allocation_available,base_decision_available,candidate_count,complete_stack_available,contract_version,duplication_risk,exclusion_reason,outcome_available,point_in_time_status,raw_adjusted_semantics,recommendation_available,source_name,stress_available,trade_plan_available
+INFORMATIVE_ONLY,false,false,0,true,HTR-010B10-v1.0.0,EMPTY_POPULATION,EMPTY_ADAPTIVE_SHADOW_POPULATION,false,SIGNED,RAW_ADJUSTED_DECLARED,false,B10,false,false
+ADMISSIBLE,true,true,2660,true,HTR-010B5-v1.0.0,HIGH_MULTI_SOURCE_OVERLAP,,false,SIGNED,RAW_ADJUSTED_PAIRED,true,B5,true,true
+ADMISSIBLE,true,false,316,true,HTR-010B7-v1.0.0,B5_SUBSET,,true,SIGNED,RAW_ADJUSTED_PAIRED,false,B7,false,true
+ADMISSIBLE,false,false,2660,true,DSI-001-v1.0.0,B5_FULL_OVERLAP,,true,SIGNED,RAW_ADJUSTED_PAIRED,false,DSI001,false,false
+ADMISSIBLE,true,true,1,true,DSI-002J-v1.0.0,UNIQUE_CAPTURE,,false,SIGNED,RAW_ONLY,true,DSI002,true,true
+LINEAGE_ONLY,false,false,1,true,DSI-002A-v1.0.0,LINEAGE,,false,SIGNED,UNKNOWN,false,DSI002A,false,false
+LINEAGE_ONLY,false,false,1,true,DSI-002B2-v1.0.0,LINEAGE,,false,SIGNED,UNKNOWN,false,DSI002B2,false,false
+LINEAGE_ONLY,false,false,1,true,DSI-002C2-v1.0.0,LINEAGE,,false,SIGNED,UNKNOWN,false,DSI002C2,false,false
+LINEAGE_ONLY,false,false,1,true,DSI-002D1-v1.0.0,LINEAGE,,false,SIGNED,UNKNOWN,false,DSI002D1,false,false
+LINEAGE_ONLY,false,false,1,true,DSI-002D2-v1.0.0,LINEAGE,,false,SIGNED,UNKNOWN,false,DSI002D2,false,false

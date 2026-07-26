@@ -1,0 +1,186 @@
+{
+  "blockers": [],
+  "candidate_reconstruction_summary": {
+    "candidate_arm_count": 2661,
+    "security_count": 237,
+    "setup_count": 1,
+    "unique_date_count": 134,
+    "unique_economic_candidate_count": 1331
+  },
+  "contract_version": "DSI-003-v1.0.0",
+  "deduplication_summary": {
+    "conflicting_record_count": 0,
+    "duplicate_rows_removed": 2981
+  },
+  "dsi002_transferability_summary": {
+    "allocation_count": 0,
+    "approval_count": 0,
+    "exact_dsi002_candidate_count": 1,
+    "recorded_stage_candidate_count": 1330
+  },
+  "executive_report_sha256": "a928a200debb5e786a7f0912203106149baa0c9f3741420af35b79c08edc9e6f",
+  "external_validity_summary": {
+    "coverage_grade": "LIMITED_REGIME_COVERAGE",
+    "sector_count": 1,
+    "security_count": 237,
+    "setup_count": 1,
+    "unique_date_count": 134,
+    "unique_regime_count": 1
+  },
+  "governance_flags": {
+    "ACTIVE_REPLAY_INTEGRATION": false,
+    "APPROVAL_POLICY_CHANGE_PERMITTED": false,
+    "AUTOMATIC_POLICY_RECOMMENDATION_ENABLED": false,
+    "CAUSAL_CLAIM_PERMITTED": false,
+    "DEFAULT_RUNTIME_BEHAVIOUR_CHANGED": false,
+    "ECONOMIC_SUPERIORITY_CLAIMED": false,
+    "EXECUTION_INFLUENCE": false,
+    "EXECUTION_POLICY_CHANGE_PERMITTED": false,
+    "GATE_ORDER_CHANGE_PERMITTED": false,
+    "LEARNING_MUTATION_ENABLED": false,
+    "LIVE_SCORING_ENABLED": false,
+    "OUTCOME_BACKFILL_MUTATION_ENABLED": false,
+    "PORTFOLIO_POLICY_CHANGE_PERMITTED": false,
+    "PORTFOLIO_POLICY_INFLUENCE": false,
+    "PRODUCTION_INFLUENCE": false,
+    "RECOMMENDATION_INFLUENCE": false,
+    "SOURCE_POPULATION_SYNTHESIS_PERMITTED": false,
+    "SYNTHETIC_APPROVALS_PERMITTED": false,
+    "SYNTHETIC_CANDIDATES_PERMITTED": false,
+    "SYNTHETIC_OUTCOMES_PERMITTED": false,
+    "SYNTHETIC_RECOMMENDATIONS_PERMITTED": false,
+    "SYNTHETIC_TRADES_PERMITTED": false,
+    "THRESHOLD_CHANGE_PERMITTED": false
+  },
+  "implementation_defect_count": 0,
+  "independence_summary": {
+    "candidate_arm_count": 2661,
+    "effective_date_count": "133.1901",
+    "effective_security_count": "29.2583",
+    "top_date_share": "0.0075",
+    "top_security_share": "0.0924",
+    "unique_economic_candidate_count": 1331
+  },
+  "outcome_readiness_summary": {
+    "completed_outcome_count": 86,
+    "flat_count": 0,
+    "loss_count": 55,
+    "pending_outcome_count": 18,
+    "plan_count": 158,
+    "win_count": 31
+  },
+  "permitted_research_scope": "DESCRIPTIVE_POPULATION_AND_OUTCOME_RESEARCH; EXACT_DSI002_TRANSFERABILITY_REMAINS SINGLE_CANDIDATE",
+  "point_in_time_leakage_count": 0,
+  "population_loss_summary": {
+    "duplicate_rows_removed": 2981,
+    "policy_rejections_are_population_loss": false
+  },
+  "readiness_by_slice": {
+    "A": "READY_FOR_GOVERNED_POPULATION_ASSEMBLY",
+    "B": "READY_FOR_GOVERNED_COMPLETE_STACK_POPULATION",
+    "C": "READY_FOR_GOVERNED_POPULATION_BOTTLENECK_RESEARCH",
+    "D": "READY_WITH_DEPENDENCE_WARNINGS",
+    "E": "READY_WITH_LIMITED_EXTERNAL_VALIDITY",
+    "F": "READY_WITH_LIMITED_OUTCOME_COVERAGE",
+    "G": "READY_WITH_PARTIAL_DSI002_TRANSFERABILITY",
+    "H": "READY_FOR_GOVERNED_POPULATION_SUFFICIENCY_CONCLUSION",
+    "I": "READY_FOR_DESCRIPTIVE_DSI_RESEARCH_ONLY"
+  },
+  "readiness_decision": "READY_FOR_DESCRIPTIVE_DSI_RESEARCH_ONLY",
+  "report_sha256": "1588c4022250da343c1d006a0b66e2618e375c44a66a941dd586d36422e3ceef",
+  "research_scope": "GOVERNED_INDEPENDENT_POPULATION_EXPANSION_DIAGNOSTIC_ONLY",
+  "source_certificates": {
+    "B10": {
+      "certificate_sha256": "a09106eeed9d96510d0b4e1949a92ab3ad0e43bf3d3ade1c2c4175306d07d567",
+      "contract_version": "HTR-010B10-v1.0.0",
+      "readiness": "BLOCKED_BY_EMPTY_ADAPTIVE_SHADOW_POPULATION",
+      "report_sha256": "062dd8d343868c62bc455ca92d56bff5ebbe0636fee8896fa72fa27944930bb7"
+    },
+    "B5": {
+      "certificate_sha256": "26f180358873de2fe1cc7427e38ac4a98abcfe612344cd3edaabdd7581a65e98",
+      "contract_version": "HTR-010B5-v1.0.0",
+      "readiness": "READY_FOR_GOVERNED_APPROVAL_GATE_RESEARCH",
+      "report_sha256": "9b79c4ef405aff8120ca9a318211f69a1ac11a8dc4d841f7a8d47ffc1ce9b8fd"
+    },
+    "B7": {
+      "certificate_sha256": "3d9d4cef5e69e6c63b5783dcfb6fc678d7e6288254a62656c89beb83ce2754c7",
+      "contract_version": "HTR-010B7-v1.0.0",
+      "readiness": "READY_FOR_GOVERNED_SETUP_MATCHED_EVIDENCE_RESEARCH",
+      "report_sha256": "1da746a21e1f5e2f4fed52cd48558226dde6a686b1e8b9e8001f13cbbbc3d1c1"
+    },
+    "DSI001": {
+      "certificate_sha256": "b19bf845e3699d151d43d22d1f1d025298b0b0bc9266a25454f006b9aefc9de4",
+      "contract_version": "DSI-001-v1.0.0",
+      "readiness": "READY_FOR_GOVERNED_DECISION_SUPERIORITY_RESEARCH",
+      "report_sha256": "4df1beed676b8c0e1b9e0c1a9d30119c57fed1ee9963cee8b7b914b12e44417d"
+    },
+    "DSI002": {
+      "certificate_sha256": "d677af4c36f88c9ec50c418fb0d786c0340f3af082bd86dd490fec2b6df34e85",
+      "contract_version": "DSI-002J-v1.0.0",
+      "readiness": "READY_WITH_VALID_MECHANICS_AND_NO_COMPARABLE_OUTCOMES",
+      "report_sha256": "424067b3727da85c02f34cc0cfee3cd50cf26f23f9ae8fcc57dc910317d1752c"
+    },
+    "DSI002A": {
+      "certificate_sha256": "22d075439746a700364fcb1dac6147e0cf3dd31dedfa2cfd06a407300cad24dd",
+      "contract_version": "DSI-002A-v1.0.0",
+      "readiness": "ACCEPTED",
+      "report_sha256": "014ed356f0b8546ea696aa096c52b014354bbe676e3685dc326597b854392db2"
+    },
+    "DSI002B2": {
+      "certificate_sha256": "1ff592dfd26b6ff7f6c6d86a09eedd7a8b6c388c5617ee3e0897e90ebd27002d",
+      "contract_version": "DSI-002B2-v1.0.0",
+      "readiness": "READY_FOR_COMPLETE_STACK_RECORDED_BASELINE",
+      "report_sha256": "02a0be123328cbf9330a5a9b8405748a2865e875ff5bf4e46344375ec64eb32a"
+    },
+    "DSI002C2": {
+      "certificate_sha256": "4ae21dc7ced023a25652043e2681e244eef1320816d3d755d81d220a76dfe8f6",
+      "contract_version": "DSI-002C2-v1.0.0",
+      "readiness": "READY_FOR_COMPLETE_STACK_STAGE_ATTRIBUTION",
+      "report_sha256": "788e452cce5a492a7b039530f9a4be8727656cef8b3a645a30d8fe9aa140cc03"
+    },
+    "DSI002D1": {
+      "certificate_sha256": "9f77ab011b1151d7f7e5a3227dca7ccc464cc9d6685be469a62fba15dad0fe8d",
+      "contract_version": "DSI-002D1-v1.0.0",
+      "readiness": "READY_FOR_COMPLETE_STACK_BASELINE_RENEWAL",
+      "report_sha256": "0f73bee7f0855f0818aecdedcff40b7e969efd08e6b8f2f3c8eef5a5883d4f1a"
+    },
+    "DSI002D2": {
+      "certificate_sha256": "17dbd547f3ee46db01e203cca07126fe5472225bda893a8d6c28fc72855b07c2",
+      "contract_version": "DSI-002D2-v1.0.0",
+      "readiness": "READY_FOR_GOVERNED_STAGE_ATTRIBUTION_RESEARCH",
+      "report_sha256": "945b696dba091a6dbfb52094860053fd9025b9afe87b2ce89accba25c5127e5f"
+    }
+  },
+  "source_commit": "e9b8dea38a661d410d46e4dcbb635ae3cb07a172",
+  "source_inventory_summary": {
+    "admissible_source_count": 9,
+    "incompatible_source_count": 0,
+    "missing_lineage_count": 0,
+    "source_count": 10,
+    "source_row_count": 5642
+  },
+  "sufficiency_grade": "SUFFICIENT_FOR_DESCRIPTIVE_GATE_VALUE",
+  "support_artifact_manifest": {
+    "dsi003_candidate_reconstruction_ledger.csv": "e393375e66f8ac0be1418923bcd25205131ac557b183ebe6e4d02d3da400b7b1",
+    "dsi003_complete_stack_stage_ledger.csv": "c01613d4149921895d8613b0ee2a372708b91cd270297e19ddcfa7e0db86f3d3",
+    "dsi003_coverage_distribution.csv": "4f4331fbb8e92d2be74aaeeaaf5a3da4008895fbea11770830ee2c93a796b77c",
+    "dsi003_dsi002_transferability_ledger.csv": "280a50bab316fcb13ec0991bc04e5c426d629a4b1739f83a6787d98ceda6cba7",
+    "dsi003_duplicate_and_conflict_ledger.csv": "6b80ddb2f80a8cd128e0df2bc5280dca78dd128f0cc267e431e5fc33869c85bd",
+    "dsi003_economic_candidate_identity.csv": "06e2e5c8c33adc58d65ad1ce6d0b00bec41afc4440e2febbf9e06365252af13f",
+    "dsi003_effective_sample_assessment.csv": "93fc9eed99552bff0162e0ffc4bff53d2b5b166ec99be53cb291ce4dec47d24d",
+    "dsi003_executive_report.md": "a928a200debb5e786a7f0912203106149baa0c9f3741420af35b79c08edc9e6f",
+    "dsi003_external_validity_metrics.csv": "00ad2510993ada7d323ee1462222389586822ce04c726302fa5104dcda8e9c17",
+    "dsi003_gate_isolation_population_summary.csv": "a0b5e6f39c96cbabf376b5da7baa4cf89135f01223e263eb41971429ced84b6e",
+    "dsi003_independence_diagnostics.csv": "7784c9d0d853624b16056fc8a2674d2575ba742c6e16b542f8fb4ec8e52b8af1",
+    "dsi003_non_vacuity_probe_ledger.csv": "d5c3667c1682bd1e3ddbe61228cad08c6d7e2a02574a8217fc522fc9fe7ce614",
+    "dsi003_outcome_coverage_summary.csv": "d7fd249bd12efc53a25197a4701bfe0f91e95f020fdfeaa6e46512ef2b781ef0",
+    "dsi003_outcome_readiness_ledger.csv": "ab319514d8a183c982df0981dbcd5ff3d2221c04b8cd179da6c7c58dffa0735c",
+    "dsi003_population_funnel.csv": "216070ca9b9124b40f85425e294a8d55268e290e092c60ea452af8076a4491c7",
+    "dsi003_population_loss_attribution.csv": "b2b1b82245cbfb74d661949a6d6d738771b1220f839e872674fafd60c57c5a7d",
+    "dsi003_population_reconciliation.csv": "1a0d8f84851adbc82fd8e7699a87716e6b937b3473bc67db75c4a0bb12ebba32",
+    "dsi003_population_source_inventory.csv": "2ccef112028e4665e0ba82a4b08f6fdf10afcefd5e3bda9d979dd8e3a6870e78",
+    "dsi003_raw_adjusted_population_comparison.csv": "56bb64a584fc8a4f5f2a4486d4964f8baa611675a1a8b73dce3eee4ffa559f7e",
+    "dsi003_source_contract_snapshot.csv": "3b17f72b6142b38b58f433c986491ea9dc52b482e9da00f05bc1dd623cf6796b"
+  },
+  "unexplained_divergence_count": 0
+}
