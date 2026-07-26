@@ -1,0 +1,4 @@
+passed,probe,recovered_count
+true,STALE_TEMPORARY_RECOVERY,1
+true,INDEX_REBUILD,0
+true,ARCHIVE_INVENTORY_VERIFICATION,0
