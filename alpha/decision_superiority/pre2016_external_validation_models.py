@@ -32,8 +32,7 @@ class Pre2016ExternalValidationPolicy:
 
     def __post_init__(self) -> None:
         overlaps_discovery = (
-            self.external_start >= "2016-01-01"
-            or self.external_end >= "2016-01-01"
+            self.external_start >= "2016-01-01" or self.external_end >= "2016-01-01"
         )
         if overlaps_discovery:
             raise Pre2016ExternalValidationError(
@@ -48,9 +47,7 @@ class Pre2016ExternalValidationPolicy:
         if self.transaction_cost_fraction < 0 or self.slippage_fraction < 0:
             raise Pre2016ExternalValidationError("COST_PROTOCOL_INVALID")
         if self.minimum_external_trades < 1:
-            raise Pre2016ExternalValidationError(
-                "MINIMUM_EXTERNAL_TRADES_INVALID"
-            )
+            raise Pre2016ExternalValidationError("MINIMUM_EXTERNAL_TRADES_INVALID")
 
 
 @dataclass(frozen=True, slots=True)

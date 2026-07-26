@@ -332,8 +332,10 @@ def _frozen_selected_signals(
     regime_column = "regime" if "regime" in merged.columns else "regime_state"
     selected = merged.loc[
         merged.apply(
-            lambda row: str(row["strategy_variant_id"])
-            == mapping.get(str(row[regime_column]), "NO_TRADE"),
+            lambda row: (
+                str(row["strategy_variant_id"])
+                == mapping.get(str(row[regime_column]), "NO_TRADE")
+            ),
             axis=1,
         )
     ].copy()
@@ -355,9 +357,7 @@ def _apply_structural_stop(
         "identity_key",
         sort=False,
         observed=True,
-    )["low"].transform(
-        lambda values: values.shift(1).rolling(10, min_periods=10).min()
-    )
+    )["low"].transform(lambda values: values.shift(1).rolling(10, min_periods=10).min())
     signal_date_column = (
         "trading_date" if "trading_date" in selected.columns else "signal_date"
     )
@@ -514,9 +514,7 @@ def _readiness(
         or source_start > date(2005, 1, 1)
         or source_end < date(2015, 12, 31)
     )
-    action_conflicts = int(
-        source_summary.get("conflicting_corporate_actions") or 0
-    )
+    action_conflicts = int(source_summary.get("conflicting_corporate_actions") or 0)
     benchmark_available = benchmark_metrics.get("net_cagr") is not None
     challenger_trades = int(challenger_metrics.get("trade_count") or 0)
     if classification == "EXTERNAL_VALIDATION_FAILED":
@@ -735,9 +733,7 @@ def _assemble_rows(
         "regime_performance": _rows(test_b, "regime_daily"),
         "risk_metrics": tuple(risk_rows),
         "benchmark_relative": benchmark_relative,
-        "robustness": tuple(
-            _robustness_rows(challenger_metrics, incumbent_metrics)
-        ),
+        "robustness": tuple(_robustness_rows(challenger_metrics, incumbent_metrics)),
         "concentration": tuple(_concentration_rows(challenger_trades)),
         "population_reconciliation": reconciliation,
         "non_vacuity": non_vacuity,

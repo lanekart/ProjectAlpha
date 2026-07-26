@@ -66,8 +66,7 @@ def export_pre2016_external_validation(
     report = _write_text(output / DSI010_REPORT, _executive_report(result))
     support.append(report)
     manifest = {
-        path.name: _sha256(path)
-        for path in sorted(support, key=lambda item: item.name)
+        path.name: _sha256(path) for path in sorted(support, key=lambda item: item.name)
     }
     summary = result.summaries
     payload: dict[str, Any] = {
@@ -116,9 +115,7 @@ def validate_pre2016_external_validation_certificate(
     if payload.get("governance_flags") != governance_flags():
         raise Pre2016ExternalValidationError("DSI010_GOVERNANCE_FLAGS_INVALID")
     if payload.get("report_sha256") != _canonical_payload_sha256(payload):
-        raise Pre2016ExternalValidationError(
-            "DSI010_CERTIFICATE_PAYLOAD_TAMPERED"
-        )
+        raise Pre2016ExternalValidationError("DSI010_CERTIFICATE_PAYLOAD_TAMPERED")
     manifest = payload.get("support_artifact_manifest")
     expected = frozenset((*DSI010_ARTIFACTS.values(), DSI010_REPORT))
     if not isinstance(manifest, dict) or frozenset(manifest) != expected:
@@ -129,9 +126,7 @@ def validate_pre2016_external_validation_certificate(
         if not path.is_relative_to(root) or not path.is_file():
             raise Pre2016ExternalValidationError("DSI010_SUPPORT_PATH_UNSAFE")
         if _sha256(path) != str(digest):
-            raise Pre2016ExternalValidationError(
-                f"DSI010_ARTIFACT_TAMPERED:{name}"
-            )
+            raise Pre2016ExternalValidationError(f"DSI010_ARTIFACT_TAMPERED:{name}")
         raw = path.read_bytes()
         if b"/Users/" in raw or b"C:\\Users\\" in raw:
             raise Pre2016ExternalValidationError(
@@ -146,12 +141,11 @@ def validate_pre2016_external_validation_certificate(
         "EXTERNAL_VALIDATION_PASSED",
         "CHALLENGER_BEATS_BENCHMARK",
     }
-    if payload.get("forward_paper_eligible") and payload.get(
-        "external_validation_classification"
-    ) not in valid_promotions:
-        raise Pre2016ExternalValidationError(
-            "DSI010_UNSUPPORTED_FORWARD_ELIGIBILITY"
-        )
+    if (
+        payload.get("forward_paper_eligible")
+        and payload.get("external_validation_classification") not in valid_promotions
+    ):
+        raise Pre2016ExternalValidationError("DSI010_UNSUPPORTED_FORWARD_ELIGIBILITY")
     readiness = str(payload.get("readiness_decision") or "")
     if require_ready and not readiness.startswith("READY_"):
         raise Pre2016ExternalValidationError(f"DSI010_NOT_READY:{readiness}")
@@ -196,14 +190,8 @@ def _executive_report(result: Pre2016ExternalValidationResult) -> str:
         f"- Benchmark CAGR: {_percent(benchmark.get('net_cagr'))}",
         f"- Challenger minus incumbent CAGR: {_percent(incumbent_delta)}",
         f"- Challenger minus benchmark CAGR: {_percent(benchmark_delta)}",
-        (
-            "- Incumbent drawdown: "
-            f"{_percent(incumbent.get('maximum_drawdown'))}"
-        ),
-        (
-            "- Challenger drawdown: "
-            f"{_percent(challenger.get('maximum_drawdown'))}"
-        ),
+        (f"- Incumbent drawdown: {_percent(incumbent.get('maximum_drawdown'))}"),
+        (f"- Challenger drawdown: {_percent(challenger.get('maximum_drawdown'))}"),
         f"- Incumbent trades: {incumbent.get('trade_count', 0)}",
         f"- Challenger trades: {challenger.get('trade_count', 0)}",
         f"- Challenger win rate: {_percent(challenger.get('win_rate'))}",
@@ -212,10 +200,7 @@ def _executive_report(result: Pre2016ExternalValidationResult) -> str:
         "## Independent Test B",
         "",
         f"- Regime-aware net CAGR: {_percent(test_b.get('net_cagr'))}",
-        (
-            "- Regime-aware drawdown: "
-            f"{_percent(test_b.get('maximum_drawdown'))}"
-        ),
+        (f"- Regime-aware drawdown: {_percent(test_b.get('maximum_drawdown'))}"),
         f"- Regime-aware trades: {test_b.get('trade_count', 0)}",
         "",
         "## Slice Readiness",
@@ -328,10 +313,7 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, Enum):
         return value.value
     if isinstance(value, Mapping):
-        return {
-            str(key): _jsonable(item)
-            for key, item in sorted(value.items())
-        }
+        return {str(key): _jsonable(item) for key, item in sorted(value.items())}
     if isinstance(value, (list, tuple, set)):
         return [_jsonable(item) for item in value]
     if hasattr(value, "item"):

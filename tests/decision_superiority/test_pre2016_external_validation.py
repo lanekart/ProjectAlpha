@@ -64,9 +64,7 @@ def test_latest_frozen_mapping_uses_last_dsi007_fold(tmp_path: Path) -> None:
         "BULL_TREND_LOW_VOLATILITY": "RS_CONTINUATION_V1",
     }
     assert len(rows) == 2
-    assert all(
-        row["external_results_used_for_mapping"] is False for row in rows
-    )
+    assert all(row["external_results_used_for_mapping"] is False for row in rows)
 
 
 def test_structural_stop_uses_prior_ten_session_support() -> None:
@@ -197,9 +195,7 @@ def test_artifact_package_round_trip_and_tamper_detection(
                 "test_b_fixed": {"net_cagr": 0.05},
                 "test_b_momentum": {"net_cagr": 0.08},
                 "test_b_trend": {"net_cagr": 0.07},
-                "external_validation_classification": (
-                    "CHALLENGER_BEATS_BENCHMARK"
-                ),
+                "external_validation_classification": ("CHALLENGER_BEATS_BENCHMARK"),
                 "forward_paper_eligible": True,
                 "automatic_promotion_count": 0,
             }
@@ -213,10 +209,7 @@ def test_artifact_package_round_trip_and_tamper_detection(
         certificate,
         require_ready=True,
     )
-    assert (
-        payload["external_validation_classification"]
-        == "CHALLENGER_BEATS_BENCHMARK"
-    )
+    assert payload["external_validation_classification"] == "CHALLENGER_BEATS_BENCHMARK"
 
     support = tmp_path / next(iter(DSI010_ARTIFACTS.values()))
     support.write_text(support.read_text() + "tampered\n")

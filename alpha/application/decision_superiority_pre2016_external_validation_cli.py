@@ -21,9 +21,7 @@ from alpha.decision_superiority.pre2016_external_validation_models import (
     Pre2016ExternalValidationSourcePaths,
 )
 
-DEFAULT_DSI010_OUTPUT = Path(
-    ".alpha/benchmark/dsi010_pre2016_external_validation"
-)
+DEFAULT_DSI010_OUTPUT = Path(".alpha/benchmark/dsi010_pre2016_external_validation")
 
 
 def register_decision_superiority_pre2016_external_validation_command(
@@ -103,21 +101,13 @@ def decision_superiority_pre2016_external_validation(
     incumbent = summary["test_a_incumbent"]
     challenger = summary["test_a_challenger"]
     benchmark_summary = summary["benchmark"]
+    typer.echo(f"External Incumbent CAGR: {_percent(incumbent.get('net_cagr'))}")
+    typer.echo(f"External Challenger CAGR: {_percent(challenger.get('net_cagr'))}")
     typer.echo(
-        "External Incumbent CAGR: "
-        f"{_percent(incumbent.get('net_cagr'))}"
+        f"External Benchmark CAGR: {_percent(benchmark_summary.get('net_cagr'))}"
     )
     typer.echo(
-        "External Challenger CAGR: "
-        f"{_percent(challenger.get('net_cagr'))}"
-    )
-    typer.echo(
-        "External Benchmark CAGR: "
-        f"{_percent(benchmark_summary.get('net_cagr'))}"
-    )
-    typer.echo(
-        "External Classification: "
-        f"{summary['external_validation_classification']}"
+        f"External Classification: {summary['external_validation_classification']}"
     )
     typer.echo(
         "Extended Forward Paper Eligible: "
@@ -148,8 +138,7 @@ def decision_superiority_pre2016_external_validation_verify(
     typer.echo(f"Contract: {payload['contract_version']}")
     typer.echo(f"Readiness: {payload['readiness_decision']}")
     typer.echo(
-        "External Classification: "
-        f"{payload['external_validation_classification']}"
+        f"External Classification: {payload['external_validation_classification']}"
     )
     typer.echo("Certificate: VALID")
 
