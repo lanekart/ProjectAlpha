@@ -126,20 +126,14 @@ def export_dsi002c_acceptance(
     payload = {
         "accepted": result.accepted,
         "baseline_output_sha256": result.parity.baseline_output_sha256,
-        "baseline_tamper_block_verified": (
-            result.baseline_tamper_block_verified
-        ),
-        "candidate_identity_block_verified": (
-            result.candidate_identity_block_verified
-        ),
+        "baseline_tamper_block_verified": (result.baseline_tamper_block_verified),
+        "candidate_identity_block_verified": (result.candidate_identity_block_verified),
         "deterministic_replay_verified": result.deterministic_replay_verified,
         "exact_payload_match": result.parity.exact_payload_match,
         "parity_verified": result.parity.parity_verified,
         "production_influence": result.production_influence,
         "replay_output_sha256": result.parity.replay_output_sha256,
-        "snapshot_identity_block_verified": (
-            result.snapshot_identity_block_verified
-        ),
+        "snapshot_identity_block_verified": (result.snapshot_identity_block_verified),
     }
     certificate.write_text(
         json.dumps(payload, sort_keys=True, indent=2) + "\n",

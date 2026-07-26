@@ -28,9 +28,9 @@ def test_dsi002c_acceptance_is_complete(tmp_path: Path) -> None:
     assert result.deterministic_replay_verified is True
     assert result.production_influence is False
     certificate = json.loads(
-        (
-            output / "dsi002c_recorded_decision_parity_certificate.json"
-        ).read_text(encoding="utf-8")
+        (output / "dsi002c_recorded_decision_parity_certificate.json").read_text(
+            encoding="utf-8"
+        )
     )
     assert certificate["accepted"] is True
     assert certificate["production_influence"] is False
