@@ -6,13 +6,13 @@ from pathlib import Path
 from alpha.decision_superiority.gate_isolation_dsi002a_acceptance import (
     run_dsi002a_acceptance,
 )
+from alpha.decision_superiority.gate_isolation_frozen_inputs import (
+    FrozenInputSection,
+)
 from alpha.decision_superiority.gate_isolation_frozen_policy_replay import (
     FrozenPolicyRegistry,
     FrozenPolicyReplayLoader,
     FrozenReplayReadiness,
-)
-from alpha.decision_superiority.gate_isolation_frozen_inputs import (
-    FrozenInputSection,
 )
 
 
