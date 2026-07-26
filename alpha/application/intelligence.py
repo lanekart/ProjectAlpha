@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import pandas as pd
 
@@ -46,10 +46,25 @@ from alpha.recommendation_intelligence import (
     TriggerStatus,
 )
 
+if TYPE_CHECKING:
+    from alpha.decision_intelligence.models import (
+        InstitutionalEvaluationResult,
+        OpportunityDecision,
+    )
+
 
 class IntelligenceInputProvider(Protocol):
     def build(self, *, observed_on: date) -> IntelligenceInputSet:
         """Build engine-ready deterministic intelligence inputs."""
+        ...
+
+
+class InstitutionalEvaluationEngine(Protocol):
+    def evaluate_recommendations_with_trace(
+        self,
+        recommendations: tuple[object, ...],
+    ) -> InstitutionalEvaluationResult:
+        """Return the authoritative institutional report and stage trace."""
         ...
 
 
@@ -64,11 +79,12 @@ class IntelligenceRun:
     summary_lines: tuple[str, ...]
     explainability_report: ExplainabilityReport
     raw_candidates: tuple[RecommendationCandidate, ...] = ()
+    institutional_evaluation: InstitutionalEvaluationResult | None = None
 
     def as_dict(self) -> dict[str, object]:
         """Return a deterministic machine-readable intelligence payload."""
 
-        return {
+        payload: dict[str, object] = {
             "metadata": {
                 "observed_on": self.observed_on.isoformat(),
             },
@@ -132,6 +148,11 @@ class IntelligenceRun:
             },
             "explainability": self.explainability_report.as_dict(),
         }
+        if self.institutional_evaluation is not None:
+            payload["institutional"] = _institutional_payload(
+                self.institutional_evaluation
+            )
+        return payload
 
 
 class IntelligenceApplicationService:
@@ -148,6 +169,9 @@ class IntelligenceApplicationService:
         explainability_engine: IntelligenceExplainabilityEngine | None = None,
         adaptive_metadata_publisher: AdaptiveMetadataPublisher | None = None,
         adaptive_metadata_publication_enabled: bool = False,
+        institutional_engine: InstitutionalEvaluationEngine | None = None,
+        governed_institutional_evaluation_enabled: bool = False,
+        governed_institutional_symbols: frozenset[str] | None = None,
     ) -> None:
         self._input_provider = input_provider or DemoIntelligenceInputBuilder()
         self._market_engine = market_engine or MarketIntelligenceCompositeEngine()
@@ -163,12 +187,32 @@ class IntelligenceApplicationService:
         self._adaptive_metadata_publication_enabled = (
             adaptive_metadata_publication_enabled
         )
+        self._institutional_engine = institutional_engine
+        self._governed_institutional_evaluation_enabled = (
+            governed_institutional_evaluation_enabled
+        )
+        self._governed_institutional_symbols = (
+            None
+            if governed_institutional_symbols is None
+            else frozenset(
+                symbol.strip().upper()
+                for symbol in governed_institutional_symbols
+                if symbol.strip()
+            )
+        )
         if (
             self._adaptive_metadata_publication_enabled
             and self._adaptive_metadata_publisher is None
         ):
             raise ValueError(
                 "adaptive metadata publication requires an injected publisher"
+            )
+        if (
+            self._governed_institutional_evaluation_enabled
+            and self._institutional_engine is None
+        ):
+            raise ValueError(
+                "governed institutional evaluation requires an injected engine"
             )
 
     @classmethod
@@ -228,6 +272,7 @@ class IntelligenceApplicationService:
                 observed_on=observed_on,
                 market_regime=market_report.bias.value,
             ).recommendations
+        institutional_evaluation = self._institutional_evaluation(recommendations)
         allocation_plan = self._construction_engine.construct(
             inputs.allocation_candidates(recommendations),
             inputs.allocation_portfolio_context,
@@ -252,7 +297,32 @@ class IntelligenceApplicationService:
             ),
             explainability_report=explainability_report,
             raw_candidates=inputs.recommendation_candidates,
+            institutional_evaluation=institutional_evaluation,
         )
+
+    def _institutional_evaluation(
+        self,
+        recommendations: tuple[RecommendationReport, ...],
+    ) -> InstitutionalEvaluationResult | None:
+        if not self._governed_institutional_evaluation_enabled:
+            return None
+        engine = self._institutional_engine
+        if engine is None:
+            raise ValueError(
+                "governed institutional evaluation requires an injected engine"
+            )
+        selected = (
+            recommendations
+            if self._governed_institutional_symbols is None
+            else tuple(
+                recommendation
+                for recommendation in recommendations
+                if recommendation.symbol in self._governed_institutional_symbols
+            )
+        )
+        if not selected:
+            raise ValueError("governed institutional candidate population is empty")
+        return engine.evaluate_recommendations_with_trace(selected)
 
     def _summary_lines(
         self,
@@ -1659,6 +1729,63 @@ def _dma_20_invalidation_text(level: Decimal | None) -> str:
     if level is None:
         return "20-DMA invalidation unavailable due to insufficient price history."
     return f"Trade invalid if daily close is below 20-DMA, currently ₹{level}."
+
+
+def _institutional_payload(
+    evaluation: InstitutionalEvaluationResult,
+) -> dict[str, object]:
+    return {
+        "execution_mode": "GOVERNED_COMPLETE_STACK",
+        "candidates_scanned": evaluation.report.candidates_scanned,
+        "accepted_count": len(evaluation.report.accepted_opportunities),
+        "rejected_count": len(evaluation.report.rejected_opportunities),
+        "traces": [
+            {
+                "symbol": trace.candidate.symbol,
+                "base_invocation_count": trace.base_invocation_count,
+                "base_decision": _opportunity_decision_payload(trace.base_decision),
+                "stress_invocation_count": trace.stress_invocation_count,
+                "stress_applicable": trace.base_decision.accepted,
+                "stress_decision": _opportunity_decision_payload(trace.stress_decision),
+                "trade_plan_invocation_count": (trace.trade_plan_invocation_count),
+                "trade_plan_applicable": trace.stress_decision.accepted,
+                "trade_plan_decision": _opportunity_decision_payload(
+                    trace.trade_plan_decision
+                ),
+                "terminal_institutional_decision": (
+                    "ACCEPT" if trace.trade_plan_decision.accepted else "REJECT"
+                ),
+            }
+            for trace in evaluation.traces
+        ],
+    }
+
+
+def _opportunity_decision_payload(
+    decision: OpportunityDecision,
+) -> dict[str, object]:
+    return {
+        "gate_decision": decision.gate_decision.value,
+        "accepted": decision.accepted,
+        "opportunity_score": str(decision.opportunity_score),
+        "opportunity_grade": decision.opportunity_grade.value,
+        "rejection_reason_codes": [
+            reason.code.value for reason in decision.rejection_reasons
+        ],
+        "stress_reason_codes": [
+            result.reason_code.value for result in decision.stress_tests
+        ],
+        "decision_quality_action": (
+            None
+            if decision.decision_quality is None
+            else decision.decision_quality.final_action.value
+        ),
+        "trade_plan_quality_action": (
+            None
+            if decision.trade_plan_quality is None
+            else decision.trade_plan_quality.final_action.value
+        ),
+    }
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,0 +1,14 @@
+{
+  "accepted": true,
+  "candidate_identity": "RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda",
+  "deterministic_reconstruction_verified": true,
+  "evaluator_count": 7,
+  "evaluator_lineage_verified": true,
+  "incomplete_block_verified": true,
+  "point_in_time_verified": true,
+  "production_influence": false,
+  "readiness": "READY_FOR_FROZEN_EVALUATOR_REPLAY",
+  "snapshot_sha256": "014ed356f0b8546ea696aa096c52b014354bbe676e3685dc326597b854392db2",
+  "tamper_block_verified": true,
+  "unsupported_policy_block_verified": true
+}

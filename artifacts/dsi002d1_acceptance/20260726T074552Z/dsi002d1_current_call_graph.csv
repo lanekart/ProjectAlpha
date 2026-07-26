@@ -1,0 +1,11 @@
+stage_order,component,instantiated,invoked,implementation,input_contract,output_contract,output_recorded,affects_terminal_status,early_return_behavior,exception_behavior,dependency_injection_seam,tests_exercise_component
+1,configured_request_provider,true,true,FrozenPolicyReplayLoader,signed snapshot path,FrozenReplayBundle,true,false,NONE,FAIL_CLOSED,false,true
+2,frozen_input_assembler,false,false,FrozenInputAssembler,CapturedRunRequest,FrozenInputAssembly,false,false,NONE,FAIL_CLOSED,false,true
+3,application_input_provider,true,true,DemoIntelligenceInputBuilder,observed_on date,IntelligenceInputs,true,true,NONE,FAIL_CLOSED,true,true
+4,recommendation_creation,true,true,RecommendationEngine,RecommendationRequest,RecommendationReport,true,true,NONE,FAIL_CLOSED,true,true
+5,institutional_candidate_construction,false,false,NOT_INJECTED,RecommendationResult,OpportunityCandidate,false,false,NOT_APPLICABLE,FAIL_CLOSED,false,false
+6,institutional_base_decision,false,false,NOT_INJECTED,OpportunityCandidate,OpportunityDecision,false,false,NOT_APPLICABLE,FAIL_CLOSED,false,false
+7,institutional_stress,false,false,NOT_INJECTED,OpportunityDecision,OpportunityDecision,false,false,NOT_APPLICABLE,FAIL_CLOSED,false,false
+8,institutional_trade_plan_optimizer,false,false,NOT_INJECTED,OpportunityDecision,OpportunityDecision,false,false,NOT_APPLICABLE,FAIL_CLOSED,false,false
+9,portfolio_allocation,true,true,PortfolioConstructionEngine,RecommendationReport,PortfolioAllocationReport,true,true,NONE,FAIL_CLOSED,true,true
+10,recorded_decision_baseline,true,true,RecordedDecisionBaselineEnvelope,IntelligenceRun,signed recorded payload,true,true,NONE,FAIL_CLOSED,true,true

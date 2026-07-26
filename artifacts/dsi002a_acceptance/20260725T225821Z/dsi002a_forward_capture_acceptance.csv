@@ -1,0 +1,2 @@
+accepted,candidate,capture_failure_isolation_verified,duplicate_protection_verified,missing_section_block_verified,parity_verified,post_observation_block_verified,production_influence,replay_ready,snapshot_sha256
+True,"{""input_fingerprint"": ""6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda"", ""observed_on"": ""2026-07-26"", ""price_view"": ""RAW"", ""symbol"": ""BEL""}",True,True,True,True,True,False,True,014ed356f0b8546ea696aa096c52b014354bbe676e3685dc326597b854392db2

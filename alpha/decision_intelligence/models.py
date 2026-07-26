@@ -119,6 +119,23 @@ class RejectionReason:
 
 
 @dataclass(frozen=True, slots=True)
+class InstitutionalGateCondition:
+    """Stable observed base-decision condition for governed shadow research."""
+
+    condition_id: str
+    ordinal: int
+    reason: RejectionReason
+
+    def __post_init__(self) -> None:
+        condition_id = self.condition_id.strip().upper()
+        if not condition_id:
+            raise ValueError("institutional gate condition id cannot be empty")
+        if self.ordinal < 1:
+            raise ValueError("institutional gate condition ordinal must be positive")
+        object.__setattr__(self, "condition_id", condition_id)
+
+
+@dataclass(frozen=True, slots=True)
 class CapacityAssessment:
     capacity_score: Decimal
     deployable_capital_estimate: Decimal | None
@@ -610,6 +627,50 @@ class InstitutionalDecisionReport:
     concentration_warnings: tuple[str, ...]
     evidence_quality_summary: str
     no_trade_reason: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class InstitutionalCandidateStageTrace:
+    """Authoritative per-candidate institutional evaluator trace."""
+
+    candidate: InstitutionalCandidate
+    base_decision: OpportunityDecision
+    stress_decision: OpportunityDecision
+    trade_plan_decision: OpportunityDecision
+    base_invocation_count: int = 1
+    stress_invocation_count: int = 1
+    trade_plan_invocation_count: int = 1
+
+    def __post_init__(self) -> None:
+        if self.base_decision.candidate.symbol != self.candidate.symbol:
+            raise ValueError("base decision candidate identity mismatch")
+        if self.stress_decision.candidate.symbol != self.candidate.symbol:
+            raise ValueError("stress decision candidate identity mismatch")
+        if self.trade_plan_decision.candidate.symbol != self.candidate.symbol:
+            raise ValueError("trade-plan decision candidate identity mismatch")
+        counts = (
+            self.base_invocation_count,
+            self.stress_invocation_count,
+            self.trade_plan_invocation_count,
+        )
+        if any(count != 1 for count in counts):
+            raise ValueError("authoritative evaluators must be invoked exactly once")
+
+
+@dataclass(frozen=True, slots=True)
+class InstitutionalEvaluationResult:
+    """Institutional report plus immutable authoritative stage traces."""
+
+    report: InstitutionalDecisionReport
+    traces: tuple[InstitutionalCandidateStageTrace, ...]
+
+    def __post_init__(self) -> None:
+        if len(self.report.decisions) != len(self.traces):
+            raise ValueError("institutional report and trace population mismatch")
+        if tuple(trace.trade_plan_decision for trace in self.traces) != (
+            self.report.decisions
+        ):
+            raise ValueError("terminal institutional decisions do not match traces")
 
 
 @dataclass(frozen=True, slots=True)

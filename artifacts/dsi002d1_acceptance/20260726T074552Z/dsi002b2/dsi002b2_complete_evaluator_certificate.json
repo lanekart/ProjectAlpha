@@ -1,0 +1,39 @@
+{
+  "blockers": [],
+  "candidate_identity": "RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda",
+  "complete_evaluator_count": 6,
+  "contract_version": "DSI-002B2-v1.0.0",
+  "default_runtime_unchanged": true,
+  "duplicate_invocation_count": 0,
+  "governance_flags": {
+    "ACTIVE_REPLAY_INTEGRATION": false,
+    "APPROVAL_POLICY_CHANGE_PERMITTED": false,
+    "CAUSAL_CLAIM_PERMITTED": false,
+    "COUNTERFACTUAL_APPROVAL_CLAIMED": false,
+    "COUNTERFACTUAL_GATE_OVERRIDE_ENABLED": false,
+    "DEFAULT_RUNTIME_BEHAVIOUR_CHANGED": false,
+    "ECONOMIC_SUPERIORITY_CLAIMED": false,
+    "EXECUTION_INFLUENCE": false,
+    "EXECUTION_POLICY_CHANGE_PERMITTED": false,
+    "GATE_ORDER_CHANGE_PERMITTED": false,
+    "LEARNING_MUTATION_ENABLED": false,
+    "LIVE_SCORING_ENABLED": false,
+    "PORTFOLIO_POLICY_CHANGE_PERMITTED": false,
+    "PORTFOLIO_POLICY_INFLUENCE": false,
+    "PRODUCTION_INFLUENCE": false,
+    "RECOMMENDATION_INFLUENCE": false,
+    "SYNTHETIC_APPROVALS_PERMITTED": false,
+    "SYNTHETIC_OUTCOMES_PERMITTED": false,
+    "SYNTHETIC_RECOMMENDATIONS_PERMITTED": false,
+    "SYNTHETIC_TRADES_PERMITTED": false,
+    "THRESHOLD_CHANGE_PERMITTED": false
+  },
+  "readiness_decision": "READY_FOR_COMPLETE_STACK_RECORDED_BASELINE",
+  "report_sha256": "02a0be123328cbf9330a5a9b8405748a2865e875ff5bf4e46344375ec64eb32a",
+  "snapshot_sha256": "014ed356f0b8546ea696aa096c52b014354bbe676e3685dc326597b854392db2",
+  "source_commit": "315cd395f91f5c02ceff9a3df6ef0c3510316abb",
+  "support_artifact_manifest": {
+    "dsi002b2_complete_evaluator_inventory.csv": "89d6395829b820e35f915e69a976326f6fbde2cb078f9d9c977d0d6a5bc51766",
+    "dsi002b2_invocation_evidence.csv": "4ed7063349025568951d18bc5f670f1bd34be698dfccbdd0f5a3f9934f7139bb"
+  }
+}

@@ -1,0 +1,4 @@
+defect_code,component,evidence,repair_scope
+ALTERNATE_DECISION_PATH_USED,frozen_input_assembler,DSI-002C validates snapshot identity but rebuilds the application request with DemoIntelligenceInputBuilder.,PRESERVED_LIMITATION_OUTSIDE_D1_INSTITUTIONAL_SCOPE
+EVALUATOR_NOT_INJECTED,InstitutionalDecisionEngine,IntelligenceApplicationService had no institutional dependency or invocation in the signed DSI-002C path.,REPAIRED_GOVERNED_MODE_ONLY
+RECORDED_DECISION_BYPASSES_INSTITUTIONAL_STACK,IntelligenceRun.as_dict,The old recorded payload contains recommendation and allocation outputs but no institutional result or stage trace.,REPAIRED_GOVERNED_MODE_ONLY

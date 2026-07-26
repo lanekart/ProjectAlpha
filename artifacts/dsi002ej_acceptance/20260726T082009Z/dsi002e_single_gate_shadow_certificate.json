@@ -1,0 +1,50 @@
+{
+  "baseline_identity": "RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda",
+  "blockers": [],
+  "captured_population_identity": "RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda",
+  "contract_version": "DSI-002E-v1.0.0",
+  "governance_flags": {
+    "ACTIVE_REPLAY_INTEGRATION": false,
+    "APPROVAL_POLICY_CHANGE_PERMITTED": false,
+    "AUTOMATIC_POLICY_RECOMMENDATION_ENABLED": false,
+    "CAUSAL_CLAIM_PERMITTED": false,
+    "COUNTERFACTUAL_APPROVAL_CLAIMED": false,
+    "COUNTERFACTUAL_PRODUCTION_MUTATION_ENABLED": false,
+    "DEFAULT_RUNTIME_BEHAVIOUR_CHANGED": false,
+    "ECONOMIC_SUPERIORITY_CLAIMED": false,
+    "EXECUTION_INFLUENCE": false,
+    "EXECUTION_POLICY_CHANGE_PERMITTED": false,
+    "GATE_ORDER_CHANGE_PERMITTED": false,
+    "LEARNING_MUTATION_ENABLED": false,
+    "LIVE_SCORING_ENABLED": false,
+    "PORTFOLIO_POLICY_CHANGE_PERMITTED": false,
+    "PORTFOLIO_POLICY_INFLUENCE": false,
+    "PRODUCTION_INFLUENCE": false,
+    "RECOMMENDATION_INFLUENCE": false,
+    "SYNTHETIC_APPROVALS_PERMITTED": false,
+    "SYNTHETIC_OUTCOMES_PERMITTED": false,
+    "SYNTHETIC_RECOMMENDATIONS_PERMITTED": false,
+    "SYNTHETIC_TRADES_PERMITTED": false,
+    "THRESHOLD_CHANGE_PERMITTED": false
+  },
+  "readiness_decision": "READY_WITH_PARTIAL_OVERRIDE_ELIGIBILITY",
+  "report_sha256": "6d849a633c48ea92d88c58292a399dfb86d44da2a3e479c68c6f42c2f40fdb27",
+  "slice": "E",
+  "snapshot_sha256": "014ed356f0b8546ea696aa096c52b014354bbe676e3685dc326597b854392db2",
+  "source_commit": "d8a668383961c1876dc927be29cdfa6d8a326218",
+  "summary": {
+    "arms_reaching_approval": 0,
+    "arms_still_rejected": 7,
+    "eligible_gate_count": 7,
+    "ineligible_gate_count": 3,
+    "observed_failed_gate_count": 10,
+    "pre_intervention_drift_count": 0,
+    "semantic_defect_count": 0,
+    "single_gate_arm_count": 7
+  },
+  "support_artifact_manifest": {
+    "dsi002_single_gate_override_eligibility.csv": "e26b1049b2132d72a15a31fefe93c0b3377903efeaa121a08cede83ae2a00dd4",
+    "dsi002_single_gate_shadow_arms.csv": "3a4c2917d2f2f9d35994c27159aac521270af4b9c7cfaad528a1fc529ccb41a0",
+    "dsi002_single_gate_transition_ledger.csv": "e6304ec60c73f314e8b0f864bf983e0b6c7a35e7a26abcb12c8650a35285f87e"
+  }
+}

@@ -1,0 +1,2 @@
+economic_candidate_key,observed_arm,paired_arm,paired_arm_available,first_blocker,terminal_decision,divergence_classification,unexplained_divergence
+2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda,RAW,ADJUSTED,false,recommendation.trade_setup,WATCHLIST,NOT_COMPARABLE_SINGLE_SIGNED_ARM,false

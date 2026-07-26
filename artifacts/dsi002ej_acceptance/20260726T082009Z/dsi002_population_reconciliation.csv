@@ -1,0 +1,10 @@
+candidate_identity,population_stage,record_count,candidate_count,unique_economic_candidate_count,unique_outcome_count,reason_code,silent_loss_count
+RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda,renewed_c2_candidate,1,1,1,0,SIGNED_CANDIDATE,0
+RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda,failed_gate_conditions,10,1,1,0,OBSERVED_CONDITIONS,0
+RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda,override_eligible_conditions,7,1,1,0,ELIGIBLE_CONDITIONS,0
+RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda,single_gate_arms,7,1,1,0,ONE_PER_ELIGIBLE_CONDITION,0
+RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda,tested_remediation_subsets,128,1,1,0,EXACT_SEARCH,0
+RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda,sufficient_remediation_sets,0,0,0,0,PROVEN_SETS,0
+RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda,institutional_approvals,0,0,0,0,UNCHANGED_STACK,0
+RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda,trades_formed,0,0,0,0,UNCHANGED_STACK,0
+RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda,comparable_completed_outcomes,0,0,0,0,GOVERNED_LINEAGE,0

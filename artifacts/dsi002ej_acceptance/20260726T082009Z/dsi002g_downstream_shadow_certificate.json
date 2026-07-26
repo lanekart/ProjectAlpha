@@ -1,0 +1,47 @@
+{
+  "baseline_identity": "RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda",
+  "blockers": [],
+  "captured_population_identity": "RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda",
+  "contract_version": "DSI-002G-v1.0.0",
+  "governance_flags": {
+    "ACTIVE_REPLAY_INTEGRATION": false,
+    "APPROVAL_POLICY_CHANGE_PERMITTED": false,
+    "AUTOMATIC_POLICY_RECOMMENDATION_ENABLED": false,
+    "CAUSAL_CLAIM_PERMITTED": false,
+    "COUNTERFACTUAL_APPROVAL_CLAIMED": false,
+    "COUNTERFACTUAL_PRODUCTION_MUTATION_ENABLED": false,
+    "DEFAULT_RUNTIME_BEHAVIOUR_CHANGED": false,
+    "ECONOMIC_SUPERIORITY_CLAIMED": false,
+    "EXECUTION_INFLUENCE": false,
+    "EXECUTION_POLICY_CHANGE_PERMITTED": false,
+    "GATE_ORDER_CHANGE_PERMITTED": false,
+    "LEARNING_MUTATION_ENABLED": false,
+    "LIVE_SCORING_ENABLED": false,
+    "PORTFOLIO_POLICY_CHANGE_PERMITTED": false,
+    "PORTFOLIO_POLICY_INFLUENCE": false,
+    "PRODUCTION_INFLUENCE": false,
+    "RECOMMENDATION_INFLUENCE": false,
+    "SYNTHETIC_APPROVALS_PERMITTED": false,
+    "SYNTHETIC_OUTCOMES_PERMITTED": false,
+    "SYNTHETIC_RECOMMENDATIONS_PERMITTED": false,
+    "SYNTHETIC_TRADES_PERMITTED": false,
+    "THRESHOLD_CHANGE_PERMITTED": false
+  },
+  "readiness_decision": "READY_WITH_ZERO_APPROVAL_POPULATION",
+  "report_sha256": "6b44a400b7547a2dc7aca4863174b9dec2d5ea1fb41824e5ed5461a8551c9296",
+  "slice": "G",
+  "snapshot_sha256": "014ed356f0b8546ea696aa096c52b014354bbe676e3685dc326597b854392db2",
+  "source_commit": "d8a668383961c1876dc927be29cdfa6d8a326218",
+  "summary": {
+    "allocation_eligible_count": 0,
+    "approval_count": 0,
+    "entry_ready_count": 0,
+    "portfolio_eligible_count": 0,
+    "trade_formed_count": 0,
+    "unexplained_transition_count": 0
+  },
+  "support_artifact_manifest": {
+    "dsi002_allocation_portfolio_entry_trade_transitions.csv": "dcf6b258d18ae2eaadcb96001c6524f75b53ebdb19b4dd6ae385763afd77a209",
+    "dsi002_downstream_approval_transitions.csv": "377fe94b4f0a2a9ef7e53d02b141bde94d02896950c200b05fe303353436768b"
+  }
+}

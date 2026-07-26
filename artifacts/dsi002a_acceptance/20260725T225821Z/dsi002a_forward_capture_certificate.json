@@ -1,0 +1,17 @@
+{
+  "accepted": true,
+  "candidate": {
+    "input_fingerprint": "6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda",
+    "observed_on": "2026-07-26",
+    "price_view": "RAW",
+    "symbol": "BEL"
+  },
+  "capture_failure_isolation_verified": true,
+  "duplicate_protection_verified": true,
+  "missing_section_block_verified": true,
+  "parity_verified": true,
+  "post_observation_block_verified": true,
+  "production_influence": false,
+  "replay_ready": true,
+  "snapshot_sha256": "014ed356f0b8546ea696aa096c52b014354bbe676e3685dc326597b854392db2"
+}

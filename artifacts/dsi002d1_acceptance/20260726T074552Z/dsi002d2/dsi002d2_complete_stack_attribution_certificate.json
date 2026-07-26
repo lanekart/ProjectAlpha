@@ -1,0 +1,42 @@
+{
+  "attribution_complete": true,
+  "blockers": [],
+  "c2_certificate_sha256": "4ae21dc7ced023a25652043e2681e244eef1320816d3d755d81d220a76dfe8f6",
+  "candidate_identity": "RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda",
+  "contract_version": "DSI-002D2-v1.0.0",
+  "governance_flags": {
+    "ACTIVE_REPLAY_INTEGRATION": false,
+    "APPROVAL_POLICY_CHANGE_PERMITTED": false,
+    "CAUSAL_CLAIM_PERMITTED": false,
+    "COUNTERFACTUAL_APPROVAL_CLAIMED": false,
+    "COUNTERFACTUAL_GATE_OVERRIDE_ENABLED": false,
+    "DEFAULT_RUNTIME_BEHAVIOUR_CHANGED": false,
+    "ECONOMIC_SUPERIORITY_CLAIMED": false,
+    "EXECUTION_INFLUENCE": false,
+    "EXECUTION_POLICY_CHANGE_PERMITTED": false,
+    "GATE_ORDER_CHANGE_PERMITTED": false,
+    "LEARNING_MUTATION_ENABLED": false,
+    "LIVE_SCORING_ENABLED": false,
+    "PORTFOLIO_POLICY_CHANGE_PERMITTED": false,
+    "PORTFOLIO_POLICY_INFLUENCE": false,
+    "PRODUCTION_INFLUENCE": false,
+    "RECOMMENDATION_INFLUENCE": false,
+    "SYNTHETIC_APPROVALS_PERMITTED": false,
+    "SYNTHETIC_OUTCOMES_PERMITTED": false,
+    "SYNTHETIC_RECOMMENDATIONS_PERMITTED": false,
+    "SYNTHETIC_TRADES_PERMITTED": false,
+    "THRESHOLD_CHANGE_PERMITTED": false
+  },
+  "institutional_base_decision_stage_observed": true,
+  "institutional_stress_stage_observed": true,
+  "readiness_decision": "READY_FOR_GOVERNED_STAGE_ATTRIBUTION_RESEARCH",
+  "report_sha256": "945b696dba091a6dbfb52094860053fd9025b9afe87b2ce89accba25c5127e5f",
+  "snapshot_sha256": "014ed356f0b8546ea696aa096c52b014354bbe676e3685dc326597b854392db2",
+  "source_commit": "315cd395f91f5c02ceff9a3df6ef0c3510316abb",
+  "support_artifact_manifest": {
+    "dsi002d2_complete_stack_attribution.csv": "6a4be12377e11e1310cb6733188e2c36dfe3c6f2d07b5143446ebfaff6b8dd87",
+    "dsi002d2_complete_stack_stage_events.csv": "dc1fad553eb721c30c1bae03bda639c0661662aa8409a31ce11c3cc22d068d9a"
+  },
+  "terminal_institutional_stage_observed": true,
+  "trade_plan_optimizer_stage_observed": true
+}
