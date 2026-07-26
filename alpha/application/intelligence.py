@@ -13,6 +13,9 @@ from alpha.application.intelligence_inputs import (
     IntelligenceInputBuilder,
     IntelligenceInputSet,
 )
+from alpha.application.recommendation_snapshot_capture import (
+    GovernedRecommendationSnapshotRecorder,
+)
 from alpha.explainability import (
     ExplainabilityReport,
     IntelligenceExplainabilityEngine,
@@ -172,6 +175,10 @@ class IntelligenceApplicationService:
         institutional_engine: InstitutionalEvaluationEngine | None = None,
         governed_institutional_evaluation_enabled: bool = False,
         governed_institutional_symbols: frozenset[str] | None = None,
+        governed_recommendation_snapshot_recorder: (
+            GovernedRecommendationSnapshotRecorder | None
+        ) = None,
+        governed_recommendation_snapshot_capture_enabled: bool = False,
     ) -> None:
         self._input_provider = input_provider or DemoIntelligenceInputBuilder()
         self._market_engine = market_engine or MarketIntelligenceCompositeEngine()
@@ -200,6 +207,12 @@ class IntelligenceApplicationService:
                 if symbol.strip()
             )
         )
+        self._governed_recommendation_snapshot_recorder = (
+            governed_recommendation_snapshot_recorder
+        )
+        self._governed_recommendation_snapshot_capture_enabled = (
+            governed_recommendation_snapshot_capture_enabled
+        )
         if (
             self._adaptive_metadata_publication_enabled
             and self._adaptive_metadata_publisher is None
@@ -213,6 +226,13 @@ class IntelligenceApplicationService:
         ):
             raise ValueError(
                 "governed institutional evaluation requires an injected engine"
+            )
+        if (
+            self._governed_recommendation_snapshot_capture_enabled
+            and self._governed_recommendation_snapshot_recorder is None
+        ):
+            raise ValueError(
+                "governed recommendation snapshot capture requires an injected recorder"
             )
 
     @classmethod
@@ -250,6 +270,18 @@ class IntelligenceApplicationService:
         """Run a deterministic product-facing intelligence workflow."""
 
         inputs = self._input_provider.build(observed_on=observed_on)
+        capture_id: str | None = None
+        recorder = self._governed_recommendation_snapshot_recorder
+        if self._governed_recommendation_snapshot_capture_enabled:
+            if recorder is None:
+                raise ValueError(
+                    "governed recommendation snapshot capture requires an injected "
+                    "recorder"
+                )
+            capture_id = recorder.begin_capture(
+                observed_on=observed_on,
+                inputs=inputs,
+            )
 
         market_report = self._market_engine.assess(
             stock=inputs.stock,
@@ -261,6 +293,11 @@ class IntelligenceApplicationService:
             inputs.recommendation_candidates,
             portfolio=inputs.recommendation_portfolio_context,
         )
+        if capture_id is not None and recorder is not None:
+            recorder.capture_recommendations(
+                capture_id=capture_id,
+                recommendations=recommendations,
+            )
         if self._adaptive_metadata_publication_enabled:
             publisher = self._adaptive_metadata_publisher
             if publisher is None:
@@ -283,6 +320,13 @@ class IntelligenceApplicationService:
             recommendations=recommendations,
             allocation_plan=allocation_plan,
         )
+        if capture_id is not None and recorder is not None:
+            recorder.complete_capture(
+                capture_id=capture_id,
+                recommendations=recommendations,
+                institutional_evaluation=institutional_evaluation,
+                allocation_plan=allocation_plan,
+            )
 
         return IntelligenceRun(
             observed_on=observed_on,
