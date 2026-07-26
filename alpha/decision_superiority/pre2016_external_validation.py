@@ -522,7 +522,10 @@ def _readiness(
     if classification == "EXTERNAL_VALIDATION_FAILED":
         h_state = "READY_WITH_EXTERNAL_REJECTION"
         i_state = "READY_WITH_CHALLENGER_REJECTED"
-    elif classification in {"EXTERNAL_VALIDATION_MIXED", "INSUFFICIENT_EXTERNAL_SAMPLE"}:
+    elif classification in {
+        "EXTERNAL_VALIDATION_MIXED",
+        "INSUFFICIENT_EXTERNAL_SAMPLE",
+    }:
         h_state = "READY_WITH_MIXED_EXTERNAL_EVIDENCE"
         i_state = "READY_WITH_MIXED_EXTERNAL_EVIDENCE"
     else:
