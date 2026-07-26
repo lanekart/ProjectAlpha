@@ -1,0 +1,8 @@
+empirical_counted,probe,tamper_detected
+false,fingerprint,true
+false,input_snapshot,true
+false,manifest,true
+false,plan_identity,true
+false,policy_hash,true
+false,secret_field,true
+false,stage_trace,true

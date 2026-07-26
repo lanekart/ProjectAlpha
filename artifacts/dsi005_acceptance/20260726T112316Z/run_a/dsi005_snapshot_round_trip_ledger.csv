@@ -1,0 +1,2 @@
+capture_id,complete_stack_parity,empirical_counted,fingerprint_parity,input_parity,plan_identity_parity,ready,recommendation_parity,tamper_validation_passed
+9b8dd1322ba0473b92119b7685f4e8bf6c38e581d7bd68c5b54f52a99d02e392,true,false,true,true,true,true,true,true

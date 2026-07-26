@@ -1,0 +1,5 @@
+grade,metric,value
+NO_SAFE_RETROSPECTIVE_EXPANSION,dsi004_excluded_candidates,1330
+NO_SAFE_RETROSPECTIVE_EXPANSION,newly_materialised_candidates,0
+NO_SAFE_RETROSPECTIVE_EXPANSION,retained_replayable_candidates,1
+PROSPECTIVE_CAPTURE_READY,prospective_capture_contract,1

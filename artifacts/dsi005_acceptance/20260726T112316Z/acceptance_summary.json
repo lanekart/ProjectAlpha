@@ -1,0 +1,19 @@
+{
+  "acceptance_root": "artifacts/dsi005_acceptance/20260726T112316Z",
+  "artifact_count": 27,
+  "certificate_file_sha256": "c03b754013b719296b92179669901777c0b6cc68ed205266384f13bbd248c613",
+  "default_snapshot_capture_enabled": false,
+  "deficit_signature_count": 1,
+  "deterministic_rerun_byte_identical": true,
+  "dsi004_excluded_candidate_count": 1330,
+  "final_readiness": "READY_FOR_GOVERNED_RECOMMENDATION_SNAPSHOT_RETENTION",
+  "missing_required_field_row_count": 19950,
+  "newly_admitted_candidate_count": 0,
+  "newly_materialised_candidate_count": 0,
+  "production_influence": false,
+  "report_file_sha256": "34e6f7a6757f2bada4d41e2c36ba25807ff3d99b3c05e0f547995db618e1e22e",
+  "round_trip_success_count": 1,
+  "source_commit": "565096a07e372fc65b4580b200714b53764e741a",
+  "tamper_detected_count": 7,
+  "total_admitted_candidate_count": 1
+}

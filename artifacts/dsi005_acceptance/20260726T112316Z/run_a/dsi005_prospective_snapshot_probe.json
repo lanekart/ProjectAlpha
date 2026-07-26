@@ -1,0 +1,2120 @@
+{
+  "candidate_arm_ids": [
+    "e1101171f40777aac5f693716fdd414e16906ae41b4c2d98381f0fe0d6930827",
+    "2a005c235d9cbdf48af90e95731050d72661ce24fe559709a6614733c17a3307",
+    "8549135c11a9454ca4ecce5f6454b9bb0b6de8a38e8db9d2fa404735d2d7f20d"
+  ],
+  "capture_id": "9b8dd1322ba0473b92119b7685f4e8bf6c38e581d7bd68c5b54f52a99d02e392",
+  "complete_stack": {
+    "allocation_plan": {
+      "generated_on": "2026-07-26",
+      "reasons": [
+        "candidate count: 3",
+        "approved capital deployments: 0",
+        "remaining cash: 300000.00"
+      ],
+      "remaining_cash": "300000.00",
+      "reports": [
+        {
+          "correlation": {
+            "adjusted_weight": "0.0000",
+            "original_weight": "0.0000",
+            "penalty": "0",
+            "reasons": [
+              "recommendation intent blocked allocation"
+            ],
+            "symbol": "HAL"
+          },
+          "decision": "SKIP",
+          "observed_on": "2026-07-26",
+          "reasons": [
+            "capital action: skip",
+            "decision: SKIP",
+            "recommendation conviction: WATCHLIST",
+            "recommendation action: ACCUMULATE",
+            "recommendation final signal: WATCHLIST",
+            "recommendation score: 74.00",
+            "success probability: 92.55%",
+            "requested allocation: 0.00%",
+            "correlation-adjusted allocation: 0.00%",
+            "approved allocation: 0.00%"
+          ],
+          "risk_budget": {
+            "approved_weight": "0.0000",
+            "blocked_weight": "0.0000",
+            "constraints": [
+              "LOW_CONVICTION"
+            ],
+            "reasons": [
+              "recommendation conviction: WATCHLIST",
+              "recommendation action or final signal blocks deployment",
+              "allocation blocked by portfolio constraints"
+            ],
+            "symbol": "HAL"
+          },
+          "sector": "DEFENCE",
+          "sizing": {
+            "base_weight": "0.10",
+            "conviction_weight": "0.74",
+            "liquidity_weight": "0.90",
+            "probability_weight": "0.8510",
+            "reasons": [
+              "recommendation conviction: WATCHLIST",
+              "recommendation action: ACCUMULATE",
+              "recommendation strength: 74.00%",
+              "success probability: 92.55%",
+              "reward to risk: 3.1111",
+              "capped position weight: 10.00%"
+            ],
+            "reward_risk_weight": "0.6222222222222222222222222222",
+            "suggested_weight": "0.0000",
+            "symbol": "HAL"
+          },
+          "symbol": "HAL",
+          "target_amount": "0.00",
+          "target_weight": "0.0000"
+        },
+        {
+          "correlation": {
+            "adjusted_weight": "0.0000",
+            "original_weight": "0.0000",
+            "penalty": "0",
+            "reasons": [
+              "recommendation intent blocked allocation"
+            ],
+            "symbol": "LT"
+          },
+          "decision": "SKIP",
+          "observed_on": "2026-07-26",
+          "reasons": [
+            "capital action: skip",
+            "decision: SKIP",
+            "recommendation conviction: WATCHLIST",
+            "recommendation action: ACCUMULATE",
+            "recommendation final signal: WATCHLIST",
+            "recommendation score: 72.14",
+            "success probability: 80.82%",
+            "requested allocation: 0.00%",
+            "correlation-adjusted allocation: 0.00%",
+            "approved allocation: 0.00%"
+          ],
+          "risk_budget": {
+            "approved_weight": "0.0000",
+            "blocked_weight": "0.0000",
+            "constraints": [
+              "LOW_CONVICTION"
+            ],
+            "reasons": [
+              "recommendation conviction: WATCHLIST",
+              "recommendation action or final signal blocks deployment",
+              "allocation blocked by portfolio constraints"
+            ],
+            "symbol": "LT"
+          },
+          "sector": "CAPITAL GOODS",
+          "sizing": {
+            "base_weight": "0.10",
+            "conviction_weight": "0.7214",
+            "liquidity_weight": "0.90",
+            "probability_weight": "0.6164",
+            "reasons": [
+              "recommendation conviction: WATCHLIST",
+              "recommendation action: ACCUMULATE",
+              "recommendation strength: 72.14%",
+              "success probability: 80.82%",
+              "reward to risk: 2.7143",
+              "capped position weight: 10.00%"
+            ],
+            "reward_risk_weight": "0.5428571428571428571428571428",
+            "suggested_weight": "0.0000",
+            "symbol": "LT"
+          },
+          "symbol": "LT",
+          "target_amount": "0.00",
+          "target_weight": "0.0000"
+        },
+        {
+          "correlation": {
+            "adjusted_weight": "0.0000",
+            "original_weight": "0.0000",
+            "penalty": "0",
+            "reasons": [
+              "recommendation intent blocked allocation"
+            ],
+            "symbol": "BEL"
+          },
+          "decision": "SKIP",
+          "observed_on": "2026-07-26",
+          "reasons": [
+            "capital action: skip",
+            "decision: SKIP",
+            "recommendation conviction: WATCHLIST",
+            "recommendation action: ACCUMULATE",
+            "recommendation final signal: WATCHLIST",
+            "recommendation score: 62.25",
+            "success probability: 86.17%",
+            "requested allocation: 0.00%",
+            "correlation-adjusted allocation: 0.00%",
+            "approved allocation: 0.00%"
+          ],
+          "risk_budget": {
+            "approved_weight": "0.0000",
+            "blocked_weight": "0.0000",
+            "constraints": [
+              "LOW_CONVICTION"
+            ],
+            "reasons": [
+              "recommendation conviction: WATCHLIST",
+              "recommendation action or final signal blocks deployment",
+              "allocation blocked by portfolio constraints"
+            ],
+            "symbol": "BEL"
+          },
+          "sector": "DEFENCE",
+          "sizing": {
+            "base_weight": "0.10",
+            "conviction_weight": "0.6225",
+            "liquidity_weight": "0.82",
+            "probability_weight": "0.7234",
+            "reasons": [
+              "recommendation conviction: WATCHLIST",
+              "recommendation action: ACCUMULATE",
+              "recommendation strength: 62.25%",
+              "success probability: 86.17%",
+              "reward to risk: 2.7500",
+              "capped position weight: 10.00%"
+            ],
+            "reward_risk_weight": "0.55",
+            "suggested_weight": "0.0000",
+            "symbol": "BEL"
+          },
+          "symbol": "BEL",
+          "target_amount": "0.00",
+          "target_weight": "0.0000"
+        }
+      ],
+      "total_allocated_amount": "0.00",
+      "total_allocated_weight": "0.0000"
+    },
+    "institutional_evaluation": null
+  },
+  "complete_stack_baseline_id": "7bae63520899f59e2142bba9cd86b0f0c1f7a9f7c0db5efade8e8d9788f3cb60",
+  "contract_version": "ALPHA-RECOMMENDATION-SNAPSHOT-v1.0.0",
+  "economic_candidate_ids": [
+    "c2cc4f8ed670c8a53f442722f3410d4b6276693e0132f8d12e237b74b5e13e66",
+    "a9b5ea9fb4f25def88cde1e017535b14952b8c08232c0b4fe781e104e29fb69e",
+    "cc5fe7f03d7472b21a4e6b75c6a1c55e0370e8d54249ccbba5eceecea94f2d5b"
+  ],
+  "fingerprint_contract_hash": "5f602a2247ca26be83f4c33aa1feffeccac986feab4b4cd8c7cce525a5b58682",
+  "input_snapshot": {
+    "allocation_portfolio_context": {
+      "available_cash": "300000",
+      "current_positions": {
+        "LT": "0.08"
+      },
+      "risk_budget": {
+        "max_correlation": "0.75",
+        "max_portfolio_risk_weight": "0.35",
+        "max_position_weight": "0.10",
+        "max_sector_weight": "0.25",
+        "min_recommendation_score": "60"
+      },
+      "sector_exposures": [
+        {
+          "current_weight": "0.08",
+          "sector": "CAPITAL GOODS"
+        },
+        {
+          "current_weight": "0.12",
+          "sector": "DEFENCE"
+        }
+      ],
+      "total_capital": "1000000"
+    },
+    "breadth": {
+      "advances": 1220,
+      "declines": 760,
+      "observed_on": "2026-07-26",
+      "unchanged": 120
+    },
+    "correlation": {
+      "correlation_to_index": "0.42",
+      "correlation_to_sector": "0.55",
+      "symbol": "HAL"
+    },
+    "correlation_by_symbol": {
+      "BEL": "0.68",
+      "HAL": "0.42",
+      "LT": "0.48"
+    },
+    "liquidity_by_symbol": {
+      "BEL": "0.82",
+      "HAL": "0.90",
+      "LT": "0.90"
+    },
+    "recommendation_candidates": [
+      {
+        "accumulation_score": null,
+        "action": "BUY",
+        "atr": null,
+        "benchmark_relative_strength": null,
+        "breakdown_attempt": false,
+        "breakout_attempt": false,
+        "breakout_setup_score": null,
+        "breakout_volume_confirmation": null,
+        "close_location_score": null,
+        "current_price": null,
+        "distribution_score": null,
+        "dma_20": null,
+        "dma_200": null,
+        "dma_50": null,
+        "ema_20": null,
+        "ema_200": null,
+        "ema_50": null,
+        "evidence": [
+          {
+            "label": "Market Intelligence",
+            "max_points": "25",
+            "rationale": "constructive accumulation, liquidity, breadth, sector leadership, and correlation profile",
+            "score_points": "14.64"
+          },
+          {
+            "label": "Strategy Strength",
+            "max_points": "25",
+            "rationale": "momentum setup remains strong",
+            "score_points": "22"
+          }
+        ],
+        "expected_drawdown": "0.045",
+        "expected_holding_period_days": "45",
+        "expected_return": "0.14",
+        "fibonacci_382": null,
+        "fibonacci_500": null,
+        "fibonacci_618": null,
+        "fibonacci_786": null,
+        "high_price": null,
+        "higher_highs_higher_lows": false,
+        "historical_average_gain": null,
+        "historical_average_hold_days": null,
+        "historical_average_loss": null,
+        "historical_expected_value": null,
+        "historical_win_rate": null,
+        "liquidity_score": "0.9000",
+        "low_price": null,
+        "lower_highs_lower_lows": false,
+        "market_intelligence_score": "0.5856",
+        "market_regime": "SIDEWAYS",
+        "market_regime_score": null,
+        "metadata": {
+          "source": "demo_intelligence_input_builder"
+        },
+        "momentum_confirmation_score": null,
+        "observed_on": "2026-07-26",
+        "open_price": null,
+        "previous_close": null,
+        "previous_high_price": null,
+        "previous_low_price": null,
+        "previous_open_price": null,
+        "price_breakdown_score": null,
+        "price_breakout_score": null,
+        "price_history": [],
+        "price_momentum_score": null,
+        "price_structure_score": null,
+        "price_trend_score": null,
+        "prior_day_high": null,
+        "probability_score": "0.7400",
+        "recent_high": null,
+        "relative_strength_score": null,
+        "resistance_level": null,
+        "retracement_low": null,
+        "retracement_score": "0.5000",
+        "reversal_candle_high": null,
+        "risk_score": "0.7900",
+        "risks": [
+          {
+            "label": "Drawdown",
+            "penalty_points": "2",
+            "rationale": "expected drawdown remains controlled"
+          }
+        ],
+        "sector_strength_score": null,
+        "selloff_volume_penalty": null,
+        "setup_type": null,
+        "strategy_score": "0.8800",
+        "support_level": null,
+        "swing_high": null,
+        "swing_low": null,
+        "symbol": "HAL",
+        "trend_structure_score": null,
+        "two_day_prior_close": null,
+        "two_day_prior_high_price": null,
+        "two_day_prior_low_price": null,
+        "two_day_prior_open_price": null,
+        "volatility_expansion_score": null,
+        "volume_confirmation_score": null,
+        "volume_dry_up_score": null,
+        "volume_expansion_score": null
+      },
+      {
+        "accumulation_score": null,
+        "action": "ACCUMULATE",
+        "atr": null,
+        "benchmark_relative_strength": null,
+        "breakdown_attempt": false,
+        "breakout_attempt": false,
+        "breakout_setup_score": null,
+        "breakout_volume_confirmation": null,
+        "close_location_score": null,
+        "current_price": null,
+        "distribution_score": null,
+        "dma_20": null,
+        "dma_200": null,
+        "dma_50": null,
+        "ema_20": null,
+        "ema_200": null,
+        "ema_50": null,
+        "evidence": [
+          {
+            "label": "Sector Leadership",
+            "max_points": "25",
+            "rationale": "defence sector remains a top leadership pocket",
+            "score_points": "18"
+          }
+        ],
+        "expected_drawdown": "0.040",
+        "expected_holding_period_days": "40",
+        "expected_return": "0.11",
+        "fibonacci_382": null,
+        "fibonacci_500": null,
+        "fibonacci_618": null,
+        "fibonacci_786": null,
+        "high_price": null,
+        "higher_highs_higher_lows": false,
+        "historical_average_gain": null,
+        "historical_average_hold_days": null,
+        "historical_average_loss": null,
+        "historical_expected_value": null,
+        "historical_win_rate": null,
+        "liquidity_score": "0.8200",
+        "low_price": null,
+        "lower_highs_lower_lows": false,
+        "market_intelligence_score": "0.5456",
+        "market_regime": "SIDEWAYS",
+        "market_regime_score": null,
+        "metadata": {
+          "source": "demo_intelligence_input_builder"
+        },
+        "momentum_confirmation_score": null,
+        "observed_on": "2026-07-26",
+        "open_price": null,
+        "previous_close": null,
+        "previous_high_price": null,
+        "previous_low_price": null,
+        "previous_open_price": null,
+        "price_breakdown_score": null,
+        "price_breakout_score": null,
+        "price_history": [],
+        "price_momentum_score": null,
+        "price_structure_score": null,
+        "price_trend_score": null,
+        "prior_day_high": null,
+        "probability_score": "0.7000",
+        "recent_high": null,
+        "relative_strength_score": null,
+        "resistance_level": null,
+        "retracement_low": null,
+        "retracement_score": "0.5000",
+        "reversal_candle_high": null,
+        "risk_score": "0.6300",
+        "risks": [
+          {
+            "label": "Correlation",
+            "penalty_points": "3",
+            "rationale": "sector overlap with the top-ranked candidate"
+          }
+        ],
+        "sector_strength_score": null,
+        "selloff_volume_penalty": null,
+        "setup_type": null,
+        "strategy_score": "0.8100",
+        "support_level": null,
+        "swing_high": null,
+        "swing_low": null,
+        "symbol": "BEL",
+        "trend_structure_score": null,
+        "two_day_prior_close": null,
+        "two_day_prior_high_price": null,
+        "two_day_prior_low_price": null,
+        "two_day_prior_open_price": null,
+        "volatility_expansion_score": null,
+        "volume_confirmation_score": null,
+        "volume_dry_up_score": null,
+        "volume_expansion_score": null
+      },
+      {
+        "accumulation_score": null,
+        "action": "ACCUMULATE",
+        "atr": null,
+        "benchmark_relative_strength": null,
+        "breakdown_attempt": false,
+        "breakout_attempt": false,
+        "breakout_setup_score": null,
+        "breakout_volume_confirmation": null,
+        "close_location_score": null,
+        "current_price": null,
+        "distribution_score": null,
+        "dma_20": null,
+        "dma_200": null,
+        "dma_50": null,
+        "ema_20": null,
+        "ema_200": null,
+        "ema_50": null,
+        "evidence": [
+          {
+            "label": "Liquidity",
+            "max_points": "15",
+            "rationale": "high liquidity supports institutional sizing",
+            "score_points": "13.50"
+          }
+        ],
+        "expected_drawdown": "0.035",
+        "expected_holding_period_days": "50",
+        "expected_return": "0.095",
+        "fibonacci_382": null,
+        "fibonacci_500": null,
+        "fibonacci_618": null,
+        "fibonacci_786": null,
+        "high_price": null,
+        "higher_highs_higher_lows": false,
+        "historical_average_gain": null,
+        "historical_average_hold_days": null,
+        "historical_average_loss": null,
+        "historical_expected_value": null,
+        "historical_win_rate": null,
+        "liquidity_score": "0.9000",
+        "low_price": null,
+        "lower_highs_lower_lows": false,
+        "market_intelligence_score": "0.6200",
+        "market_regime": "SIDEWAYS",
+        "market_regime_score": null,
+        "metadata": {
+          "source": "demo_intelligence_input_builder"
+        },
+        "momentum_confirmation_score": null,
+        "observed_on": "2026-07-26",
+        "open_price": null,
+        "previous_close": null,
+        "previous_high_price": null,
+        "previous_low_price": null,
+        "previous_open_price": null,
+        "price_breakdown_score": null,
+        "price_breakout_score": null,
+        "price_history": [],
+        "price_momentum_score": null,
+        "price_structure_score": null,
+        "price_trend_score": null,
+        "prior_day_high": null,
+        "probability_score": "0.6600",
+        "recent_high": null,
+        "relative_strength_score": null,
+        "resistance_level": null,
+        "retracement_low": null,
+        "retracement_score": "0.5000",
+        "reversal_candle_high": null,
+        "risk_score": "0.7200",
+        "risks": [
+          {
+            "label": "Opportunity Cost",
+            "penalty_points": "2",
+            "rationale": "higher-ranked opportunities are available"
+          }
+        ],
+        "sector_strength_score": null,
+        "selloff_volume_penalty": null,
+        "setup_type": null,
+        "strategy_score": "0.7600",
+        "support_level": null,
+        "swing_high": null,
+        "swing_low": null,
+        "symbol": "LT",
+        "trend_structure_score": null,
+        "two_day_prior_close": null,
+        "two_day_prior_high_price": null,
+        "two_day_prior_low_price": null,
+        "two_day_prior_open_price": null,
+        "volatility_expansion_score": null,
+        "volume_confirmation_score": null,
+        "volume_dry_up_score": null,
+        "volume_expansion_score": null
+      }
+    ],
+    "recommendation_portfolio_context": {
+      "existing_symbols": [
+        "LT"
+      ],
+      "max_sector_exposure_percent": "25",
+      "max_single_position_percent": "10",
+      "sector_exposure": {
+        "CAPITAL GOODS": "8",
+        "DEFENCE": "12"
+      },
+      "symbol_sector": {
+        "BEL": "DEFENCE",
+        "HAL": "DEFENCE",
+        "LT": "CAPITAL GOODS"
+      }
+    },
+    "sector_by_symbol": {
+      "BEL": "DEFENCE",
+      "HAL": "DEFENCE",
+      "LT": "CAPITAL GOODS"
+    },
+    "sectors": [
+      {
+        "breadth_percent": "72.00",
+        "return_percent": "3.80",
+        "sector": "DEFENCE",
+        "turnover_change_percent": "18.00"
+      },
+      {
+        "breadth_percent": "64.00",
+        "return_percent": "2.10",
+        "sector": "CAPITAL GOODS",
+        "turnover_change_percent": "11.00"
+      },
+      {
+        "breadth_percent": "51.00",
+        "return_percent": "0.80",
+        "sector": "BANKS",
+        "turnover_change_percent": "4.00"
+      }
+    ],
+    "stock": {
+      "average_turnover_value": "500000000",
+      "delivery_change_percent": "14.00",
+      "delivery_percent": "68.00",
+      "observed_on": "2026-07-26",
+      "price_change_percent": "4.20",
+      "spread_percent": "0.18",
+      "symbol": "HAL",
+      "turnover_value": "850000000",
+      "volatility_percent": "3.20",
+      "volume_change_percent": "22.00"
+    }
+  },
+  "observed_on": "2026-07-26",
+  "outcome_link_ids": [
+    "045a906ddb24e8ed08a9b4ee9cf221cf0e1b8a99ace83e8d31dd95f3a234cb16",
+    "414350e4edb07f76f9a1572dfb4d7cf8ffb3551a9e85071bb31a6cb897d1ccf8",
+    "a49d47d06e5671ad815e5f8a3dd839a16d40d184e874545387bc3f7f0c1ea4e5"
+  ],
+  "outcome_links": [],
+  "package_sha256": "e56e6f04e1b8f3d2bc6055457f0431d0768901d8566c21dcec2fdc4b5f707a48",
+  "policy_hash": "14e422f385ace3eee69561acbd518948f18a7c0411fe704157aff43d60d21c3c",
+  "price_arms": [
+    "UNKNOWN"
+  ],
+  "recommendation_fingerprints": [
+    "09a2d2ded66ab691f77b677539ad9435d913ac1c707a3ca9af1575e10a119443",
+    "62f240dcfa1176fc11009f8c5f8f69e3ed5d6c35b6d392a4084fd74913f47860",
+    "04afffd61dea32daa9e86e09b807ba8349fbcc5df496f65f8326c764e1aef998"
+  ],
+  "recommendation_object_ids": [
+    "4dc84160b2e39bac01c0886dced984d0f8193f2aff216d7ddb547ac25cff90b0",
+    "b8ab2857eae49cd4e4377d7ee3265cbc429e8949ca783a28db6ab6e9a50129d1",
+    "e4c517b9366abf04c086089f4379924e23ed0cf4ba54b272907a7d370e0ca127"
+  ],
+  "recommendations": [
+    {
+      "action": "ACCUMULATE",
+      "allocation": {
+        "adjusted_allocation_percent": "8.2330",
+        "adjustment_points": "0.0000",
+        "base_allocation_percent": "8.2330",
+        "reasons": [
+          "sector exposure acceptable: DEFENCE"
+        ]
+      },
+      "decision": "WATCHLIST",
+      "evidence_assessment": {
+        "candle_pattern": {
+          "confirmation": "NEUTRAL",
+          "entry_trigger": null,
+          "explanation": "NONE detected. Candle neutral price-volume; high=None, low=None, volume_confirmed=True.",
+          "invalidation_level": null,
+          "pattern": "NONE",
+          "score": "0.7500",
+          "stop_level": null,
+          "volume_confirmed": true,
+          "weight": "0.0800"
+        },
+        "confidence_score": "0.7240",
+        "conflict_penalty_points": "0.0000",
+        "historical_expectancy": {
+          "average_gain": null,
+          "average_hold_period_days": null,
+          "average_loss": null,
+          "expected_value": null,
+          "win_rate": null
+        },
+        "price_volume": {
+          "override_reasons": [],
+          "price_evidence": {
+            "breakout_state": "BREAKOUT",
+            "close_strength": "0.5000",
+            "price_score": "0.8053",
+            "retracement_state": "NEUTRAL",
+            "structure_state": "CONSTRUCTIVE",
+            "support_resistance_state": "NEUTRAL",
+            "trend_state": "STRONG_UPTREND",
+            "volatility_state": "CONTROLLED"
+          },
+          "supports_buy": true,
+          "supports_sell": false,
+          "volume_evidence": {
+            "accumulation_score": "0.3500",
+            "breakout_volume_confirmation": "0.6667",
+            "distribution_score": "0.2500",
+            "selloff_volume_penalty": "0.2000",
+            "volume_dry_up_score": "0.0000",
+            "volume_expansion_score": "0.5000",
+            "volume_score": "0.9000",
+            "volume_vs_average": "1"
+          }
+        },
+        "regime_adjustment_points": "-4.0000",
+        "regime_reason": "Sideways market reduces breakout confidence.",
+        "score": "72.40",
+        "setup_quality": {
+          "classification": "HIGH",
+          "rationale": "Breakout quality requires setup and volume confirmation.",
+          "score": "0.8900",
+          "setup_type": "BREAKOUT"
+        },
+        "signals": [
+          {
+            "direction": "BULLISH",
+            "label": "Price structure",
+            "points": "16.1060",
+            "rationale": "Price action is the primary source for structure.",
+            "score": "0.8053",
+            "weight": "0.2000"
+          },
+          {
+            "direction": "BULLISH",
+            "label": "Volume confirmation",
+            "points": "15.3000",
+            "rationale": "Volume confirms or rejects the price move.",
+            "score": "0.9000",
+            "weight": "0.1700"
+          },
+          {
+            "direction": "BULLISH",
+            "label": "Trend alignment",
+            "points": "12.4155",
+            "rationale": "Moving-average alignment is derived from price behavior.",
+            "score": "0.8277",
+            "weight": "0.1500"
+          },
+          {
+            "direction": "BULLISH",
+            "label": "Relative strength vs benchmark",
+            "points": "9.6200",
+            "rationale": "Relative strength measures leadership versus benchmark.",
+            "score": "0.7400",
+            "weight": "0.1300"
+          },
+          {
+            "direction": "NEUTRAL",
+            "label": "Retracement quality",
+            "points": "5.0000",
+            "rationale": "Retracement quality is confirmed by price and volume.",
+            "score": "0.5000",
+            "weight": "0.1000"
+          },
+          {
+            "direction": "BULLISH",
+            "label": "Candle pattern confirmation",
+            "points": "6.0000",
+            "rationale": "Candle pattern confirms or conflicts with price-volume.",
+            "score": "0.7500",
+            "weight": "0.0800"
+          },
+          {
+            "direction": "BULLISH",
+            "label": "Breakout quality",
+            "points": "5.6854",
+            "rationale": "Breakout quality requires price and volume confirmation.",
+            "score": "0.8122",
+            "weight": "0.0700"
+          },
+          {
+            "direction": "NEUTRAL",
+            "label": "Market regime",
+            "points": "2.9280",
+            "rationale": "Market regime adjusts long-side quality threshold.",
+            "score": "0.5856",
+            "weight": "0.0500"
+          },
+          {
+            "direction": "NEUTRAL",
+            "label": "Sector strength",
+            "points": "1.7568",
+            "rationale": "Sector strength captures group-level sponsorship.",
+            "score": "0.5856",
+            "weight": "0.0300"
+          },
+          {
+            "direction": "BULLISH",
+            "label": "Volatility/risk quality",
+            "points": "1.5900",
+            "rationale": "Risk quality is adjusted for price volatility behavior.",
+            "score": "0.7950",
+            "weight": "0.0200"
+          }
+        ]
+      },
+      "expected_value": {
+        "expected_drawdown": "0.045",
+        "expected_holding_period_days": "45",
+        "expected_return": "0.14",
+        "reasons": [
+          "expected return: 14.00%",
+          "expected drawdown: 4.50%",
+          "reward to risk: 3.1111"
+        ],
+        "reward_to_risk": "3.1111",
+        "score": "0.9255",
+        "symbol": "HAL"
+      },
+      "explanation": [
+        "HAL: WATCHLIST",
+        "Detected Setup: MOMENTUM CONTINUATION",
+        "Setup Category: TREND CONTINUATION",
+        "Setup Quality: B (75.30% confidence)",
+        "Setup Stage: BUILDING",
+        "Entry Ready: False",
+        "Why Alpha believes this setup exists: MOMENTUM CONTINUATION classified as TREND CONTINUATION: price is STRONG_UPTREND/CONSTRUCTIVE, volume score is 0.9000, and candle confirmation is NEUTRAL.",
+        "What must happen before BUY: Setup is not ready; wait for price confirmation.",
+        "Why BUY became WATCHLIST: Setup is not ready; wait for price confirmation.",
+        "Recommendation Score: 74.00/100",
+        "Evidence Score: 72.40/100",
+        "Confidence Score: 72.40%",
+        "Action: ACCUMULATE",
+        "Why this ranks here:",
+        "- Setup quality: HIGH",
+        "- Setup type: BREAKOUT",
+        "- Setup rationale: Breakout quality requires setup and volume confirmation.",
+        "- Price action: STRONG_UPTREND, CONSTRUCTIVE, BREAKOUT",
+        "- Volume action: vs average 1, score 0.9000",
+        "- Price-volume verdict: supports_buy=True, supports_sell=False",
+        "- Candle pattern: NONE, NEUTRAL, score 0.7500",
+        "- Candle levels: entry None, stop None, invalidation None",
+        "- Candle volume confirmation: True",
+        "- Candle explanation: NONE detected. Candle neutral price-volume; high=None, low=None, volume_confirmed=True.",
+        "- Regime adjustment: Sideways market reduces breakout confidence.",
+        "- Conflict penalty: 0.0000 points",
+        "- Retracement contribution: 50.00% quality at 10.00% weight",
+        "- Expected value: 14.00% return, 4.50% drawdown",
+        "- Opportunity cost: rank 1 of 3",
+        "- Suggested allocation: 8.2330%",
+        "Historical bars: 0",
+        "Support level used: unavailable",
+        "Entry zone: unavailable to unavailable",
+        "Confirmation entry: None",
+        "Initial stop loss: None",
+        "ATR value: None",
+        "Invalidation level: None - 20-DMA invalidation unavailable due to insufficient price history",
+        "20-DMA invalidation: 20-DMA invalidation unavailable due to insufficient price history.",
+        "Targets: None, None, None",
+        "Trailing stop: ATR trailing stop unavailable due to insufficient price history.",
+        "Volume confirmation required: breakout or bounce must occur on above-average volume.",
+        "Trade plan: WATCHLIST because the final score is 74.00/100. Price action is CONSTRUCTIVE with BREAKOUT. Volume is scoring 0.9000 as confirmation. Candle pattern NONE neutral the setup. Retracement kept neutral because swing data is unavailable the signal. Support used: unavailable. Entry zone: unavailable to unavailable; confirmation entry: unavailable. Stop loss: unavailable. Invalidation: unavailable (20-DMA invalidation unavailable due to insufficient price history). Targets: unavailable, unavailable, unavailable. 20-DMA invalidation unavailable due to insufficient price history. ATR trailing stop unavailable due to insufficient price history. Volume condition: breakout or bounce must confirm above average volume.",
+        "Bullish evidence:",
+        "Unavailable: 20-DMA unavailable; requires 20 bars; has 0",
+        "Unavailable: 50-DMA unavailable; requires 50 bars; has 0",
+        "Unavailable: 200-DMA unavailable; requires 200 bars; has 0",
+        "Unavailable: ATR(14) unavailable; requires 15 bars; has 0",
+        "Unavailable: Swing levels unavailable; requires 2 bars; has 0",
+        "Unavailable: Relative volume unavailable; requires 20 bars; has 0",
+        "- Price structure: 16.1060 points - Price action is the primary source for structure.",
+        "- Volume confirmation: 15.3000 points - Volume confirms or rejects the price move.",
+        "- Trend alignment: 12.4155 points - Moving-average alignment is derived from price behavior.",
+        "- Relative strength vs benchmark: 9.6200 points - Relative strength measures leadership versus benchmark.",
+        "- Candle pattern confirmation: 6.0000 points - Candle pattern confirms or conflicts with price-volume.",
+        "- Breakout quality: 5.6854 points - Breakout quality requires price and volume confirmation.",
+        "- Volatility/risk quality: 1.5900 points - Risk quality is adjusted for price volatility behavior.",
+        "Bearish evidence:",
+        "Top evidence contributors:",
+        "- Price structure: 16.1060 points (20.00% weight)",
+        "- Volume confirmation: 15.3000 points (17.00% weight)",
+        "- Trend alignment: 12.4155 points (15.00% weight)",
+        "Historical expectancy: unavailable",
+        "Support: Market Intelligence - constructive accumulation, liquidity, breadth, sector leadership, and correlation profile",
+        "Support: Strategy Strength - momentum setup remains strong",
+        "Risk: Drawdown - expected drawdown remains controlled"
+      ],
+      "metadata": {
+        "historical_setup_edge": "Not yet computed",
+        "source": "demo_intelligence_input_builder"
+      },
+      "observed_on": "2026-07-26",
+      "opportunity_cost": {
+        "better_candidates": [],
+        "candidate_count": 3,
+        "opportunity_cost_points": "15.0000",
+        "percentile": "1.0000",
+        "rank": 1,
+        "reasons": [
+          "rank: 1 of 3",
+          "opportunity percentile: 100.00%",
+          "better candidates: 0"
+        ],
+        "symbol": "HAL"
+      },
+      "opposing_evidence": [
+        {
+          "label": "Drawdown",
+          "penalty_points": "2",
+          "rationale": "expected drawdown remains controlled"
+        }
+      ],
+      "score": "74.00",
+      "score_breakdown": {
+        "breakout_setup_points": "5.6854",
+        "candle_pattern_points": "6.0000",
+        "candle_weight": "0.0800",
+        "conflict_penalty_points": "0.0000",
+        "evidence_points": "72.40",
+        "liquidity_points": "0",
+        "market_intelligence_points": "0",
+        "market_regime_points": "2.9280",
+        "opportunity_cost_points": "15.0000",
+        "portfolio_adjustment_points": "0.0000",
+        "probability_points": "0",
+        "regime_adjustment_points": "-4.0000",
+        "relative_strength_points": "9.6200",
+        "retracement_points": "5.0000",
+        "retracement_weight": "0.1000",
+        "risk_points": "0",
+        "sector_strength_points": "1.7568",
+        "strategy_points": "0",
+        "trend_structure_points": "28.5215",
+        "volume_confirmation_points": "15.3000"
+      },
+      "supporting_evidence": [
+        {
+          "label": "Market Intelligence",
+          "max_points": "25",
+          "rationale": "constructive accumulation, liquidity, breadth, sector leadership, and correlation profile",
+          "score_points": "14.64"
+        },
+        {
+          "label": "Strategy Strength",
+          "max_points": "25",
+          "rationale": "momentum setup remains strong",
+          "score_points": "22"
+        }
+      ],
+      "symbol": "HAL",
+      "trade_plan": {
+        "aggressive_entry": null,
+        "atr_trail": "ATR trail unavailable until ATR is available.",
+        "atr_value": null,
+        "candle_confirmation": "NEUTRAL",
+        "candle_entry_trigger": null,
+        "candle_explanation": "NONE detected. Candle neutral price-volume; high=None, low=None, volume_confirmed=True.",
+        "candle_invalidation_level": null,
+        "candle_pattern": "NONE",
+        "candle_score": "0.7500",
+        "candle_stop_level": null,
+        "candle_weight": "0.0800",
+        "confidence": "MEDIUM",
+        "confirmation_entry": null,
+        "dma_200": null,
+        "dma_20_invalidation": null,
+        "dma_50": null,
+        "entry_price": null,
+        "entry_trigger_style": "CLOSE_ABOVE",
+        "entry_zone_high": null,
+        "entry_zone_low": null,
+        "expected_holding_period": "5-15 trading days",
+        "final_exit": null,
+        "final_score": "74.00",
+        "final_signal": "WATCHLIST",
+        "historical_bar_count": 0,
+        "holding_period_basis": "Momentum Continuation setup behavior",
+        "initial_stop_loss": null,
+        "invalidation_level": null,
+        "invalidation_reason": "20-DMA invalidation unavailable due to insufficient price history",
+        "maximum_chase_price": null,
+        "maximum_holding_period": 15,
+        "minimum_holding_period": 5,
+        "move_stop_to_breakeven": null,
+        "nearest_fibonacci_level": null,
+        "partial_exit": null,
+        "preferred_entry": null,
+        "relative_volume": null,
+        "retracement_score": "0.5000",
+        "retracement_weight": "0.1000",
+        "retracement_zone": "unavailable",
+        "risk_reward_ratio": null,
+        "setup_category": "TREND CONTINUATION",
+        "setup_confidence": "75.30",
+        "setup_entry_ready": false,
+        "setup_expectancy_status": "unavailable",
+        "setup_name": "MOMENTUM CONTINUATION",
+        "setup_quality_label": "B",
+        "setup_rationale": "MOMENTUM CONTINUATION classified as TREND CONTINUATION: price is STRONG_UPTREND/CONSTRUCTIVE, volume score is 0.9000, and candle confirmation is NEUTRAL.",
+        "setup_readiness_reason": "Setup is not ready; wait for price confirmation.",
+        "setup_stage": "BUILDING",
+        "stop_chase_price": null,
+        "support_level_used": null,
+        "swing_high": null,
+        "swing_low": null,
+        "target_1": null,
+        "target_2": null,
+        "target_3": null,
+        "trade_plan_explanation": "WATCHLIST because the final score is 74.00/100. Price action is CONSTRUCTIVE with BREAKOUT. Volume is scoring 0.9000 as confirmation. Candle pattern NONE neutral the setup. Retracement kept neutral because swing data is unavailable the signal. Support used: unavailable. Entry zone: unavailable to unavailable; confirmation entry: unavailable. Stop loss: unavailable. Invalidation: unavailable (20-DMA invalidation unavailable due to insufficient price history). Targets: unavailable, unavailable, unavailable. 20-DMA invalidation unavailable due to insufficient price history. ATR trailing stop unavailable due to insufficient price history. Volume condition: breakout or bounce must confirm above average volume.",
+        "trailing_stop_strategy": "ATR trailing stop unavailable due to insufficient price history.",
+        "trigger_status": "WAITING_FOR_CLOSE_ABOVE",
+        "unavailable_reasons": [
+          "20-DMA unavailable; requires 20 bars; has 0",
+          "50-DMA unavailable; requires 50 bars; has 0",
+          "200-DMA unavailable; requires 200 bars; has 0",
+          "ATR(14) unavailable; requires 15 bars; has 0",
+          "Swing levels unavailable; requires 2 bars; has 0",
+          "Relative volume unavailable; requires 20 bars; has 0"
+        ]
+      },
+      "trade_setup": {
+        "aggressive_entry": null,
+        "atr_trail": "ATR trail unavailable until ATR is available.",
+        "average_gain": null,
+        "average_hold_period_days": null,
+        "average_loss": null,
+        "confirmation_entry": null,
+        "entry_ready": false,
+        "expected_holding_period": "5-15 trading days",
+        "expected_value": null,
+        "final_exit": null,
+        "historical_win_rate": null,
+        "holding_period_basis": "Momentum Continuation setup behavior",
+        "initial_stop": null,
+        "maximum_chase_price": null,
+        "maximum_holding_period": 15,
+        "minimum_holding_period": 5,
+        "move_stop_to_breakeven": null,
+        "partial_exit": null,
+        "preferred_entry": null,
+        "profit_factor": null,
+        "rationale": "MOMENTUM CONTINUATION classified as TREND CONTINUATION: price is STRONG_UPTREND/CONSTRUCTIVE, volume score is 0.9000, and candle confirmation is NEUTRAL.",
+        "readiness_reason": "Setup is not ready; wait for price confirmation.",
+        "setup_category": "TREND CONTINUATION",
+        "setup_confidence": "75.30",
+        "setup_name": "MOMENTUM CONTINUATION",
+        "setup_quality": "B",
+        "setup_stage": "BUILDING",
+        "stop_chase_price": null
+      },
+      "trade_strategies": [
+        {
+          "action": "WAIT_FOR_CONFIRMATION",
+          "edge_stats": {
+            "average_drawdown": null,
+            "average_return": null,
+            "confidence": "INSUFFICIENT_DATA",
+            "expectancy": null,
+            "fill_probability": "0.4400",
+            "fill_window_days": 5,
+            "median_holding_period_days": null,
+            "median_return": null,
+            "sample_size": 0,
+            "stop_loss_hit_rate": null,
+            "target_1_hit_rate": null,
+            "target_2_hit_rate": null,
+            "target_3_hit_rate": null
+          },
+          "entry_high": null,
+          "entry_low": null,
+          "entry_zone_basis": [
+            {
+              "basis_type": "UNKNOWN",
+              "description": "Breakout entry basis unavailable.",
+              "level": null
+            }
+          ],
+          "expected_holding_period": "5-15 trading days",
+          "expected_wait_days": 5,
+          "explanation": "Bullish setup is visible, but no capital is approved until the confirmation trigger fires.",
+          "name": "Confirmation Breakout",
+          "position_size_multiplier": "0.0000",
+          "risk_reward": null,
+          "stop_loss": null,
+          "stop_rule": "No active trade; no risk stop is assigned.",
+          "strategy_rank": {
+            "label": "#1 Recommended",
+            "quality": "FAIR",
+            "rank": 1,
+            "rationale": "Wait for confirmation before considering deployment."
+          },
+          "strategy_type": "MOMENTUM_BREAKOUT",
+          "target_1": null,
+          "target_2": null,
+          "target_3": null,
+          "trend_invalidation_reference": null,
+          "trigger_text": "Wait for a valid confirmation trigger."
+        },
+        {
+          "action": "AVOID",
+          "edge_stats": {
+            "average_drawdown": null,
+            "average_return": null,
+            "confidence": "INSUFFICIENT_DATA",
+            "expectancy": null,
+            "fill_probability": null,
+            "fill_window_days": null,
+            "median_holding_period_days": null,
+            "median_return": null,
+            "sample_size": 0,
+            "stop_loss_hit_rate": null,
+            "target_1_hit_rate": null,
+            "target_2_hit_rate": null,
+            "target_3_hit_rate": null
+          },
+          "entry_high": null,
+          "entry_low": null,
+          "entry_zone_basis": [
+            {
+              "basis_type": "UNKNOWN",
+              "description": "No actionable entry zone.",
+              "level": null
+            }
+          ],
+          "expected_holding_period": "5-15 trading days",
+          "expected_wait_days": null,
+          "explanation": "Wait. No capital is approved until the trigger confirms.",
+          "name": "No Trade",
+          "position_size_multiplier": "0.0000",
+          "risk_reward": null,
+          "stop_loss": null,
+          "stop_rule": "No new trade; keep capital unallocated.",
+          "strategy_rank": {
+            "label": "Not Recommended",
+            "quality": "NOT_SUITABLE",
+            "rank": null,
+            "rationale": "No attractive deployable strategy is available."
+          },
+          "strategy_type": "NO_TRADE",
+          "target_1": null,
+          "target_2": null,
+          "target_3": null,
+          "trend_invalidation_reference": null,
+          "trigger_text": "No actionable bullish trigger."
+        }
+      ]
+    },
+    {
+      "action": "ACCUMULATE",
+      "allocation": {
+        "adjusted_allocation_percent": "5.1064",
+        "adjustment_points": "-3.0000",
+        "base_allocation_percent": "7.8560",
+        "reasons": [
+          "existing position already present",
+          "sector exposure acceptable: CAPITAL GOODS"
+        ]
+      },
+      "decision": "WATCHLIST",
+      "evidence_assessment": {
+        "candle_pattern": {
+          "confirmation": "NEUTRAL",
+          "entry_trigger": null,
+          "explanation": "NONE detected. Candle neutral price-volume; high=None, low=None, volume_confirmed=True.",
+          "invalidation_level": null,
+          "pattern": "NONE",
+          "score": "0.7500",
+          "stop_level": null,
+          "volume_confirmed": true,
+          "weight": "0.0800"
+        },
+        "confidence_score": "0.7014",
+        "conflict_penalty_points": "0.0000",
+        "historical_expectancy": {
+          "average_gain": null,
+          "average_hold_period_days": null,
+          "average_loss": null,
+          "expected_value": null,
+          "win_rate": null
+        },
+        "price_volume": {
+          "override_reasons": [],
+          "price_evidence": {
+            "breakout_state": "NONE",
+            "close_strength": "0.5000",
+            "price_score": "0.7152",
+            "retracement_state": "NEUTRAL",
+            "structure_state": "CONSTRUCTIVE",
+            "support_resistance_state": "NEUTRAL",
+            "trend_state": "UPTREND",
+            "volatility_state": "CONTROLLED"
+          },
+          "supports_buy": true,
+          "supports_sell": false,
+          "volume_evidence": {
+            "accumulation_score": "0.3500",
+            "breakout_volume_confirmation": "0.9000",
+            "distribution_score": "0.2500",
+            "selloff_volume_penalty": "0.2000",
+            "volume_dry_up_score": "0.0000",
+            "volume_expansion_score": "0.5000",
+            "volume_score": "0.9000",
+            "volume_vs_average": "1"
+          }
+        },
+        "regime_adjustment_points": "-2.0000",
+        "regime_reason": "Sideways market increases pullback caution.",
+        "score": "70.14",
+        "setup_quality": {
+          "classification": "CONSTRUCTIVE",
+          "rationale": "Setup has usable technical confirmation.",
+          "score": "0.7600",
+          "setup_type": "MOMENTUM_CONFIRMATION"
+        },
+        "signals": [
+          {
+            "direction": "BULLISH",
+            "label": "Price structure",
+            "points": "14.3040",
+            "rationale": "Price action is the primary source for structure.",
+            "score": "0.7152",
+            "weight": "0.2000"
+          },
+          {
+            "direction": "BULLISH",
+            "label": "Volume confirmation",
+            "points": "15.3000",
+            "rationale": "Volume confirms or rejects the price move.",
+            "score": "0.9000",
+            "weight": "0.1700"
+          },
+          {
+            "direction": "BULLISH",
+            "label": "Trend alignment",
+            "points": "10.9290",
+            "rationale": "Moving-average alignment is derived from price behavior.",
+            "score": "0.7286",
+            "weight": "0.1500"
+          },
+          {
+            "direction": "BULLISH",
+            "label": "Relative strength vs benchmark",
+            "points": "8.5800",
+            "rationale": "Relative strength measures leadership versus benchmark.",
+            "score": "0.6600",
+            "weight": "0.1300"
+          },
+          {
+            "direction": "NEUTRAL",
+            "label": "Retracement quality",
+            "points": "5.0000",
+            "rationale": "Retracement quality is confirmed by price and volume.",
+            "score": "0.5000",
+            "weight": "0.1000"
+          },
+          {
+            "direction": "BULLISH",
+            "label": "Candle pattern confirmation",
+            "points": "6.0000",
+            "rationale": "Candle pattern confirms or conflicts with price-volume.",
+            "score": "0.7500",
+            "weight": "0.0800"
+          },
+          {
+            "direction": "BULLISH",
+            "label": "Breakout quality",
+            "points": "5.6469",
+            "rationale": "Breakout quality requires price and volume confirmation.",
+            "score": "0.8067",
+            "weight": "0.0700"
+          },
+          {
+            "direction": "BULLISH",
+            "label": "Market regime",
+            "points": "3.0000",
+            "rationale": "Market regime adjusts long-side quality threshold.",
+            "score": "0.6000",
+            "weight": "0.0500"
+          },
+          {
+            "direction": "BULLISH",
+            "label": "Sector strength",
+            "points": "1.8600",
+            "rationale": "Sector strength captures group-level sponsorship.",
+            "score": "0.6200",
+            "weight": "0.0300"
+          },
+          {
+            "direction": "BULLISH",
+            "label": "Volatility/risk quality",
+            "points": "1.5200",
+            "rationale": "Risk quality is adjusted for price volatility behavior.",
+            "score": "0.7600",
+            "weight": "0.0200"
+          }
+        ]
+      },
+      "expected_value": {
+        "expected_drawdown": "0.035",
+        "expected_holding_period_days": "50",
+        "expected_return": "0.095",
+        "reasons": [
+          "expected return: 9.50%",
+          "expected drawdown: 3.50%",
+          "reward to risk: 2.7143"
+        ],
+        "reward_to_risk": "2.7143",
+        "score": "0.8082",
+        "symbol": "LT"
+      },
+      "explanation": [
+        "LT: WATCHLIST",
+        "Detected Setup: MOMENTUM CONTINUATION",
+        "Setup Category: TREND CONTINUATION",
+        "Setup Quality: B (70.46% confidence)",
+        "Setup Stage: BUILDING",
+        "Entry Ready: False",
+        "Why Alpha believes this setup exists: MOMENTUM CONTINUATION classified as TREND CONTINUATION: price is UPTREND/CONSTRUCTIVE, volume score is 0.9000, and candle confirmation is NEUTRAL.",
+        "What must happen before BUY: Setup is not ready; wait for price confirmation.",
+        "Why BUY became WATCHLIST: Setup is not ready; wait for price confirmation.",
+        "Recommendation Score: 72.14/100",
+        "Evidence Score: 70.14/100",
+        "Confidence Score: 70.14%",
+        "Action: ACCUMULATE",
+        "Why this ranks here:",
+        "- Setup quality: CONSTRUCTIVE",
+        "- Setup type: MOMENTUM_CONFIRMATION",
+        "- Setup rationale: Setup has usable technical confirmation.",
+        "- Price action: UPTREND, CONSTRUCTIVE, NONE",
+        "- Volume action: vs average 1, score 0.9000",
+        "- Price-volume verdict: supports_buy=True, supports_sell=False",
+        "- Candle pattern: NONE, NEUTRAL, score 0.7500",
+        "- Candle levels: entry None, stop None, invalidation None",
+        "- Candle volume confirmation: True",
+        "- Candle explanation: NONE detected. Candle neutral price-volume; high=None, low=None, volume_confirmed=True.",
+        "- Regime adjustment: Sideways market increases pullback caution.",
+        "- Conflict penalty: 0.0000 points",
+        "- Retracement contribution: 50.00% quality at 10.00% weight",
+        "- Expected value: 9.50% return, 3.50% drawdown",
+        "- Opportunity cost: rank 2 of 3",
+        "- Suggested allocation: 5.1064%",
+        "Historical bars: 0",
+        "Support level used: unavailable",
+        "Entry zone: unavailable to unavailable",
+        "Confirmation entry: None",
+        "Initial stop loss: None",
+        "ATR value: None",
+        "Invalidation level: None - 20-DMA invalidation unavailable due to insufficient price history",
+        "20-DMA invalidation: 20-DMA invalidation unavailable due to insufficient price history.",
+        "Targets: None, None, None",
+        "Trailing stop: ATR trailing stop unavailable due to insufficient price history.",
+        "Volume confirmation required: breakout or bounce must occur on above-average volume.",
+        "Trade plan: WATCHLIST because the final score is 72.14/100. Price action is CONSTRUCTIVE with NONE. Volume is scoring 0.9000 as confirmation. Candle pattern NONE neutral the setup. Retracement kept neutral because swing data is unavailable the signal. Support used: unavailable. Entry zone: unavailable to unavailable; confirmation entry: unavailable. Stop loss: unavailable. Invalidation: unavailable (20-DMA invalidation unavailable due to insufficient price history). Targets: unavailable, unavailable, unavailable. 20-DMA invalidation unavailable due to insufficient price history. ATR trailing stop unavailable due to insufficient price history. Volume condition: breakout or bounce must confirm above average volume.",
+        "Bullish evidence:",
+        "Unavailable: 20-DMA unavailable; requires 20 bars; has 0",
+        "Unavailable: 50-DMA unavailable; requires 50 bars; has 0",
+        "Unavailable: 200-DMA unavailable; requires 200 bars; has 0",
+        "Unavailable: ATR(14) unavailable; requires 15 bars; has 0",
+        "Unavailable: Swing levels unavailable; requires 2 bars; has 0",
+        "Unavailable: Relative volume unavailable; requires 20 bars; has 0",
+        "- Price structure: 14.3040 points - Price action is the primary source for structure.",
+        "- Volume confirmation: 15.3000 points - Volume confirms or rejects the price move.",
+        "- Trend alignment: 10.9290 points - Moving-average alignment is derived from price behavior.",
+        "- Relative strength vs benchmark: 8.5800 points - Relative strength measures leadership versus benchmark.",
+        "- Candle pattern confirmation: 6.0000 points - Candle pattern confirms or conflicts with price-volume.",
+        "- Breakout quality: 5.6469 points - Breakout quality requires price and volume confirmation.",
+        "- Market regime: 3.0000 points - Market regime adjusts long-side quality threshold.",
+        "- Sector strength: 1.8600 points - Sector strength captures group-level sponsorship.",
+        "- Volatility/risk quality: 1.5200 points - Risk quality is adjusted for price volatility behavior.",
+        "Bearish evidence:",
+        "Top evidence contributors:",
+        "- Volume confirmation: 15.3000 points (17.00% weight)",
+        "- Price structure: 14.3040 points (20.00% weight)",
+        "- Trend alignment: 10.9290 points (15.00% weight)",
+        "Historical expectancy: unavailable",
+        "Support: Liquidity - high liquidity supports institutional sizing",
+        "Risk: Opportunity Cost - higher-ranked opportunities are available"
+      ],
+      "metadata": {
+        "historical_setup_edge": "Not yet computed",
+        "source": "demo_intelligence_input_builder"
+      },
+      "observed_on": "2026-07-26",
+      "opportunity_cost": {
+        "better_candidates": [
+          {
+            "expected_drawdown": "0.045",
+            "expected_return": "0.14",
+            "rank": 1,
+            "score": "0.7333",
+            "symbol": "HAL"
+          }
+        ],
+        "candidate_count": 3,
+        "opportunity_cost_points": "5.0000",
+        "percentile": "0.6667",
+        "rank": 2,
+        "reasons": [
+          "rank: 2 of 3",
+          "opportunity percentile: 66.67%",
+          "better candidates: 1"
+        ],
+        "symbol": "LT"
+      },
+      "opposing_evidence": [
+        {
+          "label": "Opportunity Cost",
+          "penalty_points": "2",
+          "rationale": "higher-ranked opportunities are available"
+        }
+      ],
+      "score": "72.14",
+      "score_breakdown": {
+        "breakout_setup_points": "5.6469",
+        "candle_pattern_points": "6.0000",
+        "candle_weight": "0.0800",
+        "conflict_penalty_points": "0.0000",
+        "evidence_points": "70.14",
+        "liquidity_points": "0",
+        "market_intelligence_points": "0",
+        "market_regime_points": "3.0000",
+        "opportunity_cost_points": "5.0000",
+        "portfolio_adjustment_points": "-3.0000",
+        "probability_points": "0",
+        "regime_adjustment_points": "-2.0000",
+        "relative_strength_points": "8.5800",
+        "retracement_points": "5.0000",
+        "retracement_weight": "0.1000",
+        "risk_points": "0",
+        "sector_strength_points": "1.8600",
+        "strategy_points": "0",
+        "trend_structure_points": "25.2330",
+        "volume_confirmation_points": "15.3000"
+      },
+      "supporting_evidence": [
+        {
+          "label": "Liquidity",
+          "max_points": "15",
+          "rationale": "high liquidity supports institutional sizing",
+          "score_points": "13.50"
+        }
+      ],
+      "symbol": "LT",
+      "trade_plan": {
+        "aggressive_entry": null,
+        "atr_trail": "ATR trail unavailable until ATR is available.",
+        "atr_value": null,
+        "candle_confirmation": "NEUTRAL",
+        "candle_entry_trigger": null,
+        "candle_explanation": "NONE detected. Candle neutral price-volume; high=None, low=None, volume_confirmed=True.",
+        "candle_invalidation_level": null,
+        "candle_pattern": "NONE",
+        "candle_score": "0.7500",
+        "candle_stop_level": null,
+        "candle_weight": "0.0800",
+        "confidence": "MEDIUM",
+        "confirmation_entry": null,
+        "dma_200": null,
+        "dma_20_invalidation": null,
+        "dma_50": null,
+        "entry_price": null,
+        "entry_trigger_style": "CLOSE_ABOVE",
+        "entry_zone_high": null,
+        "entry_zone_low": null,
+        "expected_holding_period": "5-15 trading days",
+        "final_exit": null,
+        "final_score": "72.14",
+        "final_signal": "WATCHLIST",
+        "historical_bar_count": 0,
+        "holding_period_basis": "Momentum Continuation setup behavior",
+        "initial_stop_loss": null,
+        "invalidation_level": null,
+        "invalidation_reason": "20-DMA invalidation unavailable due to insufficient price history",
+        "maximum_chase_price": null,
+        "maximum_holding_period": 15,
+        "minimum_holding_period": 5,
+        "move_stop_to_breakeven": null,
+        "nearest_fibonacci_level": null,
+        "partial_exit": null,
+        "preferred_entry": null,
+        "relative_volume": null,
+        "retracement_score": "0.5000",
+        "retracement_weight": "0.1000",
+        "retracement_zone": "unavailable",
+        "risk_reward_ratio": null,
+        "setup_category": "TREND CONTINUATION",
+        "setup_confidence": "70.46",
+        "setup_entry_ready": false,
+        "setup_expectancy_status": "unavailable",
+        "setup_name": "MOMENTUM CONTINUATION",
+        "setup_quality_label": "B",
+        "setup_rationale": "MOMENTUM CONTINUATION classified as TREND CONTINUATION: price is UPTREND/CONSTRUCTIVE, volume score is 0.9000, and candle confirmation is NEUTRAL.",
+        "setup_readiness_reason": "Setup is not ready; wait for price confirmation.",
+        "setup_stage": "BUILDING",
+        "stop_chase_price": null,
+        "support_level_used": null,
+        "swing_high": null,
+        "swing_low": null,
+        "target_1": null,
+        "target_2": null,
+        "target_3": null,
+        "trade_plan_explanation": "WATCHLIST because the final score is 72.14/100. Price action is CONSTRUCTIVE with NONE. Volume is scoring 0.9000 as confirmation. Candle pattern NONE neutral the setup. Retracement kept neutral because swing data is unavailable the signal. Support used: unavailable. Entry zone: unavailable to unavailable; confirmation entry: unavailable. Stop loss: unavailable. Invalidation: unavailable (20-DMA invalidation unavailable due to insufficient price history). Targets: unavailable, unavailable, unavailable. 20-DMA invalidation unavailable due to insufficient price history. ATR trailing stop unavailable due to insufficient price history. Volume condition: breakout or bounce must confirm above average volume.",
+        "trailing_stop_strategy": "ATR trailing stop unavailable due to insufficient price history.",
+        "trigger_status": "WAITING_FOR_CLOSE_ABOVE",
+        "unavailable_reasons": [
+          "20-DMA unavailable; requires 20 bars; has 0",
+          "50-DMA unavailable; requires 50 bars; has 0",
+          "200-DMA unavailable; requires 200 bars; has 0",
+          "ATR(14) unavailable; requires 15 bars; has 0",
+          "Swing levels unavailable; requires 2 bars; has 0",
+          "Relative volume unavailable; requires 20 bars; has 0"
+        ]
+      },
+      "trade_setup": {
+        "aggressive_entry": null,
+        "atr_trail": "ATR trail unavailable until ATR is available.",
+        "average_gain": null,
+        "average_hold_period_days": null,
+        "average_loss": null,
+        "confirmation_entry": null,
+        "entry_ready": false,
+        "expected_holding_period": "5-15 trading days",
+        "expected_value": null,
+        "final_exit": null,
+        "historical_win_rate": null,
+        "holding_period_basis": "Momentum Continuation setup behavior",
+        "initial_stop": null,
+        "maximum_chase_price": null,
+        "maximum_holding_period": 15,
+        "minimum_holding_period": 5,
+        "move_stop_to_breakeven": null,
+        "partial_exit": null,
+        "preferred_entry": null,
+        "profit_factor": null,
+        "rationale": "MOMENTUM CONTINUATION classified as TREND CONTINUATION: price is UPTREND/CONSTRUCTIVE, volume score is 0.9000, and candle confirmation is NEUTRAL.",
+        "readiness_reason": "Setup is not ready; wait for price confirmation.",
+        "setup_category": "TREND CONTINUATION",
+        "setup_confidence": "70.46",
+        "setup_name": "MOMENTUM CONTINUATION",
+        "setup_quality": "B",
+        "setup_stage": "BUILDING",
+        "stop_chase_price": null
+      },
+      "trade_strategies": [
+        {
+          "action": "WAIT_FOR_CONFIRMATION",
+          "edge_stats": {
+            "average_drawdown": null,
+            "average_return": null,
+            "confidence": "INSUFFICIENT_DATA",
+            "expectancy": null,
+            "fill_probability": "0.4400",
+            "fill_window_days": 5,
+            "median_holding_period_days": null,
+            "median_return": null,
+            "sample_size": 0,
+            "stop_loss_hit_rate": null,
+            "target_1_hit_rate": null,
+            "target_2_hit_rate": null,
+            "target_3_hit_rate": null
+          },
+          "entry_high": null,
+          "entry_low": null,
+          "entry_zone_basis": [
+            {
+              "basis_type": "UNKNOWN",
+              "description": "Breakout entry basis unavailable.",
+              "level": null
+            }
+          ],
+          "expected_holding_period": "5-15 trading days",
+          "expected_wait_days": 5,
+          "explanation": "Bullish setup is visible, but no capital is approved until the confirmation trigger fires.",
+          "name": "Confirmation Breakout",
+          "position_size_multiplier": "0.0000",
+          "risk_reward": null,
+          "stop_loss": null,
+          "stop_rule": "No active trade; no risk stop is assigned.",
+          "strategy_rank": {
+            "label": "#1 Recommended",
+            "quality": "FAIR",
+            "rank": 1,
+            "rationale": "Wait for confirmation before considering deployment."
+          },
+          "strategy_type": "MOMENTUM_BREAKOUT",
+          "target_1": null,
+          "target_2": null,
+          "target_3": null,
+          "trend_invalidation_reference": null,
+          "trigger_text": "Wait for a valid confirmation trigger."
+        },
+        {
+          "action": "AVOID",
+          "edge_stats": {
+            "average_drawdown": null,
+            "average_return": null,
+            "confidence": "INSUFFICIENT_DATA",
+            "expectancy": null,
+            "fill_probability": null,
+            "fill_window_days": null,
+            "median_holding_period_days": null,
+            "median_return": null,
+            "sample_size": 0,
+            "stop_loss_hit_rate": null,
+            "target_1_hit_rate": null,
+            "target_2_hit_rate": null,
+            "target_3_hit_rate": null
+          },
+          "entry_high": null,
+          "entry_low": null,
+          "entry_zone_basis": [
+            {
+              "basis_type": "UNKNOWN",
+              "description": "No actionable entry zone.",
+              "level": null
+            }
+          ],
+          "expected_holding_period": "5-15 trading days",
+          "expected_wait_days": null,
+          "explanation": "Wait. No capital is approved until the trigger confirms.",
+          "name": "No Trade",
+          "position_size_multiplier": "0.0000",
+          "risk_reward": null,
+          "stop_loss": null,
+          "stop_rule": "No new trade; keep capital unallocated.",
+          "strategy_rank": {
+            "label": "Not Recommended",
+            "quality": "NOT_SUITABLE",
+            "rank": null,
+            "rationale": "No attractive deployable strategy is available."
+          },
+          "strategy_type": "NO_TRADE",
+          "target_1": null,
+          "target_2": null,
+          "target_3": null,
+          "trend_invalidation_reference": null,
+          "trigger_text": "No actionable bullish trigger."
+        }
+      ]
+    },
+    {
+      "action": "ACCUMULATE",
+      "allocation": {
+        "adjusted_allocation_percent": "7.6090",
+        "adjustment_points": "0.0000",
+        "base_allocation_percent": "7.6090",
+        "reasons": [
+          "sector exposure acceptable: DEFENCE"
+        ]
+      },
+      "decision": "WATCHLIST",
+      "evidence_assessment": {
+        "candle_pattern": {
+          "confirmation": "NEUTRAL",
+          "entry_trigger": null,
+          "explanation": "NONE detected. Candle neutral price-volume; high=None, low=None, volume_confirmed=True.",
+          "invalidation_level": null,
+          "pattern": "NONE",
+          "score": "0.7500",
+          "stop_level": null,
+          "volume_confirmed": true,
+          "weight": "0.0800"
+        },
+        "confidence_score": "0.6725",
+        "conflict_penalty_points": "0.0000",
+        "historical_expectancy": {
+          "average_gain": null,
+          "average_hold_period_days": null,
+          "average_loss": null,
+          "expected_value": null,
+          "win_rate": null
+        },
+        "price_volume": {
+          "override_reasons": [],
+          "price_evidence": {
+            "breakout_state": "BREAKOUT",
+            "close_strength": "0.5000",
+            "price_score": "0.7416",
+            "retracement_state": "NEUTRAL",
+            "structure_state": "CONSTRUCTIVE",
+            "support_resistance_state": "NEUTRAL",
+            "trend_state": "STRONG_UPTREND",
+            "volatility_state": "NORMAL"
+          },
+          "supports_buy": true,
+          "supports_sell": false,
+          "volume_evidence": {
+            "accumulation_score": "0.3500",
+            "breakout_volume_confirmation": "0.6667",
+            "distribution_score": "0.2500",
+            "selloff_volume_penalty": "0.2000",
+            "volume_dry_up_score": "0.0000",
+            "volume_expansion_score": "0.5000",
+            "volume_score": "0.8200",
+            "volume_vs_average": "1"
+          }
+        },
+        "regime_adjustment_points": "-4.0000",
+        "regime_reason": "Sideways market reduces breakout confidence.",
+        "score": "67.25",
+        "setup_quality": {
+          "classification": "HIGH",
+          "rationale": "Breakout quality requires setup and volume confirmation.",
+          "score": "0.8150",
+          "setup_type": "BREAKOUT"
+        },
+        "signals": [
+          {
+            "direction": "BULLISH",
+            "label": "Price structure",
+            "points": "14.8320",
+            "rationale": "Price action is the primary source for structure.",
+            "score": "0.7416",
+            "weight": "0.2000"
+          },
+          {
+            "direction": "BULLISH",
+            "label": "Volume confirmation",
+            "points": "13.9400",
+            "rationale": "Volume confirms or rejects the price move.",
+            "score": "0.8200",
+            "weight": "0.1700"
+          },
+          {
+            "direction": "BULLISH",
+            "label": "Trend alignment",
+            "points": "11.4315",
+            "rationale": "Moving-average alignment is derived from price behavior.",
+            "score": "0.7621",
+            "weight": "0.1500"
+          },
+          {
+            "direction": "BULLISH",
+            "label": "Relative strength vs benchmark",
+            "points": "9.1000",
+            "rationale": "Relative strength measures leadership versus benchmark.",
+            "score": "0.7000",
+            "weight": "0.1300"
+          },
+          {
+            "direction": "NEUTRAL",
+            "label": "Retracement quality",
+            "points": "5.0000",
+            "rationale": "Retracement quality is confirmed by price and volume.",
+            "score": "0.5000",
+            "weight": "0.1000"
+          },
+          {
+            "direction": "BULLISH",
+            "label": "Candle pattern confirmation",
+            "points": "6.0000",
+            "rationale": "Candle pattern confirms or conflicts with price-volume.",
+            "score": "0.7500",
+            "weight": "0.0800"
+          },
+          {
+            "direction": "BULLISH",
+            "label": "Breakout quality",
+            "points": "5.3473",
+            "rationale": "Breakout quality requires price and volume confirmation.",
+            "score": "0.7639",
+            "weight": "0.0700"
+          },
+          {
+            "direction": "NEUTRAL",
+            "label": "Market regime",
+            "points": "2.7280",
+            "rationale": "Market regime adjusts long-side quality threshold.",
+            "score": "0.5456",
+            "weight": "0.0500"
+          },
+          {
+            "direction": "NEUTRAL",
+            "label": "Sector strength",
+            "points": "1.6368",
+            "rationale": "Sector strength captures group-level sponsorship.",
+            "score": "0.5456",
+            "weight": "0.0300"
+          },
+          {
+            "direction": "BULLISH",
+            "label": "Volatility/risk quality",
+            "points": "1.2300",
+            "rationale": "Risk quality is adjusted for price volatility behavior.",
+            "score": "0.6150",
+            "weight": "0.0200"
+          }
+        ]
+      },
+      "expected_value": {
+        "expected_drawdown": "0.040",
+        "expected_holding_period_days": "40",
+        "expected_return": "0.11",
+        "reasons": [
+          "expected return: 11.00%",
+          "expected drawdown: 4.00%",
+          "reward to risk: 2.7500"
+        ],
+        "reward_to_risk": "2.7500",
+        "score": "0.8617",
+        "symbol": "BEL"
+      },
+      "explanation": [
+        "BEL: WATCHLIST",
+        "Detected Setup: MOMENTUM CONTINUATION",
+        "Setup Category: TREND CONTINUATION",
+        "Setup Quality: B (71.11% confidence)",
+        "Setup Stage: BUILDING",
+        "Entry Ready: False",
+        "Why Alpha believes this setup exists: MOMENTUM CONTINUATION classified as TREND CONTINUATION: price is STRONG_UPTREND/CONSTRUCTIVE, volume score is 0.8200, and candle confirmation is NEUTRAL.",
+        "What must happen before BUY: Setup is not ready; wait for price confirmation.",
+        "Why BUY became WATCHLIST: Setup is not ready; wait for price confirmation.",
+        "Recommendation Score: 62.25/100",
+        "Evidence Score: 67.25/100",
+        "Confidence Score: 67.25%",
+        "Action: ACCUMULATE",
+        "Why this ranks here:",
+        "- Setup quality: HIGH",
+        "- Setup type: BREAKOUT",
+        "- Setup rationale: Breakout quality requires setup and volume confirmation.",
+        "- Price action: STRONG_UPTREND, CONSTRUCTIVE, BREAKOUT",
+        "- Volume action: vs average 1, score 0.8200",
+        "- Price-volume verdict: supports_buy=True, supports_sell=False",
+        "- Candle pattern: NONE, NEUTRAL, score 0.7500",
+        "- Candle levels: entry None, stop None, invalidation None",
+        "- Candle volume confirmation: True",
+        "- Candle explanation: NONE detected. Candle neutral price-volume; high=None, low=None, volume_confirmed=True.",
+        "- Regime adjustment: Sideways market reduces breakout confidence.",
+        "- Conflict penalty: 0.0000 points",
+        "- Retracement contribution: 50.00% quality at 10.00% weight",
+        "- Expected value: 11.00% return, 4.00% drawdown",
+        "- Opportunity cost: rank 3 of 3",
+        "- Suggested allocation: 7.6090%",
+        "Historical bars: 0",
+        "Support level used: unavailable",
+        "Entry zone: unavailable to unavailable",
+        "Confirmation entry: None",
+        "Initial stop loss: None",
+        "ATR value: None",
+        "Invalidation level: None - 20-DMA invalidation unavailable due to insufficient price history",
+        "20-DMA invalidation: 20-DMA invalidation unavailable due to insufficient price history.",
+        "Targets: None, None, None",
+        "Trailing stop: ATR trailing stop unavailable due to insufficient price history.",
+        "Volume confirmation required: breakout or bounce must occur on above-average volume.",
+        "Trade plan: WATCHLIST because the final score is 62.25/100. Price action is CONSTRUCTIVE with BREAKOUT. Volume is scoring 0.8200 as confirmation. Candle pattern NONE neutral the setup. Retracement kept neutral because swing data is unavailable the signal. Support used: unavailable. Entry zone: unavailable to unavailable; confirmation entry: unavailable. Stop loss: unavailable. Invalidation: unavailable (20-DMA invalidation unavailable due to insufficient price history). Targets: unavailable, unavailable, unavailable. 20-DMA invalidation unavailable due to insufficient price history. ATR trailing stop unavailable due to insufficient price history. Volume condition: breakout or bounce must confirm above average volume.",
+        "Bullish evidence:",
+        "Unavailable: 20-DMA unavailable; requires 20 bars; has 0",
+        "Unavailable: 50-DMA unavailable; requires 50 bars; has 0",
+        "Unavailable: 200-DMA unavailable; requires 200 bars; has 0",
+        "Unavailable: ATR(14) unavailable; requires 15 bars; has 0",
+        "Unavailable: Swing levels unavailable; requires 2 bars; has 0",
+        "Unavailable: Relative volume unavailable; requires 20 bars; has 0",
+        "- Price structure: 14.8320 points - Price action is the primary source for structure.",
+        "- Volume confirmation: 13.9400 points - Volume confirms or rejects the price move.",
+        "- Trend alignment: 11.4315 points - Moving-average alignment is derived from price behavior.",
+        "- Relative strength vs benchmark: 9.1000 points - Relative strength measures leadership versus benchmark.",
+        "- Candle pattern confirmation: 6.0000 points - Candle pattern confirms or conflicts with price-volume.",
+        "- Breakout quality: 5.3473 points - Breakout quality requires price and volume confirmation.",
+        "- Volatility/risk quality: 1.2300 points - Risk quality is adjusted for price volatility behavior.",
+        "Bearish evidence:",
+        "Top evidence contributors:",
+        "- Price structure: 14.8320 points (20.00% weight)",
+        "- Volume confirmation: 13.9400 points (17.00% weight)",
+        "- Trend alignment: 11.4315 points (15.00% weight)",
+        "Historical expectancy: unavailable",
+        "Support: Sector Leadership - defence sector remains a top leadership pocket",
+        "Risk: Correlation - sector overlap with the top-ranked candidate"
+      ],
+      "metadata": {
+        "historical_setup_edge": "Not yet computed",
+        "source": "demo_intelligence_input_builder"
+      },
+      "observed_on": "2026-07-26",
+      "opportunity_cost": {
+        "better_candidates": [
+          {
+            "expected_drawdown": "0.045",
+            "expected_return": "0.14",
+            "rank": 1,
+            "score": "0.7333",
+            "symbol": "HAL"
+          },
+          {
+            "expected_drawdown": "0.035",
+            "expected_return": "0.095",
+            "rank": 2,
+            "score": "0.6906",
+            "symbol": "LT"
+          }
+        ],
+        "candidate_count": 3,
+        "opportunity_cost_points": "-5.0000",
+        "percentile": "0.3333",
+        "rank": 3,
+        "reasons": [
+          "rank: 3 of 3",
+          "opportunity percentile: 33.33%",
+          "better candidates: 2"
+        ],
+        "symbol": "BEL"
+      },
+      "opposing_evidence": [
+        {
+          "label": "Correlation",
+          "penalty_points": "3",
+          "rationale": "sector overlap with the top-ranked candidate"
+        }
+      ],
+      "score": "62.25",
+      "score_breakdown": {
+        "breakout_setup_points": "5.3473",
+        "candle_pattern_points": "6.0000",
+        "candle_weight": "0.0800",
+        "conflict_penalty_points": "0.0000",
+        "evidence_points": "67.25",
+        "liquidity_points": "0",
+        "market_intelligence_points": "0",
+        "market_regime_points": "2.7280",
+        "opportunity_cost_points": "-5.0000",
+        "portfolio_adjustment_points": "0.0000",
+        "probability_points": "0",
+        "regime_adjustment_points": "-4.0000",
+        "relative_strength_points": "9.1000",
+        "retracement_points": "5.0000",
+        "retracement_weight": "0.1000",
+        "risk_points": "0",
+        "sector_strength_points": "1.6368",
+        "strategy_points": "0",
+        "trend_structure_points": "26.2635",
+        "volume_confirmation_points": "13.9400"
+      },
+      "supporting_evidence": [
+        {
+          "label": "Sector Leadership",
+          "max_points": "25",
+          "rationale": "defence sector remains a top leadership pocket",
+          "score_points": "18"
+        }
+      ],
+      "symbol": "BEL",
+      "trade_plan": {
+        "aggressive_entry": null,
+        "atr_trail": "ATR trail unavailable until ATR is available.",
+        "atr_value": null,
+        "candle_confirmation": "NEUTRAL",
+        "candle_entry_trigger": null,
+        "candle_explanation": "NONE detected. Candle neutral price-volume; high=None, low=None, volume_confirmed=True.",
+        "candle_invalidation_level": null,
+        "candle_pattern": "NONE",
+        "candle_score": "0.7500",
+        "candle_stop_level": null,
+        "candle_weight": "0.0800",
+        "confidence": "MEDIUM",
+        "confirmation_entry": null,
+        "dma_200": null,
+        "dma_20_invalidation": null,
+        "dma_50": null,
+        "entry_price": null,
+        "entry_trigger_style": "CLOSE_ABOVE",
+        "entry_zone_high": null,
+        "entry_zone_low": null,
+        "expected_holding_period": "5-15 trading days",
+        "final_exit": null,
+        "final_score": "62.25",
+        "final_signal": "WATCHLIST",
+        "historical_bar_count": 0,
+        "holding_period_basis": "Momentum Continuation setup behavior",
+        "initial_stop_loss": null,
+        "invalidation_level": null,
+        "invalidation_reason": "20-DMA invalidation unavailable due to insufficient price history",
+        "maximum_chase_price": null,
+        "maximum_holding_period": 15,
+        "minimum_holding_period": 5,
+        "move_stop_to_breakeven": null,
+        "nearest_fibonacci_level": null,
+        "partial_exit": null,
+        "preferred_entry": null,
+        "relative_volume": null,
+        "retracement_score": "0.5000",
+        "retracement_weight": "0.1000",
+        "retracement_zone": "unavailable",
+        "risk_reward_ratio": null,
+        "setup_category": "TREND CONTINUATION",
+        "setup_confidence": "71.11",
+        "setup_entry_ready": false,
+        "setup_expectancy_status": "unavailable",
+        "setup_name": "MOMENTUM CONTINUATION",
+        "setup_quality_label": "B",
+        "setup_rationale": "MOMENTUM CONTINUATION classified as TREND CONTINUATION: price is STRONG_UPTREND/CONSTRUCTIVE, volume score is 0.8200, and candle confirmation is NEUTRAL.",
+        "setup_readiness_reason": "Setup is not ready; wait for price confirmation.",
+        "setup_stage": "BUILDING",
+        "stop_chase_price": null,
+        "support_level_used": null,
+        "swing_high": null,
+        "swing_low": null,
+        "target_1": null,
+        "target_2": null,
+        "target_3": null,
+        "trade_plan_explanation": "WATCHLIST because the final score is 62.25/100. Price action is CONSTRUCTIVE with BREAKOUT. Volume is scoring 0.8200 as confirmation. Candle pattern NONE neutral the setup. Retracement kept neutral because swing data is unavailable the signal. Support used: unavailable. Entry zone: unavailable to unavailable; confirmation entry: unavailable. Stop loss: unavailable. Invalidation: unavailable (20-DMA invalidation unavailable due to insufficient price history). Targets: unavailable, unavailable, unavailable. 20-DMA invalidation unavailable due to insufficient price history. ATR trailing stop unavailable due to insufficient price history. Volume condition: breakout or bounce must confirm above average volume.",
+        "trailing_stop_strategy": "ATR trailing stop unavailable due to insufficient price history.",
+        "trigger_status": "WAITING_FOR_CLOSE_ABOVE",
+        "unavailable_reasons": [
+          "20-DMA unavailable; requires 20 bars; has 0",
+          "50-DMA unavailable; requires 50 bars; has 0",
+          "200-DMA unavailable; requires 200 bars; has 0",
+          "ATR(14) unavailable; requires 15 bars; has 0",
+          "Swing levels unavailable; requires 2 bars; has 0",
+          "Relative volume unavailable; requires 20 bars; has 0"
+        ]
+      },
+      "trade_setup": {
+        "aggressive_entry": null,
+        "atr_trail": "ATR trail unavailable until ATR is available.",
+        "average_gain": null,
+        "average_hold_period_days": null,
+        "average_loss": null,
+        "confirmation_entry": null,
+        "entry_ready": false,
+        "expected_holding_period": "5-15 trading days",
+        "expected_value": null,
+        "final_exit": null,
+        "historical_win_rate": null,
+        "holding_period_basis": "Momentum Continuation setup behavior",
+        "initial_stop": null,
+        "maximum_chase_price": null,
+        "maximum_holding_period": 15,
+        "minimum_holding_period": 5,
+        "move_stop_to_breakeven": null,
+        "partial_exit": null,
+        "preferred_entry": null,
+        "profit_factor": null,
+        "rationale": "MOMENTUM CONTINUATION classified as TREND CONTINUATION: price is STRONG_UPTREND/CONSTRUCTIVE, volume score is 0.8200, and candle confirmation is NEUTRAL.",
+        "readiness_reason": "Setup is not ready; wait for price confirmation.",
+        "setup_category": "TREND CONTINUATION",
+        "setup_confidence": "71.11",
+        "setup_name": "MOMENTUM CONTINUATION",
+        "setup_quality": "B",
+        "setup_stage": "BUILDING",
+        "stop_chase_price": null
+      },
+      "trade_strategies": [
+        {
+          "action": "WAIT_FOR_CONFIRMATION",
+          "edge_stats": {
+            "average_drawdown": null,
+            "average_return": null,
+            "confidence": "INSUFFICIENT_DATA",
+            "expectancy": null,
+            "fill_probability": "0.4400",
+            "fill_window_days": 5,
+            "median_holding_period_days": null,
+            "median_return": null,
+            "sample_size": 0,
+            "stop_loss_hit_rate": null,
+            "target_1_hit_rate": null,
+            "target_2_hit_rate": null,
+            "target_3_hit_rate": null
+          },
+          "entry_high": null,
+          "entry_low": null,
+          "entry_zone_basis": [
+            {
+              "basis_type": "UNKNOWN",
+              "description": "Breakout entry basis unavailable.",
+              "level": null
+            }
+          ],
+          "expected_holding_period": "5-15 trading days",
+          "expected_wait_days": 5,
+          "explanation": "Bullish setup is visible, but no capital is approved until the confirmation trigger fires.",
+          "name": "Confirmation Breakout",
+          "position_size_multiplier": "0.0000",
+          "risk_reward": null,
+          "stop_loss": null,
+          "stop_rule": "No active trade; no risk stop is assigned.",
+          "strategy_rank": {
+            "label": "#1 Recommended",
+            "quality": "FAIR",
+            "rank": 1,
+            "rationale": "Wait for confirmation before considering deployment."
+          },
+          "strategy_type": "MOMENTUM_BREAKOUT",
+          "target_1": null,
+          "target_2": null,
+          "target_3": null,
+          "trend_invalidation_reference": null,
+          "trigger_text": "Wait for a valid confirmation trigger."
+        },
+        {
+          "action": "AVOID",
+          "edge_stats": {
+            "average_drawdown": null,
+            "average_return": null,
+            "confidence": "INSUFFICIENT_DATA",
+            "expectancy": null,
+            "fill_probability": null,
+            "fill_window_days": null,
+            "median_holding_period_days": null,
+            "median_return": null,
+            "sample_size": 0,
+            "stop_loss_hit_rate": null,
+            "target_1_hit_rate": null,
+            "target_2_hit_rate": null,
+            "target_3_hit_rate": null
+          },
+          "entry_high": null,
+          "entry_low": null,
+          "entry_zone_basis": [
+            {
+              "basis_type": "UNKNOWN",
+              "description": "No actionable entry zone.",
+              "level": null
+            }
+          ],
+          "expected_holding_period": "5-15 trading days",
+          "expected_wait_days": null,
+          "explanation": "Wait. No capital is approved until the trigger confirms.",
+          "name": "No Trade",
+          "position_size_multiplier": "0.0000",
+          "risk_reward": null,
+          "stop_loss": null,
+          "stop_rule": "No new trade; keep capital unallocated.",
+          "strategy_rank": {
+            "label": "Not Recommended",
+            "quality": "NOT_SUITABLE",
+            "rank": null,
+            "rationale": "No attractive deployable strategy is available."
+          },
+          "strategy_type": "NO_TRADE",
+          "target_1": null,
+          "target_2": null,
+          "target_3": null,
+          "trend_invalidation_reference": null,
+          "trigger_text": "No actionable bullish trigger."
+        }
+      ]
+    }
+  ],
+  "recorded_plan_ids": [
+    "49f1796f17e8db0c522232d5a31753366e0ec6e95a07a5317b5e9e37680d81e6",
+    "389b44fa517776bc80942cc09b6610d46fd2cccaaac5c92030bb3d6b8ab42598",
+    "617883e392a0025c67580a4dec24b2b57ce8e3db43de4619cfd7a2c4a30e9df8"
+  ],
+  "serializer_hash": "f6f0c0cc1bf88f9e53cb17a742062d1a3cbe7c992881a16d2f32d2e7a6dd7b06",
+  "source_manifest": {
+    "historical_rehydration": "5f602a2247ca26be83f4c33aa1feffeccac986feab4b4cd8c7cce525a5b58682",
+    "intelligence_application": "346ed458ee5a18d39ec3139a46866b80d72d6d39a3e53a798e4f90c271d98622",
+    "recommendation_engine": "14e422f385ace3eee69561acbd518948f18a7c0411fe704157aff43d60d21c3c",
+    "snapshot_recorder": "f6f0c0cc1bf88f9e53cb17a742062d1a3cbe7c992881a16d2f32d2e7a6dd7b06"
+  }
+}
