@@ -9,7 +9,9 @@ from alpha.decision_intelligence.models import (
     DecisionAuditReport,
     GateDecision,
     InstitutionalCandidate,
+    InstitutionalCandidateStageTrace,
     InstitutionalDecisionReport,
+    InstitutionalEvaluationResult,
     OpportunityDecision,
     OpportunityGrade,
     OpportunityScoreBreakdown,
@@ -47,12 +49,42 @@ class InstitutionalDecisionEngine:
         self,
         candidates: tuple[InstitutionalCandidate, ...],
     ) -> InstitutionalDecisionReport:
-        decisions = tuple(
-            self.trade_plan_optimizer.optimize_decision(
-                self.stress_engine.stress_test(self._decision(candidate))
+        return self.evaluate_with_trace(candidates).report
+
+    def evaluate_with_trace(
+        self,
+        candidates: tuple[InstitutionalCandidate, ...],
+    ) -> InstitutionalEvaluationResult:
+        """Invoke each authoritative stage exactly once and retain its output."""
+
+        traces: list[InstitutionalCandidateStageTrace] = []
+        for candidate in candidates:
+            base = self._decision(candidate)
+            stressed = self.stress_engine.stress_test(base)
+            optimized = self.trade_plan_optimizer.optimize_decision(stressed)
+            traces.append(
+                InstitutionalCandidateStageTrace(
+                    candidate=candidate,
+                    base_decision=base,
+                    stress_decision=stressed,
+                    trade_plan_decision=optimized,
+                )
             )
-            for candidate in candidates
+        trace_tuple = tuple(traces)
+        return InstitutionalEvaluationResult(
+            report=self._report(
+                candidates=candidates,
+                decisions=tuple(trace.trade_plan_decision for trace in trace_tuple),
+            ),
+            traces=trace_tuple,
         )
+
+    def _report(
+        self,
+        *,
+        candidates: tuple[InstitutionalCandidate, ...],
+        decisions: tuple[OpportunityDecision, ...],
+    ) -> InstitutionalDecisionReport:
         accepted = tuple(
             sorted(
                 (decision for decision in decisions if decision.accepted),
@@ -124,6 +156,30 @@ class InstitutionalDecisionEngine:
             for recommendation in recommendations
         )
         return self.evaluate(candidates)
+
+    def evaluate_recommendations_with_trace(
+        self,
+        recommendations: tuple[object, ...],
+        *,
+        allocation_plan: CapitalAllocationPlan | None = None,
+    ) -> InstitutionalEvaluationResult:
+        """Convert recommendations and retain the authoritative stage trace."""
+
+        allocation_by_symbol = (
+            {report.symbol: report for report in allocation_plan.reports}
+            if allocation_plan is not None
+            else {}
+        )
+        candidates = tuple(
+            candidate_from_recommendation(
+                recommendation,
+                allocation_report=allocation_by_symbol.get(
+                    getattr(recommendation, "symbol", "")
+                ),
+            )
+            for recommendation in recommendations
+        )
+        return self.evaluate_with_trace(candidates)
 
     def _decision(self, candidate: InstitutionalCandidate) -> OpportunityDecision:
         if candidate.setup_scorecard is None:

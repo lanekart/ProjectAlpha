@@ -107,6 +107,7 @@ def validate_dsi002d_certificate(
     certificate: Path,
     *,
     require_ready: bool = False,
+    verify_current_sources: bool = True,
 ) -> dict[str, object]:
     """Validate every hash-bound output in one public DSI-002D bundle."""
 
@@ -135,7 +136,8 @@ def validate_dsi002d_certificate(
             raise DSI002DArtifactError("support artifact path is invalid")
         if _file_sha256(path) != expected:
             raise DSI002DArtifactError(f"support artifact tampered: {name}")
-    _validate_evaluator_sources(root / "dsi002d_stage_inventory.csv")
+    if verify_current_sources:
+        _validate_evaluator_sources(root / "dsi002d_stage_inventory.csv")
     report_payload = dict(payload)
     report_payload.pop("report_sha256", None)
     report_payload.pop("support_artifact_manifest", None)
