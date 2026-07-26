@@ -168,7 +168,16 @@ def _executive_report(result: PerformanceImprovementResult) -> str:
         "",
         f"- Benchmark: {benchmark['name']} ({benchmark['kind']})",
         f"- Source: {benchmark['source']}",
-        f"- Period: {benchmark['start_date']} to {benchmark['end_date']}",
+        (
+            "- Source coverage: "
+            f"{benchmark['source_start_date']} to "
+            f"{benchmark['source_end_date']}"
+        ),
+        (
+            "- CAGR comparison window: "
+            f"{benchmark['comparison_start_date']} to "
+            f"{benchmark['comparison_end_date']}"
+        ),
         f"- CAGR: {_percent(benchmark['cagr'])}",
         "",
         "## Frozen DSI-007 Incumbent",

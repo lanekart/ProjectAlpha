@@ -376,8 +376,10 @@ def _result() -> PerformanceImprovementResult:
             "name": "Nifty 500",
             "kind": "TOTAL_RETURN",
             "source": "official",
-            "start_date": date(2016, 1, 1),
-            "end_date": date(2025, 12, 24),
+            "source_start_date": date(2016, 1, 1),
+            "source_end_date": date(2025, 12, 31),
+            "comparison_start_date": date(2021, 1, 1),
+            "comparison_end_date": date(2025, 12, 24),
             "cagr": 0.09,
         },
         "incumbent": {
