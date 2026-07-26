@@ -12,6 +12,7 @@ from alpha.decision_intelligence.models import (
     InstitutionalCandidateStageTrace,
     InstitutionalDecisionReport,
     InstitutionalEvaluationResult,
+    InstitutionalGateCondition,
     OpportunityDecision,
     OpportunityGrade,
     OpportunityScoreBreakdown,
@@ -182,12 +183,84 @@ class InstitutionalDecisionEngine:
         return self.evaluate_with_trace(candidates)
 
     def _decision(self, candidate: InstitutionalCandidate) -> OpportunityDecision:
+        return self._decision_with_condition_passes(
+            candidate,
+            passed_condition_ids=frozenset(),
+        )
+
+    def observed_gate_conditions(
+        self,
+        candidate: InstitutionalCandidate,
+    ) -> tuple[InstitutionalGateCondition, ...]:
+        """Return stable failed base conditions without changing the decision."""
+
+        normalized = self._candidate_with_scorecard(candidate)
+        return _institutional_gate_conditions(self._rejection_reasons(normalized))
+
+    def evaluate_candidate_with_condition_passes(
+        self,
+        candidate: InstitutionalCandidate,
+        *,
+        passed_condition_ids: frozenset[str],
+    ) -> InstitutionalCandidateStageTrace:
+        """Run the authoritative stack with governed condition-pass substitutions."""
+
+        base = self._decision_with_condition_passes(
+            candidate,
+            passed_condition_ids=passed_condition_ids,
+        )
+        stressed = self.stress_engine.stress_test(base)
+        optimized = self.trade_plan_optimizer.optimize_decision(stressed)
+        return InstitutionalCandidateStageTrace(
+            candidate=candidate,
+            base_decision=base,
+            stress_decision=stressed,
+            trade_plan_decision=optimized,
+        )
+
+    def _decision_with_condition_passes(
+        self,
+        candidate: InstitutionalCandidate,
+        *,
+        passed_condition_ids: frozenset[str],
+    ) -> OpportunityDecision:
+        candidate = self._candidate_with_scorecard(candidate)
+        conditions = _institutional_gate_conditions(self._rejection_reasons(candidate))
+        normalized_passes = frozenset(
+            condition_id.strip().upper()
+            for condition_id in passed_condition_ids
+            if condition_id.strip()
+        )
+        observed_ids = frozenset(condition.condition_id for condition in conditions)
+        unknown = normalized_passes - observed_ids
+        if unknown:
+            raise ValueError(
+                "condition pass references unobserved institutional gate: "
+                + ",".join(sorted(unknown))
+            )
+        rejection_reasons = [
+            condition.reason
+            for condition in conditions
+            if condition.condition_id not in normalized_passes
+        ]
+        return self._build_decision(candidate, rejection_reasons)
+
+    @staticmethod
+    def _candidate_with_scorecard(
+        candidate: InstitutionalCandidate,
+    ) -> InstitutionalCandidate:
         if candidate.setup_scorecard is None:
-            candidate = replace(
+            return replace(
                 candidate,
                 setup_scorecard=setup_scorecard_from_candidate(candidate),
             )
-        rejection_reasons = self._rejection_reasons(candidate)
+        return candidate
+
+    def _build_decision(
+        self,
+        candidate: InstitutionalCandidate,
+        rejection_reasons: list[RejectionReason],
+    ) -> OpportunityDecision:
         accepted = len(rejection_reasons) == 0
         breakdown = self._score_breakdown(candidate)
         score = breakdown.total_score if accepted else Decimal("0.00")
@@ -658,6 +731,25 @@ def _capacity_from_values(
         volume=volume,
         average_volume=average_volume,
     )
+
+
+def _institutional_gate_conditions(
+    reasons: list[RejectionReason],
+) -> tuple[InstitutionalGateCondition, ...]:
+    counts: Counter[RejectionReasonCode] = Counter()
+    conditions: list[InstitutionalGateCondition] = []
+    for ordinal, reason in enumerate(reasons, start=1):
+        counts[reason.code] += 1
+        conditions.append(
+            InstitutionalGateCondition(
+                condition_id=(
+                    f"INSTITUTIONAL_BASE.{reason.code.value}.{counts[reason.code]:02d}"
+                ),
+                ordinal=ordinal,
+                reason=reason,
+            )
+        )
+    return tuple(conditions)
 
 
 def _confidence_rank(value: str) -> int:

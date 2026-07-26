@@ -13,6 +13,9 @@ import typer
 from alpha.application.decision_superiority_complete_stack_cli import (
     register_decision_superiority_complete_stack_command,
 )
+from alpha.application.decision_superiority_gate_isolation_shadow_cli import (
+    register_decision_superiority_gate_isolation_shadow_command,
+)
 from alpha.application.decision_superiority_gate_value_cli import (
     register_decision_superiority_gate_value_command,
 )
@@ -68,6 +71,7 @@ benchmark_app = typer.Typer(
 )
 
 register_decision_superiority_gate_value_command(benchmark_app)
+register_decision_superiority_gate_isolation_shadow_command(benchmark_app)
 register_decision_superiority_complete_stack_command(benchmark_app)
 register_decision_superiority_stage_attribution_command(benchmark_app)
 register_governed_adjusted_benchmark_command(benchmark_app)

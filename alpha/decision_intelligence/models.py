@@ -119,6 +119,23 @@ class RejectionReason:
 
 
 @dataclass(frozen=True, slots=True)
+class InstitutionalGateCondition:
+    """Stable observed base-decision condition for governed shadow research."""
+
+    condition_id: str
+    ordinal: int
+    reason: RejectionReason
+
+    def __post_init__(self) -> None:
+        condition_id = self.condition_id.strip().upper()
+        if not condition_id:
+            raise ValueError("institutional gate condition id cannot be empty")
+        if self.ordinal < 1:
+            raise ValueError("institutional gate condition ordinal must be positive")
+        object.__setattr__(self, "condition_id", condition_id)
+
+
+@dataclass(frozen=True, slots=True)
 class CapacityAssessment:
     capacity_score: Decimal
     deployable_capital_estimate: Decimal | None
