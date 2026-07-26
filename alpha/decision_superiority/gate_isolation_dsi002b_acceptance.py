@@ -7,13 +7,14 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from alpha.decision_superiority.gate_isolation_frozen_inputs import (
+    FrozenInputSection,
+)
 from alpha.decision_superiority.gate_isolation_frozen_policy_replay import (
+    FrozenPolicyRegistry,
     FrozenPolicyReplayLoader,
     FrozenReplayBundle,
     FrozenReplayReadiness,
-)
-from alpha.decision_superiority.gate_isolation_frozen_inputs import (
-    FrozenInputSection,
 )
 
 
@@ -156,10 +157,22 @@ def _point_in_time_verified(snapshot_path: Path) -> bool:
     if not isinstance(observed_on, str):
         return False
     return all(
-        isinstance(section, dict)
-        and section.get("observed_on") <= observed_on
-        and section.get("contains_post_observation_data") is False
+        _section_is_point_in_time(section, observed_on)
         for section in sections
+    )
+
+
+def _section_is_point_in_time(section: object, observed_on: str) -> bool:
+    if not isinstance(section, dict):
+        return False
+    section_observed_on = section.get("observed_on")
+    contains_post_observation = section.get(
+        "contains_post_observation_data"
+    )
+    return (
+        isinstance(section_observed_on, str)
+        and section_observed_on <= observed_on
+        and contains_post_observation is False
     )
 
 
@@ -198,10 +211,6 @@ def _incomplete_block_verified(snapshot_path: Path, output: Path) -> bool:
 
 
 def _unsupported_policy_block_verified(snapshot_path: Path) -> bool:
-    from alpha.decision_superiority.gate_isolation_frozen_policy_replay import (
-        FrozenPolicyRegistry,
-    )
-
     registry = FrozenPolicyRegistry(
         {section: "unsupported" for section in FrozenInputSection}
     )
