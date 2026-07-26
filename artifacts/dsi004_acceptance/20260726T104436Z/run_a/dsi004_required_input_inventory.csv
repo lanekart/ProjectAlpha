@@ -1,0 +1,19 @@
+future_data_permitted,input_id,required_for_dsi002_version,source,unknown_preserved,wrong_price_arm_permitted
+false,adaptive_metadata,false,historical schema policy,true,false
+false,adjusted_candle_window,false,candidate feature snapshot,true,false
+false,corporate_action_state,true,historical truth lineage,true,false
+false,data_completeness,true,candidate feature snapshot,true,false
+false,decision_timestamp,true,candidate identity,true,false
+false,evidence_state,true,candidate feature snapshot,true,false
+false,historical_edge,false,candidate feature snapshot,true,false
+false,indicator_inputs,true,candidate feature snapshot,true,false
+false,liquidity_state,true,candidate feature snapshot,true,false
+false,market_regime,true,candidate feature snapshot,true,false
+false,object_schema_version,true,source contract,true,false
+false,point_in_time_universe,true,signed candidate lineage,true,false
+false,raw_candle_window,true,candidate feature snapshot,true,false
+false,recommendation_policy_version,true,frozen policy snapshot,true,false
+false,sector_state,true,candidate feature snapshot,true,false
+false,security_identity,true,candidate identity,true,false
+false,setup_inputs,true,candidate feature snapshot,true,false
+false,setup_stage_inputs,true,candidate feature snapshot,true,false

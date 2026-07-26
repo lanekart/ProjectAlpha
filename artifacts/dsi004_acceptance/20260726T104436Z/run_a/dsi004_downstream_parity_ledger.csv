@@ -1,0 +1,2 @@
+allocation,allocation_parity,base_decision_parity,candidate_construction_parity,candidate_identity,parity_grade,stress_parity,terminal_decision,terminal_parity,trade_plan_parity
+SKIP,true,true,true,RAW|2026-07-26|BEL|6b6510eca6894beee800c225fe780a37521498115880cbf2cc0db50b3d8adeda,DOWNSTREAM_DECISION_IDENTICAL,true,REJECT,true,true

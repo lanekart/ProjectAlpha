@@ -1,0 +1,16 @@
+{
+  "acceptance_root": "artifacts/dsi004_acceptance/20260726T104436Z",
+  "admitted_economic_candidate_count": 1,
+  "artifact_count": 30,
+  "candidate_arm_count": 2661,
+  "certificate_file_sha256": "a4ef70edcdeb880308cf5a1c765fc63550217a3be67deefc07e068b13d03f9f0",
+  "deterministic_rerun_byte_identical": true,
+  "dsi003_economic_candidate_count": 1331,
+  "final_readiness": "READY_FOR_MECHANICAL_REHYDRATION_RESEARCH_ONLY",
+  "parity_proven_reconstruction_count": 1,
+  "production_influence": false,
+  "report_file_sha256": "b13ad45782b0a3924e7a7958c58e177931fa371d7b1178618cf430fbc183a646",
+  "shadow_approval_count": 0,
+  "source_commit": "a985f9265a89f968fba2eb7d72b04e3a0b02e1c6",
+  "unique_comparable_outcome_count": 0
+}
