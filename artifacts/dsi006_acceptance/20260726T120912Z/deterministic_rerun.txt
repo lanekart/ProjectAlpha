@@ -1,0 +1,3 @@
+The clean second DSI-006 acceptance run was byte-identical to run_a.
+Comparison scope: certification artifacts, repository packages, events, and index.
+Machine-local absolute path scan: passed with zero matches.

@@ -1,0 +1,36 @@
+{
+  "acceptance_root": "artifacts/dsi006_acceptance/20260726T120912Z",
+  "artifact_file_count": 25,
+  "candidate_arm_count": 10,
+  "certificate_file_sha256": "fbf8c9c2efdc1161351b1ed00422db71859131b9f60dba78223003d2cd884d76",
+  "completed_outcome_count": 0,
+  "contract_version": "DSI-006-v1.0.0",
+  "deterministic_clean_rerun": true,
+  "event_count": 20,
+  "final_readiness": "READY_FOR_FORWARD_POPULATION_ACCRUAL_ONLY",
+  "full_round_trip_parity": true,
+  "governance": {
+    "default_runtime_behaviour_changed": false,
+    "default_snapshot_capture_enabled": false,
+    "production_influence": false,
+    "production_snapshot_writes_enabled": false
+  },
+  "idempotent_repeat": {
+    "candidate_arm_count": 10,
+    "event_count": 20,
+    "package_count": 1,
+    "passed": true
+  },
+  "independent_economic_candidate_count": 10,
+  "package_count": 1,
+  "point_in_time_leakage_count": 0,
+  "report_file_sha256": "c43f7fc0b72addb1e7b055ce4358480bd5f1f4ee9a27dc0c0eae1a05d5345b61",
+  "session_count": 1,
+  "session_date": "2026-07-20",
+  "source_commit": "770001b2b265095697b4d288035dc43bf0cbb661",
+  "unexplained_divergence_count": 0,
+  "verdict_counts": {
+    "AVOID": 5,
+    "WATCHLIST": 5
+  }
+}

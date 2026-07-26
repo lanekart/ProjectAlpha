@@ -1,0 +1,2 @@
+atomic_write_failures,event_count,event_new_count,event_reused_count,index_reconciled,index_row_count,package_count,package_disposition,session_state
+0,0,20,0,true,10,1,NEW_CAPTURE,CAPTURED_NONEMPTY_SESSION
