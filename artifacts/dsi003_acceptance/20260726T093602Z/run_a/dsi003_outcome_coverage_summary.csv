@@ -1,0 +1,13 @@
+count,metric,rate
+1331,complete_stack_candidates,1.0000
+158,candidates_with_plans,0.1187
+158,candidates_with_entry_states,0.1187
+158,candidates_with_outcomes,0.1187
+86,completed_outcomes,0.0646
+31,wins,0.0233
+55,losses,0.0413
+0,flats,0.0000
+54,not_entered,0.0406
+18,pending,0.0135
+1173,missing,0.8813
+0,non_comparable,0.0000

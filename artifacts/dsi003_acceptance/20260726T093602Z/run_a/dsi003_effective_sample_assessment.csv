@@ -1,0 +1,7 @@
+dependence_adjustment,metric,value
+RAW_ADJUSTED_PAIRED,unique_economic_candidates,1331
+ONE_OUTCOME_PER_ECONOMIC_CANDIDATE,unique_completed_outcomes,86
+NO_GATE_ARM_INFLATION,exact_dsi002_candidates,1
+INVERSE_HHI,effective_security_count,29.2583
+INVERSE_HHI,effective_date_count,133.1901
+COUNT_AND_DIVERSITY_GOVERNED,research_sufficiency_tier,SUFFICIENT_FOR_DESCRIPTIVE_GATE_VALUE

@@ -1,0 +1,7 @@
+dimension,effective_count,hhi,observation_count,top_share,unique_known_count,unknown_count
+date,133.1901,0.0075,1331,0.0075,134,0
+regime,1.0000,1.0000,1331,1.0000,1,1330
+sector,1.0000,1.0000,1331,1.0000,1,1330
+security,29.2583,0.0342,1331,0.0924,237,0
+setup,1.0000,1.0000,1331,1.0000,1,1172
+outcome,1.2777,0.7827,1331,0.8813,86,1173
