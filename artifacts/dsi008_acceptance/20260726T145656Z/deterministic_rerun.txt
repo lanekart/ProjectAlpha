@@ -1,0 +1,4 @@
+run_a and run_b contain 27 byte-identical governed artifacts
+certificate validation require_ready=true: passed for run_a and run_b
+source coverage: 2016-01-01 to 2025-12-31
+CAGR comparison window: 2021-01-01 to 2025-12-24
