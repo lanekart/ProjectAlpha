@@ -31,8 +31,14 @@ class Pre2016ExternalValidationPolicy:
     minimum_external_trades: int = 20
 
     def __post_init__(self) -> None:
-        if self.external_start >= "2016-01-01" or self.external_end >= "2016-01-01":
-            raise Pre2016ExternalValidationError("EXTERNAL_PERIOD_OVERLAPS_DISCOVERY_ERA")
+        overlaps_discovery = (
+            self.external_start >= "2016-01-01"
+            or self.external_end >= "2016-01-01"
+        )
+        if overlaps_discovery:
+            raise Pre2016ExternalValidationError(
+                "EXTERNAL_PERIOD_OVERLAPS_DISCOVERY_ERA"
+            )
         if self.external_end < self.external_start:
             raise Pre2016ExternalValidationError("EXTERNAL_PERIOD_INVALID")
         if self.frozen_challenger_id != "STOP-STRUCTURAL-10D":
@@ -42,7 +48,9 @@ class Pre2016ExternalValidationPolicy:
         if self.transaction_cost_fraction < 0 or self.slippage_fraction < 0:
             raise Pre2016ExternalValidationError("COST_PROTOCOL_INVALID")
         if self.minimum_external_trades < 1:
-            raise Pre2016ExternalValidationError("MINIMUM_EXTERNAL_TRADES_INVALID")
+            raise Pre2016ExternalValidationError(
+                "MINIMUM_EXTERNAL_TRADES_INVALID"
+            )
 
 
 @dataclass(frozen=True, slots=True)
