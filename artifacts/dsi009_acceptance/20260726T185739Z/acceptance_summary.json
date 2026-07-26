@@ -1,0 +1,129 @@
+{
+  "acceptance_version": "DSI-009-SIGNED-ACCEPTANCE-v1",
+  "artifact_count": 26,
+  "automatic_promotion_count": 0,
+  "benchmark": {
+    "cagr": 0.1682230837,
+    "comparison_end_date": "2025-12-24",
+    "comparison_start_date": "2021-01-01",
+    "identifier": "NIFTY500",
+    "kind": "TOTAL_RETURN",
+    "name": "Nifty 500"
+  },
+  "best_descriptive_result": {
+    "benchmark_gap_closed": 0.05467914,
+    "calmar": 2.57763581,
+    "expectancy": 0.10762497,
+    "family": "STOP",
+    "maximum_drawdown": -0.06254199,
+    "mechanism_id": "STOP-STRUCTURAL-10D",
+    "net_cagr": 0.16121047,
+    "remaining_benchmark_gap": 0.00701261,
+    "state": "STOP_CHALLENGER_DESCRIPTIVELY_BETTER",
+    "trade_count": 51,
+    "validated_champion": false,
+    "win_rate": 0.62745098
+  },
+  "blockers": [
+    "no entry challenger met governed champion requirements",
+    "no stop challenger met governed champion requirements",
+    "no fresh unused final holdout exists after DSI-008",
+    "multiple-testing controls were not survived",
+    "75 percent accuracy was not established"
+  ],
+  "build": "sdist and wheel built",
+  "certificate_validation": {
+    "require_ready_false": "passed for run_a and run_b",
+    "require_ready_true": "passed for run_a and run_b"
+  },
+  "contract_version": "DSI-009-v1.0.0",
+  "decision_superiority_suite": "572 passed",
+  "deterministic_rerun": true,
+  "entry_challengers": {
+    "accepted": null,
+    "tested": 6
+  },
+  "entry_stop_attribution": {
+    "ENTRY_TOO_EARLY_RECOVERED_AFTER_STOP": 7,
+    "STOP_PREVENTED_LARGER_LOSS": 9,
+    "STOP_TOO_TIGHT_RECOVERED_QUICKLY": 9,
+    "THESIS_FAILED_AND_CONTINUED_LOWER": 1,
+    "THESIS_FAILED_WITHOUT_RECOVERY": 1,
+    "WINNER_ENTERED_WELL": 15,
+    "WINNER_SURVIVED_ADVERSE_EXCURSION": 14
+  },
+  "forward_paper_eligible": false,
+  "full_suite": "3418 passed, 24 skipped",
+  "incumbent_exactly_preserved_from_dsi008": true,
+  "incumbent_summary": {
+    "calmar": 1.48295923,
+    "costs": 43002.94266765,
+    "ending_capital": 1655122.11987938,
+    "excess_cagr": -0.0616917537,
+    "maximum_drawdown": -0.07183699,
+    "net_cagr": 0.10653133,
+    "sharpe": 1.33737849,
+    "sortino": 0.9419909,
+    "starting_capital": 1000000.0,
+    "trade_count": 56,
+    "turnover": 1.75472685
+  },
+  "multiple_testing_survived": false,
+  "mypy": "passed (1058 source files)",
+  "pre_commit": "passed",
+  "production_influence": false,
+  "readiness_by_slice": {
+    "A": "READY_FOR_GOVERNED_ENTRY_PATH_RESEARCH",
+    "B": "READY_FOR_GOVERNED_ENTRY_STOP_ATTRIBUTION",
+    "C": "READY_FOR_GOVERNED_ENTRY_CHALLENGERS",
+    "D": "READY_WITH_NO_BETTER_ENTRY_MECHANISM",
+    "E": "READY_FOR_GOVERNED_STOP_VALUE_RESEARCH",
+    "F": "READY_WITH_NO_BETTER_STOP_MECHANISM",
+    "G": "READY_WITH_IMPROVEMENT_BUT_STILL_BELOW_BENCHMARK",
+    "H": "READY_WITH_NO_RELIABLE_IMPROVEMENT",
+    "I": "READY_WITH_NO_RELIABLE_ENTRY_STOP_IMPROVEMENT"
+  },
+  "readiness_decision": "READY_WITH_NO_RELIABLE_ENTRY_STOP_IMPROVEMENT",
+  "robustness_grade": "NO_RELIABLE_ENTRY_STOP_IMPROVEMENT",
+  "ruff": "passed",
+  "ruff_format": "passed",
+  "sequential_champion": null,
+  "signal_tiers": {
+    "ALPHA_ELITE": {
+      "completed_trades": 22,
+      "expectancy": 0.02788109,
+      "observed_accuracy": 0.40909091,
+      "sample_sufficient": false,
+      "status": "75_PERCENT_TARGET_NOT_ESTABLISHED"
+    },
+    "ALPHA_HIGH_CONVICTION": {
+      "completed_trades": 52,
+      "expectancy": 0.06630908,
+      "observed_accuracy": 0.53846154,
+      "sample_sufficient": true
+    },
+    "ALPHA_STANDARD": {
+      "completed_trades": 56,
+      "expectancy": 0.06297239,
+      "observed_accuracy": 0.51785714,
+      "sample_sufficient": true
+    }
+  },
+  "source_chain_hashes": {
+    "DSI007_CERTIFICATE": "be7f292b786a0bee34e49d2206cf491ee55675b4feccfffbf9b70f99035a26e8",
+    "DSI008_CERTIFICATE": "be68ab60a6a83fa452353f7a7ed1bf1f5b929b1c54246e470c0e48768b418c00",
+    "GOVERNED_MARKET_SLICE": "4fdda6bc553f615a75d67a5aa71fcea29c4f13b58ec8526c593e6bc788012b3d"
+  },
+  "source_commit": "69e983a55e2e97784fc6d74f677311b47f4d4a90",
+  "stop_challengers": {
+    "accepted": null,
+    "tested": 5
+  },
+  "stop_value": {
+    "STOP_DESTROYED_RECOVERABLE_TRADE": 2,
+    "STOP_EFFECT_AMBIGUOUS": 2,
+    "STOP_NOT_TRIGGERED": 30,
+    "STOP_PREVENTED_TAIL_LOSS": 21,
+    "STOP_TOO_TIGHT": 1
+  }
+}
