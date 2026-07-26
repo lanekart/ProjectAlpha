@@ -8,7 +8,7 @@ import math
 import subprocess
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from statistics import NormalDist
 from types import MappingProxyType
@@ -1961,29 +1961,98 @@ def _load_market_slice(
     identities = sorted(set(population["identity_key"].astype(str)))
     if not identities:
         return {}
+    start = min(population["signal_date"])
+    if "exit_date" in population:
+        end = max(population["exit_date"])
+    else:
+        end = max(population["entry_eligibility_date"]) + timedelta(days=100)
     connection = duckdb.connect(str(database), read_only=True)
     try:
         placeholders = ",".join("?" for _ in identities)
         frame = connection.execute(
             f"""
+            with identity_matches as (
+                select
+                    a.trading_date,
+                    a.exchange,
+                    a.symbol,
+                    a.series,
+                    a.isin,
+                    min(i.identity_key) as identity_key,
+                    count(distinct i.identity_key) as identity_match_count
+                from adjusted_daily_candle a
+                left join security_isin_interval_complete i
+                  on a.isin = i.isin
+                 and a.trading_date >= i.valid_from
+                 and (
+                    i.valid_to is null
+                    or a.trading_date <= i.valid_to
+                 )
+                where a.trading_date between ? and ?
+                  and a.series = 'EQ'
+                group by 1, 2, 3, 4, 5
+            ),
+            membership_matches as (
+                select
+                    m.trading_date,
+                    m.exchange,
+                    m.symbol,
+                    m.series,
+                    m.isin,
+                    m.identity_key,
+                    m.identity_match_count,
+                    count(u.identity_key) as membership_match_count
+                from identity_matches m
+                left join security_membership_interval_complete u
+                  on m.identity_key = u.identity_key
+                 and m.trading_date >= u.valid_from
+                 and (
+                    u.valid_to is null
+                    or m.trading_date <= u.valid_to
+                 )
+                group by 1, 2, 3, 4, 5, 6, 7
+            )
             select
-                trading_date,
-                'nse:isin:' || isin as identity_key,
-                adjusted_open as open,
-                adjusted_high as high,
-                adjusted_low as low,
-                adjusted_close as close
-            from adjusted_daily_candle
-            where 'nse:isin:' || isin in ({placeholders})
-            order by identity_key, trading_date
+                a.trading_date,
+                m.identity_key,
+                a.adjusted_open as open,
+                a.adjusted_high as high,
+                a.adjusted_low as low,
+                a.adjusted_close as close
+            from adjusted_daily_candle a
+            join membership_matches m
+              on a.trading_date = m.trading_date
+             and a.exchange = m.exchange
+             and a.symbol = m.symbol
+             and a.series = m.series
+             and a.isin = m.isin
+            join price_basis_interval p
+              on m.identity_key = p.identity_key
+             and a.trading_date >= p.valid_from
+             and (
+                p.valid_to is null
+                or a.trading_date <= p.valid_to
+             )
+            where m.identity_match_count = 1
+              and m.membership_match_count <= 1
+              and p.state = 'BACKWARD_ADJUSTED'
+              and a.adjusted_open > 0
+              and a.adjusted_high > 0
+              and a.adjusted_low > 0
+              and a.adjusted_close > 0
+              and a.adjusted_volume >= 0
+              and m.identity_key in ({placeholders})
+            order by m.identity_key, a.trading_date
             """,
-            identities,
+            [start, end, *identities],
         ).fetchdf()
     except duckdb.Error:
         return {}
     finally:
         connection.close()
     frame["trading_date"] = pd.to_datetime(frame["trading_date"]).dt.date
+    if bool(frame.duplicated(["trading_date", "identity_key"]).any()):
+        raise PerformanceImprovementError("DUPLICATE_GOVERNED_IDENTITY_SESSION")
     return {
         str(identity): group.reset_index(drop=True)
         for identity, group in frame.groupby("identity_key", sort=True)
