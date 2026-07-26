@@ -124,7 +124,9 @@ class GovernedForwardSnapshotAccrualEngine:
             repository=repository,
             rows=session_rows,
         )
+        inventory = repository.verify_inventory()
         events = repository.outcome_events()
+        dimensions = _candidate_dimensions(repository, index_rows)
         replay_rows = _replay_rows(repository)
         parity_rows = _parity_rows(replay_rows)
         dsi_rows = _dsi_transfer_rows(index_rows, replay_rows, events)
@@ -134,8 +136,8 @@ class GovernedForwardSnapshotAccrualEngine:
         operational_rows = _operational_rows(repository)
         retention_rows = _retention_rows()
         safety_rows = _safety_rows()
-        population_rows = _population_rows(index_rows, events)
-        concentration_rows = _concentration_rows(index_rows, events)
+        population_rows = _population_rows(index_rows, events, dimensions)
+        concentration_rows = _concentration_rows(index_rows, events, dimensions)
         readiness_rows = _research_readiness_rows(index_rows, events)
         reconciliation_rows = _reconciliation_rows(
             session=session,
@@ -165,6 +167,8 @@ class GovernedForwardSnapshotAccrualEngine:
             event_dispositions=event_dispositions,
             inventory=inventory,
             concentration_rows=concentration_rows,
+            outcome_rows=outcome_rows,
+            population_rows=population_rows,
         )
         summaries["dsi005_certificate_file_sha256"] = _sha256(
             sources.dsi005_certificate
@@ -892,9 +896,79 @@ def _safety_rows() -> tuple[Mapping[str, object], ...]:
     )
 
 
+def _candidate_dimensions(
+    repository: ContentAddressedSnapshotRepository,
+    rows: tuple[SnapshotIndexRow, ...],
+) -> MappingProxyType[str, Mapping[str, str]]:
+    rows_by_object_id = {row.recommendation_object_id: row for row in rows}
+    dimensions: dict[str, Mapping[str, str]] = {}
+    for package_path in repository.package_paths():
+        package = validate_snapshot_package(package_path)
+        recommendations = package.get("recommendations")
+        object_ids = package.get("recommendation_object_ids")
+        input_snapshot = package.get("input_snapshot")
+        if (
+            not isinstance(recommendations, list)
+            or not isinstance(object_ids, list)
+            or len(recommendations) != len(object_ids)
+        ):
+            raise ForwardSnapshotError("SNAPSHOT_DIMENSION_INPUT_INVALID")
+        sector_by_symbol = (
+            input_snapshot.get("sector_by_symbol", {})
+            if isinstance(input_snapshot, dict)
+            else {}
+        )
+        if not isinstance(sector_by_symbol, dict):
+            sector_by_symbol = {}
+        for recommendation, object_id in zip(
+            recommendations,
+            object_ids,
+            strict=True,
+        ):
+            if not isinstance(recommendation, dict):
+                raise ForwardSnapshotError("SNAPSHOT_RECOMMENDATION_OBJECT_REQUIRED")
+            row = rows_by_object_id.get(str(object_id))
+            if row is None:
+                raise ForwardSnapshotError("SNAPSHOT_DIMENSION_IDENTITY_MISSING")
+            trade_setup = _mapping_value(recommendation, "trade_setup")
+            metadata = _mapping_value(recommendation, "metadata")
+            evidence = _mapping_value(recommendation, "evidence_assessment")
+            dimensions[row.candidate_arm_id] = MappingProxyType(
+                {
+                    "setup": _dimension_value(
+                        trade_setup.get("setup_name")
+                        or trade_setup.get("setup_category")
+                    ),
+                    "regime": _dimension_value(
+                        metadata.get("market_regime") or evidence.get("market_regime")
+                    ),
+                    "sector": _dimension_value(
+                        metadata.get("sector") or sector_by_symbol.get(row.symbol)
+                    ),
+                }
+            )
+    if frozenset(dimensions) != frozenset(row.candidate_arm_id for row in rows):
+        raise ForwardSnapshotError("SNAPSHOT_DIMENSION_RECONCILIATION_DEFECT")
+    return MappingProxyType(dict(sorted(dimensions.items())))
+
+
+def _mapping_value(
+    value: Mapping[str, object],
+    key: str,
+) -> Mapping[str, object]:
+    nested = value.get(key)
+    return nested if isinstance(nested, dict) else {}
+
+
+def _dimension_value(value: object) -> str:
+    normalized = str(value or "").strip().upper()
+    return normalized if normalized and normalized not in {"NONE", "N/A"} else "UNKNOWN"
+
+
 def _population_rows(
     rows: tuple[SnapshotIndexRow, ...],
     events: tuple[OutcomeEvent, ...],
+    dimensions: Mapping[str, Mapping[str, str]],
 ) -> tuple[Mapping[str, object], ...]:
     economic = {row.economic_candidate_id for row in rows}
     completed = {
@@ -902,12 +976,21 @@ def _population_rows(
         for event in events
         if event.event_type is OutcomeEventType.OUTCOME_COMPLETED
     }
+    setups = {dimensions[row.candidate_arm_id]["setup"] for row in rows}
+    regimes = {dimensions[row.candidate_arm_id]["regime"] for row in rows}
+    sectors = {dimensions[row.candidate_arm_id]["sector"] for row in rows}
     return (
         {
             "candidate_arm_packages": len(rows),
             "independent_economic_candidates": len(economic),
             "unique_securities": len({row.symbol for row in rows}),
             "unique_dates": len({row.session_date for row in rows}),
+            "unique_setups": len(setups),
+            "known_setups": len(setups - {"UNKNOWN"}),
+            "unique_regimes": len(regimes),
+            "known_regimes": len(regimes - {"UNKNOWN"}),
+            "unique_sectors": len(sectors),
+            "known_sectors": len(sectors - {"UNKNOWN"}),
             "raw_adjusted_pairs": sum(
                 1
                 for items in _groups(rows).values()
@@ -938,6 +1021,7 @@ def _population_rows(
 def _concentration_rows(
     rows: tuple[SnapshotIndexRow, ...],
     events: tuple[OutcomeEvent, ...],
+    dimensions: Mapping[str, Mapping[str, str]],
 ) -> tuple[Mapping[str, object], ...]:
     economic_rows = tuple(next(iter(items)) for items in _groups(rows).values())
     if not economic_rows:
@@ -945,8 +1029,12 @@ def _concentration_rows(
             {
                 "top_security_share": "0",
                 "top_date_share": "0",
+                "top_month_share": "0",
                 "effective_security_count": "0",
                 "effective_date_count": "0",
+                "setup_concentration": "0",
+                "regime_concentration": "0",
+                "sector_concentration": "0",
                 "repeated_candidate_rate": "0",
                 "outcome_reuse": 0,
                 "arm_row_dependence": "0",
@@ -954,13 +1042,25 @@ def _concentration_rows(
         )
     security = Counter(row.symbol for row in economic_rows)
     dates = Counter(row.session_date.isoformat() for row in economic_rows)
+    months = Counter(row.session_date.strftime("%Y-%m") for row in economic_rows)
+    setups = Counter(dimensions[row.candidate_arm_id]["setup"] for row in economic_rows)
+    regimes = Counter(
+        dimensions[row.candidate_arm_id]["regime"] for row in economic_rows
+    )
+    sectors = Counter(
+        dimensions[row.candidate_arm_id]["sector"] for row in economic_rows
+    )
     total = Decimal(len(economic_rows))
     return (
         {
             "top_security_share": str(Decimal(max(security.values())) / total),
             "top_date_share": str(Decimal(max(dates.values())) / total),
+            "top_month_share": str(Decimal(max(months.values())) / total),
             "effective_security_count": str(_effective_count(security)),
             "effective_date_count": str(_effective_count(dates)),
+            "setup_concentration": str(Decimal(max(setups.values())) / total),
+            "regime_concentration": str(Decimal(max(regimes.values())) / total),
+            "sector_concentration": str(Decimal(max(sectors.values())) / total),
             "repeated_candidate_rate": str(
                 Decimal(len(rows) - len(economic_rows)) / Decimal(max(1, len(rows)))
             ),
@@ -1061,6 +1161,8 @@ def _summaries(
     event_dispositions: tuple[RepositoryDisposition, ...],
     inventory: Mapping[str, int],
     concentration_rows: tuple[Mapping[str, object], ...],
+    outcome_rows: tuple[Mapping[str, object], ...],
+    population_rows: tuple[Mapping[str, object], ...],
 ) -> dict[str, object]:
     completed = tuple(
         event
@@ -1072,6 +1174,8 @@ def _summaries(
         for row in replay_rows
         if row.get("classification") == ReplayClassification.FULL_PARITY.value
     )
+    outcome_state_counts = Counter(str(row["outcome_state"]) for row in outcome_rows)
+    population = population_rows[0]
     return {
         "allocation_count": 0,
         "candidate_arm_package_count": len(index_rows),
@@ -1098,6 +1202,13 @@ def _summaries(
         "event_count": len(events),
         "event_reused_count": event_dispositions.count(RepositoryDisposition.IDENTICAL),
         "failed_session_count": int(session.state is CaptureSessionState.FAILED),
+        "entry_pending_count": outcome_state_counts[OutcomeState.ENTRY_PENDING.value],
+        "not_entered_count": outcome_state_counts[OutcomeState.NOT_ENTERED.value],
+        "open_position_count": outcome_state_counts[OutcomeState.POSITION_OPEN.value],
+        "pending_outcome_count": outcome_state_counts[OutcomeState.PENDING_END.value],
+        "conflicting_outcome_count": outcome_state_counts[
+            OutcomeState.CONFLICTING.value
+        ],
         "implementation_defect_count": 0,
         "index_reconciled": inventory["index_row_count"] == len(index_rows),
         "package_count": inventory["package_count"],
@@ -1122,7 +1233,21 @@ def _summaries(
         "replay_package_count": len(full_replays),
         "shadow_approval_count": 0,
         "shadow_trade_count": 0,
+        "unique_setup_count": population["unique_setups"],
+        "known_setup_count": population["known_setups"],
+        "unique_regime_count": population["unique_regimes"],
+        "known_regime_count": population["known_regimes"],
+        "unique_sector_count": population["unique_sectors"],
+        "known_sector_count": population["known_sectors"],
+        "verdict_counts": dict(
+            sorted(Counter(row.verdict for row in index_rows).items())
+        ),
         "top_security_share": concentration_rows[0]["top_security_share"],
+        "top_date_share": concentration_rows[0]["top_date_share"],
+        "top_month_share": concentration_rows[0]["top_month_share"],
+        "setup_concentration": concentration_rows[0]["setup_concentration"],
+        "regime_concentration": concentration_rows[0]["regime_concentration"],
+        "sector_concentration": concentration_rows[0]["sector_concentration"],
         "unavailable_session_count": int(
             session.state is CaptureSessionState.INPUT_UNAVAILABLE
         ),

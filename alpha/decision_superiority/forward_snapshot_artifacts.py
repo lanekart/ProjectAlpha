@@ -83,6 +83,7 @@ def export_forward_snapshot_accrual(
             "unavailable_session_count",
             "failed_session_count",
             "recommendation_count",
+            "verdict_counts",
         ),
         "snapshot_package_summary": _subset(
             summary,
@@ -101,9 +102,14 @@ def export_forward_snapshot_accrual(
         "outcome_event_summary": _subset(
             summary,
             "event_count",
+            "entry_pending_count",
             "entry_count",
+            "not_entered_count",
+            "open_position_count",
+            "pending_outcome_count",
             "completed_outcome_count",
             "comparable_outcome_count",
+            "conflicting_outcome_count",
         ),
         "replay_summary": _subset(
             summary,
@@ -117,6 +123,17 @@ def export_forward_snapshot_accrual(
             "economic_candidate_count",
             "completed_outcome_count",
             "top_security_share",
+            "top_date_share",
+            "top_month_share",
+            "unique_setup_count",
+            "known_setup_count",
+            "unique_regime_count",
+            "known_regime_count",
+            "unique_sector_count",
+            "known_sector_count",
+            "setup_concentration",
+            "regime_concentration",
+            "sector_concentration",
         ),
         "implementation_defect_count": summary["implementation_defect_count"],
         "point_in_time_leakage_count": summary["point_in_time_leakage_count"],
@@ -202,12 +219,27 @@ def _executive_report(result: ForwardSnapshotResult) -> str:
             f"- Captured sessions: {summary['capture_session_count']}",
             f"- Recommendation arms: {summary['candidate_arm_package_count']}",
             f"- Independent candidates: {summary['economic_candidate_count']}",
+            f"- Unique setups: {summary['unique_setup_count']}",
+            (
+                "- Unique regimes: "
+                f"{summary['unique_regime_count']} "
+                f"({summary['known_regime_count']} known)"
+            ),
+            (
+                "- Unique sectors: "
+                f"{summary['unique_sector_count']} "
+                f"({summary['known_sector_count']} known)"
+            ),
             f"- Immutable packages: {summary['package_count']}",
             f"- Recorded plans: {summary['plan_count']}",
             "",
             "## Outcome Maturity",
             "",
             f"- Entry events: {summary['entry_count']}",
+            f"- Pending entries: {summary['entry_pending_count']}",
+            f"- Not entered: {summary['not_entered_count']}",
+            f"- Open positions: {summary['open_position_count']}",
+            f"- Pending outcomes: {summary['pending_outcome_count']}",
             f"- Completed outcomes: {summary['completed_outcome_count']}",
             f"- Comparable outcomes: {summary['comparable_outcome_count']}",
             (

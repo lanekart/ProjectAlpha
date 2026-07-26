@@ -4,6 +4,7 @@ import hashlib
 import json
 from dataclasses import FrozenInstanceError
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 import pandas as pd
@@ -524,6 +525,18 @@ def test_engine_accrues_only_pending_forward_events(governed_result) -> None:
         row["outcome_state"] == "ENTRY_PENDING"
         for row in governed_result.rows["outcome_reconciliation"]
     )
+    assert (
+        governed_result.summaries["entry_pending_count"]
+        == (governed_result.summaries["economic_candidate_count"])
+    )
+    assert governed_result.summaries["not_entered_count"] == 0
+    assert governed_result.summaries["open_position_count"] == 0
+    assert governed_result.summaries["pending_outcome_count"] == 0
+    assert governed_result.summaries["conflicting_outcome_count"] == 0
+    assert (
+        governed_result.rows["write_integrity"][0]["event_count"]
+        == (governed_result.summaries["event_count"])
+    )
 
 
 def test_engine_replay_is_full_parity(governed_result) -> None:
@@ -562,6 +575,20 @@ def test_population_uses_independent_economic_candidates(governed_result) -> Non
         <= (population["candidate_arm_packages"])
     )
     assert population["completed_outcomes"] == 0
+    assert population["unique_setups"] >= 1
+    assert population["unique_regimes"] >= 1
+    assert population["unique_sectors"] >= 1
+    concentration = governed_result.rows["concentration"][0]
+    assert Decimal(str(concentration["top_month_share"])) > 0
+    assert Decimal(str(concentration["setup_concentration"])) > 0
+    assert Decimal(str(concentration["regime_concentration"])) > 0
+    assert Decimal(str(concentration["sector_concentration"])) > 0
+    verdict_counts = governed_result.summaries["verdict_counts"]
+    assert isinstance(verdict_counts, dict)
+    assert (
+        sum(verdict_counts.values())
+        == governed_result.summaries["recommendation_count"]
+    )
 
 
 def test_structural_probes_are_not_empirical_population() -> None:
