@@ -23,7 +23,9 @@ It is not itself the selected portfolio population. DSI-009 therefore applies
 the signed DSI-007 fold/regime selection policy, including explicit `NO_TRADE`
 cells, before reconstructing the incumbent. The reconstructed incumbent must
 match the signed 56-trade portfolio, ending capital, CAGR, and drawdown within
-the frozen reconciliation tolerances.
+the frozen reconciliation tolerances. The certificate preserves the signed
+DSI-008 incumbent summary unchanged and stores the reconstructed metrics in a
+separate audit field so numerical reconciliation cannot rewrite the baseline.
 
 ## A-I Workflow
 

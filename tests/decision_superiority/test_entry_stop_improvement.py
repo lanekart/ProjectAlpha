@@ -633,6 +633,24 @@ def _result() -> EntryStopImprovementResult:
     }
     summaries = {
         "incumbent": {
+            "availability": "AVAILABLE",
+            "starting_capital": 1_000_000.0,
+            "ending_capital": 1_655_122.0,
+            "net_cagr": 0.1065,
+            "maximum_drawdown": -0.0718,
+            "sharpe": 1.34,
+            "sortino": 0.94,
+            "calmar": 1.48,
+            "trade_count": 56,
+            "costs": 43_003.0,
+            "turnover": 1.7547,
+            "exposure": 0.5068,
+            "time_in_market": 0.8945,
+            "benchmark_cagr": 0.1682,
+            "excess_cagr": -0.0617,
+            "portfolio_name": "DSI007_INCUMBENT",
+        },
+        "incumbent_replay": {
             "starting_capital": 1_000_000.0,
             "ending_capital": 1_655_122.0,
             "net_cagr": 0.1065,

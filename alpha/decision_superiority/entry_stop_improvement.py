@@ -2404,10 +2404,13 @@ def _summaries(
 ) -> dict[str, Any]:
     attribution = pd.DataFrame(attribution_rows)
     stop_value = pd.DataFrame(stop_value_rows)
-    incumbent = dict(incumbent_metrics)
     benchmark = cast(Mapping[str, Any], dsi008["benchmark_summary"])
-    incumbent["benchmark_cagr"] = benchmark["cagr"]
-    incumbent["excess_cagr"] = _difference(incumbent["net_cagr"], benchmark["cagr"])
+    incumbent = dict(cast(Mapping[str, Any], dsi008["incumbent_summary"]))
+    incumbent_replay = dict(incumbent_metrics)
+    incumbent_replay["benchmark_cagr"] = benchmark["cagr"]
+    incumbent_replay["excess_cagr"] = _difference(
+        incumbent_replay["net_cagr"], benchmark["cagr"]
+    )
     improved = [
         row
         for row in portfolio_rows
@@ -2444,6 +2447,7 @@ def _summaries(
     return {
         "benchmark": dict(benchmark),
         "incumbent": incumbent,
+        "incumbent_replay": incumbent_replay,
         "early_entry_count": int(
             attribution["primary_attribution"]
             .isin(

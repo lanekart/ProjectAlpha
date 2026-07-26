@@ -79,6 +79,7 @@ def export_entry_stop_improvement(
         "source_commit": result.source_commit,
         "source_chain_hashes": source_hashes,
         "incumbent_summary": result.summaries["incumbent"],
+        "incumbent_replay_summary": result.summaries["incumbent_replay"],
         "benchmark_summary": result.summaries["benchmark"],
         "trade_path_summary": {
             "trade_count": len(result.rows["incumbent_trade_path"]),
@@ -168,6 +169,7 @@ def validate_entry_stop_improvement_certificate(
 def _executive_report(result: EntryStopImprovementResult) -> str:
     summary = result.summaries
     incumbent = summary["incumbent"]
+    incumbent_replay = summary["incumbent_replay"]
     benchmark = summary["benchmark"]
     tiers = summary["tiers"]
     lines = [
@@ -196,9 +198,9 @@ def _executive_report(result: EntryStopImprovementResult) -> str:
         f"- Sortino: {_number(incumbent['sortino'])}",
         f"- Calmar: {_number(incumbent['calmar'])}",
         f"- Completed trades: {incumbent['trade_count']}",
-        f"- Win rate: {_percent(incumbent['win_rate'])}",
-        f"- Expectancy: {_percent(incumbent['expectancy'])}",
-        f"- Costs: {_currency(incumbent['total_costs'])}",
+        f"- Win rate: {_percent(incumbent_replay['win_rate'])}",
+        f"- Expectancy: {_percent(incumbent_replay['expectancy'])}",
+        f"- Costs: {_currency(incumbent['costs'])}",
         f"- Turnover: {_percent(incumbent['turnover'])}",
         "",
         "## Entry and Stop Attribution",
