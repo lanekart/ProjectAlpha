@@ -1,0 +1,1 @@
+run_a and run_b are byte-identical across all 27 governed DSI-005 artifacts.

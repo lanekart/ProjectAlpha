@@ -1,0 +1,3 @@
+boundary,grade,independent_candidate_count,limitation,outcome_ready_candidate_count,replayable_candidate_count
+PROSPECTIVE,PROSPECTIVE_CAPTURE_READY,0,capture remains opt-in and disabled by default,0,0
+RETROSPECTIVE,NO_SAFE_RETROSPECTIVE_EXPANSION,1331,1330 candidates lack complete historical inputs,0,1

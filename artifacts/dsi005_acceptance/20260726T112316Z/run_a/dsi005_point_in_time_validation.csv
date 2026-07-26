@@ -1,0 +1,12 @@
+empirical_counted,point_in_time_safe,probe,result
+false,true,bel_frozen_boundary,ACCEPTED
+false,true,end_of_window_overrun,REJECTED
+false,true,future_adaptive_evidence,REJECTED
+false,true,future_candle,REJECTED
+false,true,future_corporate_action,REJECTED
+false,true,future_outcome,REJECTED
+false,true,later_liquidity,REJECTED
+false,true,later_sector_classification,REJECTED
+false,true,retrospective_universe,REJECTED
+false,true,same_day_close_before_decision,REJECTED
+false,true,wrong_price_arm,REJECTED
