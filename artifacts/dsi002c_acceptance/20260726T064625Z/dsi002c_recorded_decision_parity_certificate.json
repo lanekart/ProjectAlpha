@@ -1,0 +1,12 @@
+{
+  "accepted": true,
+  "baseline_output_sha256": "1ad037c4a68324a9e372c721da99e719d3542cfac01732b41a05780ae1c8c581",
+  "baseline_tamper_block_verified": true,
+  "candidate_identity_block_verified": true,
+  "deterministic_replay_verified": true,
+  "exact_payload_match": true,
+  "parity_verified": true,
+  "production_influence": false,
+  "replay_output_sha256": "1ad037c4a68324a9e372c721da99e719d3542cfac01732b41a05780ae1c8c581",
+  "snapshot_identity_block_verified": true
+}
