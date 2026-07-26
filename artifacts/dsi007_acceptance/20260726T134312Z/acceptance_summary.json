@@ -1,0 +1,70 @@
+{
+  "acceptance_timestamp_utc": "2026-07-26T13:43:12Z",
+  "artifact_count": 31,
+  "automatic_promotion_count": 0,
+  "benchmark_status": "UNAVAILABLE",
+  "blockers": [
+    "GOVERNED_TOTAL_RETURN_BENCHMARK_UNAVAILABLE"
+  ],
+  "contract_version": "DSI-007-v1.0.0",
+  "deterministic_rerun": true,
+  "full_suite": {
+    "passed": 3372,
+    "skipped": 24
+  },
+  "governance": {
+    "all_policy_and_production_influence_flags_false": true,
+    "default_runtime_behaviour_changed": false,
+    "production_influence": false,
+    "strategy_automatic_promotion_enabled": false
+  },
+  "historical_coverage": {
+    "actual_end": "2025-12-24",
+    "actual_start": "2016-01-01",
+    "admitted_rows": 381075,
+    "admitted_securities": 402,
+    "admitted_sessions": 2469
+  },
+  "implementation_defect_count": 0,
+  "lookahead_leakage_count": 0,
+  "multiple_testing_method": "DETERMINISTIC_MONTHLY_BLOCK_BOOTSTRAP_WITH_BH_AND_HOLM",
+  "overfitting_state": "DESCRIPTIVE_ONLY",
+  "portfolio": {
+    "ending_capital": 1655122.11987938,
+    "expectancy": 0.06297239,
+    "gross_cagr": 0.11224818,
+    "maximum_drawdown": -0.07183699,
+    "net_cagr": 0.10653133,
+    "sharpe": 1.33737849,
+    "sortino": 0.9419909,
+    "starting_capital": 1000000.0,
+    "total_costs": 43002.94266765,
+    "trade_count": 56,
+    "turnover": 1.75472685,
+    "win_rate": 0.51785714
+  },
+  "population_reconciliation_defect_count": 0,
+  "pr": 71,
+  "readiness": {
+    "A": "READY_WITH_PARTIAL_HISTORICAL_COVERAGE",
+    "B": "READY_FOR_GOVERNED_POINT_IN_TIME_REGIME_RESEARCH",
+    "C": "READY_FOR_GOVERNED_STRATEGY_VARIANT_EVALUATION",
+    "D": "READY_FOR_GOVERNED_STRATEGY_SIGNAL_REPLAY",
+    "E": "READY_FOR_GOVERNED_PORTFOLIO_BACKTEST",
+    "F": "READY_FOR_GOVERNED_WALK_FORWARD_SELECTION",
+    "G": "READY_FOR_GOVERNED_REGIME_AWARE_PORTFOLIO_RESEARCH",
+    "H": "READY_WITH_INSUFFICIENT_HISTORY_FOR_LONG_HORIZON_METRICS",
+    "I": "READY_WITH_DESCRIPTIVE_STRATEGY_RESULTS_ONLY",
+    "J": "READY_FOR_DESCRIPTIVE_REGIME_STRATEGY_RESEARCH_ONLY"
+  },
+  "report_file_sha256": "5ea431479a6ad77a2ad76bffacfef506392e3d424ad7dd6de14d543b348869ff",
+  "certificate_file_sha256": "be7f292b786a0bee34e49d2206cf491ee55675b4feccfffbf9b70f99035a26e8",
+  "source_commit": "4a852fda9dcb6f8fe234ebd000d0f21827a2c4bf",
+  "strategy": {
+    "families": 10,
+    "signals": 188279,
+    "trade_plans": 188279,
+    "valid_variants": 13,
+    "walk_forward_folds": 5
+  }
+}

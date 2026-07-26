@@ -1,0 +1,5 @@
+run_a_artifact_count=31
+run_b_artifact_count=31
+byte_identical=true
+certificate_validation_require_ready_false=passed
+certificate_validation_require_ready_true=passed
