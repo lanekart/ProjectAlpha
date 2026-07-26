@@ -251,6 +251,9 @@ class GovernedRecommendationReplayRetentionEngine:
                 }
             ),
             jsonl_rows=tuple(sorted(historical_snapshot, key=canonical_json)),
+            prospective_snapshot=MappingProxyType(
+                dict(sorted(prospective["payload"].items()))
+            ),
             blockers=(
                 "HISTORICAL_INPUTS_UNAVAILABLE_FOR_1330_CANDIDATES",
                 "NO_ADDITIONAL_SAFE_RETROSPECTIVE_MATERIALISATION",

@@ -27,6 +27,7 @@ from alpha.decision_superiority.recommendation_snapshot_retention_artifacts impo
     DSI005_CERTIFICATE,
     DSI005_JSONL,
     DSI005_REPORT,
+    DSI005_SNAPSHOT_PROBE,
     export_replay_retention,
     validate_replay_retention_certificate,
 )
@@ -337,7 +338,16 @@ def test_export_contains_required_artifacts(retention_result, tmp_path: Path) ->
     assert DSI005_CERTIFICATE in names
     assert DSI005_REPORT in names
     assert DSI005_JSONL in names
+    assert DSI005_SNAPSHOT_PROBE in names
     assert set(DSI005_ARTIFACTS.values()).issubset(names)
+
+
+def test_exported_probe_package_replays_independently(
+    retention_result,
+    tmp_path: Path,
+) -> None:
+    export_replay_retention(retention_result, tmp_path)
+    assert replay_snapshot_package(tmp_path / DSI005_SNAPSHOT_PROBE).ready
 
 
 def test_certificate_validates_strictly(retention_result, tmp_path: Path) -> None:

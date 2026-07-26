@@ -100,6 +100,7 @@ class ReplayRetentionResult:
     summaries: MappingProxyType[str, object]
     rows: MappingProxyType[str, tuple[Mapping[str, object], ...]]
     jsonl_rows: tuple[Mapping[str, object], ...]
+    prospective_snapshot: MappingProxyType[str, object]
     blockers: tuple[str, ...]
 
     def __post_init__(self) -> None:

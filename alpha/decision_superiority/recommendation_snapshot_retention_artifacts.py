@@ -23,6 +23,7 @@ from alpha.decision_superiority.recommendation_snapshot_retention_models import 
 DSI005_CERTIFICATE = "dsi005_replay_retention_certificate.json"
 DSI005_REPORT = "dsi005_executive_report.md"
 DSI005_JSONL = "dsi005_materialised_input_snapshots.jsonl"
+DSI005_SNAPSHOT_PROBE = "dsi005_prospective_snapshot_probe.json"
 DSI005_ARTIFACTS: Final[dict[str, str]] = {
     "algorithm_lineage": "dsi005_historical_algorithm_lineage.csv",
     "arm_comparison": "dsi005_raw_adjusted_comparison.csv",
@@ -62,6 +63,11 @@ def export_replay_retention(
         support.append(_write_csv(output / name, result.rows[key]))
     snapshots = _write_jsonl(output / DSI005_JSONL, result.jsonl_rows)
     support.append(snapshots)
+    snapshot_probe = _write_json(
+        output / DSI005_SNAPSHOT_PROBE,
+        dict(result.prospective_snapshot),
+    )
+    support.append(snapshot_probe)
     report = _write_text(output / DSI005_REPORT, _executive_report(result))
     support.append(report)
     manifest = {path.name: _sha256(path) for path in support}
@@ -166,7 +172,14 @@ def validate_replay_retention_certificate(
     if payload.get("report_sha256") != _report_sha256(payload):
         raise ReplayRetentionError("DSI005_REPORT_HASH_MISMATCH")
     manifest = payload.get("support_artifact_manifest")
-    expected = frozenset((*DSI005_ARTIFACTS.values(), DSI005_JSONL, DSI005_REPORT))
+    expected = frozenset(
+        (
+            *DSI005_ARTIFACTS.values(),
+            DSI005_JSONL,
+            DSI005_REPORT,
+            DSI005_SNAPSHOT_PROBE,
+        )
+    )
     if not isinstance(manifest, dict) or frozenset(manifest) != expected:
         raise ReplayRetentionError("DSI005_SUPPORT_MANIFEST_INVALID")
     root = certificate.resolve().parent
@@ -364,6 +377,7 @@ __all__ = [
     "DSI005_CERTIFICATE",
     "DSI005_JSONL",
     "DSI005_REPORT",
+    "DSI005_SNAPSHOT_PROBE",
     "export_replay_retention",
     "validate_replay_retention_certificate",
 ]
