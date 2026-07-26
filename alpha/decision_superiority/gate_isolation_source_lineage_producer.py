@@ -44,8 +44,7 @@ class SourceLineageCaptureInput:
             ("dataset_versions", self.dataset_versions),
         ):
             if any(
-                not key.strip() or not value.strip()
-                for key, value in values.items()
+                not key.strip() or not value.strip() for key, value in values.items()
             ):
                 raise ValueError(f"{name} keys and values cannot be empty")
 

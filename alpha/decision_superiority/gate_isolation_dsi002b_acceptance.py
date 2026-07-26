@@ -110,9 +110,7 @@ def export_dsi002b_acceptance(
         "readiness": result.replay.readiness.value,
         "snapshot_sha256": result.replay.snapshot_sha256,
         "tamper_block_verified": result.tamper_block_verified,
-        "unsupported_policy_block_verified": (
-            result.unsupported_policy_block_verified
-        ),
+        "unsupported_policy_block_verified": (result.unsupported_policy_block_verified),
     }
     certificate.write_text(
         json.dumps(payload, sort_keys=True, indent=2) + "\n",
@@ -156,19 +154,14 @@ def _point_in_time_verified(snapshot_path: Path) -> bool:
     observed_on = candidate.get("observed_on")
     if not isinstance(observed_on, str):
         return False
-    return all(
-        _section_is_point_in_time(section, observed_on)
-        for section in sections
-    )
+    return all(_section_is_point_in_time(section, observed_on) for section in sections)
 
 
 def _section_is_point_in_time(section: object, observed_on: str) -> bool:
     if not isinstance(section, dict):
         return False
     section_observed_on = section.get("observed_on")
-    contains_post_observation = section.get(
-        "contains_post_observation_data"
-    )
+    contains_post_observation = section.get("contains_post_observation_data")
     return (
         isinstance(section_observed_on, str)
         and section_observed_on <= observed_on

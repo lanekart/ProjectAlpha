@@ -30,9 +30,7 @@ def test_loader_reconstructs_all_governed_evaluators(tmp_path: Path) -> None:
     assert bundle.readiness is FrozenReplayReadiness.READY
     assert bundle.production_influence is False
     assert len(bundle.evaluators) == len(FrozenInputSection)
-    assert {item.section for item in bundle.evaluators} == set(
-        FrozenInputSection
-    )
+    assert {item.section for item in bundle.evaluators} == set(FrozenInputSection)
 
 
 def test_loader_detects_snapshot_tamper(tmp_path: Path) -> None:
@@ -53,10 +51,7 @@ def test_loader_detects_snapshot_tamper(tmp_path: Path) -> None:
 def test_loader_blocks_unsupported_policy_version(tmp_path: Path) -> None:
     snapshot_path = _accepted_snapshot(tmp_path)
     registry = FrozenPolicyRegistry(
-        {
-            section: "unsupported"
-            for section in FrozenInputSection
-        }
+        {section: "unsupported" for section in FrozenInputSection}
     )
 
     bundle = FrozenPolicyReplayLoader(registry).load(snapshot_path)

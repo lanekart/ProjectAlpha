@@ -97,25 +97,13 @@ class FrozenInputAssembler:
         """Build and validate one complete frozen-input snapshot."""
 
         sections = (
-            ApprovalPolicySnapshotProducer().produce(
-                request.approval_policy
-            ),
-            CandidateFeatureSnapshotProducer().produce(
-                request.candidate_features
-            ),
+            ApprovalPolicySnapshotProducer().produce(request.approval_policy),
+            CandidateFeatureSnapshotProducer().produce(request.candidate_features),
             EntryPolicySnapshotProducer().produce(request.entry_policy),
-            ExecutionStateSnapshotProducer().produce(
-                request.execution_state
-            ),
-            OutcomePolicySnapshotProducer().produce(
-                request.outcome_policy
-            ),
-            PortfolioStateSnapshotProducer().produce(
-                request.portfolio_state
-            ),
-            SourceLineageSnapshotProducer().produce(
-                request.source_lineage
-            ),
+            ExecutionStateSnapshotProducer().produce(request.execution_state),
+            OutcomePolicySnapshotProducer().produce(request.outcome_policy),
+            PortfolioStateSnapshotProducer().produce(request.portfolio_state),
+            SourceLineageSnapshotProducer().produce(request.source_lineage),
         )
         snapshot = FrozenCandidateInputSnapshot.build(
             candidate=request.candidate,

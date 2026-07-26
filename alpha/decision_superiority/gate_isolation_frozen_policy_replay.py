@@ -66,25 +66,15 @@ class FrozenPolicyRegistry:
 
         return cls(
             {
-                FrozenInputSection.APPROVAL_POLICY: (
-                    "DSI-002A-approval-policy-v1"
-                ),
+                FrozenInputSection.APPROVAL_POLICY: ("DSI-002A-approval-policy-v1"),
                 FrozenInputSection.CANDIDATE_FEATURES: (
                     "DSI-002A-candidate-features-v1"
                 ),
                 FrozenInputSection.ENTRY_POLICY: "DSI-002A-entry-policy-v1",
-                FrozenInputSection.EXECUTION_STATE: (
-                    "DSI-002A-execution-state-v1"
-                ),
-                FrozenInputSection.OUTCOME_POLICY: (
-                    "DSI-002A-outcome-policy-v1"
-                ),
-                FrozenInputSection.PORTFOLIO_STATE: (
-                    "DSI-002A-portfolio-state-v1"
-                ),
-                FrozenInputSection.SOURCE_LINEAGE: (
-                    "DSI-002A-source-lineage-v1"
-                ),
+                FrozenInputSection.EXECUTION_STATE: ("DSI-002A-execution-state-v1"),
+                FrozenInputSection.OUTCOME_POLICY: ("DSI-002A-outcome-policy-v1"),
+                FrozenInputSection.PORTFOLIO_STATE: ("DSI-002A-portfolio-state-v1"),
+                FrozenInputSection.SOURCE_LINEAGE: ("DSI-002A-source-lineage-v1"),
             }
         )
 
@@ -188,9 +178,7 @@ class FrozenPolicyReplayLoader:
             snapshot_path=snapshot_path,
             snapshot_sha256=stored_sha,
             candidate_identity=candidate_identity,
-            evaluators=tuple(
-                sorted(evaluators, key=lambda item: item.section.value)
-            ),
+            evaluators=tuple(sorted(evaluators, key=lambda item: item.section.value)),
             readiness=FrozenReplayReadiness.READY,
         )
 

@@ -57,9 +57,7 @@ def test_entry_policy_producer_is_deterministic() -> None:
     payload = json.loads(first.payload_json)
     assert payload["policy"]["style"] == "BREAKOUT"
     assert payload["trigger"]["trigger_price"] == "101.25"
-    assert payload["trigger_source_hashes"] == {
-        "daily-candle": "abc123"
-    }
+    assert payload["trigger_source_hashes"] == {"daily-candle": "abc123"}
 
 
 def test_approval_policy_requires_threshold_provenance() -> None:

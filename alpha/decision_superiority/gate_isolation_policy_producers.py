@@ -42,9 +42,7 @@ class ApprovalPolicyCaptureInput:
             not key.strip() or not value.strip()
             for key, value in self.dependency_versions.items()
         ):
-            raise ValueError(
-                "dependency_versions keys and values cannot be empty"
-            )
+            raise ValueError("dependency_versions keys and values cannot be empty")
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,9 +70,7 @@ class EntryPolicyCaptureInput:
             not key.strip() or not value.strip()
             for key, value in self.trigger_source_hashes.items()
         ):
-            raise ValueError(
-                "trigger_source_hashes keys and values cannot be empty"
-            )
+            raise ValueError("trigger_source_hashes keys and values cannot be empty")
 
 
 class ApprovalPolicySnapshotProducer:
@@ -87,14 +83,10 @@ class ApprovalPolicySnapshotProducer:
         """Return a deterministic approval-policy snapshot."""
 
         payload = {
-            "dependency_versions": _normalise(
-                capture_input.dependency_versions
-            ),
+            "dependency_versions": _normalise(capture_input.dependency_versions),
             "policy": _normalise(capture_input.policy_payload),
             "policy_version": capture_input.policy_version,
-            "threshold_provenance": _normalise(
-                capture_input.threshold_provenance
-            ),
+            "threshold_provenance": _normalise(capture_input.threshold_provenance),
         }
         return FrozenInputSectionSnapshot.from_mapping(
             section=FrozenInputSection.APPROVAL_POLICY,
@@ -117,9 +109,7 @@ class EntryPolicySnapshotProducer:
             "policy": _normalise(capture_input.policy_payload),
             "policy_version": capture_input.policy_version,
             "trigger": _normalise(capture_input.trigger_payload),
-            "trigger_source_hashes": _normalise(
-                capture_input.trigger_source_hashes
-            ),
+            "trigger_source_hashes": _normalise(capture_input.trigger_source_hashes),
         }
         return FrozenInputSectionSnapshot.from_mapping(
             section=FrozenInputSection.ENTRY_POLICY,
