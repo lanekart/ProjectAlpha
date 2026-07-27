@@ -3,6 +3,13 @@
 Use this checklist only after the DSI-010 source boundary is green in permanent
 GitHub CI.
 
+## Published boundaries
+
+- Repaired implementation boundary: `9db5ef7fe8de7743e5d6fe816d06dd9f7b008fd3`.
+- Acceptance-checklist publication head: resolved from the current PR head.
+- The implementation boundary passed Lint run `30244800365` and CI run
+  `30244800404` before this documentation-only publication update.
+
 ## Immutable inputs
 
 - [ ] Exact DSI-010 source commit is pinned.
