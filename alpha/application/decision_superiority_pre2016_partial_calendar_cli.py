@@ -79,8 +79,7 @@ def decision_superiority_pre2016_calendar_partial_audit(
     typer.echo(f"Holiday/Candle Conflicts: {len(result.conflict_rows)}")
     typer.echo(f"Covered-Year Unresolved Weekdays: {len(result.unresolved_rows)}")
     typer.echo(
-        "Covered-Year Manifest Unavailable: "
-        f"{len(result.manifest_unavailable_rows)}"
+        f"Covered-Year Manifest Unavailable: {len(result.manifest_unavailable_rows)}"
     )
     typer.echo("CALENDAR_CERTIFICATION_PERMITTED=false")
     typer.echo("PRODUCTION_INFLUENCE=false")
