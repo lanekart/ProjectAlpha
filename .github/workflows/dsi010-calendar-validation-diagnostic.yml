@@ -1,0 +1,71 @@
+name: DSI-010 Calendar Validation Diagnostic
+
+on:
+  push:
+    branches:
+      - feature/dsi-010-pre2016-external-era-validation
+    paths:
+      - .github/workflows/dsi010-calendar-validation-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Reproduce patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          workflow = Path(".github/workflows/dsi010-calendar-implementation.yml").read_text(encoding="utf-8")
+          start_marker = "          python - <<'PY'\n"
+          start = workflow.index(start_marker) + len(start_marker)
+          end = workflow.index("\n          PY", start)
+          script = textwrap.dedent(workflow[start:end])
+          Path("/tmp/dsi010_patch.py").write_text(script, encoding="utf-8")
+          PY
+          python /tmp/dsi010_patch.py
+      - name: Capture focused validation
+        continue-on-error: true
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+        run: |
+          set -o pipefail
+          {
+            echo '===== RUFF FORMAT ====='
+            poetry run ruff format \
+              alpha/decision_superiority/pre2016_calendar_recovery.py \
+              tests/decision_superiority/test_pre2016_calendar_recovery.py
+            echo '===== RUFF CHECK ====='
+            poetry run ruff check \
+              alpha/decision_superiority/pre2016_calendar_recovery.py \
+              tests/decision_superiority/test_pre2016_calendar_recovery.py
+            echo '===== MYPY ====='
+            poetry run mypy alpha/decision_superiority/pre2016_calendar_recovery.py
+            echo '===== PYTEST ====='
+            poetry run pytest -q tests/decision_superiority/test_pre2016_calendar_recovery.py
+          } 2>&1 | tee /tmp/dsi010-validation.log
+      - name: Upload validation log and patched files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-calendar-validation-diagnostic
+          path: |
+            /tmp/dsi010-validation.log
+            alpha/decision_superiority/pre2016_calendar_recovery.py
+            tests/decision_superiority/test_pre2016_calendar_recovery.py
+            docs/DSI-010_PRE2011_OFFICIAL_CALENDAR_RECOVERY.md
+          if-no-files-found: error
+          retention-days: 7
