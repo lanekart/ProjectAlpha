@@ -81,7 +81,7 @@ def probe_pre2016_holiday_api(
     timeout_seconds: float = 30.0,
     session: _HttpSession | None = None,
 ) -> Pre2016HolidayApiProbeResult:
-    """Probe official NSE endpoints without treating unsupported payloads as evidence."""
+    """Probe official NSE endpoints without accepting unsupported payloads."""
 
     requested_years = _validate_years(years)
     output.mkdir(parents=True, exist_ok=True)
@@ -130,7 +130,9 @@ def probe_pre2016_holiday_api(
             }
         )
     )
-    missing_years = tuple(year for year in requested_years if year not in accepted_years)
+    missing_years = tuple(
+        year for year in requested_years if year not in accepted_years
+    )
     return Pre2016HolidayApiProbeResult(
         attempts=tuple(attempts),
         requested_years=requested_years,
