@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
 
 import pytest
 from typer.testing import CliRunner
@@ -28,7 +28,7 @@ class _FakeResponse:
         self.status_code = status_code
         self._payload = payload
         self.content = json.dumps(payload, sort_keys=True).encode("utf-8")
-        self.headers = {"Content-Type": content_type}
+        self.headers: Mapping[str, str] = {"Content-Type": content_type}
 
     def json(self) -> object:
         return self._payload
@@ -37,14 +37,14 @@ class _FakeResponse:
 class _FakeSession:
     def __init__(self, payload_by_year: dict[int, object]) -> None:
         self.payload_by_year = payload_by_year
-        self.calls: list[tuple[str, dict[str, str] | None]] = []
+        self.calls: list[tuple[str, Mapping[str, str] | None]] = []
 
     def get(
         self,
         url: str,
         *,
-        params: dict[str, str] | None = None,
-        headers: dict[str, str] | None = None,
+        params: Mapping[str, str] | None = None,
+        headers: Mapping[str, str] | None = None,
         timeout: float | None = None,
     ) -> _FakeResponse:
         del headers, timeout
@@ -74,7 +74,7 @@ def test_probe_rejects_current_year_payload_returned_for_historical_request(
     result = probe_pre2016_holiday_api(
         output=tmp_path,
         years=(2005, 2006),
-        session=session,  # type: ignore[arg-type]
+        session=session,
     )
 
     assert result.accepted_years == ()
@@ -107,7 +107,7 @@ def test_probe_accepts_payload_only_when_all_cm_rows_cover_requested_year(
     result = probe_pre2016_holiday_api(
         output=tmp_path,
         years=(2005,),
-        session=session,  # type: ignore[arg-type]
+        session=session,
     )
 
     assert result.accepted_years == (2005,)
@@ -135,7 +135,7 @@ def test_probe_export_keeps_unsupported_payloads_explicit(tmp_path: Path) -> Non
     result = probe_pre2016_holiday_api(
         output=tmp_path,
         years=(2005,),
-        session=session,  # type: ignore[arg-type]
+        session=session,
     )
 
     attempts_path, summary_path = export_pre2016_holiday_api_probe(
@@ -160,7 +160,7 @@ def test_probe_rejects_years_outside_frozen_external_era(tmp_path: Path) -> None
         probe_pre2016_holiday_api(
             output=tmp_path,
             years=(2016,),
-            session=_FakeSession({}),  # type: ignore[arg-type]
+            session=_FakeSession({}),
         )
 
 
