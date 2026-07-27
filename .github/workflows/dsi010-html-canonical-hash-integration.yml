@@ -31,29 +31,40 @@ jobs:
       - name: Apply canonical HTML hash recovery
         run: poetry run python scripts/apply_dsi010_html_canonical_hash_recovery.py
       - name: Validate canonical hash implementation
+        id: validate
+        continue-on-error: true
         env:
           _TYPER_FORCE_DISABLE_TERMINAL: "1"
         run: |
-          poetry run ruff check --fix \
-            alpha/decision_superiority/pre2016_calendar_recovery.py \
-            scripts/apply_dsi010_html_canonical_hash_recovery.py \
-            tests/decision_superiority/test_pre2016_calendar_recovery.py \
-            tests/decision_superiority/test_pre2016_calendar_recovery_later_years.py
-          poetry run ruff format \
-            alpha/decision_superiority/pre2016_calendar_recovery.py \
-            scripts/apply_dsi010_html_canonical_hash_recovery.py \
-            tests/decision_superiority/test_pre2016_calendar_recovery.py \
-            tests/decision_superiority/test_pre2016_calendar_recovery_later_years.py
-          poetry run ruff check \
-            alpha/decision_superiority/pre2016_calendar_recovery.py \
-            scripts/apply_dsi010_html_canonical_hash_recovery.py \
-            tests/decision_superiority/test_pre2016_calendar_recovery.py \
-            tests/decision_superiority/test_pre2016_calendar_recovery_later_years.py
-          poetry run mypy alpha/decision_superiority/pre2016_calendar_recovery.py
-          poetry run pytest -q \
-            tests/decision_superiority/test_pre2016_calendar_recovery.py \
-            tests/decision_superiority/test_pre2016_calendar_recovery_later_years.py
+          set -o pipefail
+          {
+            echo '===== RUFF FIX ====='
+            poetry run ruff check --fix \
+              alpha/decision_superiority/pre2016_calendar_recovery.py \
+              scripts/apply_dsi010_html_canonical_hash_recovery.py \
+              tests/decision_superiority/test_pre2016_calendar_recovery.py \
+              tests/decision_superiority/test_pre2016_calendar_recovery_later_years.py
+            echo '===== RUFF FORMAT ====='
+            poetry run ruff format \
+              alpha/decision_superiority/pre2016_calendar_recovery.py \
+              scripts/apply_dsi010_html_canonical_hash_recovery.py \
+              tests/decision_superiority/test_pre2016_calendar_recovery.py \
+              tests/decision_superiority/test_pre2016_calendar_recovery_later_years.py
+            echo '===== RUFF CHECK ====='
+            poetry run ruff check \
+              alpha/decision_superiority/pre2016_calendar_recovery.py \
+              scripts/apply_dsi010_html_canonical_hash_recovery.py \
+              tests/decision_superiority/test_pre2016_calendar_recovery.py \
+              tests/decision_superiority/test_pre2016_calendar_recovery_later_years.py
+            echo '===== MYPY ====='
+            poetry run mypy alpha/decision_superiority/pre2016_calendar_recovery.py
+            echo '===== PYTEST ====='
+            poetry run pytest -q \
+              tests/decision_superiority/test_pre2016_calendar_recovery.py \
+              tests/decision_superiority/test_pre2016_calendar_recovery_later_years.py
+          } 2>&1 | tee /tmp/dsi010-canonical-hash-validation.log
       - name: Recover and build both calendar eras
+        if: steps.validate.outcome == 'success'
         env:
           _TYPER_FORCE_DISABLE_TERMINAL: "1"
         run: |
@@ -79,6 +90,7 @@ jobs:
             --output-root artifacts/dsi010_canonical_hash_later_reviewed \
             | tee artifacts/dsi010_canonical_hash_later_reviewed_console.log
       - name: Validate canonical recovery results
+        if: steps.validate.outcome == 'success'
         run: |
           poetry run python - <<'PY'
           from __future__ import annotations
@@ -143,6 +155,7 @@ jobs:
           print("PRODUCTION_INFLUENCE=false")
           PY
       - name: Commit validated canonical hash integration
+        if: steps.validate.outcome == 'success'
         run: |
           git config user.name "Project Alpha Automation"
           git config user.email "project-alpha-automation@users.noreply.github.com"
@@ -165,6 +178,10 @@ jobs:
         with:
           name: dsi010-canonical-html-hash-evidence
           path: |
+            /tmp/dsi010-canonical-hash-validation.log
+            alpha/decision_superiority/pre2016_calendar_recovery.py
+            config/dsi010_pre2011_official_calendar_candidates.json
+            tests/decision_superiority/test_pre2016_calendar_recovery_later_years.py
             artifacts/dsi010_canonical_hash_early_recovery
             artifacts/dsi010_canonical_hash_early_recovery_console.log
             artifacts/dsi010_canonical_hash_early_reviewed
@@ -175,3 +192,6 @@ jobs:
             artifacts/dsi010_canonical_hash_later_reviewed_console.log
           if-no-files-found: warn
           retention-days: 14
+      - name: Enforce canonical hash validation
+        if: steps.validate.outcome != 'success'
+        run: exit 1
