@@ -48,24 +48,47 @@ validated, frozen, and tested inside 2005–2015. Its results remain separate fr
 the frozen-policy transport test because the evidence populations answer
 different questions.
 
-## Data preparation
+## Governed data preparation
 
-Download and ingest the official NSE archive range:
+The DSI-010 archive command writes directly into the Historical Truth root. It
+does not use Alpha's legacy ingestion database.
 
 ```bash
 poetry run python -m alpha benchmark \
   decision-superiority-pre2016-archive-backfill \
   --start 2005-01-01 \
-  --end 2015-12-31
+  --end 2015-12-31 \
+  --root /absolute/path/to/alpha_data \
+  --output-dir /absolute/path/to/artifacts/dsi010_pre2016_population
 ```
 
-The backfill command uses Alpha's existing official NSE archive provider and
-canonical ingestion service. Downloaded archives, local databases, and bulk
-market files must not be committed to GitHub.
+The command is resumable through the Historical Truth manifest and performs an
+8 GiB free-space preflight. It creates raw governed candles and snapshots only.
+It must print:
 
-The external validation engine consumes the governed Historical Truth warehouse,
-not an ungoverned CSV collection. Before the run, the warehouse must contain the
-same certified table contracts required by DSI-007:
+```text
+DOWNSTREAM_GOVERNED_A_TO_B_REBUILD_REQUIRED=true
+LEGACY_INGESTION_DATABASE_USED=false
+PRODUCTION_INFLUENCE=false
+```
+
+Downloaded archives, local databases, snapshots, and bulk market files must not
+be committed to GitHub.
+
+### Required downstream rebuild
+
+A raw population is not replay-ready. After population, rebuild the existing
+governed chain over the enlarged window using the permanent Historical Truth
+commands in this order:
+
+1. `complete-security-dataset-certify` — HTR-010A;
+2. `security-population-repair` — HTR-010A1;
+3. `lifecycle-session-semantics-certify` — HTR-010A2;
+4. `tier-a-foundation-readiness` — HTR-010A3;
+5. `complete-corporate-action-dataset` — HTR-010B.
+
+Do not skip a blocked stage. Every downstream command must consume the artifact
+directory produced by the preceding stage. The final warehouse must contain:
 
 - `adjusted_daily_candle`;
 - `adjusted_candle_lineage`;
@@ -79,11 +102,20 @@ fails closed or remains an explicit partial-coverage limitation.
 
 ## Benchmark
 
-Supply a governed total-return-index CSV with a date column and one of:
+Supply a governed total-return-index CSV plus the adjacent
+`.provenance.json` sidecar required by DSI-008. DSI-010 uses the same
+provenance and SHA-256 validation contract as DSI-008.
 
-- `total_return_index`;
-- `tri`;
-- `value`.
+Accepted official-style columns include:
+
+- `Date`;
+- `Index Name`;
+- `TotalReturnsIndex`.
+
+Canonical aliases such as `date` and `total_return_index` remain accepted by the
+shared loader. The benchmark is aligned only to governed market sessions in the
+transport period. Missing governed sessions produce a partial benchmark state,
+not silent interpolation.
 
 Nifty 500 TRI is the primary benchmark. A price index must not be relabelled as
 a total-return index.
@@ -95,8 +127,8 @@ poetry run python -m alpha benchmark \
   decision-superiority-pre2016-external-validation \
   --dsi009-certificate <DSI009_CERTIFICATE> \
   --dsi007-certificate <DSI007_CERTIFICATE> \
-  --database alpha_data/warehouse/historical_truth.duckdb \
-  --historical-truth-snapshots alpha_data/snapshots \
+  --database /absolute/path/to/alpha_data/warehouse/historical_truth.duckdb \
+  --historical-truth-snapshots /absolute/path/to/alpha_data/snapshots \
   --benchmark <NIFTY_500_TRI_CSV> \
   --output artifacts/dsi010_pre2016_external_validation
 ```
