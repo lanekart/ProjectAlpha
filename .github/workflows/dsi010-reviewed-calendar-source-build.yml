@@ -49,6 +49,7 @@ jobs:
         env:
           _TYPER_FORCE_DISABLE_TERMINAL: "1"
         run: |
+          set -o pipefail
           poetry run python -m alpha benchmark \
             decision-superiority-pre2016-calendar-source-recovery \
             --candidate-registry config/dsi010_pre2011_official_calendar_candidates.json \
@@ -57,6 +58,7 @@ jobs:
             | tee artifacts/dsi010_pre2011_official_sources_console.log
       - name: Build reviewed 2005-2010 sources
         run: |
+          set -o pipefail
           poetry run python scripts/build_dsi010_pre2011_reviewed_sources.py \
             --recovery-root artifacts/dsi010_pre2011_official_sources \
             --output-root artifacts/dsi010_pre2011_reviewed_sources \
@@ -65,6 +67,7 @@ jobs:
         env:
           _TYPER_FORCE_DISABLE_TERMINAL: "1"
         run: |
+          set -o pipefail
           poetry run python -m alpha benchmark \
             decision-superiority-pre2016-calendar-source-recovery \
             --candidate-registry config/dsi010_2011_2015_official_calendar_candidates.json \
@@ -73,6 +76,7 @@ jobs:
             | tee artifacts/dsi010_2011_2015_official_sources_console.log
       - name: Build reviewed 2011-2015 sources
         run: |
+          set -o pipefail
           poetry run python scripts/build_dsi010_2011_2015_reviewed_sources.py \
             --recovery-root artifacts/dsi010_2011_2015_official_sources \
             --output-root artifacts/dsi010_2011_2015_reviewed_sources \
