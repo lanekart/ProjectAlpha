@@ -1,0 +1,134 @@
+name: DSI-010 Calendar Live Discovery
+
+on:
+  push:
+    branches:
+      - feature/dsi-010-pre2016-external-era-validation
+    paths:
+      - .github/workflows/dsi010-calendar-live-discovery.yml
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install probe dependency
+        run: python -m pip install --disable-pip-version-check requests
+      - name: Query official NSE circular API
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import csv
+          import json
+          import time
+          from pathlib import Path
+          from typing import Any
+
+          import requests
+
+          root = Path("artifacts/dsi010_pre2011_live_discovery")
+          raw_root = root / "raw"
+          raw_root.mkdir(parents=True, exist_ok=True)
+
+          session = requests.Session()
+          headers = {
+              "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+              "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+              "Accept": "application/json,text/plain,*/*",
+              "Accept-Language": "en-US,en;q=0.9",
+              "Referer": "https://www.nseindia.com/resources/exchange-communication-circulars",
+          }
+          session.get("https://www.nseindia.com/", headers=headers, timeout=30)
+
+          attempts: list[dict[str, Any]] = []
+          matches: list[dict[str, Any]] = []
+          keywords = ("holiday", "muhurat", "mahurat", "laxmi puja", "diwali", "market timing")
+
+          def rows_from(payload: Any) -> list[dict[str, Any]]:
+              if isinstance(payload, list):
+                  return [row for row in payload if isinstance(row, dict)]
+              if isinstance(payload, dict):
+                  for key in ("data", "Table", "table", "records", "rows"):
+                      value = payload.get(key)
+                      if isinstance(value, list):
+                          return [row for row in value if isinstance(row, dict)]
+                  for value in payload.values():
+                      if isinstance(value, list) and value and all(isinstance(row, dict) for row in value):
+                          return value
+              return []
+
+          for year in range(2005, 2011):
+              for quarter, (start, end) in enumerate(
+                  (("01-01", "31-03"), ("01-04", "30-06"), ("01-07", "30-09"), ("01-10", "31-12")),
+                  start=1,
+              ):
+                  url = (
+                      "https://www.nseindia.com/api/circulars"
+                      f"?fromDate={start}-{year}&toDate={end}-{year}"
+                  )
+                  response = session.get(url, headers=headers, timeout=45)
+                  path = raw_root / f"{year}_q{quarter}_{response.status_code}.txt"
+                  path.write_bytes(response.content)
+                  payload: Any = None
+                  error = None
+                  try:
+                      payload = response.json()
+                  except ValueError as exc:
+                      error = f"JSON_DECODE_FAILED:{type(exc).__name__}"
+                  rows = rows_from(payload)
+                  attempts.append(
+                      {
+                          "year": year,
+                          "quarter": quarter,
+                          "url": url,
+                          "status": response.status_code,
+                          "content_type": response.headers.get("Content-Type", ""),
+                          "response_bytes": len(response.content),
+                          "row_count": len(rows),
+                          "error": error or "",
+                      }
+                  )
+                  for row in rows:
+                      flattened = " ".join(str(value) for value in row.values()).casefold()
+                      if any(keyword in flattened for keyword in keywords):
+                          matches.append({"requested_year": year, "quarter": quarter, **row})
+                  time.sleep(1.1)
+
+          root.mkdir(parents=True, exist_ok=True)
+          (root / "attempts.json").write_text(json.dumps(attempts, indent=2, sort_keys=True, default=str) + "\n")
+          (root / "calendar_matches.json").write_text(json.dumps(matches, indent=2, sort_keys=True, default=str) + "\n")
+
+          attempt_fields = sorted({key for row in attempts for key in row})
+          with (root / "attempts.csv").open("w", encoding="utf-8", newline="") as handle:
+              writer = csv.DictWriter(handle, fieldnames=attempt_fields)
+              writer.writeheader()
+              writer.writerows(attempts)
+
+          match_fields = sorted({key for row in matches for key in row})
+          with (root / "calendar_matches.csv").open("w", encoding="utf-8", newline="") as handle:
+              writer = csv.DictWriter(handle, fieldnames=match_fields or ["requested_year"])
+              writer.writeheader()
+              writer.writerows(matches)
+
+          print("===== DSI-010 LIVE CIRCULAR DISCOVERY =====")
+          print(f"Attempts: {len(attempts)}")
+          print(f"Successful HTTP responses: {sum(row['status'] == 200 for row in attempts)}")
+          print(f"Total rows: {sum(row['row_count'] for row in attempts)}")
+          print(f"Calendar-related matches: {len(matches)}")
+          print("PRODUCTION_INFLUENCE=false")
+          PY
+      - name: Upload discovery evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-calendar-live-discovery
+          path: artifacts/dsi010_pre2011_live_discovery
+          if-no-files-found: error
+          retention-days: 14
