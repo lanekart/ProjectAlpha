@@ -12,7 +12,6 @@ from typing import Any
 
 from alpha.historical_truth.canonical import CanonicalPointInTimeWarehouse
 from alpha.historical_truth.session_calendar import (
-    CalendarCertificationState,
     OfficialSessionCalendarEngine,
     SessionCalendarReport,
 )
@@ -55,7 +54,9 @@ def certify_pre2016_calendar(
     if not manifest.is_file():
         raise Pre2016ExternalValidationError("PRE2016_CALENDAR_MANIFEST_MISSING")
     if not official_sources:
-        raise Pre2016ExternalValidationError("PRE2016_OFFICIAL_CALENDAR_SOURCES_MISSING")
+        raise Pre2016ExternalValidationError(
+            "PRE2016_OFFICIAL_CALENDAR_SOURCES_MISSING"
+        )
 
     sources = tuple(
         OfficialSessionCalendarEngine.load_source(path) for path in official_sources
@@ -99,7 +100,9 @@ def certify_pre2016_calendar(
                 "manifest_status_raw": raw_status,
                 "manifest_status_normalized": status,
                 "calendar_classification": classification,
-                "observed_candles": False if record is None else record.observed_candles,
+                "observed_candles": (
+                    False if record is None else record.observed_candles
+                ),
                 "official_holiday_match": official_holiday_match,
                 "unresolved_archive_unavailable": unresolved,
                 "manifest_error": payload.get("error"),
@@ -249,7 +252,9 @@ def validate_pre2016_calendar_report(
             "PRE2016_CALENDAR_UNCONFIRMED_SPECIAL_SESSIONS"
         )
     if int(payload.get("missing_special_session_count") or 0) != 0:
-        raise Pre2016ExternalValidationError("PRE2016_CALENDAR_MISSING_SPECIAL_SESSIONS")
+        raise Pre2016ExternalValidationError(
+            "PRE2016_CALENDAR_MISSING_SPECIAL_SESSIONS"
+        )
     if int(payload.get("conflict_count") or 0) != 0:
         raise Pre2016ExternalValidationError("PRE2016_CALENDAR_CONFLICTS")
     return payload
