@@ -25,6 +25,13 @@ The command exports:
 - yearly evidence requirements for 2005 through 2015;
 - a summary that explicitly keeps calendar certification disabled.
 
+The first governed local discovery found:
+
+- 153 unavailable weekdays;
+- zero observed weekend sessions;
+- no calendar classifications inferred from archive status;
+- no calendar classifications inferred from candle observations.
+
 Discovery rows are not calendar decisions. Their initial states are:
 
 ```text
@@ -32,6 +39,29 @@ UNREVIEWED
 PENDING_OFFICIAL_EVIDENCE
 PENDING_SPECIAL_SESSION_EVIDENCE
 ```
+
+## Historical NSE API probe
+
+Before manually reviewing archived circulars, probe whether the current official
+NSE holiday API genuinely serves each requested historical year:
+
+```bash
+poetry run python -m alpha benchmark \
+  decision-superiority-pre2016-calendar-api-probe \
+  --output artifacts/dsi010_pre2016_holiday_api_probe
+```
+
+The probe:
+
+- warms the official NSE holiday page before API requests;
+- tests year-only and year-plus-CM query variants;
+- preserves every raw response immutably by SHA-256;
+- parses only the official `CM` holiday list;
+- accepts a response only when every parsed row belongs to the requested year;
+- rejects current-year payloads returned for historical requests;
+- keeps calendar certification disabled regardless of probe success.
+
+A response that ignores the requested year cannot become calendar evidence.
 
 ## Official review
 
@@ -88,20 +118,19 @@ A ready result requires all unavailable weekdays to reconcile to official
 holidays and every observed official special session to reconcile without
 conflict.
 
-## Source boundary
+## Published boundaries
 
-Discovery and reviewed-source implementation boundary:
-
-`afabdfb2c1ec1d1f36467e2faf092d86d34c9835`
-
-Permanent GitHub validation must pass on the subsequent owner-authored
-publication head before local use.
+- Calendar discovery and reviewed-source implementation: `3c4bd6e54ab28ebd7c3c2628cc33f2c60f8d03e2`.
+- Historical API probe formatted implementation: `6f49927d6fd1382c29b3ae7950e2d1ae57a8ab2f`.
+- Permanent GitHub validation must pass on the subsequent owner-authored
+  publication head before local use.
 
 ## Governance
 
 ```text
 CALENDAR_INFERENCE_FROM_HTTP_404_PERMITTED=false
 CALENDAR_INFERENCE_FROM_OBSERVED_CANDLES_PERMITTED=false
+UNSUPPORTED_OR_CURRENT_YEAR_API_PAYLOADS_REJECTED=true
 SYNTHETIC_HOLIDAYS_PERMITTED=false
 PRODUCTION_INFLUENCE=false
 ```
