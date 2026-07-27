@@ -103,7 +103,7 @@ class GovernedPre2016ExternalValidationEngine:
             sources.dsi009_certificate,
             require_ready=False,
         )
-        dsi007 = validate_regime_strategy_tournament_certificate(
+        validate_regime_strategy_tournament_certificate(
             sources.dsi007_certificate,
             require_ready=False,
         )

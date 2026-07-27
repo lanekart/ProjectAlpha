@@ -192,7 +192,11 @@ def _executive_report(result: Pre2016ExternalValidationResult) -> str:
     challenger = cast_mapping(summary["challenger"])
     benchmark = cast_mapping(summary["benchmark"])
     replication = summary.get("replication_regime_aware")
-    replication_metric = cast_mapping(replication) if isinstance(replication, Mapping) else {}
+    replication_metric = (
+        cast_mapping(replication)
+        if isinstance(replication, Mapping)
+        else {}
+    )
     readiness_lines = tuple(
         f"- DSI-010{slice_id}: `{decision}`"
         for slice_id, decision in result.readiness.items()
@@ -230,22 +234,55 @@ def _executive_report(result: Pre2016ExternalValidationResult) -> str:
             "## Frozen Policy Transport",
             "",
             f"- Candidate: `{summary['frozen_challenger_id']}`",
-            f"- Incumbent net CAGR: {_display(incumbent.get('net_cagr'), percent=True)}",
-            f"- Challenger net CAGR: {_display(challenger.get('net_cagr'), percent=True)}",
-            f"- Benchmark net CAGR: {_display(benchmark.get('net_cagr'), percent=True)}",
-            f"- Incumbent maximum drawdown: {_display(incumbent.get('maximum_drawdown'), percent=True)}",
-            f"- Challenger maximum drawdown: {_display(challenger.get('maximum_drawdown'), percent=True)}",
+            (
+                "- Incumbent net CAGR: "
+                f"{_display(incumbent.get('net_cagr'), percent=True)}"
+            ),
+            (
+                "- Challenger net CAGR: "
+                f"{_display(challenger.get('net_cagr'), percent=True)}"
+            ),
+            (
+                "- Benchmark net CAGR: "
+                f"{_display(benchmark.get('net_cagr'), percent=True)}"
+            ),
+            (
+                "- Incumbent maximum drawdown: "
+                f"{_display(incumbent.get('maximum_drawdown'), percent=True)}"
+            ),
+            (
+                "- Challenger maximum drawdown: "
+                f"{_display(challenger.get('maximum_drawdown'), percent=True)}"
+            ),
             f"- Incumbent trades: {incumbent.get('trade_count', 0)}",
             f"- Challenger trades: {challenger.get('trade_count', 0)}",
-            f"- Challenger win rate: {_display(challenger.get('win_rate'), percent=True)}",
-            f"- Challenger expectancy: {_display(challenger.get('expectancy'), percent=True)}",
-            f"- Benchmark gap closed: {_display(summary.get('benchmark_gap_closed'), percent=True)}",
+            (
+                "- Challenger win rate: "
+                f"{_display(challenger.get('win_rate'), percent=True)}"
+            ),
+            (
+                "- Challenger expectancy: "
+                f"{_display(challenger.get('expectancy'), percent=True)}"
+            ),
+            (
+                "- Benchmark gap closed: "
+                f"{_display(summary.get('benchmark_gap_closed'), percent=True)}"
+            ),
             "",
             "## Independent-Era Walk-Forward Replication",
             "",
-            f"- Regime-aware net CAGR: {_display(replication_metric.get('net_cagr'), percent=True)}",
-            f"- Regime-aware maximum drawdown: {_display(replication_metric.get('maximum_drawdown'), percent=True)}",
-            f"- Regime-aware trades: {replication_metric.get('trade_count', 0)}",
+            (
+                "- Regime-aware net CAGR: "
+                f"{_display(replication_metric.get('net_cagr'), percent=True)}"
+            ),
+            (
+                "- Regime-aware maximum drawdown: "
+                f"{_display(replication_metric.get('maximum_drawdown'), percent=True)}"
+            ),
+            (
+                "- Regime-aware trades: "
+                f"{replication_metric.get('trade_count', 0)}"
+            ),
             "",
             "## Readiness A-I",
             "",
