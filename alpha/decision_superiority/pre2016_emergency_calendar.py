@@ -64,8 +64,7 @@ def build_2005_emergency_holiday_source(
     missing = tuple(token for token in _REQUIRED_TEXT if token not in normalized)
     if missing:
         raise Pre2016ExternalValidationError(
-            "PRE2016_EMERGENCY_HOLIDAY_CONTENT_INVALID:"
-            + ";".join(missing)
+            "PRE2016_EMERGENCY_HOLIDAY_CONTENT_INVALID:" + ";".join(missing)
         )
 
     output_root.mkdir(parents=True, exist_ok=True)
@@ -140,15 +139,11 @@ def build_2005_emergency_holiday_source(
 def _extract_pdf_text(raw: bytes) -> str:
     reader = PdfReader(BytesIO(raw))
     pages = tuple(
-        text
-        for page in reader.pages
-        if (text := (page.extract_text() or "").strip())
+        text for page in reader.pages if (text := (page.extract_text() or "").strip())
     )
     rendered = "\n".join(pages)
     if not rendered:
-        raise Pre2016ExternalValidationError(
-            "PRE2016_EMERGENCY_HOLIDAY_TEXT_EMPTY"
-        )
+        raise Pre2016ExternalValidationError("PRE2016_EMERGENCY_HOLIDAY_TEXT_EMPTY")
     return rendered
 
 
