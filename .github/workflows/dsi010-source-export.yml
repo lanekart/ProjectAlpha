@@ -1,0 +1,24 @@
+name: DSI010 Source Export
+
+on:
+  push:
+    branches:
+      - feature/dsi-010-pre2016-external-era-validation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-source-files
+          path: |
+            alpha/decision_superiority/pre2016_external_validation.py
+            alpha/decision_superiority/pre2016_external_validation_artifacts.py
+          if-no-files-found: error
+          retention-days: 1
