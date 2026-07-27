@@ -10,6 +10,7 @@ from pathlib import Path
 from alpha.historical_truth.canonical import CanonicalPointInTimeWarehouse
 from alpha.historical_truth.session_calendar import (
     OfficialSessionCalendarEngine,
+    SessionCalendarRecord,
     SessionCalendarReport,
 )
 
@@ -111,17 +112,15 @@ def audit_pre2016_calendar_partial(
     )
 
 
-def _record_row(record: object) -> dict[str, object]:
-    trading_date = getattr(record, "trading_date")
-    classification = getattr(record, "classification")
+def _record_row(record: SessionCalendarRecord) -> dict[str, object]:
     return {
-        "trading_date": trading_date,
-        "calendar_year": trading_date.year,
-        "classification": classification.value,
-        "observed_candles": bool(getattr(record, "observed_candles")),
-        "description": str(getattr(record, "description") or ""),
-        "source_ids": ";".join(getattr(record, "source_ids")),
-        "issue_codes": ";".join(getattr(record, "issue_codes")),
+        "trading_date": record.trading_date,
+        "calendar_year": record.trading_date.year,
+        "classification": record.classification.value,
+        "observed_candles": record.observed_candles,
+        "description": record.description or "",
+        "source_ids": ";".join(record.source_ids),
+        "issue_codes": ";".join(record.issue_codes),
     }
 
 
