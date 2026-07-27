@@ -8,6 +8,10 @@ from typing import Annotated
 import typer
 
 from alpha.config.settings import settings
+from alpha.decision_superiority.pre2016_calendar_api_probe import (
+    export_pre2016_holiday_api_probe,
+    probe_pre2016_holiday_api,
+)
 from alpha.decision_superiority.pre2016_calendar_sources import (
     build_reviewed_official_calendar_source,
     discover_pre2016_calendar_evidence,
@@ -18,6 +22,9 @@ from alpha.decision_superiority.pre2016_external_validation_models import (
 )
 
 DEFAULT_DSI010_DISCOVERY_OUTPUT = Path("artifacts/dsi010_pre2016_calendar_discovery")
+DEFAULT_DSI010_API_PROBE_OUTPUT = Path(
+    "artifacts/dsi010_pre2016_holiday_api_probe"
+)
 
 
 def register_decision_superiority_pre2016_calendar_source_commands(
@@ -27,6 +34,9 @@ def register_decision_superiority_pre2016_calendar_source_commands(
 
     app.command("decision-superiority-pre2016-calendar-discovery")(
         decision_superiority_pre2016_calendar_discovery
+    )
+    app.command("decision-superiority-pre2016-calendar-api-probe")(
+        decision_superiority_pre2016_calendar_api_probe
     )
     app.command("decision-superiority-pre2016-calendar-source-build")(
         decision_superiority_pre2016_calendar_source_build
@@ -72,6 +82,48 @@ def decision_superiority_pre2016_calendar_discovery(
     typer.echo(f"Artifacts: {output} ({len(paths)} files)")
 
 
+def decision_superiority_pre2016_calendar_api_probe(
+    output: Annotated[
+        Path,
+        typer.Option("--output"),
+    ] = DEFAULT_DSI010_API_PROBE_OUTPUT,
+    year: Annotated[
+        list[int],
+        typer.Option("--year"),
+    ] = [],
+    timeout_seconds: Annotated[
+        float,
+        typer.Option("--timeout-seconds", min=1.0),
+    ] = 30.0,
+) -> None:
+    """Probe whether official NSE APIs serve genuine historical holiday years."""
+
+    years = tuple(year) if year else tuple(range(2005, 2016))
+    try:
+        result = probe_pre2016_holiday_api(
+            output=output,
+            years=years,
+            timeout_seconds=timeout_seconds,
+        )
+        paths = export_pre2016_holiday_api_probe(result, output)
+    except (OSError, Pre2016ExternalValidationError, ValueError) as exc:
+        typer.echo(f"PRE2016_CALENDAR_API_PROBE_FAILED: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    typer.echo(f"Requested Years: {','.join(str(item) for item in result.requested_years)}")
+    typer.echo(f"Accepted Years: {','.join(str(item) for item in result.accepted_years) or 'NONE'}")
+    typer.echo(f"Missing Years: {','.join(str(item) for item in result.missing_years) or 'NONE'}")
+    typer.echo(f"Probe Attempts: {len(result.attempts)}")
+    typer.echo(
+        "HISTORICAL_YEAR_API_SUPPORT="
+        f"{str(not result.missing_years).lower()}"
+    )
+    typer.echo("UNSUPPORTED_OR_CURRENT_YEAR_PAYLOADS_REJECTED=true")
+    typer.echo("CALENDAR_CERTIFICATION_PERMITTED=false")
+    typer.echo("PRODUCTION_INFLUENCE=false")
+    typer.echo(f"Artifacts: {output} ({len(paths)} summary files plus raw responses)")
+
+
 def decision_superiority_pre2016_calendar_source_build(
     review_csv: Annotated[
         Path,
@@ -114,7 +166,7 @@ def decision_superiority_pre2016_calendar_source_build(
         raise typer.Exit(1) from exc
 
     typer.echo(f"Official Calendar Source: {path}")
-    typer.echo(f"Covered Years: {','.join(str(year) for year in sorted(covered_year))}")
+    typer.echo(f"Covered Years: {','.join(str(item) for item in sorted(covered_year))}")
     typer.echo("CLASSIFICATION_INFERRED_FROM_ARCHIVE_STATUS=false")
     typer.echo("CLASSIFICATION_INFERRED_FROM_OBSERVED_CANDLES=false")
     typer.echo("PRODUCTION_INFLUENCE=false")
