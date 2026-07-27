@@ -191,12 +191,12 @@ def decision_superiority_pre2016_external_validation_verify(
 
 
 def _validate_external_dates(start: date, end: date) -> None:
+    if end >= date(2016, 1, 1):
+        raise ValueError("pre-2016 archive backfill cannot include 2016")
     if start != DSI010_EXTERNAL_START or end != DSI010_EXTERNAL_END:
         raise ValueError(
             "DSI-010 archive backfill is frozen to 2005-01-01 through 2015-12-31"
         )
-    if end >= date(2016, 1, 1):
-        raise ValueError("pre-2016 archive backfill cannot include 2016")
 
 
 def _percent(value: object) -> str:
