@@ -58,7 +58,9 @@ def discover_pre2016_calendar_evidence(
         payload = latest[trading_date]
         raw_status = str(payload.get("status") or "UNKNOWN")
         normalized_status = raw_status.strip().lower()
-        status_case_normalized = status_case_normalized or raw_status != normalized_status
+        status_case_normalized = (
+            status_case_normalized or raw_status != normalized_status
+        )
         if normalized_status != "unavailable":
             continue
         unavailable_rows.append(
@@ -186,9 +188,7 @@ def build_reviewed_official_calendar_source(
     years = tuple(sorted(set(covered_years)))
     if not years:
         raise Pre2016ExternalValidationError("PRE2016_OFFICIAL_COVERED_YEARS_EMPTY")
-    allowed_years = set(
-        range(DSI010_EXTERNAL_START.year, DSI010_EXTERNAL_END.year + 1)
-    )
+    allowed_years = set(range(DSI010_EXTERNAL_START.year, DSI010_EXTERNAL_END.year + 1))
     if not set(years).issubset(allowed_years):
         raise Pre2016ExternalValidationError("PRE2016_OFFICIAL_COVERED_YEAR_INVALID")
 
@@ -203,9 +203,7 @@ def build_reviewed_official_calendar_source(
     for row in rows:
         review_state = str(row.get("review_state") or "").strip().upper()
         if review_state != "VERIFIED_OFFICIAL_EVIDENCE":
-            raise Pre2016ExternalValidationError(
-                "PRE2016_CALENDAR_REVIEW_NOT_VERIFIED"
-            )
+            raise Pre2016ExternalValidationError("PRE2016_CALENDAR_REVIEW_NOT_VERIFIED")
         classification = str(row.get("classification") or "").strip().upper()
         if classification not in _ALLOWED_CLASSIFICATIONS:
             raise Pre2016ExternalValidationError(
@@ -280,7 +278,9 @@ def _latest_manifest_rows(manifest: Path) -> dict[date, dict[str, object]]:
     return latest
 
 
-def _count_by_year(rows: tuple[dict[str, object], ...] | list[dict[str, object]]) -> dict[int, int]:
+def _count_by_year(
+    rows: tuple[dict[str, object], ...] | list[dict[str, object]],
+) -> dict[int, int]:
     counts: dict[int, int] = {}
     for row in rows:
         year = int(row["calendar_year"])

@@ -107,12 +107,14 @@ def test_reviewed_source_is_hash_bound_and_calendar_compatible(tmp_path: Path) -
 
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["covered_years"] == [2005]
-    assert payload["source_document_sha256"] == hashlib.sha256(
-        source_document.read_bytes()
-    ).hexdigest()
-    assert payload["review_csv_sha256"] == hashlib.sha256(
-        review_csv.read_bytes()
-    ).hexdigest()
+    assert (
+        payload["source_document_sha256"]
+        == hashlib.sha256(source_document.read_bytes()).hexdigest()
+    )
+    assert (
+        payload["review_csv_sha256"]
+        == hashlib.sha256(review_csv.read_bytes()).hexdigest()
+    )
     assert payload["classification_inferred_from_archive_status"] is False
     assert payload["classification_inferred_from_observed_candles"] is False
 
