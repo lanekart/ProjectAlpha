@@ -7,10 +7,10 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from io import BytesIO
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol, cast
 from urllib.parse import urlparse
 
 import requests
@@ -106,27 +106,27 @@ class Pre2011CalendarSourceAttempt:
     requested_url: str
     final_url: str
     segment_scope: str
-    http_status: int | None
-    content_type: str
-    response_bytes: int
-    response_sha256: str | None
-    pdf_signature_valid: bool
-    text_extraction_status: str
-    extracted_text_sha256: str | None
-    exchange_match: bool
-    segment_match: bool
-    subject_match: bool
-    year_match: bool
-    download_number_match: bool
-    circular_date_match: bool
-    holiday_table_match: bool
-    muhurat_statement_match: bool
-    content_validation_passed: bool
-    recovery_state: str
-    document_path: str | None
-    extracted_text_path: str | None
-    duplicate_of_source_id: str | None
-    error: str | None
+    http_status: int | None = None
+    content_type: str = ""
+    response_bytes: int = 0
+    response_sha256: str | None = None
+    pdf_signature_valid: bool = False
+    text_extraction_status: str = "NOT_ATTEMPTED"
+    extracted_text_sha256: str | None = None
+    exchange_match: bool = False
+    segment_match: bool = False
+    subject_match: bool = False
+    year_match: bool = False
+    download_number_match: bool = False
+    circular_date_match: bool = False
+    holiday_table_match: bool = False
+    muhurat_statement_match: bool = False
+    content_validation_passed: bool = False
+    recovery_state: str = "OFFICIAL_SOURCE_NOT_FOUND"
+    document_path: str | None = None
+    extracted_text_path: str | None = None
+    duplicate_of_source_id: str | None = None
+    error: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,29 +172,24 @@ def recover_pre2011_official_calendar_sources(
         )
         for candidate in candidates
     )
-    requested_years = tuple(sorted({item.year for item in candidates}))
-    fully_recovered = _recovered_years(
-        attempts,
-        state="VERIFIED_OFFICIAL_EVIDENCE",
-    )
-    partially_recovered = tuple(
+    requested = tuple(sorted({item.year for item in candidates}))
+    fully = _recovered_years(attempts, "VERIFIED_OFFICIAL_EVIDENCE")
+    partial = tuple(
         year
         for year in _recovered_years(
             attempts,
-            state="PARTIALLY_VERIFIED_OFFICIAL_EVIDENCE",
+            "PARTIALLY_VERIFIED_OFFICIAL_EVIDENCE",
         )
-        if year not in fully_recovered
+        if year not in fully
     )
     unrecovered = tuple(
-        year
-        for year in requested_years
-        if year not in fully_recovered and year not in partially_recovered
+        year for year in requested if year not in fully and year not in partial
     )
     return Pre2011CalendarRecoveryResult(
         attempts=attempts,
-        requested_years=requested_years,
-        fully_recovered_years=fully_recovered,
-        partially_recovered_years=partially_recovered,
+        requested_years=requested,
+        fully_recovered_years=fully,
+        partially_recovered_years=partial,
         unrecovered_years=unrecovered,
     )
 
@@ -211,9 +206,8 @@ def export_pre2011_calendar_recovery(
     summary_json = output / "source_recovery_summary.json"
     summary_markdown = output / "source_recovery_summary.md"
     hashes_path = output / "evidence_hashes.txt"
-    rows: tuple[dict[str, object], ...] = tuple(
-        {str(key): value for key, value in asdict(attempt).items()}
-        for attempt in result.attempts
+    rows = tuple(
+        cast(dict[str, object], asdict(attempt)) for attempt in result.attempts
     )
     _write_csv(attempts_csv, rows)
     attempts_json.write_text(
@@ -264,6 +258,7 @@ def _recover_candidate(
     timeout_seconds: float,
     seen_hashes: dict[str, str],
 ) -> Pre2011CalendarSourceAttempt:
+    base = _base_attempt(candidate)
     try:
         response = client.get(
             candidate.source_url,
@@ -271,114 +266,79 @@ def _recover_candidate(
             timeout=timeout_seconds,
         )
     except (OSError, requests.RequestException) as exc:
-        return _blank_attempt(
-            candidate,
-            recovery_state="OFFICIAL_SOURCE_NOT_FOUND",
-            error=f"{type(exc).__name__}: {exc}",
-        )
+        return replace(base, error=f"{type(exc).__name__}: {exc}")
 
     raw = response.content
     digest = hashlib.sha256(raw).hexdigest() if raw else None
     content_type = str(response.headers.get("Content-Type") or "")
     pdf_signature = raw.startswith(b"%PDF-")
     document_path = _persist_document(
-        candidate=candidate,
+        candidate,
         documents=documents,
         raw=raw,
         digest=digest,
         pdf_signature=pdf_signature,
     )
-    transport = {
-        "final_url": response.url,
-        "http_status": response.status_code,
-        "content_type": content_type,
-        "response_bytes": len(raw),
-        "response_sha256": digest,
-        "pdf_signature_valid": pdf_signature,
-        "document_path": str(document_path) if document_path else None,
-    }
+    base = replace(
+        base,
+        final_url=response.url,
+        http_status=response.status_code,
+        content_type=content_type,
+        response_bytes=len(raw),
+        response_sha256=digest,
+        pdf_signature_valid=pdf_signature,
+        document_path=str(document_path) if document_path else None,
+    )
     if response.status_code != 200:
-        return _blank_attempt(
-            candidate,
-            recovery_state="OFFICIAL_SOURCE_NOT_FOUND",
-            error=f"HTTP_{response.status_code}",
-            **transport,
-        )
+        return replace(base, error=f"HTTP_{response.status_code}")
     if not pdf_signature:
         error = (
             "HTML_RESPONSE_REJECTED"
             if "html" in content_type.casefold() or raw.lstrip().startswith(b"<")
             else "PDF_SIGNATURE_MISSING"
         )
-        return _blank_attempt(
-            candidate,
+        return replace(
+            base,
             recovery_state="OFFICIAL_SOURCE_CONTENT_INVALID",
             error=error,
-            **transport,
         )
     if candidate.expected_sha256 and digest != candidate.expected_sha256:
-        return _blank_attempt(
-            candidate,
+        return replace(
+            base,
             recovery_state="OFFICIAL_SOURCE_CONTENT_INVALID",
             error="SOURCE_DOCUMENT_HASH_MISMATCH",
-            **transport,
         )
     if digest is None:
-        return _blank_attempt(
-            candidate,
+        return replace(
+            base,
             recovery_state="OFFICIAL_SOURCE_CONTENT_INVALID",
             error="EMPTY_SOURCE_DOCUMENT",
-            **transport,
         )
     duplicate = seen_hashes.get(digest)
     if duplicate is not None:
-        return _blank_attempt(
-            candidate,
+        return replace(
+            base,
             recovery_state="DUPLICATE_DOCUMENT",
             duplicate_of_source_id=duplicate,
             error="DUPLICATE_SOURCE_DOCUMENT_SHA256",
-            **transport,
         )
     seen_hashes[digest] = candidate.source_id
     try:
         text = _extract_pdf_text(raw)
     except (OSError, ValueError) as exc:
-        return _blank_attempt(
-            candidate,
-            recovery_state="OFFICIAL_SOURCE_CONTENT_INVALID",
+        return replace(
+            base,
             text_extraction_status="FAILED",
+            recovery_state="OFFICIAL_SOURCE_CONTENT_INVALID",
             error=f"PDF_TEXT_EXTRACTION_FAILED:{type(exc).__name__}",
-            **transport,
         )
 
-    rendered_text = text.rstrip() + "\n"
-    text_path = (
-        extracted
-        / str(candidate.year)
-        / f"{_safe_token(candidate.source_id)}_{digest[:12]}.txt"
-    )
-    text_path.parent.mkdir(parents=True, exist_ok=True)
-    text_path.write_text(rendered_text, encoding="utf-8")
-    text_digest = hashlib.sha256(rendered_text.encode("utf-8")).hexdigest()
+    text_path, text_digest = _persist_text(candidate, extracted, digest, text)
     checks = _validate_content(candidate, text)
-    content_valid = all(checks.values())
-    if content_valid and candidate.segment_scope in _FULL_SCOPE:
-        recovery_state = "VERIFIED_OFFICIAL_EVIDENCE"
-    elif content_valid and candidate.segment_scope in _PARTIAL_SCOPE:
-        recovery_state = "PARTIALLY_VERIFIED_OFFICIAL_EVIDENCE"
-    else:
-        recovery_state = "OFFICIAL_SOURCE_CONTENT_INVALID"
-    return Pre2011CalendarSourceAttempt(
-        year=candidate.year,
-        source_id=candidate.source_id,
-        requested_url=candidate.source_url,
-        final_url=response.url,
-        segment_scope=candidate.segment_scope,
-        http_status=response.status_code,
-        content_type=content_type,
-        response_bytes=len(raw),
-        response_sha256=digest,
-        pdf_signature_valid=pdf_signature,
+    valid = all(checks.values())
+    state = _validated_state(candidate.segment_scope, valid)
+    return replace(
+        base,
         text_extraction_status="EXTRACTED",
         extracted_text_sha256=text_digest,
         exchange_match=checks["exchange_match"],
@@ -389,18 +349,28 @@ def _recover_candidate(
         circular_date_match=checks["circular_date_match"],
         holiday_table_match=checks["holiday_table_match"],
         muhurat_statement_match=checks["muhurat_statement_match"],
-        content_validation_passed=content_valid,
-        recovery_state=recovery_state,
-        document_path=str(document_path) if document_path else None,
+        content_validation_passed=valid,
+        recovery_state=state,
         extracted_text_path=str(text_path),
-        duplicate_of_source_id=None,
-        error=None if content_valid else "MANDATORY_CONTENT_VALIDATION_FAILED",
+        error=None if valid else "MANDATORY_CONTENT_VALIDATION_FAILED",
+    )
+
+
+def _base_attempt(
+    candidate: Pre2011CalendarSourceCandidate,
+) -> Pre2011CalendarSourceAttempt:
+    return Pre2011CalendarSourceAttempt(
+        year=candidate.year,
+        source_id=candidate.source_id,
+        requested_url=candidate.source_url,
+        final_url=candidate.source_url,
+        segment_scope=candidate.segment_scope,
     )
 
 
 def _persist_document(
-    *,
     candidate: Pre2011CalendarSourceCandidate,
+    *,
     documents: Path,
     raw: bytes,
     digest: str | None,
@@ -423,12 +393,37 @@ def _persist_document(
     return path
 
 
+def _persist_text(
+    candidate: Pre2011CalendarSourceCandidate,
+    root: Path,
+    digest: str,
+    text: str,
+) -> tuple[Path, str]:
+    rendered = text.rstrip() + "\n"
+    path = (
+        root
+        / str(candidate.year)
+        / f"{_safe_token(candidate.source_id)}_{digest[:12]}.txt"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(rendered, encoding="utf-8")
+    return path, hashlib.sha256(rendered.encode("utf-8")).hexdigest()
+
+
+def _validated_state(scope: str, valid: bool) -> str:
+    if valid and scope in _FULL_SCOPE:
+        return "VERIFIED_OFFICIAL_EVIDENCE"
+    if valid and scope in _PARTIAL_SCOPE:
+        return "PARTIALLY_VERIFIED_OFFICIAL_EVIDENCE"
+    return "OFFICIAL_SOURCE_CONTENT_INVALID"
+
+
 def _validate_content(
     candidate: Pre2011CalendarSourceCandidate,
     text: str,
 ) -> dict[str, bool]:
     normalized = _normalize(text)
-    segment_tokens = {
+    tokens = {
         "CAPITAL_MARKET": ("capital market segment",),
         "FUTURES_AND_OPTIONS": (
             "futures and options segment",
@@ -454,7 +449,7 @@ def _validate_content(
     return {
         "exchange_match": "national stock exchange of india" in normalized,
         "segment_match": any(
-            token in normalized for token in segment_tokens[candidate.segment_scope]
+            token in normalized for token in tokens[candidate.segment_scope]
         ),
         "subject_match": _normalize(candidate.expected_subject) in normalized,
         "year_match": str(candidate.year) in normalized,
@@ -476,14 +471,15 @@ def _validate_content(
 
 def _extract_pdf_text(raw: bytes) -> str:
     reader = PdfReader(BytesIO(raw))
-    text = "\n".join(
-        page_text
-        for page in reader.pages
-        if (page_text := (page.extract_text() or "").strip())
-    )
-    if not text:
+    pages: list[str] = []
+    for page in reader.pages:
+        text = (page.extract_text() or "").strip()
+        if text:
+            pages.append(text)
+    rendered = "\n".join(pages)
+    if not rendered:
         raise ValueError("PDF_TEXT_EMPTY")
-    return text
+    return rendered
 
 
 def _load_candidates(path: Path) -> tuple[Pre2011CalendarSourceCandidate, ...]:
@@ -492,7 +488,7 @@ def _load_candidates(path: Path) -> tuple[Pre2011CalendarSourceCandidate, ...]:
             "PRE2011_CALENDAR_CANDIDATE_REGISTRY_MISSING"
         )
     try:
-        payload: object = json.loads(path.read_text(encoding="utf-8"))
+        payload: Any = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise Pre2016ExternalValidationError(
             "PRE2011_CALENDAR_CANDIDATE_REGISTRY_INVALID"
@@ -506,15 +502,13 @@ def _load_candidates(path: Path) -> tuple[Pre2011CalendarSourceCandidate, ...]:
         raise Pre2016ExternalValidationError(
             "PRE2011_CALENDAR_CANDIDATE_REGISTRY_EMPTY"
         )
-    if not all(isinstance(item, dict) for item in raw_candidates):
-        raise Pre2016ExternalValidationError(
-            "PRE2011_CALENDAR_CANDIDATE_REGISTRY_INVALID"
-        )
-    candidates = tuple(
-        _candidate_from_payload(item)
-        for item in raw_candidates
-        if isinstance(item, dict)
-    )
+    candidates: list[Pre2011CalendarSourceCandidate] = []
+    for item in raw_candidates:
+        if not isinstance(item, dict):
+            raise Pre2016ExternalValidationError(
+                "PRE2011_CALENDAR_CANDIDATE_REGISTRY_INVALID"
+            )
+        candidates.append(_candidate_from_payload(item))
     identities = {(item.year, item.source_id, item.source_url) for item in candidates}
     if len(identities) != len(candidates):
         raise Pre2016ExternalValidationError(
@@ -580,59 +574,16 @@ def _candidate_from_payload(
     )
 
 
-def _blank_attempt(
-    candidate: Pre2011CalendarSourceCandidate,
-    *,
-    recovery_state: str,
-    error: str | None,
-    final_url: str | None = None,
-    http_status: int | None = None,
-    content_type: str = "",
-    response_bytes: int = 0,
-    response_sha256: str | None = None,
-    pdf_signature_valid: bool = False,
-    document_path: str | None = None,
-    text_extraction_status: str = "NOT_ATTEMPTED",
-    duplicate_of_source_id: str | None = None,
-) -> Pre2011CalendarSourceAttempt:
-    return Pre2011CalendarSourceAttempt(
-        year=candidate.year,
-        source_id=candidate.source_id,
-        requested_url=candidate.source_url,
-        final_url=final_url or candidate.source_url,
-        segment_scope=candidate.segment_scope,
-        http_status=http_status,
-        content_type=content_type,
-        response_bytes=response_bytes,
-        response_sha256=response_sha256,
-        pdf_signature_valid=pdf_signature_valid,
-        text_extraction_status=text_extraction_status,
-        extracted_text_sha256=None,
-        exchange_match=False,
-        segment_match=False,
-        subject_match=False,
-        year_match=False,
-        download_number_match=False,
-        circular_date_match=False,
-        holiday_table_match=False,
-        muhurat_statement_match=False,
-        content_validation_passed=False,
-        recovery_state=recovery_state,
-        document_path=document_path,
-        extracted_text_path=None,
-        duplicate_of_source_id=duplicate_of_source_id,
-        error=error,
-    )
-
-
 def _recovered_years(
     attempts: tuple[Pre2011CalendarSourceAttempt, ...],
-    *,
     state: str,
 ) -> tuple[int, ...]:
-    return tuple(
-        sorted({attempt.year for attempt in attempts if attempt.recovery_state == state})
-    )
+    years = {
+        attempt.year
+        for attempt in attempts
+        if attempt.recovery_state == state
+    }
+    return tuple(sorted(years))
 
 
 def _count_state(result: Pre2011CalendarRecoveryResult, state: str) -> int:
