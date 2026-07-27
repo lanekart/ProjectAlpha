@@ -1,16 +1,10 @@
 name: DSI-010 Reviewed Calendar Source Build
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - feature/dsi-010-pre2016-external-era-validation
-    paths:
-      - .github/workflows/dsi010-reviewed-calendar-source-build.yml
-      - scripts/build_dsi010_pre2011_reviewed_sources.py
-      - scripts/build_dsi010_2011_2015_reviewed_sources.py
-      - config/dsi010_pre2011_official_calendar_candidates.json
-      - config/dsi010_2011_2015_official_calendar_candidates.json
-  pull_request:
     paths:
       - .github/workflows/dsi010-reviewed-calendar-source-build.yml
       - scripts/build_dsi010_pre2011_reviewed_sources.py
