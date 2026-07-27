@@ -51,6 +51,8 @@ jobs:
               raise SystemExit('calendar year conversion anchor missing')
           path.write_text(text.replace(old, new, 1), encoding='utf-8')
           PY
+          poetry run ruff format \
+            alpha/decision_superiority/pre2016_calendar_sources.py
           poetry run ruff check \
             alpha/decision_superiority/pre2016_calendar_sources.py \
             alpha/application/decision_superiority_pre2016_calendar_sources_cli.py \
