@@ -1,0 +1,131 @@
+name: DSI-010 Calendar Implementation
+
+on:
+  push:
+    branches:
+      - feature/dsi-010-pre2016-external-era-validation
+    paths:
+      - .github/workflows/dsi010-calendar-implementation.yml
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-calendar-implementation.yml
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Patch governed HTML recovery support
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          module = Path("alpha/decision_superiority/pre2016_calendar_recovery.py")
+          text = module.read_text(encoding="utf-8")
+
+          text = text.replace(
+              "import hashlib\nimport json\nimport re\n",
+              "import hashlib\nimport json\nimport re\nfrom html.parser import HTMLParser\n",
+          )
+          text = text.replace(
+              "    pdf_signature_valid: bool = False\n    text_extraction_status: str = \"NOT_ATTEMPTED\"\n",
+              "    pdf_signature_valid: bool = False\n    document_format: str = \"\"\n    text_extraction_status: str = \"NOT_ATTEMPTED\"\n",
+          )
+          text = text.replace(
+              "    pdf_signature = raw.startswith(b\"%PDF-\")\n    document_path = _persist_document(\n        candidate,\n        documents=documents,\n        raw=raw,\n        digest=digest,\n        pdf_signature=pdf_signature,\n    )\n",
+              "    pdf_signature = raw.startswith(b\"%PDF-\")\n    document_format = _detect_document_format(\n        candidate.source_url,\n        raw,\n        content_type,\n    )\n    document_path = _persist_document(\n        candidate,\n        documents=documents,\n        raw=raw,\n        digest=digest,\n        document_format=document_format,\n    )\n",
+          )
+          text = text.replace(
+              "        pdf_signature_valid=pdf_signature,\n        document_path=str(document_path) if document_path else None,\n",
+              "        pdf_signature_valid=pdf_signature,\n        document_format=document_format,\n        document_path=str(document_path) if document_path else None,\n",
+          )
+          old_reject = '''    if not pdf_signature:\n        error = (\n            "HTML_RESPONSE_REJECTED"\n            if "html" in content_type.casefold() or raw.lstrip().startswith(b"<")\n            else "PDF_SIGNATURE_MISSING"\n        )\n        return replace(\n            base,\n            recovery_state="OFFICIAL_SOURCE_CONTENT_INVALID",\n            error=error,\n        )\n'''
+          new_reject = '''    if document_format == "UNKNOWN":\n        error = (\n            "HTML_RESPONSE_REJECTED"\n            if _looks_like_html(raw, content_type)\n            else "DOCUMENT_FORMAT_UNSUPPORTED"\n        )\n        return replace(\n            base,\n            recovery_state="OFFICIAL_SOURCE_CONTENT_INVALID",\n            error=error,\n        )\n'''
+          if old_reject not in text:
+              raise SystemExit("PDF rejection block not found")
+          text = text.replace(old_reject, new_reject)
+
+          old_extract = '''    try:\n        text = _extract_pdf_text(raw)\n    except (OSError, ValueError) as exc:\n        return replace(\n            base,\n            text_extraction_status="FAILED",\n            recovery_state="OFFICIAL_SOURCE_CONTENT_INVALID",\n            error=f"PDF_TEXT_EXTRACTION_FAILED:{type(exc).__name__}",\n        )\n'''
+          new_extract = '''    try:\n        text = _extract_document_text(raw, document_format)\n    except (OSError, UnicodeError, ValueError) as exc:\n        return replace(\n            base,\n            text_extraction_status="FAILED",\n            recovery_state="OFFICIAL_SOURCE_CONTENT_INVALID",\n            error=f"DOCUMENT_TEXT_EXTRACTION_FAILED:{type(exc).__name__}",\n        )\n'''
+          if old_extract not in text:
+              raise SystemExit("PDF extraction block not found")
+          text = text.replace(old_extract, new_extract)
+
+          old_persist = '''def _persist_document(\n    candidate: Pre2011CalendarSourceCandidate,\n    *,\n    documents: Path,\n    raw: bytes,\n    digest: str | None,\n    pdf_signature: bool,\n) -> Path | None:\n    if not raw or digest is None:\n        return None\n    suffix = ".pdf" if pdf_signature else ".bin"\n'''
+          new_persist = '''def _persist_document(\n    candidate: Pre2011CalendarSourceCandidate,\n    *,\n    documents: Path,\n    raw: bytes,\n    digest: str | None,\n    document_format: str,\n) -> Path | None:\n    if not raw or digest is None:\n        return None\n    suffix = {"PDF": ".pdf", "HTML": ".htm"}.get(document_format, ".bin")\n'''
+          if old_persist not in text:
+              raise SystemExit("persist signature not found")
+          text = text.replace(old_persist, new_persist)
+
+          marker = "def _persist_document(\n"
+          helpers = '''class _VisibleHtmlTextParser(HTMLParser):\n    \"\"\"Extract visible text from an immutable official archive HTML document.\"\"\"\n\n    def __init__(self) -> None:\n        super().__init__(convert_charrefs=True)\n        self.parts: list[str] = []\n        self._suppressed_depth = 0\n\n    def handle_starttag(\n        self,\n        tag: str,\n        attrs: list[tuple[str, str | None]],\n    ) -> None:\n        del attrs\n        if tag.casefold() in {"script", "style"}:\n            self._suppressed_depth += 1\n\n    def handle_endtag(self, tag: str) -> None:\n        if tag.casefold() in {"script", "style"} and self._suppressed_depth:\n            self._suppressed_depth -= 1\n\n    def handle_data(self, data: str) -> None:\n        if self._suppressed_depth:\n            return\n        normalized = re.sub(r"\\s+", " ", data).strip()\n        if normalized:\n            self.parts.append(normalized)\n\n\ndef _looks_like_html(raw: bytes, content_type: str) -> bool:\n    prefix = raw[:2048].lstrip().casefold()\n    return (\n        "html" in content_type.casefold()\n        or prefix.startswith(b"<!doctype html")\n        or prefix.startswith(b"<html")\n        or b"<body" in prefix\n    )\n\n\ndef _detect_document_format(\n    source_url: str,\n    raw: bytes,\n    content_type: str,\n) -> str:\n    if raw.startswith(b"%PDF-"):\n        return "PDF"\n    suffix = Path(urlparse(source_url).path).suffix.casefold()\n    if suffix in {".htm", ".html"} and _looks_like_html(raw, content_type):\n        return "HTML"\n    return "UNKNOWN"\n\n\ndef _extract_document_text(raw: bytes, document_format: str) -> str:\n    if document_format == "PDF":\n        return _extract_pdf_text(raw)\n    if document_format == "HTML":\n        parser = _VisibleHtmlTextParser()\n        parser.feed(raw.decode("utf-8", errors="replace"))\n        rendered = "\\n".join(parser.parts)\n        if not rendered:\n            raise ValueError("HTML_TEXT_EMPTY")\n        return rendered\n    raise ValueError("DOCUMENT_FORMAT_UNSUPPORTED")\n\n\n'''
+          if marker not in text:
+              raise SystemExit("persist marker not found")
+          text = text.replace(marker, helpers + marker, 1)
+
+          text = text.replace(
+              '''            r"\\b\\d{1,2}[-/]\\w{3,9}[-/]\\d{2,4}\\b",\n            r"\\b\\d{4}-\\d{2}-\\d{2}\\b",\n''',
+              '''            r"\\b\\d{1,2}[-/]\\w{3,9}[-/]\\d{2,4}\\b",\n            r"\\b\\d{4}-\\d{2}-\\d{2}\\b",\n            r"\\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\\s+\\d{1,2},\\s+\\d{4}\\b",\n            r"\\b\\d{1,2}(?:st|nd|rd|th)?\\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\\s+\\d{4}\\b",\n''',
+          )
+          module.write_text(text, encoding="utf-8")
+
+          tests = Path("tests/decision_superiority/test_pre2016_calendar_recovery.py")
+          test_text = tests.read_text(encoding="utf-8")
+          insertion_marker = "\n\ndef test_html_200_response_is_rejected_without_pdf_extraction"
+          new_test = '''\n\ndef test_valid_official_archive_html_is_recovered(tmp_path: Path) -> None:\n    url = "https://nsearchives.nseindia.com/content/circulars/cmtr5633.htm"\n    raw = b"""<!doctype html><html><body>\n    National Stock Exchange of India Limited\n    Capital Market Segment\n    Sub: Trading holidays for the calendar year 2005\n    Download No. NSE/CMTR/5633\n    Date: December 07, 2004\n    Wednesday, January 26, 2005 Republic Day\n    Muhurat Trading will be conducted\n    </body></html>"""\n    registry = _write_registry(\n        tmp_path,\n        candidates=(\n            _candidate(\n                year=2005,\n                source_id="NSE_CM_2005_CALENDAR_HTML",\n                source_url=url,\n                segment_scope="CAPITAL_MARKET",\n                expected_sha256=hashlib.sha256(raw).hexdigest(),\n                requires_muhurat_statement=True,\n            ),\n        ),\n    )\n\n    result = recover_pre2011_official_calendar_sources(\n        candidate_registry=registry,\n        output=tmp_path / "output",\n        session=FakeSession(\n            {\n                url: FakeResponse(\n                    status_code=200,\n                    content=raw,\n                    content_type="text/html; charset=utf-8",\n                    url=url,\n                )\n            }\n        ),\n    )\n\n    attempt = result.attempts[0]\n    assert result.fully_recovered_years == (2005,)\n    assert attempt.document_format == "HTML"\n    assert attempt.pdf_signature_valid is False\n    assert attempt.text_extraction_status == "EXTRACTED"\n    assert attempt.content_validation_passed is True\n    assert attempt.recovery_state == "VERIFIED_OFFICIAL_EVIDENCE"\n    assert attempt.document_path is not None\n    assert attempt.document_path.endswith(".htm")\n'''
+          if insertion_marker not in test_text:
+              raise SystemExit("test insertion marker not found")
+          test_text = test_text.replace(insertion_marker, new_test + insertion_marker, 1)
+          tests.write_text(test_text, encoding="utf-8")
+
+          docs = Path("docs/DSI-010_PRE2011_OFFICIAL_CALENDAR_RECOVERY.md")
+          docs_text = docs.read_text(encoding="utf-8")
+          docs_text = docs_text.replace(
+              "Official NSE circular PDF.\n- Official NSE archive PDF.",
+              "Official NSE circular PDF or immutable archive HTML.\n- Official NSE archive PDF or HTML document.",
+          )
+          docs_text = docs_text.replace(
+              "An HTTP 200 response is not accepted unless it contains a valid PDF and the\nmandatory circular-content checks pass.",
+              "An HTTP 200 response is accepted only when it contains either a valid PDF or an\nofficial archive HTML document whose URL also ends in `.htm`/`.html`, and all mandatory\ncircular-content checks pass. HTML returned for a PDF URL remains rejected.",
+          )
+          docs.write_text(docs_text, encoding="utf-8")
+          PY
+      - name: Format and validate focused implementation
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+        run: |
+          poetry run ruff format \
+            alpha/decision_superiority/pre2016_calendar_recovery.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery.py
+          poetry run ruff check \
+            alpha/decision_superiority/pre2016_calendar_recovery.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery.py
+          poetry run mypy alpha/decision_superiority/pre2016_calendar_recovery.py
+          poetry run pytest -q tests/decision_superiority/test_pre2016_calendar_recovery.py
+      - name: Commit validated implementation
+        run: |
+          git config user.name "Project Alpha Automation"
+          git config user.email "project-alpha-automation@users.noreply.github.com"
+          git add \
+            alpha/decision_superiority/pre2016_calendar_recovery.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery.py \
+            docs/DSI-010_PRE2011_OFFICIAL_CALENDAR_RECOVERY.md
+          if git diff --cached --quiet; then
+            echo "No implementation changes to commit"
+          else
+            git commit -m "fix(dsi-010): recover official NSE archive HTML calendars"
+            git push origin HEAD:feature/dsi-010-pre2016-external-era-validation
+          fi
