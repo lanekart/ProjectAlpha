@@ -33,24 +33,48 @@ jobs:
       - name: Apply governed HTML recovery patch
         run: python scripts/apply_dsi010_html_calendar_recovery.py
       - name: Validate focused implementation
+        id: validate
+        continue-on-error: true
         env:
           _TYPER_FORCE_DISABLE_TERMINAL: "1"
         run: |
-          poetry run ruff check --fix \
-            alpha/decision_superiority/pre2016_calendar_recovery.py \
-            tests/decision_superiority/test_pre2016_calendar_recovery.py \
+          set -o pipefail
+          {
+            echo '===== RUFF FIX ====='
+            poetry run ruff check --fix \
+              alpha/decision_superiority/pre2016_calendar_recovery.py \
+              tests/decision_superiority/test_pre2016_calendar_recovery.py \
+              scripts/apply_dsi010_html_calendar_recovery.py
+            echo '===== RUFF FORMAT ====='
+            poetry run ruff format \
+              alpha/decision_superiority/pre2016_calendar_recovery.py \
+              tests/decision_superiority/test_pre2016_calendar_recovery.py \
+              scripts/apply_dsi010_html_calendar_recovery.py
+            echo '===== RUFF CHECK ====='
+            poetry run ruff check \
+              alpha/decision_superiority/pre2016_calendar_recovery.py \
+              tests/decision_superiority/test_pre2016_calendar_recovery.py \
+              scripts/apply_dsi010_html_calendar_recovery.py
+            echo '===== MYPY ====='
+            poetry run mypy alpha/decision_superiority/pre2016_calendar_recovery.py
+            echo '===== PYTEST ====='
+            poetry run pytest -q tests/decision_superiority/test_pre2016_calendar_recovery.py
+          } 2>&1 | tee /tmp/dsi010-html-recovery-validation.log
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-html-recovery-validation
+          path: |
+            /tmp/dsi010-html-recovery-validation.log
+            alpha/decision_superiority/pre2016_calendar_recovery.py
+            tests/decision_superiority/test_pre2016_calendar_recovery.py
+            docs/DSI-010_PRE2011_OFFICIAL_CALENDAR_RECOVERY.md
             scripts/apply_dsi010_html_calendar_recovery.py
-          poetry run ruff format \
-            alpha/decision_superiority/pre2016_calendar_recovery.py \
-            tests/decision_superiority/test_pre2016_calendar_recovery.py \
-            scripts/apply_dsi010_html_calendar_recovery.py
-          poetry run ruff check \
-            alpha/decision_superiority/pre2016_calendar_recovery.py \
-            tests/decision_superiority/test_pre2016_calendar_recovery.py \
-            scripts/apply_dsi010_html_calendar_recovery.py
-          poetry run mypy alpha/decision_superiority/pre2016_calendar_recovery.py
-          poetry run pytest -q tests/decision_superiority/test_pre2016_calendar_recovery.py
+          if-no-files-found: error
+          retention-days: 7
       - name: Commit validated implementation
+        if: steps.validate.outcome == 'success'
         run: |
           git config user.name "Project Alpha Automation"
           git config user.email "project-alpha-automation@users.noreply.github.com"
@@ -66,3 +90,6 @@ jobs:
           git commit -m "fix(dsi-010): recover official NSE archive HTML calendars"
           git pull --rebase origin feature/dsi-010-pre2016-external-era-validation
           git push origin HEAD:feature/dsi-010-pre2016-external-era-validation
+      - name: Enforce validation success
+        if: steps.validate.outcome != 'success'
+        run: exit 1
