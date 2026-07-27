@@ -30,6 +30,7 @@ jobs:
         env:
           _TYPER_FORCE_DISABLE_TERMINAL: "1"
         run: |
+          set -o pipefail
           mkdir -p artifacts/dsi010_2005_population_pilot
           poetry run python -m alpha benchmark \
             decision-superiority-pre2016-archive-backfill \
@@ -43,14 +44,17 @@ jobs:
         env:
           _TYPER_FORCE_DISABLE_TERMINAL: "1"
         run: |
+          set -o pipefail
           poetry run python -m alpha benchmark \
             decision-superiority-pre2016-calendar-source-recovery \
             --candidate-registry config/dsi010_pre2011_official_calendar_candidates.json \
             --output artifacts/dsi010_2005_pilot_official_sources \
-            --timeout-seconds 45
+            --timeout-seconds 45 \
+            | tee artifacts/dsi010_2005_pilot_official_sources_console.log
           poetry run python scripts/build_dsi010_pre2011_reviewed_sources.py \
             --recovery-root artifacts/dsi010_2005_pilot_official_sources \
-            --output-root artifacts/dsi010_2005_pilot_reviewed_sources
+            --output-root artifacts/dsi010_2005_pilot_reviewed_sources \
+            | tee artifacts/dsi010_2005_pilot_reviewed_sources_console.log
       - name: Audit 2005 calendar and store footprint
         run: |
           set -o pipefail
@@ -165,6 +169,8 @@ jobs:
             artifacts/dsi010_2005_population_pilot_console.log
             artifacts/dsi010_2005_population_pilot_audit.log
             artifacts/dsi010_2005_pilot_official_sources
+            artifacts/dsi010_2005_pilot_official_sources_console.log
             artifacts/dsi010_2005_pilot_reviewed_sources
+            artifacts/dsi010_2005_pilot_reviewed_sources_console.log
           if-no-files-found: warn
           retention-days: 14
