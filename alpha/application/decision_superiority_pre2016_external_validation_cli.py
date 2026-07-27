@@ -9,6 +9,10 @@ from typing import Annotated
 import typer
 
 from alpha.config.settings import settings
+from alpha.decision_superiority.pre2016_calendar import (
+    certify_pre2016_calendar,
+    export_pre2016_calendar_certification,
+)
 from alpha.decision_superiority.pre2016_external_validation import (
     GovernedPre2016ExternalValidationEngine,
 )
@@ -29,15 +33,19 @@ from alpha.decision_superiority.pre2016_population import (
 
 DEFAULT_DSI010_OUTPUT = Path(".alpha/benchmark/dsi010_pre2016_external_validation")
 DEFAULT_DSI010_POPULATION_OUTPUT = Path("artifacts/dsi010_pre2016_population")
+DEFAULT_DSI010_CALENDAR_OUTPUT = Path("artifacts/dsi010_pre2016_calendar")
 
 
 def register_decision_superiority_pre2016_external_validation_command(
     app: typer.Typer,
 ) -> None:
-    """Register DSI-010 backfill, runner, and verifier commands."""
+    """Register DSI-010 population, calendar, runner, and verifier commands."""
 
     app.command("decision-superiority-pre2016-archive-backfill")(
         decision_superiority_pre2016_archive_backfill
+    )
+    app.command("decision-superiority-pre2016-calendar-certify")(
+        decision_superiority_pre2016_calendar_certify
     )
     app.command("decision-superiority-pre2016-external-validation")(
         decision_superiority_pre2016_external_validation
@@ -105,6 +113,76 @@ def decision_superiority_pre2016_archive_backfill(
     typer.echo(f"Artifacts: {output_dir} ({len(result.artifact_paths)} files)")
 
 
+def decision_superiority_pre2016_calendar_certify(
+    official_source: Annotated[
+        list[Path],
+        typer.Option(
+            "--official-source",
+            help="Immutable official NSE calendar JSON; repeat for multiple years.",
+        ),
+    ],
+    database: Annotated[
+        Path,
+        typer.Option("--database"),
+    ] = settings.database_path,
+    manifest: Annotated[
+        Path,
+        typer.Option("--manifest"),
+    ] = Path("alpha_data/manifests/archive_manifest.jsonl"),
+    output: Annotated[
+        Path,
+        typer.Option("--output"),
+    ] = DEFAULT_DSI010_CALENDAR_OUTPUT,
+) -> None:
+    """Certify the official pre-2016 calendar against candles and manifest states."""
+
+    try:
+        result = certify_pre2016_calendar(
+            database=database,
+            manifest=manifest,
+            official_sources=tuple(official_source),
+        )
+        paths = export_pre2016_calendar_certification(
+            result,
+            output,
+            database=database,
+        )
+    except (OSError, Pre2016ExternalValidationError, ValueError) as exc:
+        typer.echo(f"PRE2016_CALENDAR_CERTIFICATION_FAILED: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    report = result.report
+    typer.echo(f"Calendar Start: {report.start_date}")
+    typer.echo(f"Calendar End: {report.end_date}")
+    typer.echo(f"Certification State: {report.certification_state.value}")
+    typer.echo(f"Official Sources: {len(report.sources)}")
+    typer.echo(f"Official Holidays: {report.official_holiday_count}")
+    typer.echo(f"Official Special Sessions: {report.official_special_session_count}")
+    typer.echo(f"Expected Sessions: {report.expected_session_count}")
+    typer.echo(f"Observed Sessions: {report.observed_session_count}")
+    typer.echo(f"Unresolved Weekdays: {report.unresolved_weekday_count}")
+    typer.echo(
+        f"Unconfirmed Special Sessions: {report.unconfirmed_special_session_count}"
+    )
+    typer.echo(f"Missing Special Sessions: {report.missing_special_session_count}")
+    typer.echo(f"Calendar Conflicts: {report.conflict_count}")
+    typer.echo(f"Manifest Unavailable: {result.manifest_unavailable_count}")
+    typer.echo(f"Manifest Holiday Matches: {result.manifest_holiday_match_count}")
+    typer.echo(f"Manifest Unresolved: {result.manifest_unresolved_count}")
+    typer.echo(
+        "Manifest Status Case Normalized: "
+        f"{str(result.manifest_status_case_normalized).lower()}"
+    )
+    typer.echo(f"Calendar Report SHA-256: {report.report_sha256}")
+    typer.echo("PRODUCTION_INFLUENCE=false")
+    typer.echo(f"Artifacts: {output} ({len(paths)} files)")
+
+    if report.certification_state.value != "certified":
+        raise typer.Exit(1)
+    if result.manifest_unresolved_count:
+        raise typer.Exit(1)
+
+
 def decision_superiority_pre2016_external_validation(
     dsi009_certificate: Annotated[
         Path,
@@ -113,6 +191,10 @@ def decision_superiority_pre2016_external_validation(
     dsi007_certificate: Annotated[
         Path,
         typer.Option("--dsi007-certificate"),
+    ],
+    calendar_report: Annotated[
+        Path,
+        typer.Option("--calendar-report"),
     ],
     historical_truth_snapshots: Annotated[
         Path,
@@ -138,6 +220,7 @@ def decision_superiority_pre2016_external_validation(
             sources=Pre2016ExternalValidationSourcePaths(
                 dsi009_certificate=dsi009_certificate,
                 dsi007_certificate=dsi007_certificate,
+                calendar_report=calendar_report,
                 database=database,
                 historical_truth_snapshots=historical_truth_snapshots,
                 benchmark=benchmark,
