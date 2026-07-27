@@ -13,7 +13,7 @@ jobs:
   locate:
     runs-on: ubuntu-latest
     steps:
-      - name: Locate validation workflow run
+      - name: Locate repaired validation workflow run
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -26,7 +26,7 @@ jobs:
 
           repository = os.environ["REPOSITORY"]
           branch = "feature/dsi-010-pre2016-external-era-validation"
-          workflow = "dsi010-2008-emergency-source-validate.yml"
+          workflow = "dsi010-2008-emergency-source-fix.yml"
           url = (
               f"https://api.github.com/repos/{repository}/actions/workflows/"
               f"{workflow}/runs?branch={urllib.parse.quote(branch, safe='')}&per_page=5"
@@ -43,9 +43,9 @@ jobs:
               payload = json.load(response)
           runs = payload.get("workflow_runs", [])
           if not runs:
-              raise SystemExit("VALIDATION_RUN_NOT_FOUND")
+              raise SystemExit("REPAIRED_VALIDATION_RUN_NOT_FOUND")
           latest = runs[0]
-          print("===== DSI-010 2008 SOURCE VALIDATION RUN =====")
+          print("===== DSI-010 2008 REPAIRED SOURCE VALIDATION RUN =====")
           for key in ("id", "status", "conclusion", "head_sha", "run_number", "event"):
               print(f"{key}: {latest.get(key)}")
           PY
