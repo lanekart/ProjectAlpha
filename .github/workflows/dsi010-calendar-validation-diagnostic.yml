@@ -29,8 +29,12 @@ jobs:
       - run: pip install poetry
       - run: poetry install --no-interaction
       - name: Reproduce patch
+        id: patch
+        continue-on-error: true
         run: |
-          python - <<'PY'
+          set -o pipefail
+          {
+            python - <<'PY'
           from pathlib import Path
           import textwrap
 
@@ -40,9 +44,12 @@ jobs:
           end = workflow.index("\n          PY", start)
           script = textwrap.dedent(workflow[start:end])
           Path("/tmp/dsi010_patch.py").write_text(script, encoding="utf-8")
+          print(f"PATCH_SCRIPT_BYTES={len(script.encode('utf-8'))}")
           PY
-          python /tmp/dsi010_patch.py
+            python /tmp/dsi010_patch.py
+          } 2>&1 | tee /tmp/dsi010-reproduce.log
       - name: Validate focused implementation
+        if: steps.patch.outcome == 'success'
         env:
           _TYPER_FORCE_DISABLE_TERMINAL: "1"
         run: |
@@ -66,6 +73,7 @@ jobs:
             poetry run pytest -q tests/decision_superiority/test_pre2016_calendar_recovery.py
           } 2>&1 | tee /tmp/dsi010-validation.log
       - name: Commit validated implementation
+        if: steps.patch.outcome == 'success'
         run: |
           git config user.name "Project Alpha Automation"
           git config user.email "project-alpha-automation@users.noreply.github.com"
@@ -77,13 +85,19 @@ jobs:
             echo "No implementation changes to commit"
           else
             git commit -m "fix(dsi-010): recover official NSE archive HTML calendars"
+            git pull --rebase origin feature/dsi-010-pre2016-external-era-validation
             git push origin HEAD:feature/dsi-010-pre2016-external-era-validation
           fi
-      - name: Upload validation log
+      - name: Upload diagnostic logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: dsi010-calendar-validation-diagnostic
-          path: /tmp/dsi010-validation.log
+          path: |
+            /tmp/dsi010-reproduce.log
+            /tmp/dsi010-validation.log
           if-no-files-found: warn
           retention-days: 7
+      - name: Enforce patch success
+        if: steps.patch.outcome != 'success'
+        run: exit 1
