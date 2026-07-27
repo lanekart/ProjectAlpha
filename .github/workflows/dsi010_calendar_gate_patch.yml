@@ -1,0 +1,132 @@
+name: DSI010 Calendar Gate Patch
+
+on:
+  pull_request:
+    branches:
+      - feature/recovery-foundation-v1
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.head_ref == 'feature/dsi-010-pre2016-external-era-validation'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Patch engine calendar gate
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('alpha/decision_superiority/pre2016_external_validation.py')
+          text = path.read_text(encoding='utf-8')
+
+          old_import = '''from alpha.decision_superiority.entry_stop_improvement_artifacts import (
+              DSI009_ARTIFACTS,
+              validate_entry_stop_improvement_certificate,
+          )
+          '''
+          new_import = '''from alpha.decision_superiority.entry_stop_improvement_artifacts import (
+              DSI009_ARTIFACTS,
+              validate_entry_stop_improvement_certificate,
+          )
+          from alpha.decision_superiority.pre2016_calendar import (
+              validate_pre2016_calendar_report,
+          )
+          '''
+          if old_import not in text:
+              raise SystemExit('calendar import anchor missing')
+          text = text.replace(old_import, new_import, 1)
+
+          old_validation = '''        validate_regime_strategy_tournament_certificate(
+              sources.dsi007_certificate,
+              require_ready=False,
+          )
+          frozen_contract_rows = _validate_frozen_candidate(
+          '''
+          new_validation = '''        validate_regime_strategy_tournament_certificate(
+              sources.dsi007_certificate,
+              require_ready=False,
+          )
+          calendar_payload = validate_pre2016_calendar_report(
+              sources.calendar_report,
+              require_certified=True,
+          )
+          frozen_contract_rows = _validate_frozen_candidate(
+          '''
+          if old_validation not in text:
+              raise SystemExit('calendar validation anchor missing')
+          text = text.replace(old_validation, new_validation, 1)
+
+          old_source = '''        if market.empty:
+              raise Pre2016ExternalValidationError(
+                  "NO_GOVERNED_PRE2016_MARKET_POPULATION"
+              )
+          featured, regime_daily, regime_transitions = _build_point_in_time_features(
+          '''
+          new_source = '''        if market.empty:
+              raise Pre2016ExternalValidationError(
+                  "NO_GOVERNED_PRE2016_MARKET_POPULATION"
+              )
+          source_rows = (
+              *source_rows,
+              {
+                  "source_role": "PRE2016_SESSION_CALENDAR",
+                  "availability": "AVAILABLE",
+                  "sha256": _file_sha256(sources.calendar_report),
+                  "byte_size": sources.calendar_report.stat().st_size,
+                  "portable_locator": sources.calendar_report.name,
+                  "contract_version": calendar_payload.get("contract_version"),
+                  "report_sha256": calendar_payload.get("report_sha256"),
+                  "certification_state": calendar_payload.get("certification_state"),
+                  "expected_sessions": calendar_payload.get("expected_session_count"),
+                  "observed_sessions": calendar_payload.get("observed_session_count"),
+                  "used_for_decisions": True,
+              },
+          )
+          featured, regime_daily, regime_transitions = _build_point_in_time_features(
+          '''
+          if old_source not in text:
+              raise SystemExit('calendar source anchor missing')
+          text = text.replace(old_source, new_source, 1)
+
+          old_summary = '''            "market_rows": len(market),
+              "incumbent": dict(incumbent_metrics),
+          '''
+          new_summary = '''            "market_rows": len(market),
+              "calendar": {
+                  "contract_version": calendar_payload.get("contract_version"),
+                  "report_sha256": calendar_payload.get("report_sha256"),
+                  "certification_state": calendar_payload.get("certification_state"),
+                  "expected_sessions": calendar_payload.get("expected_session_count"),
+                  "observed_sessions": calendar_payload.get("observed_session_count"),
+              },
+              "incumbent": dict(incumbent_metrics),
+          '''
+          if old_summary not in text:
+              raise SystemExit('calendar summary anchor missing')
+          text = text.replace(old_summary, new_summary, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+          python -m compileall -q \
+            alpha/decision_superiority/pre2016_external_validation.py \
+            alpha/decision_superiority/pre2016_calendar.py \
+            alpha/application/decision_superiority_pre2016_external_validation_cli.py
+      - name: Commit patch and remove workflow
+        run: |
+          rm .github/workflows/dsi010_calendar_gate_patch.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            alpha/decision_superiority/pre2016_external_validation.py \
+            .github/workflows/dsi010_calendar_gate_patch.yml
+          git commit -m 'fix(dsi-010): enforce certified external-era calendar'
+          git push origin HEAD:feature/dsi-010-pre2016-external-era-validation
