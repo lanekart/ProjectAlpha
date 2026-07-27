@@ -12,7 +12,6 @@ from alpha.decision_superiority.pre2016_calendar_sources import (
     validate_hash_bound_official_calendar_source,
 )
 
-
 REVIEW_ROWS: dict[str, str] = {
     "NSE_CMTR_5633_2005_ANNUAL_CALENDAR": """
 2005-01-21|HOLIDAY|Bakri Id
@@ -252,7 +251,9 @@ def build_sources(recovery_root: Path, output_root: Path) -> tuple[Path, ...]:
     if set(by_source) != set(REVIEW_ROWS):
         missing = sorted(set(REVIEW_ROWS) - set(by_source))
         extra = sorted(set(by_source) - set(REVIEW_ROWS))
-        raise RuntimeError(f"REVIEW_SOURCE_SET_MISMATCH missing={missing} extra={extra}")
+        raise RuntimeError(
+            f"REVIEW_SOURCE_SET_MISMATCH missing={missing} extra={extra}"
+        )
 
     output_root.mkdir(parents=True, exist_ok=True)
     master_rows: list[dict[str, str]] = []
