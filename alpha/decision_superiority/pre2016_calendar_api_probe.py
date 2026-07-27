@@ -5,10 +5,11 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
-from typing import Any
+from typing import Protocol
 from urllib.parse import urlencode
 
 import requests
@@ -21,6 +22,25 @@ from .pre2016_external_validation_models import (
 
 _NSE_HOLIDAY_PAGE = "https://www.nseindia.com/resources/exchange-communication-holidays"
 _NSE_HOLIDAY_API = "https://www.nseindia.com/api/holiday-master"
+
+
+class _HttpResponse(Protocol):
+    status_code: int
+    content: bytes
+    headers: Mapping[str, str]
+
+    def json(self) -> object: ...
+
+
+class _HttpSession(Protocol):
+    def get(
+        self,
+        url: str,
+        *,
+        params: Mapping[str, str] | None = None,
+        headers: Mapping[str, str] | None = None,
+        timeout: float | None = None,
+    ) -> _HttpResponse: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,7 +79,7 @@ def probe_pre2016_holiday_api(
     output: Path,
     years: tuple[int, ...] = tuple(range(2005, 2016)),
     timeout_seconds: float = 30.0,
-    session: requests.Session | None = None,
+    session: _HttpSession | None = None,
 ) -> Pre2016HolidayApiProbeResult:
     """Probe official NSE endpoints without treating unsupported payloads as evidence."""
 
@@ -68,7 +88,7 @@ def probe_pre2016_holiday_api(
     raw_root = output / "raw"
     raw_root.mkdir(parents=True, exist_ok=True)
 
-    client = session or requests.Session()
+    client: _HttpSession = session or requests.Session()
     headers = {
         "User-Agent": "ProjectAlpha-HistoricalTruth/1.0",
         "Accept": "application/json,text/plain,*/*",
@@ -138,7 +158,9 @@ def export_pre2016_holiday_api_probe(
         writer.writeheader()
         for attempt in result.attempts:
             row = asdict(attempt)
-            row["covered_years"] = ";".join(str(year) for year in attempt.covered_years)
+            row["covered_years"] = ";".join(
+                str(year) for year in attempt.covered_years
+            )
             writer.writerow(row)
 
     summary = {
@@ -161,7 +183,7 @@ def export_pre2016_holiday_api_probe(
 
 def _probe_attempt(
     *,
-    client: requests.Session,
+    client: _HttpSession,
     year: int,
     variant_id: str,
     params: dict[str, str],
@@ -181,25 +203,31 @@ def _probe_attempt(
         digest = hashlib.sha256(raw).hexdigest()
         content_type = str(response.headers.get("Content-Type") or "")
         suffix = ".json" if "json" in content_type.lower() else ".txt"
-        raw_path = raw_root / str(year) / f"{variant_id.lower()}_{digest[:12]}{suffix}"
+        raw_path = (
+            raw_root
+            / str(year)
+            / f"{variant_id.lower()}_{digest[:12]}{suffix}"
+        )
         raw_path.parent.mkdir(parents=True, exist_ok=True)
         if raw_path.exists() and raw_path.read_bytes() != raw:
-            raise Pre2016ExternalValidationError("PRE2016_API_RAW_IMMUTABILITY_VIOLATION")
+            raise Pre2016ExternalValidationError(
+                "PRE2016_API_RAW_IMMUTABILITY_VIOLATION"
+            )
         raw_path.write_bytes(raw)
 
         payload_state = "HTTP_NON_200"
-        cm_rows: list[Any] = []
+        cm_rows: list[object] = []
         dates: tuple[date, ...] = ()
         error: str | None = None
         if response.status_code == 200:
             try:
                 payload = response.json()
-            except (ValueError, json.JSONDecodeError) as exc:
+            except ValueError as exc:
                 payload_state = "INVALID_JSON"
                 error = f"{type(exc).__name__}: {exc}"
             else:
                 if isinstance(payload, dict) and isinstance(payload.get("CM"), list):
-                    cm_rows = payload["CM"]
+                    cm_rows = list(payload["CM"])
                     dates = tuple(
                         parsed
                         for parsed in (_payload_date(row) for row in cm_rows)
@@ -266,16 +294,12 @@ def _payload_date(row: object) -> date | None:
     formats = ("%d-%b-%Y", "%d-%B-%Y", "%d-%m-%Y", "%Y-%m-%d")
     for pattern in formats:
         try:
-            return date.fromisoformat(value) if pattern == "%Y-%m-%d" else _strptime_date(value, pattern)
+            if pattern == "%Y-%m-%d":
+                return date.fromisoformat(value)
+            return datetime.strptime(value, pattern).date()
         except ValueError:
             continue
     return None
-
-
-def _strptime_date(value: str, pattern: str) -> date:
-    from datetime import datetime
-
-    return datetime.strptime(value, pattern).date()
 
 
 def _validate_years(years: tuple[int, ...]) -> tuple[int, ...]:
