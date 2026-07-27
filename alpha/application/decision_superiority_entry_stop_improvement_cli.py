@@ -13,6 +13,9 @@ from alpha.application.decision_superiority_pre2016_calendar_sources_cli import 
 from alpha.application.decision_superiority_pre2016_external_validation_cli import (
     register_decision_superiority_pre2016_external_validation_command,
 )
+from alpha.application.decision_superiority_pre2016_partial_calendar_cli import (
+    register_decision_superiority_pre2016_partial_calendar_command,
+)
 from alpha.config.settings import settings
 from alpha.decision_superiority.entry_stop_improvement import (
     GovernedEntryStopImprovementEngine,
@@ -42,6 +45,7 @@ def register_decision_superiority_entry_stop_improvement_command(
     )
     register_decision_superiority_pre2016_external_validation_command(app)
     register_decision_superiority_pre2016_calendar_source_commands(app)
+    register_decision_superiority_pre2016_partial_calendar_command(app)
 
 
 def decision_superiority_entry_stop_improvement(
