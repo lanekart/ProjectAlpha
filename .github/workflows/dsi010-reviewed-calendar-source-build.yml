@@ -7,12 +7,16 @@ on:
     paths:
       - .github/workflows/dsi010-reviewed-calendar-source-build.yml
       - scripts/build_dsi010_pre2011_reviewed_sources.py
+      - scripts/build_dsi010_2011_2015_reviewed_sources.py
       - config/dsi010_pre2011_official_calendar_candidates.json
+      - config/dsi010_2011_2015_official_calendar_candidates.json
   pull_request:
     paths:
       - .github/workflows/dsi010-reviewed-calendar-source-build.yml
       - scripts/build_dsi010_pre2011_reviewed_sources.py
+      - scripts/build_dsi010_2011_2015_reviewed_sources.py
       - config/dsi010_pre2011_official_calendar_candidates.json
+      - config/dsi010_2011_2015_official_calendar_candidates.json
 
 permissions:
   contents: read
@@ -20,7 +24,7 @@ permissions:
 jobs:
   build-and-validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,50 +34,79 @@ jobs:
           python-version: "3.14"
       - run: pip install poetry
       - run: poetry install --no-interaction
-      - name: Validate reviewed-source builder
+      - name: Validate reviewed-source builders
         run: |
-          poetry run ruff check scripts/build_dsi010_pre2011_reviewed_sources.py
-          poetry run ruff format --check scripts/build_dsi010_pre2011_reviewed_sources.py
-          poetry run mypy scripts/build_dsi010_pre2011_reviewed_sources.py
-      - name: Recover immutable official documents
+          poetry run ruff check \
+            scripts/build_dsi010_pre2011_reviewed_sources.py \
+            scripts/build_dsi010_2011_2015_reviewed_sources.py
+          poetry run ruff format --check \
+            scripts/build_dsi010_pre2011_reviewed_sources.py \
+            scripts/build_dsi010_2011_2015_reviewed_sources.py
+          poetry run mypy \
+            scripts/build_dsi010_pre2011_reviewed_sources.py \
+            scripts/build_dsi010_2011_2015_reviewed_sources.py
+      - name: Recover immutable 2005-2010 official documents
         env:
           _TYPER_FORCE_DISABLE_TERMINAL: "1"
         run: |
           poetry run python -m alpha benchmark \
-            decision-superiority-pre2011-calendar-source-recovery \
+            decision-superiority-pre2016-calendar-source-recovery \
             --candidate-registry config/dsi010_pre2011_official_calendar_candidates.json \
             --output artifacts/dsi010_pre2011_official_sources \
             --timeout-seconds 45 \
             | tee artifacts/dsi010_pre2011_official_sources_console.log
-      - name: Build reviewed hash-bound sources
+      - name: Build reviewed 2005-2010 sources
         run: |
           poetry run python scripts/build_dsi010_pre2011_reviewed_sources.py \
             --recovery-root artifacts/dsi010_pre2011_official_sources \
             --output-root artifacts/dsi010_pre2011_reviewed_sources \
             | tee artifacts/dsi010_pre2011_reviewed_sources_console.log
-      - name: Validate source contract and full-audit preflight
+      - name: Recover immutable 2011-2015 official documents
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+        run: |
+          poetry run python -m alpha benchmark \
+            decision-superiority-pre2016-calendar-source-recovery \
+            --candidate-registry config/dsi010_2011_2015_official_calendar_candidates.json \
+            --output artifacts/dsi010_2011_2015_official_sources \
+            --timeout-seconds 45 \
+            | tee artifacts/dsi010_2011_2015_official_sources_console.log
+      - name: Build reviewed 2011-2015 sources
+        run: |
+          poetry run python scripts/build_dsi010_2011_2015_reviewed_sources.py \
+            --recovery-root artifacts/dsi010_2011_2015_official_sources \
+            --output-root artifacts/dsi010_2011_2015_reviewed_sources \
+            | tee artifacts/dsi010_2011_2015_reviewed_sources_console.log
+      - name: Validate combined source contract and full-audit preflight
         run: |
           set -o pipefail
           poetry run python - <<'PY' 2>&1 | tee /tmp/dsi010-full-audit-preflight.log
           from __future__ import annotations
 
           import json
-          import subprocess
           from pathlib import Path
 
           from alpha.decision_superiority.pre2016_calendar_sources import (
               validate_hash_bound_official_calendar_source,
           )
 
-          root = Path("artifacts/dsi010_pre2011_reviewed_sources")
-          source_paths = sorted((root / "sources").glob("*.json"))
-          if len(source_paths) != 15:
-              raise SystemExit(f"EXPECTED_15_REVIEWED_SOURCES_FOUND_{len(source_paths)}")
+          early_root = Path("artifacts/dsi010_pre2011_reviewed_sources")
+          later_root = Path("artifacts/dsi010_2011_2015_reviewed_sources")
+          early_sources = sorted((early_root / "sources").glob("*.json"))
+          later_sources = sorted((later_root / "sources").glob("*.json"))
+          if len(early_sources) != 15:
+              raise SystemExit(
+                  f"EXPECTED_15_EARLY_REVIEWED_SOURCES_FOUND_{len(early_sources)}"
+              )
+          if len(later_sources) != 13:
+              raise SystemExit(
+                  f"EXPECTED_13_LATER_REVIEWED_SOURCES_FOUND_{len(later_sources)}"
+              )
 
           years: set[int] = set()
           holiday_rows = 0
           special_rows = 0
-          for source_path in source_paths:
+          for source_path in (*early_sources, *later_sources):
               payload = validate_hash_bound_official_calendar_source(
                   source_path,
                   require_capital_market_scope=True,
@@ -93,96 +126,69 @@ jobs:
               if payload.get("production_influence") is not False:
                   raise SystemExit("PRODUCTION_INFLUENCE_NOT_FALSE")
 
-          if years != set(range(2005, 2011)):
+          if years != set(range(2005, 2016)):
               raise SystemExit(f"COVERED_YEAR_MISMATCH:{sorted(years)}")
-          if holiday_rows != 120:
-              raise SystemExit(f"EXPECTED_120_REVIEWED_HOLIDAY_ROWS_FOUND_{holiday_rows}")
-          if special_rows != 6:
-              raise SystemExit(f"EXPECTED_6_REVIEWED_SPECIAL_ROWS_FOUND_{special_rows}")
+          if holiday_rows != 219:
+              raise SystemExit(
+                  f"EXPECTED_219_REVIEWED_HOLIDAY_ROWS_FOUND_{holiday_rows}"
+              )
+          if special_rows != 11:
+              raise SystemExit(
+                  f"EXPECTED_11_REVIEWED_SPECIAL_ROWS_FOUND_{special_rows}"
+              )
+
+          later_manifest = json.loads(
+              (later_root / "reviewed_source_manifest.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if later_manifest.get("supersession_applied") is not True:
+              raise SystemExit("LATER_SUPERSESSION_NOT_APPLIED")
+          revocation = later_manifest.get("revocation_applied")
+          if not isinstance(revocation, dict) or revocation.get("2013-11-14") is None:
+              raise SystemExit("LATER_REVOCATION_NOT_APPLIED")
 
           database = Path("alpha_data/warehouse/historical_truth.duckdb")
           manifest = Path("alpha_data/manifests/archive_manifest.jsonl")
-          required_later_years = set(range(2011, 2016))
-          later_covered_years: set[int] = set()
-          later_sources: list[str] = []
-          tracked = subprocess.run(
-              ["git", "ls-files", "-z", "--", "*.json"],
-              check=True,
-              capture_output=True,
-          ).stdout.decode("utf-8").split("\0")
-          for raw_path in tracked:
-              if not raw_path:
-                  continue
-              path = Path(raw_path)
-              try:
-                  payload = json.loads(path.read_text(encoding="utf-8"))
-              except (OSError, UnicodeError, json.JSONDecodeError):
-                  continue
-              if not isinstance(payload, dict):
-                  continue
-              covered = payload.get("covered_years")
-              if not isinstance(covered, list):
-                  continue
-              if payload.get("manual_review_completed") is not True:
-                  continue
-              if payload.get("production_influence") is not False:
-                  continue
-              source_years = {
-                  int(year)
-                  for year in covered
-                  if isinstance(year, int)
-                  or (isinstance(year, str) and year.isdigit())
-              }
-              relevant_years = source_years & required_later_years
-              if not relevant_years:
-                  continue
-              later_covered_years.update(relevant_years)
-              later_sources.append(str(path))
-
-          missing_later_years = sorted(required_later_years - later_covered_years)
           blockers: list[str] = []
           if not database.is_file():
               blockers.append("GOVERNED_DATABASE_UNAVAILABLE")
           if not manifest.is_file():
               blockers.append("GOVERNED_MANIFEST_UNAVAILABLE")
-          if missing_later_years:
-              blockers.append("REVIEWED_2011_2015_SOURCES_UNAVAILABLE")
 
           preflight = {
-              "reviewed_2005_2010_source_count": len(source_paths),
-              "reviewed_2005_2010_covered_years": sorted(years),
+              "reviewed_source_count": len(early_sources) + len(later_sources),
+              "reviewed_covered_years": sorted(years),
               "reviewed_holiday_row_count": holiday_rows,
               "reviewed_special_session_row_count": special_rows,
+              "reviewed_2005_2010_source_count": len(early_sources),
+              "reviewed_2011_2015_source_count": len(later_sources),
+              "reviewed_2011_2015_available": True,
+              "supersession_applied": True,
+              "revocation_applied": True,
               "database_path": str(database),
               "database_available": database.is_file(),
               "manifest_path": str(manifest),
               "manifest_available": manifest.is_file(),
-              "reviewed_2011_2015_source_paths": later_sources,
-              "reviewed_2011_2015_covered_years": sorted(later_covered_years),
-              "reviewed_2011_2015_missing_years": missing_later_years,
               "full_2005_2015_audit_performed": False,
               "full_audit_blockers": blockers,
               "calendar_certification_permitted": False,
               "production_influence": False,
           }
-          (root / "full_audit_preflight.json").write_text(
+          output = Path("artifacts/dsi010_2005_2015_reviewed_sources")
+          output.mkdir(parents=True, exist_ok=True)
+          (output / "full_audit_preflight.json").write_text(
               json.dumps(preflight, indent=2, sort_keys=True) + "\n",
               encoding="utf-8",
           )
           print("===== DSI-010 FULL CALENDAR AUDIT PREFLIGHT =====")
-          print(f"Reviewed 2005-2010 Sources: {len(source_paths)}")
+          print(f"Reviewed Sources: {len(early_sources) + len(later_sources)}")
+          print(f"Reviewed Covered Years: {','.join(str(year) for year in sorted(years))}")
           print(f"Reviewed Holiday Rows: {holiday_rows}")
           print(f"Reviewed Special Sessions: {special_rows}")
+          print("Reviewed 2011-2015 Available: true")
           print(f"Database Available: {str(database.is_file()).lower()}")
           print(f"Manifest Available: {str(manifest.is_file()).lower()}")
-          print(
-              "Reviewed 2011-2015 Covered Years: "
-              f"{','.join(str(year) for year in sorted(later_covered_years)) or 'NONE'}"
-          )
-          print(
-              "Reviewed 2011-2015 Missing Years: "
-              f"{','.join(str(year) for year in missing_later_years) or 'NONE'}"
-          )
           print(f"Full Audit Blockers: {','.join(blockers) or 'NONE'}")
           print("Full 2005-2015 Audit Performed: false")
           print("Calendar Certification Permitted: false")
@@ -192,13 +198,19 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: dsi010-pre2011-reviewed-calendar-sources
+          name: dsi010-2005-2015-reviewed-calendar-sources
           path: |
             /tmp/dsi010-full-audit-preflight.log
             artifacts/dsi010_pre2011_official_sources
             artifacts/dsi010_pre2011_official_sources_console.log
             artifacts/dsi010_pre2011_reviewed_sources
             artifacts/dsi010_pre2011_reviewed_sources_console.log
+            artifacts/dsi010_2011_2015_official_sources
+            artifacts/dsi010_2011_2015_official_sources_console.log
+            artifacts/dsi010_2011_2015_reviewed_sources
+            artifacts/dsi010_2011_2015_reviewed_sources_console.log
+            artifacts/dsi010_2005_2015_reviewed_sources
             config/dsi010_pre2011_official_calendar_candidates.json
+            config/dsi010_2011_2015_official_calendar_candidates.json
           if-no-files-found: error
           retention-days: 14
