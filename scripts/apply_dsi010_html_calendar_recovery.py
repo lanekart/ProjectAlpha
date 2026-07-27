@@ -1,7 +1,7 @@
+# ruff: noqa: E501
 from __future__ import annotations
 
 from pathlib import Path
-
 
 MODULE = Path("alpha/decision_superiority/pre2016_calendar_recovery.py")
 TESTS = Path("tests/decision_superiority/test_pre2016_calendar_recovery.py")
@@ -31,9 +31,9 @@ def patch_module() -> None:
     )
     text = replace_once(
         text,
-        '    pdf_signature_valid: bool = False\n'
+        "    pdf_signature_valid: bool = False\n"
         '    text_extraction_status: str = "NOT_ATTEMPTED"\n',
-        '    pdf_signature_valid: bool = False\n'
+        "    pdf_signature_valid: bool = False\n"
         '    document_format: str = ""\n'
         '    text_extraction_status: str = "NOT_ATTEMPTED"\n',
         "attempt document format",
@@ -91,7 +91,7 @@ def patch_module() -> None:
         '            recovery_state="OFFICIAL_SOURCE_CONTENT_INVALID",\n'
         "            error=error,\n"
         "        )\n",
-        "    if document_format == \"UNKNOWN\":\n"
+        '    if document_format == "UNKNOWN":\n'
         "        error = (\n"
         '            "HTML_RESPONSE_REJECTED"\n'
         "            if _looks_like_html(raw, content_type)\n"

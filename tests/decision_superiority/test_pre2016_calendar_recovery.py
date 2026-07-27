@@ -117,6 +117,57 @@ def test_valid_capital_market_pdf_is_recovered_and_exported(
     assert summary["production_influence"] is False
 
 
+def test_valid_official_archive_html_is_recovered(tmp_path: Path) -> None:
+    url = "https://nsearchives.nseindia.com/content/circulars/cmtr5633.htm"
+    raw = b"""<!doctype html><html><body>
+    National Stock Exchange of India Limited
+    Capital Market Operations
+    Sub: Trading holidays for the calendar year 2005
+    Download No. NSE/CMTR/5633
+    Date: December 07, 2004
+    Wednesday, January 26, 2005 Republic Day
+    Muhurat Trading will be conducted
+    </body></html>"""
+    registry = _write_registry(
+        tmp_path,
+        candidates=(
+            _candidate(
+                year=2005,
+                source_id="NSE_CM_2005_CALENDAR_HTML",
+                source_url=url,
+                segment_scope="CAPITAL_MARKET",
+                expected_sha256=hashlib.sha256(raw).hexdigest(),
+                requires_muhurat_statement=True,
+            ),
+        ),
+    )
+
+    result = recover_pre2011_official_calendar_sources(
+        candidate_registry=registry,
+        output=tmp_path / "output",
+        session=FakeSession(
+            {
+                url: FakeResponse(
+                    status_code=200,
+                    content=raw,
+                    content_type="text/html; charset=utf-8",
+                    url=url,
+                )
+            }
+        ),
+    )
+
+    attempt = result.attempts[0]
+    assert result.fully_recovered_years == (2005,)
+    assert attempt.document_format == "HTML"
+    assert attempt.pdf_signature_valid is False
+    assert attempt.text_extraction_status == "EXTRACTED"
+    assert attempt.content_validation_passed is True
+    assert attempt.recovery_state == "VERIFIED_OFFICIAL_EVIDENCE"
+    assert attempt.document_path is not None
+    assert attempt.document_path.endswith(".htm")
+
+
 def test_html_200_response_is_rejected_without_pdf_extraction(tmp_path: Path) -> None:
     url = "https://www.nseindia.com/content/circulars/cm2006.pdf"
     registry = _write_registry(

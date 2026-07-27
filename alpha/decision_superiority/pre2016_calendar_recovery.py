@@ -8,6 +8,7 @@ import json
 import re
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, replace
+from html.parser import HTMLParser
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Protocol, cast
@@ -109,6 +110,7 @@ class Pre2011CalendarSourceAttempt:
     response_bytes: int = 0
     response_sha256: str | None = None
     pdf_signature_valid: bool = False
+    document_format: str = ""
     text_extraction_status: str = "NOT_ATTEMPTED"
     extracted_text_sha256: str | None = None
     exchange_match: bool = False
@@ -155,7 +157,7 @@ def recover_pre2011_official_calendar_sources(
     client: _HttpSession = session or _RequestsSessionAdapter()
     headers = {
         "User-Agent": "ProjectAlpha-HistoricalTruth/1.0",
-        "Accept": "application/pdf,application/octet-stream,*/*",
+        "Accept": "application/pdf,text/html,application/octet-stream,*/*",
     }
     seen_hashes: dict[str, str] = {}
     attempts = tuple(
@@ -270,12 +272,17 @@ def _recover_candidate(
     digest = hashlib.sha256(raw).hexdigest() if raw else None
     content_type = str(response.headers.get("Content-Type") or "")
     pdf_signature = raw.startswith(b"%PDF-")
+    document_format = _detect_document_format(
+        candidate.source_url,
+        raw,
+        content_type,
+    )
     document_path = _persist_document(
         candidate,
         documents=documents,
         raw=raw,
         digest=digest,
-        pdf_signature=pdf_signature,
+        document_format=document_format,
     )
     base = replace(
         base,
@@ -285,15 +292,16 @@ def _recover_candidate(
         response_bytes=len(raw),
         response_sha256=digest,
         pdf_signature_valid=pdf_signature,
+        document_format=document_format,
         document_path=str(document_path) if document_path else None,
     )
     if response.status_code != 200:
         return replace(base, error=f"HTTP_{response.status_code}")
-    if not pdf_signature:
+    if document_format == "UNKNOWN":
         error = (
             "HTML_RESPONSE_REJECTED"
-            if "html" in content_type.casefold() or raw.lstrip().startswith(b"<")
-            else "PDF_SIGNATURE_MISSING"
+            if _looks_like_html(raw, content_type)
+            else "DOCUMENT_FORMAT_UNSUPPORTED"
         )
         return replace(
             base,
@@ -322,13 +330,13 @@ def _recover_candidate(
         )
     seen_hashes[digest] = candidate.source_id
     try:
-        text = _extract_pdf_text(raw)
-    except (OSError, ValueError) as exc:
+        text = _extract_document_text(raw, document_format)
+    except (OSError, UnicodeError, ValueError) as exc:
         return replace(
             base,
             text_extraction_status="FAILED",
             recovery_state="OFFICIAL_SOURCE_CONTENT_INVALID",
-            error=f"PDF_TEXT_EXTRACTION_FAILED:{type(exc).__name__}",
+            error=f"DOCUMENT_TEXT_EXTRACTION_FAILED:{type(exc).__name__}",
         )
 
     text_path, text_digest = _persist_text(candidate, extracted, digest, text)
@@ -366,17 +374,82 @@ def _base_attempt(
     )
 
 
+class _VisibleHtmlTextParser(HTMLParser):
+    """Extract visible text from an immutable official archive HTML document."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self._suppressed_depth = 0
+
+    def handle_starttag(
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+    ) -> None:
+        del attrs
+        if tag.casefold() in {"script", "style"}:
+            self._suppressed_depth += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.casefold() in {"script", "style"} and self._suppressed_depth:
+            self._suppressed_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self._suppressed_depth:
+            return
+        normalized = re.sub(r"\s+", " ", data).strip()
+        if normalized:
+            self.parts.append(normalized)
+
+
+def _looks_like_html(raw: bytes, content_type: str) -> bool:
+    prefix = raw[:2048].lstrip().lower()
+    return (
+        "html" in content_type.casefold()
+        or prefix.startswith(b"<!doctype html")
+        or prefix.startswith(b"<html")
+        or b"<body" in prefix
+    )
+
+
+def _detect_document_format(
+    source_url: str,
+    raw: bytes,
+    content_type: str,
+) -> str:
+    if raw.startswith(b"%PDF-"):
+        return "PDF"
+    suffix = Path(urlparse(source_url).path).suffix.casefold()
+    if suffix in {".htm", ".html"} and _looks_like_html(raw, content_type):
+        return "HTML"
+    return "UNKNOWN"
+
+
+def _extract_document_text(raw: bytes, document_format: str) -> str:
+    if document_format == "PDF":
+        return _extract_pdf_text(raw)
+    if document_format == "HTML":
+        parser = _VisibleHtmlTextParser()
+        parser.feed(raw.decode("utf-8", errors="replace"))
+        rendered = "\n".join(parser.parts)
+        if not rendered:
+            raise ValueError("HTML_TEXT_EMPTY")
+        return rendered
+    raise ValueError("DOCUMENT_FORMAT_UNSUPPORTED")
+
+
 def _persist_document(
     candidate: Pre2011CalendarSourceCandidate,
     *,
     documents: Path,
     raw: bytes,
     digest: str | None,
-    pdf_signature: bool,
+    document_format: str,
 ) -> Path | None:
     if not raw or digest is None:
         return None
-    suffix = ".pdf" if pdf_signature else ".bin"
+    suffix = {"PDF": ".pdf", "HTML": ".htm"}.get(document_format, ".bin")
     path = (
         documents
         / str(candidate.year)
@@ -422,7 +495,12 @@ def _validate_content(
 ) -> dict[str, bool]:
     normalized = _normalize(text)
     tokens = {
-        "CAPITAL_MARKET": ("capital market segment",),
+        "CAPITAL_MARKET": (
+            "capital market segment",
+            "capital market operations",
+            "capital market trading regulations",
+            "capital market (equities)",
+        ),
         "FUTURES_AND_OPTIONS": (
             "futures and options segment",
             "futures & options segment",
@@ -431,6 +509,9 @@ def _validate_content(
         "EXCHANGE_WIDE": ("national stock exchange of india",),
         "CROSS_SEGMENT_CORROBORATION": (
             "capital market segment",
+            "capital market operations",
+            "capital market trading regulations",
+            "capital market (equities)",
             "futures and options segment",
             "futures & options segment",
             "f&o segment",
@@ -442,6 +523,8 @@ def _validate_content(
         for pattern in (
             r"\b\d{1,2}[-/]\w{3,9}[-/]\d{2,4}\b",
             r"\b\d{4}-\d{2}-\d{2}\b",
+            r"\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b",
+            r"\b\d{1,2}(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b",
         )
     )
     return {
@@ -461,7 +544,9 @@ def _validate_content(
         ),
         "holiday_table_match": holiday_table,
         "muhurat_statement_match": (
-            not candidate.requires_muhurat_statement or "muhurat trading" in normalized
+            not candidate.requires_muhurat_statement
+            or "muhurat trading" in normalized
+            or "mahurat trading" in normalized
         ),
     }
 

@@ -57,8 +57,9 @@ The command records:
 - duplicate-document detection by SHA-256;
 - accepted, partial, or rejected recovery state.
 
-An HTTP 200 response is not accepted unless it contains a valid PDF and the
-mandatory circular-content checks pass.
+An HTTP 200 response is accepted only when it contains either a valid PDF or an
+official archive HTML document whose URL also ends in `.htm`/`.html`, and all mandatory
+circular-content checks pass. HTML returned for a PDF URL remains rejected.
 
 ## Segment boundary
 
