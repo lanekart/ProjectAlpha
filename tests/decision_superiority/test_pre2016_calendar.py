@@ -118,7 +118,10 @@ def test_calendar_certification_rejects_missing_official_years(
 def test_calendar_report_must_be_certified_and_hash_bound(tmp_path: Path) -> None:
     source = tmp_path / "official_source.json"
     source.write_text('{"covered_years":[2005]}\n', encoding="utf-8")
-    payload = _calendar_payload(source, certification_state="incomplete_official_evidence")
+    payload = _calendar_payload(
+        source,
+        certification_state="incomplete_official_evidence",
+    )
     report = tmp_path / "htr007_session_calendar.json"
     report.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 

@@ -143,17 +143,21 @@ def export_pre2016_calendar_certification(
 
     manifest_path = output / "dsi010_pre2016_calendar_manifest_audit.csv"
     with manifest_path.open("w", encoding="utf-8", newline="") as handle:
-        fieldnames = tuple(result.manifest_rows[0]) if result.manifest_rows else (
-            "trading_date",
-            "manifest_status_raw",
-            "manifest_status_normalized",
-            "calendar_classification",
-            "observed_candles",
-            "official_holiday_match",
-            "unresolved_archive_unavailable",
-            "manifest_error",
-            "source_url",
-            "relative_path",
+        fieldnames = (
+            tuple(result.manifest_rows[0])
+            if result.manifest_rows
+            else (
+                "trading_date",
+                "manifest_status_raw",
+                "manifest_status_normalized",
+                "calendar_classification",
+                "observed_candles",
+                "official_holiday_match",
+                "unresolved_archive_unavailable",
+                "manifest_error",
+                "source_url",
+                "relative_path",
+            )
         )
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
@@ -209,9 +213,7 @@ def validate_pre2016_calendar_report(
     try:
         payload = json.loads(report_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise Pre2016ExternalValidationError(
-            "PRE2016_CALENDAR_REPORT_INVALID"
-        ) from exc
+        raise Pre2016ExternalValidationError("PRE2016_CALENDAR_REPORT_INVALID") from exc
     if not isinstance(payload, dict):
         raise Pre2016ExternalValidationError("PRE2016_CALENDAR_REPORT_INVALID")
     expected_hash = payload.get("report_sha256")
@@ -236,9 +238,7 @@ def validate_pre2016_calendar_report(
             raise Pre2016ExternalValidationError("PRE2016_CALENDAR_SOURCE_INVALID")
         source_path = Path(str(row.get("source_path") or ""))
         if not source_path.is_file():
-            raise Pre2016ExternalValidationError(
-                "PRE2016_CALENDAR_SOURCE_FILE_MISSING"
-            )
+            raise Pre2016ExternalValidationError("PRE2016_CALENDAR_SOURCE_FILE_MISSING")
         if hashlib.sha256(source_path.read_bytes()).hexdigest() != str(
             row.get("source_sha256") or ""
         ):

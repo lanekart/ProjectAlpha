@@ -146,20 +146,16 @@ class GovernedPre2016ExternalValidationEngine:
             {
                 "source_role": "PRE2016_SESSION_CALENDAR",
                 "availability": "AVAILABLE",
-                "sha256": _file_sha256(sources.calendar_report),
+                "sha256": hashlib.sha256(
+                    sources.calendar_report.read_bytes()
+                ).hexdigest(),
                 "byte_size": sources.calendar_report.stat().st_size,
                 "portable_locator": sources.calendar_report.name,
                 "contract_version": calendar_payload.get("contract_version"),
                 "report_sha256": calendar_payload.get("report_sha256"),
-                "certification_state": calendar_payload.get(
-                    "certification_state"
-                ),
-                "expected_sessions": calendar_payload.get(
-                    "expected_session_count"
-                ),
-                "observed_sessions": calendar_payload.get(
-                    "observed_session_count"
-                ),
+                "certification_state": calendar_payload.get("certification_state"),
+                "expected_sessions": calendar_payload.get("expected_session_count"),
+                "observed_sessions": calendar_payload.get("observed_session_count"),
                 "used_for_decisions": True,
             },
         )
@@ -317,19 +313,11 @@ class GovernedPre2016ExternalValidationEngine:
             "market_securities": int(market["identity_key"].nunique()),
             "market_rows": len(market),
             "calendar": {
-                "contract_version": calendar_payload.get(
-                    "contract_version"
-                ),
+                "contract_version": calendar_payload.get("contract_version"),
                 "report_sha256": calendar_payload.get("report_sha256"),
-                "certification_state": calendar_payload.get(
-                    "certification_state"
-                ),
-                "expected_sessions": calendar_payload.get(
-                    "expected_session_count"
-                ),
-                "observed_sessions": calendar_payload.get(
-                    "observed_session_count"
-                ),
+                "certification_state": calendar_payload.get("certification_state"),
+                "expected_sessions": calendar_payload.get("expected_session_count"),
+                "observed_sessions": calendar_payload.get("observed_session_count"),
             },
             "incumbent": dict(incumbent_metrics),
             "challenger": dict(challenger_metrics),
