@@ -8,7 +8,9 @@ GitHub CI.
 - Repaired implementation boundary: `9db5ef7fe8de7743e5d6fe816d06dd9f7b008fd3`.
 - The implementation boundary passed Lint run `30244800365` and CI run
   `30244800404`.
-- Checklist-only publication commits after this boundary alter no DSI-010 runtime
+- The later calendar-gate boundary requires a checksum-valid certified NSE session
+  calendar covering exactly 2005-01-01 through 2015-12-31 before market replay.
+- Checklist-only publication commits after source boundaries alter no DSI-010 runtime
   behavior.
 
 ## Immutable inputs
@@ -19,6 +21,19 @@ GitHub CI.
 - [ ] Frozen challenger identity is exactly `STOP-STRUCTURAL-10D`.
 - [ ] External protocol is exactly 2005-01-01 through 2015-12-31.
 - [ ] No observation dated 2016-01-01 or later is admitted.
+
+## Official session calendar
+
+- [ ] Every year from 2005 through 2015 has an immutable official NSE source.
+- [ ] Each official source file exists and its SHA-256 matches the calendar report.
+- [ ] The calendar report starts on 2005-01-01 and ends on 2015-12-31.
+- [ ] Calendar certification state is `certified`.
+- [ ] Lowercase manifest states such as `unavailable` are normalized before comparison.
+- [ ] All archive-unavailable weekdays reconcile to official holidays.
+- [ ] Every official special session has observed candles.
+- [ ] No observed candle is classified as an official holiday.
+- [ ] Unresolved weekdays, missing special sessions and conflicts are all zero.
+- [ ] The final DSI-010 runner rejects a missing, uncertified or tampered calendar.
 
 ## Market data
 
