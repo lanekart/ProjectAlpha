@@ -1,7 +1,7 @@
 # DSI-010 External-Era Acceptance Checklist
 
 Use this checklist only after the DSI-010 source boundary is green in permanent
-GitHub CI.
+GitHub CI. Source formatting is bound to locked Ruff `0.15.20`.
 
 ## Immutable inputs
 
