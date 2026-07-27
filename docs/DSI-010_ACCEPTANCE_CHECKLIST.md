@@ -1,7 +1,7 @@
 # DSI-010 External-Era Acceptance Checklist
 
 Use this checklist only after the DSI-010 source boundary is green in permanent
-GitHub CI. Source formatting is bound to locked Ruff `0.15.20`.
+GitHub CI.
 
 ## Immutable inputs
 
@@ -14,7 +14,9 @@ GitHub CI. Source formatting is bound to locked Ruff `0.15.20`.
 
 ## Market data
 
-- [ ] Official NSE archives are downloaded through the governed backfill command.
+- [ ] Official NSE archives are populated through the governed Historical Truth command.
+- [ ] `LEGACY_INGESTION_DATABASE_USED=false` is printed by the backfill command.
+- [ ] `DOWNSTREAM_GOVERNED_A_TO_B_REBUILD_REQUIRED=true` is retained after raw population.
 - [ ] Historical Truth contains adjusted candles and adjustment lineage.
 - [ ] Identity and membership intervals are point-in-time complete.
 - [ ] Corporate-action and price-basis evidence is reconciled.
@@ -24,7 +26,10 @@ GitHub CI. Source formatting is bound to locked Ruff `0.15.20`.
 ## Benchmark
 
 - [ ] Nifty 500 TRI provenance is recorded.
+- [ ] The adjacent `.provenance.json` sidecar validates against the benchmark SHA-256.
+- [ ] Official `Date` and `TotalReturnsIndex` columns are accepted.
 - [ ] Benchmark dates align with governed market sessions.
+- [ ] Missing governed benchmark sessions remain explicit partial coverage.
 - [ ] A price index is never labelled as a total-return index.
 - [ ] Benchmark source and file hashes are retained.
 
@@ -62,6 +67,7 @@ GitHub CI. Source formatting is bound to locked Ruff `0.15.20`.
 - [ ] Certificate validates with `require_ready=False`.
 - [ ] A ready certificate validates with `require_ready=True`.
 - [ ] Executive report and certificate SHA-256 values are recorded.
+- [ ] Locked Ruff version is `0.15.20`.
 
 ## Governance
 
