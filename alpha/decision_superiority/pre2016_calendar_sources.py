@@ -283,7 +283,17 @@ def _count_by_year(
 ) -> dict[int, int]:
     counts: dict[int, int] = {}
     for row in rows:
-        year = int(row["calendar_year"])
+        raw_year = row["calendar_year"]
+        if isinstance(raw_year, bool) or not isinstance(raw_year, (int, str)):
+            raise Pre2016ExternalValidationError(
+                "PRE2016_DISCOVERY_CALENDAR_YEAR_INVALID"
+            )
+        try:
+            year = int(raw_year)
+        except ValueError as exc:
+            raise Pre2016ExternalValidationError(
+                "PRE2016_DISCOVERY_CALENDAR_YEAR_INVALID"
+            ) from exc
         counts[year] = counts.get(year, 0) + 1
     return counts
 
