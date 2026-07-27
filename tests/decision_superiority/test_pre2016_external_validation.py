@@ -120,7 +120,7 @@ def test_challenger_changes_only_initial_stop() -> None:
     assert challenger.loc[0, "target_1"] == 120.0
     assert challenger.loc[0, "target_2"] == 130.0
     assert challenger.loc[0, "target_3"] == 140.0
-    assert challenger.loc[0, "external_data_used_for_stop_selection"] is False
+    assert not bool(challenger.loc[0, "external_data_used_for_stop_selection"])
 
 
 def test_external_classification_requires_sufficient_sample() -> None:
