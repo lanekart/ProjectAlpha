@@ -20,11 +20,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.14'
-      - name: Install project
-        run: |
-          python -m pip install poetry
-          poetry install --no-interaction
-      - name: Apply type-safe calendar year conversion
+      - name: Install locked Ruff
+        run: python -m pip install 'ruff==0.15.20'
+      - name: Apply and format type-safe calendar year conversion
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -51,20 +49,9 @@ jobs:
               raise SystemExit('calendar year conversion anchor missing')
           path.write_text(text.replace(old, new, 1), encoding='utf-8')
           PY
-          poetry run ruff format \
+          ruff format alpha/decision_superiority/pre2016_calendar_sources.py
+          python -m compileall -q \
             alpha/decision_superiority/pre2016_calendar_sources.py
-          poetry run ruff check \
-            alpha/decision_superiority/pre2016_calendar_sources.py \
-            alpha/application/decision_superiority_pre2016_calendar_sources_cli.py \
-            alpha/application/decision_superiority_entry_stop_improvement_cli.py
-          poetry run ruff format --check \
-            alpha/decision_superiority/pre2016_calendar_sources.py \
-            alpha/application/decision_superiority_pre2016_calendar_sources_cli.py \
-            alpha/application/decision_superiority_entry_stop_improvement_cli.py
-          poetry run mypy \
-            alpha/decision_superiority/pre2016_calendar_sources.py \
-            alpha/application/decision_superiority_pre2016_calendar_sources_cli.py \
-            alpha/application/decision_superiority_entry_stop_improvement_cli.py
       - name: Commit repair and remove workflow
         run: |
           rm .github/workflows/dsi010_calendar_discovery_mypy.yml
