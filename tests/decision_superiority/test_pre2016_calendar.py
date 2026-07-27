@@ -73,6 +73,11 @@ def test_lowercase_unavailable_manifest_status_is_reconciled(
         "CanonicalPointInTimeWarehouse",
         lambda _: object(),
     )
+    monkeypatch.setattr(
+        pre2016_calendar,
+        "validate_hash_bound_official_calendar_source",
+        lambda *_args, **_kwargs: {},
+    )
 
     result = certify_pre2016_calendar(
         database=database,
@@ -102,6 +107,11 @@ def test_calendar_certification_rejects_missing_official_years(
         pre2016_calendar.OfficialSessionCalendarEngine,
         "load_source",
         lambda _: SimpleNamespace(covered_years=(2015,)),
+    )
+    monkeypatch.setattr(
+        pre2016_calendar,
+        "validate_hash_bound_official_calendar_source",
+        lambda *_args, **_kwargs: {},
     )
 
     with pytest.raises(
