@@ -23,6 +23,9 @@ from alpha.decision_superiority.entry_stop_improvement_artifacts import (
 from alpha.decision_superiority.pre2016_benchmark import (
     load_pre2016_governed_tri,
 )
+from alpha.decision_superiority.pre2016_calendar import (
+    validate_pre2016_calendar_report,
+)
 from alpha.decision_superiority.pre2016_external_validation_models import (
     DSI010_FROZEN_CHALLENGER_ID,
     ExternalValidationClassification,
@@ -109,6 +112,10 @@ class GovernedPre2016ExternalValidationEngine:
             sources.dsi007_certificate,
             require_ready=False,
         )
+        calendar_payload = validate_pre2016_calendar_report(
+            sources.calendar_report,
+            require_certified=True,
+        )
         frozen_contract_rows = _validate_frozen_candidate(
             sources=sources,
             dsi009=dsi009,
@@ -134,6 +141,28 @@ class GovernedPre2016ExternalValidationEngine:
             raise Pre2016ExternalValidationError(
                 "NO_GOVERNED_PRE2016_MARKET_POPULATION"
             )
+        source_rows = (
+            *source_rows,
+            {
+                "source_role": "PRE2016_SESSION_CALENDAR",
+                "availability": "AVAILABLE",
+                "sha256": _file_sha256(sources.calendar_report),
+                "byte_size": sources.calendar_report.stat().st_size,
+                "portable_locator": sources.calendar_report.name,
+                "contract_version": calendar_payload.get("contract_version"),
+                "report_sha256": calendar_payload.get("report_sha256"),
+                "certification_state": calendar_payload.get(
+                    "certification_state"
+                ),
+                "expected_sessions": calendar_payload.get(
+                    "expected_session_count"
+                ),
+                "observed_sessions": calendar_payload.get(
+                    "observed_session_count"
+                ),
+                "used_for_decisions": True,
+            },
+        )
         featured, regime_daily, regime_transitions = _build_point_in_time_features(
             market
         )
@@ -287,6 +316,21 @@ class GovernedPre2016ExternalValidationEngine:
             "market_sessions": int(market["trading_date"].nunique()),
             "market_securities": int(market["identity_key"].nunique()),
             "market_rows": len(market),
+            "calendar": {
+                "contract_version": calendar_payload.get(
+                    "contract_version"
+                ),
+                "report_sha256": calendar_payload.get("report_sha256"),
+                "certification_state": calendar_payload.get(
+                    "certification_state"
+                ),
+                "expected_sessions": calendar_payload.get(
+                    "expected_session_count"
+                ),
+                "observed_sessions": calendar_payload.get(
+                    "observed_session_count"
+                ),
+            },
             "incumbent": dict(incumbent_metrics),
             "challenger": dict(challenger_metrics),
             "benchmark": benchmark_metrics,
