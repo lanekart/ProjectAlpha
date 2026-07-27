@@ -152,17 +152,19 @@ def export_pre2016_holiday_api_probe(
     summary_path = output / "dsi010_pre2016_holiday_api_probe_summary.json"
 
     with attempts_path.open("w", encoding="utf-8", newline="") as handle:
-        fieldnames = tuple(asdict(result.attempts[0])) if result.attempts else (
-            "year",
-            "variant_id",
+        fieldnames = (
+            tuple(asdict(result.attempts[0]))
+            if result.attempts
+            else (
+                "year",
+                "variant_id",
+            )
         )
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         for attempt in result.attempts:
             row = asdict(attempt)
-            row["covered_years"] = ";".join(
-                str(year) for year in attempt.covered_years
-            )
+            row["covered_years"] = ";".join(str(year) for year in attempt.covered_years)
             writer.writerow(row)
 
     summary = {
@@ -205,11 +207,7 @@ def _probe_attempt(
         digest = hashlib.sha256(raw).hexdigest()
         content_type = str(response.headers.get("Content-Type") or "")
         suffix = ".json" if "json" in content_type.lower() else ".txt"
-        raw_path = (
-            raw_root
-            / str(year)
-            / f"{variant_id.lower()}_{digest[:12]}{suffix}"
-        )
+        raw_path = raw_root / str(year) / f"{variant_id.lower()}_{digest[:12]}{suffix}"
         raw_path.parent.mkdir(parents=True, exist_ok=True)
         if raw_path.exists() and raw_path.read_bytes() != raw:
             raise Pre2016ExternalValidationError(

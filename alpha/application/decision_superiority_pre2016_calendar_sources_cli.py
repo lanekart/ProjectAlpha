@@ -22,9 +22,7 @@ from alpha.decision_superiority.pre2016_external_validation_models import (
 )
 
 DEFAULT_DSI010_DISCOVERY_OUTPUT = Path("artifacts/dsi010_pre2016_calendar_discovery")
-DEFAULT_DSI010_API_PROBE_OUTPUT = Path(
-    "artifacts/dsi010_pre2016_holiday_api_probe"
-)
+DEFAULT_DSI010_API_PROBE_OUTPUT = Path("artifacts/dsi010_pre2016_holiday_api_probe")
 
 
 def register_decision_superiority_pre2016_calendar_source_commands(
@@ -117,10 +115,7 @@ def decision_superiority_pre2016_calendar_api_probe(
     typer.echo(f"Accepted Years: {accepted}")
     typer.echo(f"Missing Years: {missing}")
     typer.echo(f"Probe Attempts: {len(result.attempts)}")
-    typer.echo(
-        "HISTORICAL_YEAR_API_SUPPORT="
-        f"{str(not result.missing_years).lower()}"
-    )
+    typer.echo(f"HISTORICAL_YEAR_API_SUPPORT={str(not result.missing_years).lower()}")
     typer.echo("UNSUPPORTED_OR_CURRENT_YEAR_PAYLOADS_REJECTED=true")
     typer.echo("CALENDAR_CERTIFICATION_PERMITTED=false")
     typer.echo("PRODUCTION_INFLUENCE=false")
