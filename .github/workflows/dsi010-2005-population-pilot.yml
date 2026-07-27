@@ -1,0 +1,170 @@
+name: DSI-010 2005 Population Pilot
+
+on:
+  push:
+    branches:
+      - feature/dsi-010-pre2016-external-era-validation
+    paths:
+      - .github/workflows/dsi010-2005-population-pilot.yml
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-2005-population-pilot.yml
+
+permissions:
+  contents: read
+
+jobs:
+  populate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Populate governed 2005 Historical Truth
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+        run: |
+          mkdir -p artifacts/dsi010_2005_population_pilot
+          poetry run python -m alpha benchmark \
+            decision-superiority-pre2016-archive-backfill \
+            --start 2005-01-01 \
+            --end 2005-12-31 \
+            --root alpha_data \
+            --output-dir artifacts/dsi010_2005_population_pilot \
+            --retry-failed \
+            | tee artifacts/dsi010_2005_population_pilot_console.log
+      - name: Regenerate reviewed 2005 sources
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+        run: |
+          poetry run python -m alpha benchmark \
+            decision-superiority-pre2016-calendar-source-recovery \
+            --candidate-registry config/dsi010_pre2011_official_calendar_candidates.json \
+            --output artifacts/dsi010_2005_pilot_official_sources \
+            --timeout-seconds 45
+          poetry run python scripts/build_dsi010_pre2011_reviewed_sources.py \
+            --recovery-root artifacts/dsi010_2005_pilot_official_sources \
+            --output-root artifacts/dsi010_2005_pilot_reviewed_sources
+      - name: Audit 2005 calendar and store footprint
+        run: |
+          set -o pipefail
+          poetry run python - <<'PY' 2>&1 | tee artifacts/dsi010_2005_population_pilot_audit.log
+          from __future__ import annotations
+
+          import json
+          from collections import Counter
+          from datetime import date
+          from pathlib import Path
+
+          import duckdb
+
+          from alpha.historical_truth.canonical import CanonicalPointInTimeWarehouse
+          from alpha.historical_truth.session_calendar import OfficialSessionCalendarEngine
+
+          root = Path("alpha_data")
+          database = root / "warehouse" / "historical_truth.duckdb"
+          manifest = root / "manifests" / "archive_manifest.jsonl"
+          if not database.is_file() or not manifest.is_file():
+              raise SystemExit("PILOT_GOVERNED_STORE_MISSING")
+
+          source_paths = sorted(
+              Path("artifacts/dsi010_2005_pilot_reviewed_sources/sources").glob(
+                  "nse_2005_*.json"
+              )
+          )
+          if len(source_paths) != 3:
+              raise SystemExit(f"EXPECTED_3_REVIEWED_2005_SOURCES_FOUND_{len(source_paths)}")
+          sources = tuple(OfficialSessionCalendarEngine.load_source(path) for path in source_paths)
+          canonical = CanonicalPointInTimeWarehouse(database)
+          engine = OfficialSessionCalendarEngine(canonical)
+          report = engine.reconcile(date(2005, 1, 1), date(2005, 12, 31), sources)
+          calendar_paths = engine.export(
+              report,
+              Path("artifacts/dsi010_2005_population_pilot/calendar"),
+          )
+
+          with duckdb.connect(str(database), read_only=True) as connection:
+              row = connection.execute(
+                  """
+                  select count(*), count(distinct trading_date),
+                         min(trading_date), max(trading_date)
+                  from daily_candle
+                  where exchange = 'nse'
+                    and trading_date between date '2005-01-01' and date '2005-12-31'
+                  """
+              ).fetchone()
+          if row is None:
+              raise SystemExit("PILOT_DATABASE_QUERY_EMPTY")
+
+          latest: dict[str, dict[str, object]] = {}
+          for line in manifest.read_text(encoding="utf-8").splitlines():
+              if not line.strip():
+                  continue
+              payload = json.loads(line)
+              if str(payload.get("trading_date", "")).startswith("2005-"):
+                  latest[str(payload["trading_date"])] = payload
+          status_counts = Counter(str(payload.get("status")) for payload in latest.values())
+
+          def size(path: Path) -> int:
+              if path.is_file():
+                  return path.stat().st_size
+              return sum(item.stat().st_size for item in path.rglob("*") if item.is_file())
+
+          summary = {
+              "pilot_year": 2005,
+              "database_path": str(database),
+              "database_bytes": size(database),
+              "manifest_path": str(manifest),
+              "manifest_bytes": size(manifest),
+              "raw_archive_bytes": size(root / "raw"),
+              "snapshot_bytes": size(root / "snapshots"),
+              "staging_bytes": size(root / "staging"),
+              "daily_candle_rows": int(row[0]),
+              "observed_sessions": int(row[1]),
+              "first_observed_session": str(row[2]) if row[2] else None,
+              "last_observed_session": str(row[3]) if row[3] else None,
+              "latest_manifest_status_counts": dict(sorted(status_counts.items())),
+              "calendar_certification_state": report.certification_state.value,
+              "calendar_official_holidays": report.official_holiday_count,
+              "calendar_special_sessions": report.official_special_session_count,
+              "calendar_expected_sessions": report.expected_session_count,
+              "calendar_observed_sessions": report.observed_session_count,
+              "calendar_unresolved_weekdays": report.unresolved_weekday_count,
+              "calendar_unconfirmed_special_sessions": report.unconfirmed_special_session_count,
+              "calendar_missing_special_sessions": report.missing_special_session_count,
+              "calendar_conflicts": report.conflict_count,
+              "calendar_report_sha256": report.report_sha256,
+              "calendar_artifacts": [str(path) for path in calendar_paths],
+              "full_2005_2015_audit_performed": False,
+              "calendar_certification_permitted": False,
+              "production_influence": False,
+          }
+          output = Path("artifacts/dsi010_2005_population_pilot/pilot_summary.json")
+          output.write_text(
+              json.dumps(summary, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print("===== DSI-010 2005 POPULATION PILOT =====")
+          for key, value in summary.items():
+              print(f"{key}: {value}")
+          PY
+      - name: Upload governed pilot store
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-2005-population-pilot
+          path: |
+            alpha_data
+            artifacts/dsi010_2005_population_pilot
+            artifacts/dsi010_2005_population_pilot_console.log
+            artifacts/dsi010_2005_population_pilot_audit.log
+            artifacts/dsi010_2005_pilot_official_sources
+            artifacts/dsi010_2005_pilot_reviewed_sources
+          if-no-files-found: warn
+          retention-days: 14
