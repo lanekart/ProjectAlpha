@@ -61,9 +61,7 @@ def populate_pre2016_historical_truth(
         trading_date < start or trading_date > end
         for trading_date in governed_special_sessions
     ):
-        raise Pre2016PopulationError(
-            "PRE2016_POPULATION_SPECIAL_SESSION_OUTSIDE_RANGE"
-        )
+        raise Pre2016PopulationError("PRE2016_POPULATION_SPECIAL_SESSION_OUTSIDE_RANGE")
 
     root = root.expanduser().resolve()
     output_dir = output_dir.expanduser().resolve()
