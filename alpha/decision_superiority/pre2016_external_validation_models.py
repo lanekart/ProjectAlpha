@@ -74,6 +74,7 @@ class Pre2016ExternalValidationSourcePaths:
 
     dsi009_certificate: Path
     dsi007_certificate: Path
+    calendar_report: Path
     database: Path
     historical_truth_snapshots: Path
     benchmark: Path
