@@ -27,6 +27,15 @@ _ALLOWED_OFFICIAL_HOSTS = frozenset(
     }
 )
 _ALLOWED_CLASSIFICATIONS = frozenset({"HOLIDAY", "SPECIAL_SESSION"})
+_ALLOWED_SEGMENT_SCOPES = frozenset(
+    {
+        "CAPITAL_MARKET",
+        "FUTURES_AND_OPTIONS",
+        "EXCHANGE_WIDE",
+        "CROSS_SEGMENT_CORROBORATION",
+        "UNKNOWN",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,17 +183,37 @@ def build_reviewed_official_calendar_source(
     source_id: str,
     covered_years: tuple[int, ...],
     output: Path,
+    segment_scope: str = "UNKNOWN",
+    extracted_text: Path | None = None,
+    content_validation: Path | None = None,
+    content_validation_passed: bool = True,
+    manual_review_completed: bool = True,
 ) -> Path:
-    """Normalize reviewed rows into the existing official calendar source contract."""
+    """Normalize reviewed rows into the official calendar source contract."""
 
     if not review_csv.is_file():
         raise Pre2016ExternalValidationError("PRE2016_CALENDAR_REVIEW_CSV_MISSING")
     if not source_document.is_file():
         raise Pre2016ExternalValidationError("PRE2016_OFFICIAL_DOCUMENT_MISSING")
+    if extracted_text is not None and not extracted_text.is_file():
+        raise Pre2016ExternalValidationError("PRE2016_EXTRACTED_TEXT_MISSING")
+    if content_validation is not None and not content_validation.is_file():
+        raise Pre2016ExternalValidationError("PRE2016_CONTENT_VALIDATION_MISSING")
     _validate_official_url(source_url)
     normalized_source_id = source_id.strip()
     if not normalized_source_id:
         raise Pre2016ExternalValidationError("PRE2016_OFFICIAL_SOURCE_ID_EMPTY")
+    normalized_scope = segment_scope.strip().upper()
+    if normalized_scope not in _ALLOWED_SEGMENT_SCOPES:
+        raise Pre2016ExternalValidationError("PRE2016_SEGMENT_SCOPE_INVALID")
+    if not content_validation_passed:
+        raise Pre2016ExternalValidationError(
+            "PRE2016_OFFICIAL_SOURCE_CONTENT_VALIDATION_FAILED"
+        )
+    if not manual_review_completed:
+        raise Pre2016ExternalValidationError(
+            "PRE2016_OFFICIAL_SOURCE_MANUAL_REVIEW_INCOMPLETE"
+        )
     years = tuple(sorted(set(covered_years)))
     if not years:
         raise Pre2016ExternalValidationError("PRE2016_OFFICIAL_COVERED_YEARS_EMPTY")
@@ -204,6 +233,16 @@ def build_reviewed_official_calendar_source(
         review_state = str(row.get("review_state") or "").strip().upper()
         if review_state != "VERIFIED_OFFICIAL_EVIDENCE":
             raise Pre2016ExternalValidationError("PRE2016_CALENDAR_REVIEW_NOT_VERIFIED")
+        row_scope = str(row.get("segment_scope") or "").strip().upper()
+        if row_scope and row_scope != normalized_scope:
+            raise Pre2016ExternalValidationError(
+                "PRE2016_CALENDAR_REVIEW_SEGMENT_SCOPE_MISMATCH"
+            )
+        row_source_id = str(row.get("source_id") or "").strip()
+        if row_source_id and row_source_id != normalized_source_id:
+            raise Pre2016ExternalValidationError(
+                "PRE2016_CALENDAR_REVIEW_SOURCE_ID_MISMATCH"
+            )
         classification = str(row.get("classification") or "").strip().upper()
         if classification not in _ALLOWED_CLASSIFICATIONS:
             raise Pre2016ExternalValidationError(
@@ -238,10 +277,12 @@ def build_reviewed_official_calendar_source(
         else:
             special_sessions.append(record)
 
-    payload = {
+    payload: dict[str, object] = {
         "source_id": normalized_source_id,
         "source_url": source_url,
+        "calendar_year": years[0] if len(years) == 1 else None,
         "covered_years": list(years),
+        "segment_scope": normalized_scope,
         "holidays": sorted(holidays, key=lambda row: row["trading_date"]),
         "special_sessions": sorted(
             special_sessions,
@@ -251,6 +292,22 @@ def build_reviewed_official_calendar_source(
         "source_document_sha256": _sha256(source_document),
         "review_csv_path": str(review_csv.resolve()),
         "review_csv_sha256": _sha256(review_csv),
+        "extracted_text_path": (
+            str(extracted_text.resolve()) if extracted_text is not None else None
+        ),
+        "extracted_text_sha256": (
+            _sha256(extracted_text) if extracted_text is not None else None
+        ),
+        "content_validation_path": (
+            str(content_validation.resolve())
+            if content_validation is not None
+            else None
+        ),
+        "content_validation_sha256": (
+            _sha256(content_validation) if content_validation is not None else None
+        ),
+        "content_validation_passed": content_validation_passed,
+        "manual_review_completed": manual_review_completed,
         "classification_inferred_from_archive_status": False,
         "classification_inferred_from_observed_candles": False,
         "production_influence": False,
@@ -261,6 +318,108 @@ def build_reviewed_official_calendar_source(
         encoding="utf-8",
     )
     return output
+
+
+def validate_hash_bound_official_calendar_source(
+    source_path: Path,
+    *,
+    require_capital_market_scope: bool = False,
+) -> dict[str, object]:
+    """Validate all governed files and scope before a source is consumed."""
+
+    if not source_path.is_file():
+        raise Pre2016ExternalValidationError("PRE2016_OFFICIAL_SOURCE_FILE_MISSING")
+    try:
+        payload = json.loads(source_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise Pre2016ExternalValidationError("PRE2016_OFFICIAL_SOURCE_INVALID") from exc
+    if not isinstance(payload, dict):
+        raise Pre2016ExternalValidationError("PRE2016_OFFICIAL_SOURCE_INVALID")
+    _validate_bound_path(
+        payload,
+        path_key="source_document_path",
+        hash_key="source_document_sha256",
+        missing_code="PRE2016_OFFICIAL_DOCUMENT_MISSING",
+        mismatch_code="PRE2016_OFFICIAL_DOCUMENT_HASH_MISMATCH",
+        required=True,
+    )
+    _validate_bound_path(
+        payload,
+        path_key="review_csv_path",
+        hash_key="review_csv_sha256",
+        missing_code="PRE2016_CALENDAR_REVIEW_CSV_MISSING",
+        mismatch_code="PRE2016_CALENDAR_REVIEW_HASH_MISMATCH",
+        required=True,
+    )
+    _validate_bound_path(
+        payload,
+        path_key="extracted_text_path",
+        hash_key="extracted_text_sha256",
+        missing_code="PRE2016_EXTRACTED_TEXT_MISSING",
+        mismatch_code="PRE2016_EXTRACTED_TEXT_HASH_MISMATCH",
+        required=False,
+    )
+    _validate_bound_path(
+        payload,
+        path_key="content_validation_path",
+        hash_key="content_validation_sha256",
+        missing_code="PRE2016_CONTENT_VALIDATION_MISSING",
+        mismatch_code="PRE2016_CONTENT_VALIDATION_HASH_MISMATCH",
+        required=False,
+    )
+    if payload.get("content_validation_passed") is not True:
+        raise Pre2016ExternalValidationError(
+            "PRE2016_OFFICIAL_SOURCE_CONTENT_VALIDATION_FAILED"
+        )
+    if payload.get("manual_review_completed") is not True:
+        raise Pre2016ExternalValidationError(
+            "PRE2016_OFFICIAL_SOURCE_MANUAL_REVIEW_INCOMPLETE"
+        )
+    if payload.get("classification_inferred_from_archive_status") is not False:
+        raise Pre2016ExternalValidationError(
+            "PRE2016_CALENDAR_ARCHIVE_STATUS_INFERENCE_FORBIDDEN"
+        )
+    if payload.get("classification_inferred_from_observed_candles") is not False:
+        raise Pre2016ExternalValidationError(
+            "PRE2016_CALENDAR_CANDLE_INFERENCE_FORBIDDEN"
+        )
+    if payload.get("production_influence") is not False:
+        raise Pre2016ExternalValidationError(
+            "PRE2016_OFFICIAL_SOURCE_PRODUCTION_INFLUENCE_FORBIDDEN"
+        )
+    scope = str(payload.get("segment_scope") or "UNKNOWN").strip().upper()
+    if scope not in _ALLOWED_SEGMENT_SCOPES:
+        raise Pre2016ExternalValidationError("PRE2016_SEGMENT_SCOPE_INVALID")
+    if require_capital_market_scope and scope not in {
+        "CAPITAL_MARKET",
+        "EXCHANGE_WIDE",
+    }:
+        raise Pre2016ExternalValidationError(
+            "PRE2016_CAPITAL_MARKET_SEGMENT_SCOPE_INSUFFICIENT"
+        )
+    return {str(key): value for key, value in payload.items()}
+
+
+def _validate_bound_path(
+    payload: dict[str, object],
+    *,
+    path_key: str,
+    hash_key: str,
+    missing_code: str,
+    mismatch_code: str,
+    required: bool,
+) -> None:
+    raw_path = payload.get(path_key)
+    raw_hash = payload.get(hash_key)
+    if raw_path is None and raw_hash is None and not required:
+        return
+    if not raw_path or not raw_hash:
+        raise Pre2016ExternalValidationError(missing_code)
+    path = Path(str(raw_path))
+    if not path.is_file():
+        raise Pre2016ExternalValidationError(missing_code)
+    if _sha256(path) != str(raw_hash):
+        raise Pre2016ExternalValidationError(mismatch_code)
 
 
 def _latest_manifest_rows(manifest: Path) -> dict[date, dict[str, object]]:
@@ -327,4 +486,5 @@ __all__ = [
     "build_reviewed_official_calendar_source",
     "discover_pre2016_calendar_evidence",
     "export_pre2016_calendar_discovery",
+    "validate_hash_bound_official_calendar_source",
 ]
