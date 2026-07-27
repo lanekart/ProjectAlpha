@@ -1,12 +1,10 @@
 name: DSI-010 2005 Population Pilot
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - feature/dsi-010-pre2016-external-era-validation
-    paths:
-      - .github/workflows/dsi010-2005-population-pilot.yml
-  pull_request:
     paths:
       - .github/workflows/dsi010-2005-population-pilot.yml
 
