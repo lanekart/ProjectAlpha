@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 from __future__ import annotations
 
 from pathlib import Path
@@ -89,7 +90,30 @@ def patch_cli() -> None:
         "generic recovery heading",
     )
     marker = "\n\ndef decision_superiority_pre2016_calendar_source_build(\n"
-    function = '''\n\ndef decision_superiority_pre2016_calendar_source_recovery(\n    candidate_registry: Annotated[\n        Path,\n        typer.Option("--candidate-registry"),\n    ],\n    output: Annotated[\n        Path,\n        typer.Option("--output"),\n    ] = DEFAULT_DSI010_PRE2016_RECOVERY_OUTPUT,\n    timeout_seconds: Annotated[\n        float,\n        typer.Option("--timeout-seconds", min=1.0),\n    ] = 30.0,\n) -> None:\n    """Recover official NSE calendar circulars across the DSI-010 period."""\n\n    decision_superiority_pre2011_calendar_source_recovery(\n        candidate_registry=candidate_registry,\n        output=output,\n        timeout_seconds=timeout_seconds,\n    )\n'''
+    function = '''
+
+def decision_superiority_pre2016_calendar_source_recovery(
+    candidate_registry: Annotated[
+        Path,
+        typer.Option("--candidate-registry"),
+    ],
+    output: Annotated[
+        Path,
+        typer.Option("--output"),
+    ] = DEFAULT_DSI010_PRE2016_RECOVERY_OUTPUT,
+    timeout_seconds: Annotated[
+        float,
+        typer.Option("--timeout-seconds", min=1.0),
+    ] = 30.0,
+) -> None:
+    """Recover official NSE calendar circulars across the DSI-010 period."""
+
+    decision_superiority_pre2011_calendar_source_recovery(
+        candidate_registry=candidate_registry,
+        output=output,
+        timeout_seconds=timeout_seconds,
+    )
+'''
     if function.strip() not in text:
         if marker not in text:
             raise RuntimeError("PATCH_TARGET_MISSING:generic recovery function")
@@ -99,7 +123,19 @@ def patch_cli() -> None:
 
 def patch_docs() -> None:
     text = DOCS.read_text(encoding="utf-8")
-    addition = '''\n## 2011-2015 extension\n\nThe recovery engine also accepts governed candidates through calendar year 2015.\nThe permanent generic command is:\n\n```text\ndecision-superiority-pre2016-calendar-source-recovery\n```\n\nThe legacy `pre2011` command remains registered as a compatibility alias. Calendar\nyear 2016 and later remain outside the signed DSI-010 external period.\n'''
+    addition = '''
+## 2011-2015 extension
+
+The recovery engine also accepts governed candidates through calendar year 2015.
+The permanent generic command is:
+
+```text
+decision-superiority-pre2016-calendar-source-recovery
+```
+
+The legacy `pre2011` command remains registered as a compatibility alias. Calendar
+year 2016 and later remain outside the signed DSI-010 external period.
+'''
     if "## 2011-2015 extension" not in text:
         text = text.rstrip() + "\n" + addition
     DOCS.write_text(text, encoding="utf-8")
