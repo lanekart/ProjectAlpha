@@ -26,6 +26,14 @@ jobs:
           python-version: "3.14"
       - run: pip install poetry
       - run: poetry install --no-interaction
+      - name: Validate pilot execution environment
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+        run: |
+          df -h .
+          poetry run python -m alpha benchmark \
+            decision-superiority-pre2016-archive-backfill \
+            --help
       - name: Populate governed 2005 Historical Truth
         env:
           _TYPER_FORCE_DISABLE_TERMINAL: "1"
@@ -39,7 +47,7 @@ jobs:
             --root alpha_data \
             --output-dir artifacts/dsi010_2005_population_pilot \
             --retry-failed \
-            | tee artifacts/dsi010_2005_population_pilot_console.log
+            2>&1 | tee artifacts/dsi010_2005_population_pilot_console.log
       - name: Regenerate reviewed 2005 sources
         env:
           _TYPER_FORCE_DISABLE_TERMINAL: "1"
@@ -50,11 +58,11 @@ jobs:
             --candidate-registry config/dsi010_pre2011_official_calendar_candidates.json \
             --output artifacts/dsi010_2005_pilot_official_sources \
             --timeout-seconds 45 \
-            | tee artifacts/dsi010_2005_pilot_official_sources_console.log
+            2>&1 | tee artifacts/dsi010_2005_pilot_official_sources_console.log
           poetry run python scripts/build_dsi010_pre2011_reviewed_sources.py \
             --recovery-root artifacts/dsi010_2005_pilot_official_sources \
             --output-root artifacts/dsi010_2005_pilot_reviewed_sources \
-            | tee artifacts/dsi010_2005_pilot_reviewed_sources_console.log
+            2>&1 | tee artifacts/dsi010_2005_pilot_reviewed_sources_console.log
       - name: Audit 2005 calendar and store footprint
         run: |
           set -o pipefail
