@@ -34,20 +34,36 @@ jobs:
           poetry run python -m alpha benchmark \
             decision-superiority-pre2016-archive-backfill \
             --help
-      - name: Populate governed 2005 Historical Truth
-        env:
-          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+      - name: Populate governed 2005 Historical Truth diagnostic subperiod
         run: |
           set -o pipefail
           mkdir -p artifacts/dsi010_2005_population_pilot
-          poetry run python -m alpha benchmark \
-            decision-superiority-pre2016-archive-backfill \
-            --start 2005-01-01 \
-            --end 2005-12-31 \
-            --root alpha_data \
-            --output-dir artifacts/dsi010_2005_population_pilot \
-            --retry-failed \
-            2>&1 | tee artifacts/dsi010_2005_population_pilot_console.log
+          poetry run python - <<'PY' 2>&1 | tee artifacts/dsi010_2005_population_pilot_console.log
+          from __future__ import annotations
+
+          from dataclasses import asdict
+          from datetime import date
+          from pathlib import Path
+
+          from alpha.decision_superiority.pre2016_population import (
+              populate_pre2016_historical_truth,
+          )
+
+          result = populate_pre2016_historical_truth(
+              root=Path("alpha_data"),
+              output_dir=Path("artifacts/dsi010_2005_population_pilot"),
+              start=date(2005, 1, 1),
+              end=date(2005, 12, 31),
+              retry_failed=True,
+          )
+          print("===== DSI-010 2005 GOVERNED POPULATION PILOT =====")
+          for key, value in asdict(result).items():
+              print(f"{key}: {value}")
+          print("SIGNED_FULL_PERIOD_COMMAND_EXECUTED=false")
+          print("DIAGNOSTIC_SUBPERIOD_PILOT=true")
+          print("CALENDAR_CERTIFICATION_PERMITTED=false")
+          print("PRODUCTION_INFLUENCE=false")
+          PY
       - name: Regenerate reviewed 2005 sources
         env:
           _TYPER_FORCE_DISABLE_TERMINAL: "1"
@@ -153,6 +169,8 @@ jobs:
               "calendar_conflicts": report.conflict_count,
               "calendar_report_sha256": report.report_sha256,
               "calendar_artifacts": [str(path) for path in calendar_paths],
+              "signed_full_period_command_executed": False,
+              "diagnostic_subperiod_pilot": True,
               "full_2005_2015_audit_performed": False,
               "calendar_certification_permitted": False,
               "production_influence": False,
