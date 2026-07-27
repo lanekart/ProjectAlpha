@@ -72,7 +72,9 @@ def merge_pre2016_population_shards(
     if not years or len(years) != len(expected_years):
         raise Pre2016PopulationMergeError("PRE2016_MERGE_EXPECTED_YEARS_INVALID")
     if years[0] < 2005 or years[-1] > 2015:
-        raise Pre2016PopulationMergeError("PRE2016_MERGE_EXPECTED_YEAR_OUTSIDE_PROTOCOL")
+        raise Pre2016PopulationMergeError(
+            "PRE2016_MERGE_EXPECTED_YEAR_OUTSIDE_PROTOCOL"
+        )
     if not shard_roots:
         raise Pre2016PopulationMergeError("PRE2016_MERGE_SHARDS_MISSING")
 
@@ -314,9 +316,7 @@ def _merge_database(
                     f"PRE2016_MERGE_TABLE_COUNT_MISSING:{table}"
                 )
             source_count = int(source_count_result[0])
-            before_result = target.execute(
-                f'SELECT count(*) FROM "{table}"'
-            ).fetchone()
+            before_result = target.execute(f'SELECT count(*) FROM "{table}"').fetchone()
             if before_result is None:
                 raise Pre2016PopulationMergeError(
                     f"PRE2016_MERGE_TARGET_COUNT_MISSING:{table}"
@@ -325,20 +325,20 @@ def _merge_database(
             cursor = source.execute(f'SELECT * FROM "{table}"')
             placeholders = ",".join("?" for _ in source_columns)
             statement = (
-                f'INSERT INTO "{table}" VALUES ({placeholders}) '
-                "ON CONFLICT DO NOTHING"
+                f'INSERT INTO "{table}" VALUES ({placeholders}) ON CONFLICT DO NOTHING'
             )
             while batch := cursor.fetchmany(_BATCH_SIZE):
                 target.executemany(statement, batch)
-            after_result = target.execute(
-                f'SELECT count(*) FROM "{table}"'
-            ).fetchone()
+            after_result = target.execute(f'SELECT count(*) FROM "{table}"').fetchone()
             if after_result is None:
                 raise Pre2016PopulationMergeError(
                     f"PRE2016_MERGE_TARGET_COUNT_MISSING:{table}"
                 )
             added = int(after_result[0]) - before
-            if table in {"daily_candle", "validation_quarantine"} and added != source_count:
+            if (
+                table in {"daily_candle", "validation_quarantine"}
+                and added != source_count
+            ):
                 raise Pre2016PopulationMergeError(
                     f"PRE2016_MERGE_TABLE_OVERLAP:{table}:"
                     f"source={source_count}:inserted={added}:year={shard.covered_year}"
@@ -363,7 +363,8 @@ def _table_columns(
     connection: duckdb.DuckDBPyConnection,
     table: str,
 ) -> tuple[str, ...]:
-    return tuple(str(row[1]) for row in connection.execute(f"PRAGMA table_info('{table}')"))
+    rows = connection.execute(f"PRAGMA table_info('{table}')").fetchall()
+    return tuple(str(row[1]) for row in rows)
 
 
 def _copy_immutable_tree(source_root: Path, destination_root: Path) -> int:
