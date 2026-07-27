@@ -26,95 +26,88 @@ jobs:
           from pathlib import Path
 
           path = Path('alpha/decision_superiority/pre2016_external_validation.py')
-          text = path.read_text(encoding='utf-8')
+          lines = path.read_text(encoding='utf-8').splitlines()
 
-          old_import = '''from alpha.decision_superiority.entry_stop_improvement_artifacts import (
-              DSI009_ARTIFACTS,
-              validate_entry_stop_improvement_certificate,
-          )
-          '''
-          new_import = '''from alpha.decision_superiority.entry_stop_improvement_artifacts import (
-              DSI009_ARTIFACTS,
-              validate_entry_stop_improvement_certificate,
-          )
-          from alpha.decision_superiority.pre2016_calendar import (
-              validate_pre2016_calendar_report,
-          )
-          '''
-          if old_import not in text:
-              raise SystemExit('calendar import anchor missing')
-          text = text.replace(old_import, new_import, 1)
-
-          old_validation = '''        validate_regime_strategy_tournament_certificate(
-              sources.dsi007_certificate,
-              require_ready=False,
-          )
-          frozen_contract_rows = _validate_frozen_candidate(
-          '''
-          new_validation = '''        validate_regime_strategy_tournament_certificate(
-              sources.dsi007_certificate,
-              require_ready=False,
-          )
-          calendar_payload = validate_pre2016_calendar_report(
-              sources.calendar_report,
-              require_certified=True,
-          )
-          frozen_contract_rows = _validate_frozen_candidate(
-          '''
-          if old_validation not in text:
-              raise SystemExit('calendar validation anchor missing')
-          text = text.replace(old_validation, new_validation, 1)
-
-          old_source = '''        if market.empty:
-              raise Pre2016ExternalValidationError(
-                  "NO_GOVERNED_PRE2016_MARKET_POPULATION"
+          calendar_import = [
+              'from alpha.decision_superiority.pre2016_calendar import (',
+              '    validate_pre2016_calendar_report,',
+              ')',
+          ]
+          if calendar_import[0] not in lines:
+              start = lines.index(
+                  'from alpha.decision_superiority.pre2016_benchmark import ('
               )
-          featured, regime_daily, regime_transitions = _build_point_in_time_features(
-          '''
-          new_source = '''        if market.empty:
-              raise Pre2016ExternalValidationError(
-                  "NO_GOVERNED_PRE2016_MARKET_POPULATION"
+              end = next(
+                  index for index in range(start + 1, len(lines)) if lines[index] == ')'
               )
-          source_rows = (
-              *source_rows,
-              {
-                  "source_role": "PRE2016_SESSION_CALENDAR",
-                  "availability": "AVAILABLE",
-                  "sha256": _file_sha256(sources.calendar_report),
-                  "byte_size": sources.calendar_report.stat().st_size,
-                  "portable_locator": sources.calendar_report.name,
-                  "contract_version": calendar_payload.get("contract_version"),
-                  "report_sha256": calendar_payload.get("report_sha256"),
-                  "certification_state": calendar_payload.get("certification_state"),
-                  "expected_sessions": calendar_payload.get("expected_session_count"),
-                  "observed_sessions": calendar_payload.get("observed_session_count"),
-                  "used_for_decisions": True,
-              },
-          )
-          featured, regime_daily, regime_transitions = _build_point_in_time_features(
-          '''
-          if old_source not in text:
-              raise SystemExit('calendar source anchor missing')
-          text = text.replace(old_source, new_source, 1)
+              lines[end + 1:end + 1] = calendar_import
 
-          old_summary = '''            "market_rows": len(market),
-              "incumbent": dict(incumbent_metrics),
-          '''
-          new_summary = '''            "market_rows": len(market),
-              "calendar": {
-                  "contract_version": calendar_payload.get("contract_version"),
-                  "report_sha256": calendar_payload.get("report_sha256"),
-                  "certification_state": calendar_payload.get("certification_state"),
-                  "expected_sessions": calendar_payload.get("expected_session_count"),
-                  "observed_sessions": calendar_payload.get("observed_session_count"),
-              },
-              "incumbent": dict(incumbent_metrics),
-          '''
-          if old_summary not in text:
-              raise SystemExit('calendar summary anchor missing')
-          text = text.replace(old_summary, new_summary, 1)
+          if not any('calendar_payload = validate_pre2016_calendar_report' in line for line in lines):
+              start = lines.index(
+                  '        validate_regime_strategy_tournament_certificate('
+              )
+              end = next(
+                  index
+                  for index in range(start + 1, len(lines))
+                  if lines[index] == '        )'
+              )
+              lines[end + 1:end + 1] = [
+                  '        calendar_payload = validate_pre2016_calendar_report(',
+                  '            sources.calendar_report,',
+                  '            require_certified=True,',
+                  '        )',
+              ]
 
-          path.write_text(text, encoding='utf-8')
+          if not any('"source_role": "PRE2016_SESSION_CALENDAR"' in line for line in lines):
+              insert = lines.index(
+                  '        featured, regime_daily, regime_transitions = _build_point_in_time_features('
+              )
+              lines[insert:insert] = [
+                  '        source_rows = (',
+                  '            *source_rows,',
+                  '            {',
+                  '                "source_role": "PRE2016_SESSION_CALENDAR",',
+                  '                "availability": "AVAILABLE",',
+                  '                "sha256": _file_sha256(sources.calendar_report),',
+                  '                "byte_size": sources.calendar_report.stat().st_size,',
+                  '                "portable_locator": sources.calendar_report.name,',
+                  '                "contract_version": calendar_payload.get("contract_version"),',
+                  '                "report_sha256": calendar_payload.get("report_sha256"),',
+                  '                "certification_state": calendar_payload.get(',
+                  '                    "certification_state"',
+                  '                ),',
+                  '                "expected_sessions": calendar_payload.get(',
+                  '                    "expected_session_count"',
+                  '                ),',
+                  '                "observed_sessions": calendar_payload.get(',
+                  '                    "observed_session_count"',
+                  '                ),',
+                  '                "used_for_decisions": True,',
+                  '            },',
+                  '        )',
+              ]
+
+          if not any('"calendar": {' in line for line in lines):
+              anchor = lines.index('            "market_rows": len(market),')
+              lines[anchor + 1:anchor + 1] = [
+                  '            "calendar": {',
+                  '                "contract_version": calendar_payload.get(',
+                  '                    "contract_version"',
+                  '                ),',
+                  '                "report_sha256": calendar_payload.get("report_sha256"),',
+                  '                "certification_state": calendar_payload.get(',
+                  '                    "certification_state"',
+                  '                ),',
+                  '                "expected_sessions": calendar_payload.get(',
+                  '                    "expected_session_count"',
+                  '                ),',
+                  '                "observed_sessions": calendar_payload.get(',
+                  '                    "observed_session_count"',
+                  '                ),',
+                  '            },',
+              ]
+
+          path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
           PY
           python -m compileall -q \
             alpha/decision_superiority/pre2016_external_validation.py \
