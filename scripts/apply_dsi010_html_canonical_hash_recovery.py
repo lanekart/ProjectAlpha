@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 MODULE = Path("alpha/decision_superiority/pre2016_calendar_recovery.py")
 EARLY_REGISTRY = Path("config/dsi010_pre2011_official_calendar_candidates.json")
 TESTS = Path("tests/decision_superiority/test_pre2016_calendar_recovery_later_years.py")
@@ -39,8 +38,7 @@ def patch_module() -> None:
     text = MODULE.read_text(encoding="utf-8")
     text = replace_once(
         text,
-        "    expected_sha256: str | None\n"
-        "    expected_download_number: str | None\n",
+        "    expected_sha256: str | None\n    expected_download_number: str | None\n",
         "    expected_sha256: str | None\n"
         "    expected_extracted_text_sha256: str | None\n"
         "    expected_download_number: str | None\n",
@@ -71,15 +69,14 @@ def patch_module() -> None:
         '        "calendar_certification_permitted": False,\n',
         '        "cross_segment_only_sources": partial,\n'
         '        "html_transport_drift_accepted": sum(\n'
-        '            attempt.html_transport_drift_accepted for attempt in result.attempts\n'
-        '        ),\n'
+        "            attempt.html_transport_drift_accepted for attempt in result.attempts\n"
+        "        ),\n"
         '        "calendar_certification_permitted": False,\n',
         "summary drift count",
     )
     text = replace_once(
         text,
-        "        response_sha256=digest,\n"
-        "        pdf_signature_valid=pdf_signature,\n",
+        "        response_sha256=digest,\n        pdf_signature_valid=pdf_signature,\n",
         "        response_sha256=digest,\n"
         "        raw_sha256_match=(\n"
         "            candidate.expected_sha256 is None\n"
@@ -126,7 +123,7 @@ def patch_module() -> None:
         "            extracted_text_sha256=text_digest,\n"
         "            extracted_text_sha256_match=text_hash_match,\n"
         '            recovery_state="OFFICIAL_SOURCE_CONTENT_INVALID",\n'
-        '            extracted_text_path=str(text_path),\n'
+        "            extracted_text_path=str(text_path),\n"
         '            error="SOURCE_DOCUMENT_HASH_MISMATCH",\n'
         "        )\n"
         "    if not text_hash_match:\n"
@@ -136,7 +133,7 @@ def patch_module() -> None:
         "            extracted_text_sha256=text_digest,\n"
         "            extracted_text_sha256_match=False,\n"
         '            recovery_state="OFFICIAL_SOURCE_CONTENT_INVALID",\n'
-        '            extracted_text_path=str(text_path),\n'
+        "            extracted_text_path=str(text_path),\n"
         '            error="EXTRACTED_TEXT_HASH_MISMATCH",\n'
         "        )\n"
         "    checks = _validate_content(candidate, text)\n",
@@ -145,30 +142,30 @@ def patch_module() -> None:
     text = replace_once(
         text,
         "        extracted_text_sha256=text_digest,\n"
-        "        exchange_match=checks[\"exchange_match\"],\n",
+        '        exchange_match=checks["exchange_match"],\n',
         "        extracted_text_sha256=text_digest,\n"
         "        extracted_text_sha256_match=text_hash_match,\n"
         "        html_transport_drift_accepted=html_transport_drift_accepted,\n"
-        "        exchange_match=checks[\"exchange_match\"],\n",
+        '        exchange_match=checks["exchange_match"],\n',
         "attempt canonical result",
     )
     text = replace_once(
         text,
-        "    expected_sha256 = _optional_string(payload.get(\"expected_sha256\"))\n"
+        '    expected_sha256 = _optional_string(payload.get("expected_sha256"))\n'
         "    if expected_sha256 is not None and not re.fullmatch(\n"
-        "        r\"[0-9a-f]{64}\", expected_sha256\n"
+        '        r"[0-9a-f]{64}", expected_sha256\n'
         "    ):\n"
-        "        raise Pre2016ExternalValidationError(\"PRE2011_CALENDAR_EXPECTED_SHA256_INVALID\")\n",
-        "    expected_sha256 = _optional_string(payload.get(\"expected_sha256\"))\n"
+        '        raise Pre2016ExternalValidationError("PRE2011_CALENDAR_EXPECTED_SHA256_INVALID")\n',
+        '    expected_sha256 = _optional_string(payload.get("expected_sha256"))\n'
         "    if expected_sha256 is not None and not re.fullmatch(\n"
-        "        r\"[0-9a-f]{64}\", expected_sha256\n"
+        '        r"[0-9a-f]{64}", expected_sha256\n'
         "    ):\n"
-        "        raise Pre2016ExternalValidationError(\"PRE2011_CALENDAR_EXPECTED_SHA256_INVALID\")\n"
+        '        raise Pre2016ExternalValidationError("PRE2011_CALENDAR_EXPECTED_SHA256_INVALID")\n'
         "    expected_extracted_text_sha256 = _optional_string(\n"
-        "        payload.get(\"expected_extracted_text_sha256\")\n"
+        '        payload.get("expected_extracted_text_sha256")\n'
         "    )\n"
         "    if expected_extracted_text_sha256 is not None and not re.fullmatch(\n"
-        "        r\"[0-9a-f]{64}\", expected_extracted_text_sha256\n"
+        '        r"[0-9a-f]{64}", expected_extracted_text_sha256\n'
         "    ):\n"
         "        raise Pre2016ExternalValidationError(\n"
         '            "PRE2011_CALENDAR_EXPECTED_TEXT_SHA256_INVALID"\n'
@@ -215,7 +212,7 @@ def patch_registry() -> None:
 def patch_tests() -> None:
     text = TESTS.read_text(encoding="utf-8")
     marker = "\n\ndef test_2015_capital_market_calendar_is_accepted(\n"
-    addition = r'''
+    addition = r"""
 
 def _html_registry(
     root: Path,
@@ -353,7 +350,7 @@ def test_official_html_transport_drift_rejects_changed_visible_text(
     assert attempt.html_transport_drift_accepted is False
     assert attempt.recovery_state == "OFFICIAL_SOURCE_CONTENT_INVALID"
     assert attempt.error == "SOURCE_DOCUMENT_HASH_MISMATCH"
-'''
+"""
     if "test_official_html_transport_drift_accepts_identical_visible_text" not in text:
         if marker not in text:
             raise RuntimeError("TEST_INSERTION_MARKER_MISSING")
@@ -363,7 +360,7 @@ def test_official_html_transport_drift_rejects_changed_visible_text(
 
 def patch_docs() -> None:
     text = DOCS.read_text(encoding="utf-8")
-    addition = '''
+    addition = """
 ## Canonical HTML hash boundary
 
 Official NSE archive HTML can receive request-specific telemetry scripts from the
@@ -372,7 +369,7 @@ raw hash drifts, recovery is permitted only for an official `.htm`/`.html` URL w
 pinned visible-text SHA-256 is unchanged and whose mandatory circular-content checks
 all pass. PDF documents remain raw-byte hash strict. Both hashes and any accepted
 HTML transport drift are exported in the recovery attempt ledger.
-'''
+"""
     if "## Canonical HTML hash boundary" not in text:
         text = text.rstrip() + "\n" + addition
     DOCS.write_text(text, encoding="utf-8")

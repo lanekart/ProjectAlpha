@@ -92,6 +92,7 @@ class Pre2011CalendarSourceCandidate:
     source_url: str
     segment_scope: str
     expected_sha256: str | None
+    expected_extracted_text_sha256: str | None
     expected_download_number: str | None
     expected_circular_date: str | None
     expected_subject: str
@@ -111,10 +112,13 @@ class Pre2011CalendarSourceAttempt:
     content_type: str = ""
     response_bytes: int = 0
     response_sha256: str | None = None
+    raw_sha256_match: bool = False
     pdf_signature_valid: bool = False
     document_format: str = ""
     text_extraction_status: str = "NOT_ATTEMPTED"
     extracted_text_sha256: str | None = None
+    extracted_text_sha256_match: bool = False
+    html_transport_drift_accepted: bool = False
     exchange_match: bool = False
     segment_match: bool = False
     subject_match: bool = False
@@ -226,6 +230,9 @@ def export_pre2011_calendar_recovery(
         "attempt_count": len(result.attempts),
         "official_documents_accepted": accepted,
         "cross_segment_only_sources": partial,
+        "html_transport_drift_accepted": sum(
+            attempt.html_transport_drift_accepted for attempt in result.attempts
+        ),
         "calendar_certification_permitted": False,
         "certification_state": "incomplete_official_evidence",
         "classification_inferred_from_archive_status": False,
@@ -293,6 +300,9 @@ def _recover_candidate(
         content_type=content_type,
         response_bytes=len(raw),
         response_sha256=digest,
+        raw_sha256_match=(
+            candidate.expected_sha256 is None or digest == candidate.expected_sha256
+        ),
         pdf_signature_valid=pdf_signature,
         document_format=document_format,
         document_path=str(document_path) if document_path else None,
@@ -309,12 +319,6 @@ def _recover_candidate(
             base,
             recovery_state="OFFICIAL_SOURCE_CONTENT_INVALID",
             error=error,
-        )
-    if candidate.expected_sha256 and digest != candidate.expected_sha256:
-        return replace(
-            base,
-            recovery_state="OFFICIAL_SOURCE_CONTENT_INVALID",
-            error="SOURCE_DOCUMENT_HASH_MISMATCH",
         )
     if digest is None:
         return replace(
@@ -342,6 +346,40 @@ def _recover_candidate(
         )
 
     text_path, text_digest = _persist_text(candidate, extracted, digest, text)
+    raw_hash_match = (
+        candidate.expected_sha256 is None or digest == candidate.expected_sha256
+    )
+    text_hash_match = (
+        candidate.expected_extracted_text_sha256 is None
+        or text_digest == candidate.expected_extracted_text_sha256
+    )
+    html_transport_drift_accepted = (
+        document_format == "HTML"
+        and not raw_hash_match
+        and candidate.expected_extracted_text_sha256 is not None
+        and text_hash_match
+    )
+    hash_boundary_passed = raw_hash_match or html_transport_drift_accepted
+    if not hash_boundary_passed:
+        return replace(
+            base,
+            text_extraction_status="EXTRACTED",
+            extracted_text_sha256=text_digest,
+            extracted_text_sha256_match=text_hash_match,
+            recovery_state="OFFICIAL_SOURCE_CONTENT_INVALID",
+            extracted_text_path=str(text_path),
+            error="SOURCE_DOCUMENT_HASH_MISMATCH",
+        )
+    if not text_hash_match:
+        return replace(
+            base,
+            text_extraction_status="EXTRACTED",
+            extracted_text_sha256=text_digest,
+            extracted_text_sha256_match=False,
+            recovery_state="OFFICIAL_SOURCE_CONTENT_INVALID",
+            extracted_text_path=str(text_path),
+            error="EXTRACTED_TEXT_HASH_MISMATCH",
+        )
     checks = _validate_content(candidate, text)
     valid = all(checks.values())
     state = _validated_state(candidate.segment_scope, valid)
@@ -349,6 +387,8 @@ def _recover_candidate(
         base,
         text_extraction_status="EXTRACTED",
         extracted_text_sha256=text_digest,
+        extracted_text_sha256_match=text_hash_match,
+        html_transport_drift_accepted=html_transport_drift_accepted,
         exchange_match=checks["exchange_match"],
         segment_match=checks["segment_match"],
         subject_match=checks["subject_match"],
@@ -632,6 +672,15 @@ def _candidate_from_payload(
         r"[0-9a-f]{64}", expected_sha256
     ):
         raise Pre2016ExternalValidationError("PRE2011_CALENDAR_EXPECTED_SHA256_INVALID")
+    expected_extracted_text_sha256 = _optional_string(
+        payload.get("expected_extracted_text_sha256")
+    )
+    if expected_extracted_text_sha256 is not None and not re.fullmatch(
+        r"[0-9a-f]{64}", expected_extracted_text_sha256
+    ):
+        raise Pre2016ExternalValidationError(
+            "PRE2011_CALENDAR_EXPECTED_TEXT_SHA256_INVALID"
+        )
     requires_muhurat = payload.get("requires_muhurat_statement", False)
     if not isinstance(requires_muhurat, bool):
         raise Pre2016ExternalValidationError(
@@ -643,6 +692,7 @@ def _candidate_from_payload(
         source_url=source_url,
         segment_scope=segment_scope,
         expected_sha256=expected_sha256,
+        expected_extracted_text_sha256=expected_extracted_text_sha256,
         expected_download_number=_optional_string(
             payload.get("expected_download_number")
         ),

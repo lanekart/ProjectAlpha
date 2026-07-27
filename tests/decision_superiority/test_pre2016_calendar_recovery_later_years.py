@@ -78,6 +78,142 @@ def _registry(root: Path, *, year: int, url: str, raw: bytes) -> Path:
     return path
 
 
+def _html_registry(
+    root: Path,
+    *,
+    url: str,
+    expected_raw: bytes,
+    expected_text: str,
+) -> Path:
+    path = root / "html_candidate_registry.json"
+    text_digest = hashlib.sha256(
+        (expected_text.rstrip() + "\n").encode("utf-8")
+    ).hexdigest()
+    path.write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    {
+                        "year": 2009,
+                        "source_id": "NSE_CMTR_HTML_DRIFT",
+                        "source_url": url,
+                        "segment_scope": "CAPITAL_MARKET",
+                        "expected_sha256": hashlib.sha256(expected_raw).hexdigest(),
+                        "expected_extracted_text_sha256": text_digest,
+                        "expected_download_number": None,
+                        "expected_circular_date": None,
+                        "expected_subject": "trading holiday on april 30, 2009",
+                        "requires_muhurat_statement": False,
+                    }
+                ]
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_official_html_transport_drift_accepts_identical_visible_text(
+    tmp_path: Path,
+) -> None:
+    url = "https://nsearchives.nseindia.com/content/circulars/cmtr12236.htm"
+    visible = (
+        "National Stock Exchange of India Limited\n"
+        "Capital Market Segment\n"
+        "Trading holiday on April 30, 2009\n"
+        "April 30, 2009 Parliamentary Elections"
+    )
+    expected_raw = (
+        "<html><body>" + visible.replace("\n", "<br>") + "</body></html>"
+    ).encode()
+    drifted_raw = (
+        "<html><head><script>request specific telemetry</script></head><body>"
+        + visible.replace("\n", "<br>")
+        + "</body></html>"
+    ).encode()
+
+    result = recover_pre2011_official_calendar_sources(
+        candidate_registry=_html_registry(
+            tmp_path,
+            url=url,
+            expected_raw=expected_raw,
+            expected_text=visible,
+        ),
+        output=tmp_path / "output",
+        session=FakeSession(
+            {
+                url: FakeResponse(
+                    status_code=200,
+                    content=drifted_raw,
+                    content_type="text/html",
+                    url=url,
+                )
+            }
+        ),
+    )
+
+    attempt = result.attempts[0]
+    assert result.fully_recovered_years == (2009,)
+    assert attempt.raw_sha256_match is False
+    assert attempt.extracted_text_sha256_match is True
+    assert attempt.html_transport_drift_accepted is True
+    assert attempt.content_validation_passed is True
+
+
+def test_official_html_transport_drift_rejects_changed_visible_text(
+    tmp_path: Path,
+) -> None:
+    url = "https://nsearchives.nseindia.com/content/circulars/cmtr12236.htm"
+    expected_visible = (
+        "National Stock Exchange of India Limited\n"
+        "Capital Market Segment\n"
+        "Trading holiday on April 30, 2009\n"
+        "April 30, 2009 Parliamentary Elections"
+    )
+    expected_raw = (
+        "<html><body>" + expected_visible.replace("\n", "<br>") + "</body></html>"
+    ).encode()
+    changed_raw = (
+        b"<html><head><script>telemetry</script></head><body>"
+        b"National Stock Exchange of India Limited<br>"
+        b"Capital Market Segment<br>"
+        b"Trading holiday on April 30, 2009<br>"
+        b"May 1, 2009 Changed calendar content"
+        b"</body></html>"
+    )
+
+    result = recover_pre2011_official_calendar_sources(
+        candidate_registry=_html_registry(
+            tmp_path,
+            url=url,
+            expected_raw=expected_raw,
+            expected_text=expected_visible,
+        ),
+        output=tmp_path / "output",
+        session=FakeSession(
+            {
+                url: FakeResponse(
+                    status_code=200,
+                    content=changed_raw,
+                    content_type="text/html",
+                    url=url,
+                )
+            }
+        ),
+    )
+
+    attempt = result.attempts[0]
+    assert result.unrecovered_years == (2009,)
+    assert attempt.raw_sha256_match is False
+    assert attempt.extracted_text_sha256_match is False
+    assert attempt.html_transport_drift_accepted is False
+    assert attempt.recovery_state == "OFFICIAL_SOURCE_CONTENT_INVALID"
+    assert attempt.error == "SOURCE_DOCUMENT_HASH_MISMATCH"
+
+
 def test_2015_capital_market_calendar_is_accepted(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

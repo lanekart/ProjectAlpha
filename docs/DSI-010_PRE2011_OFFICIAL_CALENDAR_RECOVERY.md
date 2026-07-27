@@ -144,3 +144,12 @@ decision-superiority-pre2016-calendar-source-recovery
 
 The legacy `pre2011` command remains registered as a compatibility alias. Calendar
 year 2016 and later remain outside the signed DSI-010 external period.
+
+## Canonical HTML hash boundary
+
+Official NSE archive HTML can receive request-specific telemetry scripts from the
+archive delivery layer. The raw response SHA-256 remains recorded. When the pinned
+raw hash drifts, recovery is permitted only for an official `.htm`/`.html` URL whose
+pinned visible-text SHA-256 is unchanged and whose mandatory circular-content checks
+all pass. PDF documents remain raw-byte hash strict. Both hashes and any accepted
+HTML transport drift are exported in the recovery attempt ledger.
