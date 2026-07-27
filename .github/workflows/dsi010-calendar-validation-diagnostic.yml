@@ -36,13 +36,16 @@ jobs:
           {
             python - <<'PY'
           from pathlib import Path
-          import textwrap
 
           workflow = Path(".github/workflows/dsi010-calendar-implementation.yml").read_text(encoding="utf-8")
           start_marker = "          python - <<'PY'\n"
           start = workflow.index(start_marker) + len(start_marker)
           end = workflow.index("\n          PY", start)
-          script = textwrap.dedent(workflow[start:end])
+          raw_script = workflow[start:end]
+          script = "\n".join(
+              line[10:] if line.startswith("          ") else line
+              for line in raw_script.splitlines()
+          ) + "\n"
           Path("/tmp/dsi010_patch.py").write_text(script, encoding="utf-8")
           print(f"PATCH_SCRIPT_BYTES={len(script.encode('utf-8'))}")
           PY
