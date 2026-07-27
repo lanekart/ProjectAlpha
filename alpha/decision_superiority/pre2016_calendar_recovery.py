@@ -21,6 +21,7 @@ from .pre2016_external_validation_models import Pre2016ExternalValidationError
 
 PRE2011_CALENDAR_YEARS = tuple(range(2005, 2011))
 PRE2016_CALENDAR_YEARS = tuple(range(2005, 2016))
+PRE2016_CALENDAR_YEARS = tuple(range(2005, 2016))
 _ALLOWED_OFFICIAL_HOSTS = frozenset(
     {
         "nseindia.com",

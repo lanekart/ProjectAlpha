@@ -33,6 +33,9 @@ DEFAULT_DSI010_PRE2011_RECOVERY_OUTPUT = Path(
 DEFAULT_DSI010_PRE2016_RECOVERY_OUTPUT = Path(
     "artifacts/dsi010_pre2016_official_sources"
 )
+DEFAULT_DSI010_PRE2016_RECOVERY_OUTPUT = Path(
+    "artifacts/dsi010_pre2016_official_sources"
+)
 
 
 def register_decision_superiority_pre2016_calendar_source_commands(
@@ -48,6 +51,9 @@ def register_decision_superiority_pre2016_calendar_source_commands(
     )
     app.command("decision-superiority-pre2011-calendar-source-recovery")(
         decision_superiority_pre2011_calendar_source_recovery
+    )
+    app.command("decision-superiority-pre2016-calendar-source-recovery")(
+        decision_superiority_pre2016_calendar_source_recovery
     )
     app.command("decision-superiority-pre2016-calendar-source-recovery")(
         decision_superiority_pre2016_calendar_source_recovery
