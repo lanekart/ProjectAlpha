@@ -30,6 +30,9 @@ DEFAULT_DSI010_API_PROBE_OUTPUT = Path("artifacts/dsi010_pre2016_holiday_api_pro
 DEFAULT_DSI010_PRE2011_RECOVERY_OUTPUT = Path(
     "artifacts/dsi010_pre2011_official_sources"
 )
+DEFAULT_DSI010_PRE2016_RECOVERY_OUTPUT = Path(
+    "artifacts/dsi010_pre2016_official_sources"
+)
 
 
 def register_decision_superiority_pre2016_calendar_source_commands(
@@ -45,6 +48,9 @@ def register_decision_superiority_pre2016_calendar_source_commands(
     )
     app.command("decision-superiority-pre2011-calendar-source-recovery")(
         decision_superiority_pre2011_calendar_source_recovery
+    )
+    app.command("decision-superiority-pre2016-calendar-source-recovery")(
+        decision_superiority_pre2016_calendar_source_recovery
     )
     app.command("decision-superiority-pre2016-calendar-source-build")(
         decision_superiority_pre2016_calendar_source_build
@@ -156,7 +162,7 @@ def decision_superiority_pre2011_calendar_source_recovery(
         )
         paths = export_pre2011_calendar_recovery(result, output)
     except (OSError, Pre2016ExternalValidationError, ValueError) as exc:
-        typer.echo(f"PRE2011_CALENDAR_SOURCE_RECOVERY_FAILED: {exc}", err=True)
+        typer.echo(f"PRE2016_CALENDAR_SOURCE_RECOVERY_FAILED: {exc}", err=True)
         raise typer.Exit(1) from exc
 
     accepted = sum(
@@ -168,7 +174,7 @@ def decision_superiority_pre2011_calendar_source_recovery(
         for attempt in result.attempts
     )
     rejected = len(result.attempts) - accepted - partial
-    typer.echo("===== DSI-010 PRE-2011 OFFICIAL CALENDAR RECOVERY =====")
+    typer.echo("===== DSI-010 2005-2015 OFFICIAL CALENDAR RECOVERY =====")
     typer.echo(f"Requested Years: {_years(result.requested_years)}")
     typer.echo(f"Fully Recovered Years: {_years(result.fully_recovered_years)}")
     typer.echo(f"Partially Recovered Years: {_years(result.partially_recovered_years)}")
@@ -185,6 +191,29 @@ def decision_superiority_pre2011_calendar_source_recovery(
     typer.echo("Certification State: incomplete_official_evidence")
     typer.echo("Production Influence: false")
     typer.echo(f"Artifacts: {output} ({len(paths)} summary files plus evidence files)")
+
+
+def decision_superiority_pre2016_calendar_source_recovery(
+    candidate_registry: Annotated[
+        Path,
+        typer.Option("--candidate-registry"),
+    ],
+    output: Annotated[
+        Path,
+        typer.Option("--output"),
+    ] = DEFAULT_DSI010_PRE2016_RECOVERY_OUTPUT,
+    timeout_seconds: Annotated[
+        float,
+        typer.Option("--timeout-seconds", min=1.0),
+    ] = 30.0,
+) -> None:
+    """Recover official NSE calendar circulars across the DSI-010 period."""
+
+    decision_superiority_pre2011_calendar_source_recovery(
+        candidate_registry=candidate_registry,
+        output=output,
+        timeout_seconds=timeout_seconds,
+    )
 
 
 def decision_superiority_pre2016_calendar_source_build(

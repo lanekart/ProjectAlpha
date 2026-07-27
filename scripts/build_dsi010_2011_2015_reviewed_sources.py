@@ -13,7 +13,6 @@ from alpha.decision_superiority.pre2016_calendar_sources import (
     validate_hash_bound_official_calendar_source,
 )
 
-
 REVIEW_ROWS: dict[str, str] = {
     "NSE_CMTR_16348_2011_ANNUAL_CALENDAR": """
 2011-01-01|HOLIDAY|New Year
@@ -245,7 +244,9 @@ def build_sources(recovery_root: Path, output_root: Path) -> tuple[Path, ...]:
     if set(by_source) != required:
         missing = sorted(required - set(by_source))
         extra = sorted(set(by_source) - required)
-        raise RuntimeError(f"RECOVERY_SOURCE_SET_MISMATCH:missing={missing}:extra={extra}")
+        raise RuntimeError(
+            f"RECOVERY_SOURCE_SET_MISMATCH:missing={missing}:extra={extra}"
+        )
     for source_id, attempt in by_source.items():
         if attempt.get("recovery_state") != "VERIFIED_OFFICIAL_EVIDENCE":
             raise RuntimeError(f"SOURCE_NOT_VERIFIED:{source_id}")

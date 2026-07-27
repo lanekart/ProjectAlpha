@@ -132,3 +132,15 @@ remains blocked until:
 CALENDAR_CERTIFICATION_PERMITTED=false
 PRODUCTION_INFLUENCE=false
 ```
+
+## 2011-2015 extension
+
+The recovery engine also accepts governed candidates through calendar year 2015.
+The permanent generic command is:
+
+```text
+decision-superiority-pre2016-calendar-source-recovery
+```
+
+The legacy `pre2011` command remains registered as a compatibility alias. Calendar
+year 2016 and later remain outside the signed DSI-010 external period.

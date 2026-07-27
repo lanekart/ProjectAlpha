@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 MODULE = Path("alpha/decision_superiority/pre2016_calendar_recovery.py")
 CLI = Path("alpha/application/decision_superiority_pre2016_calendar_sources_cli.py")
 DOCS = Path("docs/DSI-010_PRE2011_OFFICIAL_CALENDAR_RECOVERY.md")
@@ -53,13 +52,13 @@ def patch_cli() -> None:
     text = CLI.read_text(encoding="utf-8")
     text = replace_once(
         text,
-        'DEFAULT_DSI010_PRE2011_RECOVERY_OUTPUT = Path(\n'
+        "DEFAULT_DSI010_PRE2011_RECOVERY_OUTPUT = Path(\n"
         '    "artifacts/dsi010_pre2011_official_sources"\n'
         ")\n",
-        'DEFAULT_DSI010_PRE2011_RECOVERY_OUTPUT = Path(\n'
+        "DEFAULT_DSI010_PRE2011_RECOVERY_OUTPUT = Path(\n"
         '    "artifacts/dsi010_pre2011_official_sources"\n'
         ")\n"
-        'DEFAULT_DSI010_PRE2016_RECOVERY_OUTPUT = Path(\n'
+        "DEFAULT_DSI010_PRE2016_RECOVERY_OUTPUT = Path(\n"
         '    "artifacts/dsi010_pre2016_official_sources"\n'
         ")\n",
         "generic recovery output",
@@ -123,7 +122,7 @@ def decision_superiority_pre2016_calendar_source_recovery(
 
 def patch_docs() -> None:
     text = DOCS.read_text(encoding="utf-8")
-    addition = '''
+    addition = """
 ## 2011-2015 extension
 
 The recovery engine also accepts governed candidates through calendar year 2015.
@@ -135,7 +134,7 @@ decision-superiority-pre2016-calendar-source-recovery
 
 The legacy `pre2011` command remains registered as a compatibility alias. Calendar
 year 2016 and later remain outside the signed DSI-010 external period.
-'''
+"""
     if "## 2011-2015 extension" not in text:
         text = text.rstrip() + "\n" + addition
     DOCS.write_text(text, encoding="utf-8")

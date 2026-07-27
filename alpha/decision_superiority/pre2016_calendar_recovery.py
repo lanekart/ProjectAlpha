@@ -1,4 +1,4 @@
-"""Official-document recovery for DSI-010 pre-2011 session calendars."""
+"""Official-document recovery for DSI-010 2005-2015 session calendars."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ from pypdf import PdfReader
 from .pre2016_external_validation_models import Pre2016ExternalValidationError
 
 PRE2011_CALENDAR_YEARS = tuple(range(2005, 2011))
+PRE2016_CALENDAR_YEARS = tuple(range(2005, 2016))
 _ALLOWED_OFFICIAL_HOSTS = frozenset(
     {
         "nseindia.com",
@@ -540,7 +541,7 @@ def _validate_content(
         ),
         "circular_date_match": (
             candidate.expected_circular_date is None
-            or candidate.expected_circular_date in normalized
+            or _normalize(candidate.expected_circular_date) in normalized
         ),
         "holiday_table_match": holiday_table,
         "muhurat_statement_match": (
@@ -618,7 +619,7 @@ def _candidate_from_payload(
     source_url = str(payload.get("source_url") or "").strip()
     segment_scope = str(payload.get("segment_scope") or "").strip().upper()
     expected_subject = str(payload.get("expected_subject") or "").strip()
-    if year not in PRE2011_CALENDAR_YEARS:
+    if year not in PRE2016_CALENDAR_YEARS:
         raise Pre2016ExternalValidationError("PRE2011_CALENDAR_CANDIDATE_YEAR_INVALID")
     if not source_id or not expected_subject:
         raise Pre2016ExternalValidationError("PRE2011_CALENDAR_CANDIDATE_INVALID")
