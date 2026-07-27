@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 from __future__ import annotations
 
 import argparse
@@ -291,6 +292,12 @@ def build_sources(recovery_root: Path, output_root: Path) -> tuple[Path, ...]:
             source_path,
             require_capital_market_scope=True,
         )
+        holidays = payload.get("holidays")
+        special_sessions = payload.get("special_sessions")
+        if not isinstance(holidays, list):
+            raise RuntimeError(f"SOURCE_HOLIDAYS_INVALID:{source_id}")
+        if not isinstance(special_sessions, list):
+            raise RuntimeError(f"SOURCE_SPECIAL_SESSIONS_INVALID:{source_id}")
         source_paths.append(source_path)
         manifest_rows.append(
             {
@@ -300,8 +307,8 @@ def build_sources(recovery_root: Path, output_root: Path) -> tuple[Path, ...]:
                 "source_json_sha256": _sha256(source_path),
                 "source_document_sha256": payload["source_document_sha256"],
                 "review_csv_sha256": payload["review_csv_sha256"],
-                "holiday_count": len(payload["holidays"]),
-                "special_session_count": len(payload["special_sessions"]),
+                "holiday_count": len(holidays),
+                "special_session_count": len(special_sessions),
                 "segment_scope": payload["segment_scope"],
             }
         )
