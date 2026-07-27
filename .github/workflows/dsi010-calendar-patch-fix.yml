@@ -6,6 +6,9 @@ on:
       - feature/dsi-010-pre2016-external-era-validation
     paths:
       - .github/workflows/dsi010-calendar-patch-fix.yml
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-calendar-patch-fix.yml
 
 permissions:
   contents: write
