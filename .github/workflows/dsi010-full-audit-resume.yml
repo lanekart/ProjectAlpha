@@ -1,0 +1,456 @@
+name: DSI-010 Full Audit Resume
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-full-audit-resume.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  resume:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Wait for all governed year artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_RUN_ID: "30302226936"
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import time
+          import urllib.request
+
+          repository = os.environ["REPOSITORY"]
+          run_id = os.environ["SOURCE_RUN_ID"]
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+              "X-GitHub-Api-Version": "2022-11-28",
+          }
+          for attempt in range(300):
+              artifact_request = urllib.request.Request(
+                  f"https://api.github.com/repos/{repository}/actions/runs/"
+                  f"{run_id}/artifacts?per_page=100",
+                  headers=headers,
+              )
+              with urllib.request.urlopen(artifact_request, timeout=30) as response:
+                  artifact_payload = json.load(response)
+              names = {
+                  str(item.get("name") or "")
+                  for item in artifact_payload.get("artifacts", [])
+                  if not item.get("expired")
+              }
+              shard_names = {
+                  name
+                  for name in names
+                  if name.startswith("dsi010-population-shard-")
+              }
+              print(
+                  f"artifact_poll={attempt} shard_artifacts={len(shard_names)} "
+                  f"names={sorted(shard_names)}",
+                  flush=True,
+              )
+              if len(shard_names) == 11:
+                  break
+
+              run_request = urllib.request.Request(
+                  f"https://api.github.com/repos/{repository}/actions/runs/{run_id}",
+                  headers=headers,
+              )
+              with urllib.request.urlopen(run_request, timeout=30) as response:
+                  run_payload = json.load(response)
+              if run_payload.get("status") == "completed":
+                  raise SystemExit(
+                      "SOURCE_RUN_COMPLETED_WITHOUT_11_SHARDS:"
+                      f"conclusion={run_payload.get('conclusion')}:"
+                      f"artifacts={len(shard_names)}"
+                  )
+              time.sleep(60)
+          else:
+              raise SystemExit("TIMED_OUT_WAITING_FOR_11_SHARD_ARTIFACTS")
+          PY
+      - name: Download all governed year shards
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30302226936
+          pattern: dsi010-population-shard-*
+          path: downloads
+          merge-multiple: true
+      - name: Extract and validate governed year shards
+        run: |
+          set -euo pipefail
+          mkdir -p work/shards
+          count=0
+          for archive in downloads/alpha_data-*.tar.gz; do
+            if [ ! -f "$archive" ]; then
+              continue
+            fi
+            year=$(basename "$archive" | sed -E 's/alpha_data-([0-9]{4})\.tar\.gz/\1/')
+            summary="downloads/shard_summary-${year}.json"
+            if [ ! -f "$summary" ]; then
+              echo "SHARD_SUMMARY_MISSING_${year}" >&2
+              exit 1
+            fi
+            observed_year=$(python - "$summary" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          print(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))["covered_year"])
+          PY
+            )
+            if [ "$observed_year" != "$year" ]; then
+              echo "SHARD_YEAR_IDENTITY_MISMATCH_${year}_${observed_year}" >&2
+              exit 1
+            fi
+            mkdir -p "work/shards/${year}"
+            tar -xzf "$archive" -C "work/shards/${year}"
+            count=$((count + 1))
+          done
+          if [ "$count" -ne 11 ]; then
+            echo "EXPECTED_11_SHARD_ARCHIVES_FOUND_${count}" >&2
+            exit 1
+          fi
+      - name: Validate merge and calendar repair code
+        run: |
+          poetry run ruff check \
+            alpha/decision_superiority/pre2016_population_merge.py \
+            alpha/decision_superiority/pre2016_emergency_calendar.py \
+            alpha/decision_superiority/pre2016_population.py \
+            scripts/build_dsi010_2005_emergency_holiday_source.py \
+            tests/decision_superiority/test_pre2016_population_merge.py \
+            tests/decision_superiority/test_pre2016_emergency_calendar.py \
+            tests/decision_superiority/test_pre2016_population_special_sessions.py
+          poetry run ruff format --check \
+            alpha/decision_superiority/pre2016_population_merge.py \
+            alpha/decision_superiority/pre2016_emergency_calendar.py \
+            alpha/decision_superiority/pre2016_population.py \
+            scripts/build_dsi010_2005_emergency_holiday_source.py \
+            tests/decision_superiority/test_pre2016_population_merge.py \
+            tests/decision_superiority/test_pre2016_emergency_calendar.py \
+            tests/decision_superiority/test_pre2016_population_special_sessions.py
+          poetry run mypy \
+            alpha/decision_superiority/pre2016_population_merge.py \
+            alpha/decision_superiority/pre2016_emergency_calendar.py \
+            alpha/decision_superiority/pre2016_population.py
+          poetry run pytest -q \
+            tests/decision_superiority/test_pre2016_population_merge.py \
+            tests/decision_superiority/test_pre2016_emergency_calendar.py \
+            tests/decision_superiority/test_pre2016_population_special_sessions.py
+      - name: Merge governed Historical Truth shards
+        run: |
+          set -o pipefail
+          poetry run python - <<'PY' 2>&1 | tee /tmp/dsi010-resume-merge.log
+          from pathlib import Path
+
+          from alpha.decision_superiority.pre2016_population_merge import (
+              merge_pre2016_population_shards,
+          )
+
+          years = tuple(range(2005, 2016))
+          result = merge_pre2016_population_shards(
+              shard_roots=tuple(
+                  Path(f"work/shards/{year}/alpha_data") for year in years
+              ),
+              output_root=Path("artifacts/dsi010_merged_historical_truth"),
+              expected_years=years,
+          )
+          print("===== DSI-010 GOVERNED POPULATION MERGE =====")
+          print(f"Covered Years: {','.join(str(year) for year in result.covered_years)}")
+          print(f"Shard Count: {result.shard_count}")
+          print(f"Manifest Records: {result.manifest_records}")
+          print(f"Daily Candle Rows: {result.daily_candle_rows}")
+          print(f"Observed Sessions: {result.observed_sessions}")
+          print(f"Raw Files: {result.raw_files}")
+          print(f"Snapshot Files: {result.snapshot_files}")
+          print("PRODUCTION_INFLUENCE=false")
+          PY
+      - name: Recover and build all official calendar sources
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+        run: |
+          set -euo pipefail
+          poetry run python -m alpha benchmark \
+            decision-superiority-pre2016-calendar-source-recovery \
+            --candidate-registry config/dsi010_pre2011_official_calendar_candidates.json \
+            --output artifacts/dsi010_pre2011_official_sources \
+            --timeout-seconds 45
+          poetry run python scripts/build_dsi010_pre2011_reviewed_sources.py \
+            --recovery-root artifacts/dsi010_pre2011_official_sources \
+            --output-root artifacts/dsi010_pre2011_reviewed_sources
+          poetry run python - <<'PY'
+          from pathlib import Path
+
+          import requests
+
+          url = "https://nsearchives.nseindia.com/content/press/27072005.pdf"
+          response = requests.get(
+              url,
+              headers={"User-Agent": "ProjectAlpha-HistoricalTruth/1.0"},
+              timeout=45,
+          )
+          response.raise_for_status()
+          output = Path("artifacts/dsi010_2005_emergency_holiday_source")
+          output.mkdir(parents=True, exist_ok=True)
+          (output / "nse_press_27072005.pdf").write_bytes(response.content)
+          PY
+          poetry run python scripts/build_dsi010_2005_emergency_holiday_source.py \
+            --source-document \
+            artifacts/dsi010_2005_emergency_holiday_source/nse_press_27072005.pdf \
+            --output-root artifacts/dsi010_2005_emergency_holiday_source
+          poetry run python -m alpha benchmark \
+            decision-superiority-pre2016-calendar-source-recovery \
+            --candidate-registry config/dsi010_2011_2015_official_calendar_candidates.json \
+            --output artifacts/dsi010_2011_2015_official_sources \
+            --timeout-seconds 45
+          poetry run python scripts/build_dsi010_2011_2015_reviewed_sources.py \
+            --recovery-root artifacts/dsi010_2011_2015_official_sources \
+            --output-root artifacts/dsi010_2011_2015_reviewed_sources
+      - name: Run corrected full governed calendar audit
+        run: |
+          set -o pipefail
+          poetry run python - <<'PY' 2>&1 | tee /tmp/dsi010-resume-full-calendar-audit.log
+          from __future__ import annotations
+
+          import csv
+          import hashlib
+          import json
+          from dataclasses import asdict
+          from datetime import date
+          from pathlib import Path
+
+          from alpha.historical_truth.canonical import CanonicalPointInTimeWarehouse
+          from alpha.historical_truth.session_calendar import (
+              CalendarCertificationState,
+              OfficialSessionCalendarEngine,
+          )
+
+          merged_root = Path("artifacts/dsi010_merged_historical_truth")
+          database = merged_root / "warehouse" / "historical_truth.duckdb"
+          manifest = merged_root / "manifests" / "archive_manifest.jsonl"
+          audit_root = Path("artifacts/dsi010_2005_2015_full_calendar_audit")
+          audit_root.mkdir(parents=True, exist_ok=True)
+          early_sources = sorted(
+              Path("artifacts/dsi010_pre2011_reviewed_sources/sources").glob("*.json")
+          )
+          later_sources = sorted(
+              Path("artifacts/dsi010_2011_2015_reviewed_sources/sources").glob("*.json")
+          )
+          emergency_source = Path(
+              "artifacts/dsi010_2005_emergency_holiday_source/"
+              "nse_2005_emergency_holiday.json"
+          )
+          source_paths = (*early_sources, *later_sources, emergency_source)
+          if len(source_paths) != 29:
+              raise SystemExit(f"EXPECTED_29_CALENDAR_SOURCES_FOUND_{len(source_paths)}")
+
+          configured = json.loads(
+              Path("config/dsi010_2005_2015_special_sessions.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          configured_pairs = {
+              (str(row["trading_date"]), str(row["source_id"]))
+              for row in configured["special_sessions"]
+          }
+          source_pairs: set[tuple[str, str]] = set()
+          source_lineage: list[dict[str, object]] = []
+          for source_path in source_paths:
+              payload = json.loads(source_path.read_text(encoding="utf-8"))
+              source_id = str(payload["source_id"])
+              for row in payload["special_sessions"]:
+                  source_pairs.add((str(row["trading_date"]), source_id))
+              source_lineage.append(
+                  {
+                      "source_id": source_id,
+                      "source_path": str(source_path),
+                      "source_json_sha256": hashlib.sha256(
+                          source_path.read_bytes()
+                      ).hexdigest(),
+                      "source_document_sha256": payload["source_document_sha256"],
+                      "review_csv_sha256": payload["review_csv_sha256"],
+                      "covered_years": payload["covered_years"],
+                      "segment_scope": payload["segment_scope"],
+                  }
+              )
+          if source_pairs != configured_pairs:
+              raise SystemExit(
+                  "GOVERNED_SPECIAL_SESSION_CONFIG_MISMATCH:"
+                  f"configured={sorted(configured_pairs)}:sources={sorted(source_pairs)}"
+              )
+
+          sources = tuple(
+              OfficialSessionCalendarEngine.load_source(path) for path in source_paths
+          )
+          canonical = CanonicalPointInTimeWarehouse(database)
+          engine = OfficialSessionCalendarEngine(canonical)
+          report = engine.reconcile(
+              date(2005, 1, 1),
+              date(2015, 12, 31),
+              sources,
+          )
+          engine_paths = engine.export(report, audit_root)
+
+          def write_rows(
+              name: str,
+              rows: list[dict[str, object]],
+              fields: tuple[str, ...],
+          ) -> Path:
+              path = audit_root / name
+              with path.open("w", encoding="utf-8", newline="") as handle:
+                  writer = csv.DictWriter(handle, fieldnames=fields)
+                  writer.writeheader()
+                  writer.writerows(rows)
+              return path
+
+          annual_rows = [asdict(item) for item in report.annual_summaries]
+          write_rows("annual_audit.csv", annual_rows, tuple(annual_rows[0]))
+          record_rows = [
+              {
+                  "trading_date": record.trading_date.isoformat(),
+                  "classification": record.classification.value,
+                  "observed_candles": record.observed_candles,
+                  "description": record.description or "",
+                  "source_ids": ";".join(record.source_ids),
+                  "issue_codes": ";".join(record.issue_codes),
+              }
+              for record in report.records
+          ]
+          fields = (
+              "trading_date",
+              "classification",
+              "observed_candles",
+              "description",
+              "source_ids",
+              "issue_codes",
+          )
+          write_rows(
+              "unresolved_dates.csv",
+              [row for row in record_rows if row["classification"] == "unresolved_weekday"],
+              fields,
+          )
+          write_rows(
+              "conflicts.csv",
+              [row for row in record_rows if "HOLIDAY_HAS_OBSERVED_CANDLES" in row["issue_codes"]],
+              fields,
+          )
+          write_rows(
+              "missing_special_sessions.csv",
+              [row for row in record_rows if "MISSING_OFFICIAL_SPECIAL_SESSION" in row["issue_codes"]],
+              fields,
+          )
+          write_rows(
+              "unconfirmed_special_sessions.csv",
+              [row for row in record_rows if "UNCONFIRMED_SPECIAL_SESSION" in row["issue_codes"]],
+              fields,
+          )
+          (audit_root / "source_lineage.json").write_text(
+              json.dumps(source_lineage, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+
+          latest_manifest: dict[str, dict[str, object]] = {}
+          for line in manifest.read_text(encoding="utf-8").splitlines():
+              if line.strip():
+                  payload = json.loads(line)
+                  latest_manifest[str(payload["trading_date"])] = payload
+          latest_status_counts: dict[str, int] = {}
+          for payload in latest_manifest.values():
+              status = str(payload.get("status") or "UNKNOWN")
+              latest_status_counts[status] = latest_status_counts.get(status, 0) + 1
+
+          certification_permitted = (
+              report.certification_state is CalendarCertificationState.CERTIFIED
+              and report.unresolved_weekday_count == 0
+              and report.unconfirmed_special_session_count == 0
+              and report.missing_special_session_count == 0
+              and report.conflict_count == 0
+          )
+          summary = {
+              "start_date": report.start_date.isoformat(),
+              "end_date": report.end_date.isoformat(),
+              "reviewed_source_count": len(source_paths),
+              "covered_years": list(range(2005, 2016)),
+              "official_holiday_count": report.official_holiday_count,
+              "official_special_session_count": report.official_special_session_count,
+              "expected_session_count": report.expected_session_count,
+              "observed_session_count": report.observed_session_count,
+              "unresolved_weekday_count": report.unresolved_weekday_count,
+              "unconfirmed_special_session_count": report.unconfirmed_special_session_count,
+              "missing_special_session_count": report.missing_special_session_count,
+              "conflict_count": report.conflict_count,
+              "certification_state": report.certification_state.value,
+              "calendar_report_sha256": report.report_sha256,
+              "database_path": str(database),
+              "database_sha256": hashlib.sha256(database.read_bytes()).hexdigest(),
+              "manifest_path": str(manifest),
+              "manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest(),
+              "latest_manifest_status_counts": dict(sorted(latest_status_counts.items())),
+              "source_population_run_id": 30302226936,
+              "full_2005_2015_audit_performed": True,
+              "calendar_certification_permitted": certification_permitted,
+              "classification_inferred_from_archive_status": False,
+              "classification_inferred_from_observed_candles": False,
+              "production_influence": False,
+              "engine_artifacts": [str(path) for path in engine_paths],
+          }
+          (audit_root / "full_calendar_audit_summary.json").write_text(
+              json.dumps(summary, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          evidence_paths = [
+              database,
+              manifest,
+              merged_root / "merge_lineage.json",
+              merged_root / "merge_summary.json",
+              *(path for path in audit_root.rglob("*") if path.is_file()),
+              *source_paths,
+          ]
+          with (audit_root / "evidence_hashes.txt").open(
+              "w",
+              encoding="utf-8",
+          ) as handle:
+              for path in sorted(set(evidence_paths), key=str):
+                  handle.write(
+                      f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path}\n"
+                  )
+
+          print("===== DSI-010 CORRECTED FULL 2005-2015 CALENDAR AUDIT =====")
+          for key, value in summary.items():
+              print(f"{key}: {value}")
+          PY
+      - name: Upload corrected merged store and full audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-corrected-full-2005-2015-governed-calendar-audit
+          path: |
+            /tmp/dsi010-resume-merge.log
+            /tmp/dsi010-resume-full-calendar-audit.log
+            artifacts/dsi010_merged_historical_truth
+            artifacts/dsi010_2005_2015_full_calendar_audit
+            artifacts/dsi010_pre2011_official_sources
+            artifacts/dsi010_pre2011_reviewed_sources
+            artifacts/dsi010_2005_emergency_holiday_source
+            artifacts/dsi010_2011_2015_official_sources
+            artifacts/dsi010_2011_2015_reviewed_sources
+            config/dsi010_2005_2015_special_sessions.json
+          if-no-files-found: error
+          retention-days: 14
