@@ -13,11 +13,11 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Print validation failure tail
+      - name: Print repaired validation failure tail
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
-          JOB_ID: "90128636253"
+          JOB_ID: "90129349060"
         run: |
           curl --fail --location --silent --show-error \
             -H "Accept: application/vnd.github+json" \
@@ -27,7 +27,7 @@ jobs:
             --output /tmp/job.log
           echo "===== VALIDATION ERRORS ====="
           grep -nE \
-            'error:|ERROR|FAILED|Failure|Traceback|AssertionError|TypeError|AttributeError|E[0-9]{3}|F[0-9]{3}|mypy|pytest' \
-            /tmp/job.log | tail -160 || true
-          echo "===== FINAL 240 LINES ====="
-          tail -240 /tmp/job.log
+            'error:|ERROR|FAILED|Failure|Traceback|AssertionError|TypeError|AttributeError|E[0-9]{3}|F[0-9]{3}|mypy|pytest|FAILURES|short test summary' \
+            /tmp/job.log | tail -200 || true
+          echo "===== FINAL 280 LINES ====="
+          tail -280 /tmp/job.log
