@@ -7,6 +7,9 @@ from typing import Annotated
 
 import typer
 
+from alpha.application.decision_superiority_pre2016_calendar_sources_cli import (
+    register_decision_superiority_pre2016_calendar_source_commands,
+)
 from alpha.application.decision_superiority_pre2016_external_validation_cli import (
     register_decision_superiority_pre2016_external_validation_command,
 )
@@ -38,6 +41,7 @@ def register_decision_superiority_entry_stop_improvement_command(
         decision_superiority_entry_stop_improvement_verify
     )
     register_decision_superiority_pre2016_external_validation_command(app)
+    register_decision_superiority_pre2016_calendar_source_commands(app)
 
 
 def decision_superiority_entry_stop_improvement(
