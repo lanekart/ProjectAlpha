@@ -1,9 +1,9 @@
 name: DSI010 Exact Lint Repair
 
 on:
-  push:
+  pull_request:
     branches:
-      - feature/dsi-010-pre2016-external-era-validation
+      - feature/recovery-foundation-v1
 
 permissions:
   contents: write
