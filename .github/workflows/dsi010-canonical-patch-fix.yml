@@ -1,0 +1,46 @@
+name: DSI-010 Canonical Patch Fix
+
+on:
+  push:
+    branches:
+      - feature/dsi-010-pre2016-external-era-validation
+    paths:
+      - .github/workflows/dsi010-canonical-patch-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Preserve nested test escapes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/apply_dsi010_html_canonical_hash_recovery.py")
+          text = path.read_text(encoding="utf-8")
+          old = "    addition = '''\n\ndef _html_registry("
+          new = "    addition = r'''\n\ndef _html_registry("
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit("CANONICAL_TEST_PATCH_LITERAL_NOT_FOUND")
+          path.write_text(text, encoding="utf-8")
+          PY
+          git config user.name "Project Alpha Automation"
+          git config user.email "project-alpha-automation@users.noreply.github.com"
+          git add scripts/apply_dsi010_html_canonical_hash_recovery.py
+          if git diff --cached --quiet; then
+            echo "Canonical patch already fixed"
+            exit 0
+          fi
+          git commit -m "fix(dsi-010): preserve canonical hash test escapes"
+          git pull --rebase origin feature/dsi-010-pre2016-external-era-validation
+          git push origin HEAD:feature/dsi-010-pre2016-external-era-validation
