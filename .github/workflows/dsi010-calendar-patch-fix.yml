@@ -24,6 +24,9 @@ jobs:
           persist-credentials: true
       - name: Correct bytes normalization
         run: |
+          git config user.name "Project Alpha Automation"
+          git config user.email "project-alpha-automation@users.noreply.github.com"
+          git pull --rebase origin feature/dsi-010-pre2016-external-era-validation
           python - <<'PY'
           from pathlib import Path
 
@@ -31,12 +34,22 @@ jobs:
           text = path.read_text(encoding='utf-8')
           old = 'prefix = raw[:2048].lstrip().casefold()'
           new = 'prefix = raw[:2048].lstrip().lower()'
-          if old not in text:
-              raise SystemExit('bytes casefold patch target missing')
-          path.write_text(text.replace(old, new), encoding='utf-8')
+          if old in text:
+              path.write_text(text.replace(old, new), encoding='utf-8')
+          elif new not in text:
+              raise SystemExit('HTML detector patch target missing')
           PY
-          git config user.name "Project Alpha Automation"
-          git config user.email "project-alpha-automation@users.noreply.github.com"
           git add .github/workflows/dsi010-calendar-implementation.yml
+          if git diff --cached --quiet; then
+            echo "Detector normalization already corrected"
+            exit 0
+          fi
           git commit -m "fix(dsi-010): normalize HTML bytes safely"
-          git push origin HEAD:feature/dsi-010-pre2016-external-era-validation
+          for attempt in 1 2 3; do
+            git pull --rebase origin feature/dsi-010-pre2016-external-era-validation
+            if git push origin HEAD:feature/dsi-010-pre2016-external-era-validation; then
+              exit 0
+            fi
+            sleep $((attempt * 2))
+          done
+          exit 1
