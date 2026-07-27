@@ -215,7 +215,7 @@ def patch_registry() -> None:
 def patch_tests() -> None:
     text = TESTS.read_text(encoding="utf-8")
     marker = "\n\ndef test_2015_capital_market_calendar_is_accepted(\n"
-    addition = '''
+    addition = r'''
 
 def _html_registry(
     root: Path,
