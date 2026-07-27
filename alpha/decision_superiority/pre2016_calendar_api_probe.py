@@ -43,6 +43,38 @@ class _HttpSession(Protocol):
     ) -> _HttpResponse: ...
 
 
+class _RequestsResponseAdapter:
+    def __init__(self, response: requests.Response) -> None:
+        self.status_code = response.status_code
+        self.content = response.content
+        self.headers: Mapping[str, str] = dict(response.headers)
+        self._response = response
+
+    def json(self) -> object:
+        return self._response.json()
+
+
+class _RequestsSessionAdapter:
+    def __init__(self) -> None:
+        self._session = requests.Session()
+
+    def get(
+        self,
+        url: str,
+        *,
+        params: Mapping[str, str] | None = None,
+        headers: Mapping[str, str] | None = None,
+        timeout: float | None = None,
+    ) -> _HttpResponse:
+        response = self._session.get(
+            url,
+            params=params,
+            headers=headers,
+            timeout=timeout,
+        )
+        return _RequestsResponseAdapter(response)
+
+
 @dataclass(frozen=True, slots=True)
 class Pre2016HolidayApiProbeAttempt:
     """One immutable request/response interpretation."""
@@ -88,7 +120,7 @@ def probe_pre2016_holiday_api(
     raw_root = output / "raw"
     raw_root.mkdir(parents=True, exist_ok=True)
 
-    client: _HttpSession = session or requests.Session()
+    client: _HttpSession = session or _RequestsSessionAdapter()
     headers = {
         "User-Agent": "ProjectAlpha-HistoricalTruth/1.0",
         "Accept": "application/json,text/plain,*/*",
