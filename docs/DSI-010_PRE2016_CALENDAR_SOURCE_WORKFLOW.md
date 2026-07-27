@@ -59,6 +59,7 @@ The probe:
 - parses only the official `CM` holiday list;
 - accepts a response only when every parsed row belongs to the requested year;
 - rejects current-year payloads returned for historical requests;
+- wraps Requests behind an explicit typed response/session adapter;
 - keeps calendar certification disabled regardless of probe success.
 
 A response that ignores the requested year cannot become calendar evidence.
@@ -122,8 +123,9 @@ conflict.
 
 - Calendar discovery and reviewed-source implementation: `3c4bd6e54ab28ebd7c3c2628cc33f2c60f8d03e2`.
 - Historical API probe formatted implementation: `6f49927d6fd1382c29b3ae7950e2d1ae57a8ab2f`.
-- Permanent GitHub validation must pass on the subsequent owner-authored
-  publication head before local use.
+- Typed Requests adapter implementation: `1d90666572d07277a237a305ff786b671c1dc154`.
+- Permanent GitHub validation must pass on this owner-authored publication head
+  before local use.
 
 ## Governance
 
