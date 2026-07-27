@@ -19,130 +19,32 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13'
+      - name: Install locked Ruff
+        run: pip install ruff==0.15.20
       - name: Apply exact source repair
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          engine = Path(
+          path = Path(
               "alpha/decision_superiority/pre2016_external_validation.py"
           )
-          text = engine.read_text(encoding="utf-8")
-          old = '''        dsi007 = validate_regime_strategy_tournament_certificate(
-              sources.dsi007_certificate,
-              require_ready=False,
-          )'''
-          new = '''        validate_regime_strategy_tournament_certificate(
-              sources.dsi007_certificate,
-              require_ready=False,
-          )'''
-          if old not in text:
-              raise SystemExit("expected DSI-007 validation binding not found")
-          engine.write_text(text.replace(old, new, 1), encoding="utf-8")
-
-          artifacts = Path(
-              "alpha/decision_superiority/"
-              "pre2016_external_validation_artifacts.py"
-          )
-          text = artifacts.read_text(encoding="utf-8")
-          text = text.replace(
-              "    replication_metric = cast_mapping(replication) "
-              "if isinstance(replication, Mapping) else {}\n",
-              "    replication_metric = (\n"
-              "        cast_mapping(replication) "
-              "if isinstance(replication, Mapping) else {}\n"
-              "    )\n",
-              1,
-          )
-          old_block = '''            f"- Incumbent net CAGR: {_display(incumbent.get('net_cagr'), percent=True)}",
-              f"- Challenger net CAGR: {_display(challenger.get('net_cagr'), percent=True)}",
-              f"- Benchmark net CAGR: {_display(benchmark.get('net_cagr'), percent=True)}",
-              f"- Incumbent maximum drawdown: {_display(incumbent.get('maximum_drawdown'), percent=True)}",
-              f"- Challenger maximum drawdown: {_display(challenger.get('maximum_drawdown'), percent=True)}",
-              f"- Incumbent trades: {incumbent.get('trade_count', 0)}",
-              f"- Challenger trades: {challenger.get('trade_count', 0)}",
-              f"- Challenger win rate: {_display(challenger.get('win_rate'), percent=True)}",
-              f"- Challenger expectancy: {_display(challenger.get('expectancy'), percent=True)}",
-              f"- Benchmark gap closed: {_display(summary.get('benchmark_gap_closed'), percent=True)}",
-              "",
-              "## Independent-Era Walk-Forward Replication",
-              "",
-              f"- Regime-aware net CAGR: {_display(replication_metric.get('net_cagr'), percent=True)}",
-              f"- Regime-aware maximum drawdown: {_display(replication_metric.get('maximum_drawdown'), percent=True)}",
-              f"- Regime-aware trades: {replication_metric.get('trade_count', 0)}",
-          '''
-          new_block = '''            (
-                  "- Incumbent net CAGR: "
-                  f"{_display(incumbent.get('net_cagr'), percent=True)}"
-              ),
-              (
-                  "- Challenger net CAGR: "
-                  f"{_display(challenger.get('net_cagr'), percent=True)}"
-              ),
-              (
-                  "- Benchmark net CAGR: "
-                  f"{_display(benchmark.get('net_cagr'), percent=True)}"
-              ),
-              (
-                  "- Incumbent maximum drawdown: "
-                  f"{_display(incumbent.get('maximum_drawdown'), percent=True)}"
-              ),
-              (
-                  "- Challenger maximum drawdown: "
-                  f"{_display(challenger.get('maximum_drawdown'), percent=True)}"
-              ),
-              f"- Incumbent trades: {incumbent.get('trade_count', 0)}",
-              f"- Challenger trades: {challenger.get('trade_count', 0)}",
-              (
-                  "- Challenger win rate: "
-                  f"{_display(challenger.get('win_rate'), percent=True)}"
-              ),
-              (
-                  "- Challenger expectancy: "
-                  f"{_display(challenger.get('expectancy'), percent=True)}"
-              ),
-              (
-                  "- Benchmark gap closed: "
-                  f"{_display(summary.get('benchmark_gap_closed'), percent=True)}"
-              ),
-              "",
-              "## Independent-Era Walk-Forward Replication",
-              "",
-              (
-                  "- Regime-aware net CAGR: "
-                  f"{_display(replication_metric.get('net_cagr'), percent=True)}"
-              ),
-              (
-                  "- Regime-aware maximum drawdown: "
-                  f"{_display(replication_metric.get('maximum_drawdown'), percent=True)}"
-              ),
-              (
-                  "- Regime-aware trades: "
-                  f"{replication_metric.get('trade_count', 0)}"
-              ),
-          '''
-          if old_block not in text:
-              raise SystemExit("expected executive-report block not found")
-          artifacts.write_text(
-              text.replace(old_block, new_block, 1),
-              encoding="utf-8",
-          )
-
-          for path in (engine, artifacts):
-              long_lines = [
-                  number
-                  for number, line in enumerate(
-                      path.read_text(encoding="utf-8").splitlines(),
-                      start=1,
-                  )
-                  if len(line) > 88
-              ]
-              if long_lines:
-                  raise SystemExit(
-                      f"{path}: lines exceed 88 columns: {long_lines}"
-                  )
+          text = path.read_text(encoding="utf-8")
+          old = "        dsi007 = validate_regime_strategy_tournament_certificate("
+          new = "        validate_regime_strategy_tournament_certificate("
+          if text.count(old) != 1:
+              raise SystemExit(
+                  f"expected one DSI-007 validation binding, found {text.count(old)}"
+              )
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
           PY
+          ruff format \
+            alpha/decision_superiority/pre2016_external_validation.py \
+            alpha/decision_superiority/pre2016_external_validation_artifacts.py
+          ruff check \
+            alpha/decision_superiority/pre2016_external_validation.py \
+            alpha/decision_superiority/pre2016_external_validation_artifacts.py
           python -m py_compile \
             alpha/decision_superiority/pre2016_external_validation.py \
             alpha/decision_superiority/pre2016_external_validation_artifacts.py
