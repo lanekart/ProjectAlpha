@@ -1,0 +1,42 @@
+name: DSI010 Calendar Discovery MyPy
+
+on:
+  pull_request:
+    branches:
+      - feature/recovery-foundation-v1
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: github.head_ref == 'feature/dsi-010-pre2016-external-era-validation'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Install project
+        run: |
+          python -m pip install poetry
+          poetry install --no-interaction
+      - name: Run focused MyPy
+        shell: bash
+        run: |
+          set +e
+          poetry run mypy \
+            alpha/decision_superiority/pre2016_calendar_sources.py \
+            alpha/application/decision_superiority_pre2016_calendar_sources_cli.py \
+            alpha/application/decision_superiority_entry_stop_improvement_cli.py \
+            > dsi010-calendar-discovery-mypy.txt 2>&1
+          status=$?
+          cat dsi010-calendar-discovery-mypy.txt
+          echo "$status" > dsi010-calendar-discovery-mypy-status.txt
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-calendar-discovery-mypy
+          path: |
+            dsi010-calendar-discovery-mypy.txt
+            dsi010-calendar-discovery-mypy-status.txt
