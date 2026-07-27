@@ -6,15 +6,17 @@ on:
       - feature/dsi-010-pre2016-external-era-validation
     paths:
       - .github/workflows/dsi010-calendar-validation-diagnostic.yml
+      - scripts/apply_dsi010_html_calendar_recovery.py
   pull_request:
     paths:
       - .github/workflows/dsi010-calendar-validation-diagnostic.yml
+      - scripts/apply_dsi010_html_calendar_recovery.py
 
 permissions:
   contents: write
 
 jobs:
-  diagnose:
+  implement-and-validate:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -28,79 +30,39 @@ jobs:
           python-version: "3.14"
       - run: pip install poetry
       - run: poetry install --no-interaction
-      - name: Reproduce patch
-        id: patch
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          {
-            python - <<'PY'
-          from pathlib import Path
-
-          workflow = Path(".github/workflows/dsi010-calendar-implementation.yml").read_text(encoding="utf-8")
-          start_marker = "          python - <<'PY'\n"
-          start = workflow.index(start_marker) + len(start_marker)
-          end = workflow.index("\n          PY", start)
-          raw_script = workflow[start:end]
-          script = "\n".join(
-              line[10:] if line.startswith("          ") else line
-              for line in raw_script.splitlines()
-          ) + "\n"
-          Path("/tmp/dsi010_patch.py").write_text(script, encoding="utf-8")
-          print(f"PATCH_SCRIPT_BYTES={len(script.encode('utf-8'))}")
-          PY
-            python /tmp/dsi010_patch.py
-          } 2>&1 | tee /tmp/dsi010-reproduce.log
+      - name: Apply governed HTML recovery patch
+        run: python scripts/apply_dsi010_html_calendar_recovery.py
       - name: Validate focused implementation
-        if: steps.patch.outcome == 'success'
         env:
           _TYPER_FORCE_DISABLE_TERMINAL: "1"
         run: |
-          set -o pipefail
-          {
-            echo '===== RUFF FIX ====='
-            poetry run ruff check --fix \
-              alpha/decision_superiority/pre2016_calendar_recovery.py \
-              tests/decision_superiority/test_pre2016_calendar_recovery.py
-            echo '===== RUFF FORMAT ====='
-            poetry run ruff format \
-              alpha/decision_superiority/pre2016_calendar_recovery.py \
-              tests/decision_superiority/test_pre2016_calendar_recovery.py
-            echo '===== RUFF CHECK ====='
-            poetry run ruff check \
-              alpha/decision_superiority/pre2016_calendar_recovery.py \
-              tests/decision_superiority/test_pre2016_calendar_recovery.py
-            echo '===== MYPY ====='
-            poetry run mypy alpha/decision_superiority/pre2016_calendar_recovery.py
-            echo '===== PYTEST ====='
-            poetry run pytest -q tests/decision_superiority/test_pre2016_calendar_recovery.py
-          } 2>&1 | tee /tmp/dsi010-validation.log
+          poetry run ruff check --fix \
+            alpha/decision_superiority/pre2016_calendar_recovery.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery.py \
+            scripts/apply_dsi010_html_calendar_recovery.py
+          poetry run ruff format \
+            alpha/decision_superiority/pre2016_calendar_recovery.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery.py \
+            scripts/apply_dsi010_html_calendar_recovery.py
+          poetry run ruff check \
+            alpha/decision_superiority/pre2016_calendar_recovery.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery.py \
+            scripts/apply_dsi010_html_calendar_recovery.py
+          poetry run mypy alpha/decision_superiority/pre2016_calendar_recovery.py
+          poetry run pytest -q tests/decision_superiority/test_pre2016_calendar_recovery.py
       - name: Commit validated implementation
-        if: steps.patch.outcome == 'success'
         run: |
           git config user.name "Project Alpha Automation"
           git config user.email "project-alpha-automation@users.noreply.github.com"
           git add \
             alpha/decision_superiority/pre2016_calendar_recovery.py \
             tests/decision_superiority/test_pre2016_calendar_recovery.py \
-            docs/DSI-010_PRE2011_OFFICIAL_CALENDAR_RECOVERY.md
+            docs/DSI-010_PRE2011_OFFICIAL_CALENDAR_RECOVERY.md \
+            scripts/apply_dsi010_html_calendar_recovery.py
           if git diff --cached --quiet; then
             echo "No implementation changes to commit"
-          else
-            git commit -m "fix(dsi-010): recover official NSE archive HTML calendars"
-            git pull --rebase origin feature/dsi-010-pre2016-external-era-validation
-            git push origin HEAD:feature/dsi-010-pre2016-external-era-validation
+            exit 0
           fi
-      - name: Upload diagnostic logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dsi010-calendar-validation-diagnostic
-          path: |
-            /tmp/dsi010-reproduce.log
-            /tmp/dsi010-validation.log
-          if-no-files-found: warn
-          retention-days: 7
-      - name: Enforce patch success
-        if: steps.patch.outcome != 'success'
-        run: exit 1
+          git commit -m "fix(dsi-010): recover official NSE archive HTML calendars"
+          git pull --rebase origin feature/dsi-010-pre2016-external-era-validation
+          git push origin HEAD:feature/dsi-010-pre2016-external-era-validation
