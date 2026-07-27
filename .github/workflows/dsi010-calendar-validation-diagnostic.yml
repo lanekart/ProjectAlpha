@@ -11,7 +11,7 @@ on:
       - .github/workflows/dsi010-calendar-validation-diagnostic.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   diagnose:
@@ -21,6 +21,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: feature/dsi-010-pre2016-external-era-validation
+          fetch-depth: 0
+          persist-credentials: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
@@ -40,13 +42,16 @@ jobs:
           Path("/tmp/dsi010_patch.py").write_text(script, encoding="utf-8")
           PY
           python /tmp/dsi010_patch.py
-      - name: Capture focused validation
-        continue-on-error: true
+      - name: Validate focused implementation
         env:
           _TYPER_FORCE_DISABLE_TERMINAL: "1"
         run: |
           set -o pipefail
           {
+            echo '===== RUFF FIX ====='
+            poetry run ruff check --fix \
+              alpha/decision_superiority/pre2016_calendar_recovery.py \
+              tests/decision_superiority/test_pre2016_calendar_recovery.py
             echo '===== RUFF FORMAT ====='
             poetry run ruff format \
               alpha/decision_superiority/pre2016_calendar_recovery.py \
@@ -60,15 +65,25 @@ jobs:
             echo '===== PYTEST ====='
             poetry run pytest -q tests/decision_superiority/test_pre2016_calendar_recovery.py
           } 2>&1 | tee /tmp/dsi010-validation.log
-      - name: Upload validation log and patched files
+      - name: Commit validated implementation
+        run: |
+          git config user.name "Project Alpha Automation"
+          git config user.email "project-alpha-automation@users.noreply.github.com"
+          git add \
+            alpha/decision_superiority/pre2016_calendar_recovery.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery.py \
+            docs/DSI-010_PRE2011_OFFICIAL_CALENDAR_RECOVERY.md
+          if git diff --cached --quiet; then
+            echo "No implementation changes to commit"
+          else
+            git commit -m "fix(dsi-010): recover official NSE archive HTML calendars"
+            git push origin HEAD:feature/dsi-010-pre2016-external-era-validation
+          fi
+      - name: Upload validation log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: dsi010-calendar-validation-diagnostic
-          path: |
-            /tmp/dsi010-validation.log
-            alpha/decision_superiority/pre2016_calendar_recovery.py
-            tests/decision_superiority/test_pre2016_calendar_recovery.py
-            docs/DSI-010_PRE2011_OFFICIAL_CALENDAR_RECOVERY.md
-          if-no-files-found: error
+          path: /tmp/dsi010-validation.log
+          if-no-files-found: warn
           retention-days: 7
