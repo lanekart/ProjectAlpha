@@ -20,6 +20,9 @@ from alpha.decision_superiority.entry_stop_improvement_artifacts import (
     DSI009_ARTIFACTS,
     validate_entry_stop_improvement_certificate,
 )
+from alpha.decision_superiority.pre2016_benchmark import (
+    load_pre2016_governed_tri,
+)
 from alpha.decision_superiority.pre2016_external_validation_models import (
     DSI010_FROZEN_CHALLENGER_ID,
     ExternalValidationClassification,
@@ -44,7 +47,6 @@ from alpha.decision_superiority.regime_strategy_tournament import (
     _build_point_in_time_features,
     _delay_selected_signals,
     _generate_signals,
-    _load_benchmark,
     _load_governed_market,
     _portfolio_metrics,
     _signals_for_portfolio,
@@ -119,7 +121,7 @@ class GovernedPre2016ExternalValidationEngine:
         tournament_sources = TournamentSourcePaths(
             database=sources.database,
             historical_truth_snapshots=sources.historical_truth_snapshots,
-            benchmark=str(sources.benchmark),
+            benchmark="AUTO",
             project_root=sources.project_root,
         )
 
@@ -188,8 +190,8 @@ class GovernedPre2016ExternalValidationEngine:
             trades=challenger_simulation["trades"],
             policy=tournament_policy,
         )
-        benchmark_frame, benchmark_rows = _load_benchmark(
-            str(sources.benchmark),
+        benchmark_frame, benchmark_rows = load_pre2016_governed_tri(
+            sources.benchmark,
             sessions=tuple(
                 item
                 for item in sorted(featured["trading_date"].unique())
