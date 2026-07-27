@@ -1,0 +1,164 @@
+{
+  "candidates": [
+    {
+      "year": 2011,
+      "source_id": "NSE_CMTR_16348_2011_ANNUAL_CALENDAR",
+      "source_url": "https://nsearchives.nseindia.com/content/circulars/cmtr16348.pdf",
+      "segment_scope": "CAPITAL_MARKET",
+      "expected_sha256": "d52836223ceba71a6fd1f1ab73fade75df122ce57f7d98a63a3918ad66908ed7",
+      "expected_download_number": "16348",
+      "expected_circular_date": null,
+      "expected_subject": "trading holidays for the calendar year 2011",
+      "requires_muhurat_statement": true
+    },
+    {
+      "year": 2011,
+      "source_id": "NSE_CMTR_19187_2011_SPECIAL_SESSION",
+      "source_url": "https://nsearchives.nseindia.com/content/circulars/CMTR19187.pdf",
+      "segment_scope": "CAPITAL_MARKET",
+      "expected_sha256": "b5639b0f3af5c7597f78bfe29546cc4c7ff56b2962dcd79eb54f4cd4e11904d5",
+      "expected_download_number": "19187",
+      "expected_circular_date": null,
+      "expected_subject": "muhurat trading session on account of diwali",
+      "requires_muhurat_statement": true
+    },
+    {
+      "year": 2012,
+      "source_id": "NSE_CMTR_19539_2012_ANNUAL_CALENDAR",
+      "source_url": "https://nsearchives.nseindia.com/content/circulars/CMTR19539.pdf",
+      "segment_scope": "CAPITAL_MARKET",
+      "expected_sha256": "4f798db91049897c90cf381ac36c7c8a0315b7144dcf90dc1f6eb3d854e1055d",
+      "expected_download_number": "19539",
+      "expected_circular_date": null,
+      "expected_subject": "trading holidays for the calendar year 2012",
+      "requires_muhurat_statement": true
+    },
+    {
+      "year": 2012,
+      "source_id": "NSE_CMTR_22027_2012_SPECIAL_SESSION_SUPERSEDED",
+      "source_url": "https://nsearchives.nseindia.com/content/circulars/CMTR22027.pdf",
+      "segment_scope": "CAPITAL_MARKET",
+      "expected_sha256": "cecbadc1bb0904efe41025d5fe573115d1b8ccf495de0206a67828f35efeb050",
+      "expected_download_number": "22027",
+      "expected_circular_date": null,
+      "expected_subject": "muhurat trading session on account of diwali",
+      "requires_muhurat_statement": true
+    },
+    {
+      "year": 2012,
+      "source_id": "NSE_CMTR_22083_2012_SPECIAL_SESSION_REVISED",
+      "source_url": "https://nsearchives.nseindia.com/content/circulars/CMTR22083.pdf",
+      "segment_scope": "CAPITAL_MARKET",
+      "expected_sha256": "95269060c61f754433a15f73801deea73fdb0eae8aa7c980c27dca1356a27c0e",
+      "expected_download_number": "22083",
+      "expected_circular_date": null,
+      "expected_subject": "revised timings for muhurat trading",
+      "requires_muhurat_statement": true
+    },
+    {
+      "year": 2013,
+      "source_id": "NSE_CMTR_22317_2013_ANNUAL_CALENDAR",
+      "source_url": "https://nsearchives.nseindia.com/content/circulars/CMTR22317.pdf",
+      "segment_scope": "CAPITAL_MARKET",
+      "expected_sha256": "2c9b5c2502129d03d4919ed6b81d440b76912d0f0a461d7684f3d6bab99fdf02",
+      "expected_download_number": "22317",
+      "expected_circular_date": null,
+      "expected_subject": "trading holidays for the calendar year 2013",
+      "requires_muhurat_statement": true
+    },
+    {
+      "year": 2013,
+      "source_id": "NSE_CMTR_24773_2013_SPECIAL_SESSION",
+      "source_url": "https://nsearchives.nseindia.com/content/circulars/CMTR24773.pdf",
+      "segment_scope": "CAPITAL_MARKET",
+      "expected_sha256": "6292ce71f08cff22b7478de7917fe49de4422adba3a09e89f78b38c7d20afaf3",
+      "expected_download_number": "24773",
+      "expected_circular_date": null,
+      "expected_subject": "muhurat trading session on account of diwali",
+      "requires_muhurat_statement": true
+    },
+    {
+      "year": 2013,
+      "source_id": "NSE_CMTR_24977_2013_HOLIDAY_AMENDMENT",
+      "source_url": "https://nsearchives.nseindia.com/content/circulars/CMTR24977.pdf",
+      "segment_scope": "CAPITAL_MARKET",
+      "expected_sha256": "928113cf29df9df6ad5db93dc1c2657cb545353732f346da70e2f29979e3c273",
+      "expected_download_number": "24977",
+      "expected_circular_date": null,
+      "expected_subject": "trading holiday",
+      "requires_muhurat_statement": false
+    },
+    {
+      "year": 2014,
+      "source_id": "NSE_CMTR_25326_2014_ANNUAL_CALENDAR",
+      "source_url": "https://nsearchives.nseindia.com/content/circulars/CMTR25326.pdf",
+      "segment_scope": "CAPITAL_MARKET",
+      "expected_sha256": "1247dc6cb843e6bfaa50c42d416dc021fd55cbbb6420c43e652d2b7a07fd2f35",
+      "expected_download_number": "25326",
+      "expected_circular_date": null,
+      "expected_subject": "trading holidays for the calendar year 2014",
+      "requires_muhurat_statement": true
+    },
+    {
+      "year": 2014,
+      "source_id": "NSE_CMTR_26360_2014_HOLIDAY_AMENDMENT",
+      "source_url": "https://nsearchives.nseindia.com/content/circulars/CMTR26360.pdf",
+      "segment_scope": "CAPITAL_MARKET",
+      "expected_sha256": "dcc7ba7d2b626494189065569732fc27f5a13945c707d5a9be62474ddb0331a5",
+      "expected_download_number": "26360",
+      "expected_circular_date": null,
+      "expected_subject": "trading holiday on april 24, 2014 on account of parliamentary elections",
+      "requires_muhurat_statement": false
+    },
+    {
+      "year": 2014,
+      "source_id": "NSE_CMTR_27779_2014_SPECIAL_SESSION",
+      "source_url": "https://nsearchives.nseindia.com/content/circulars/CMTR27779.pdf",
+      "segment_scope": "CAPITAL_MARKET",
+      "expected_sha256": "1e77a9a4e2730c78c22ca5e1a8698d0e4fb46d6412749df86b90ce4eb9123430",
+      "expected_download_number": "27779",
+      "expected_circular_date": null,
+      "expected_subject": "muhurat trading session on account of diwali",
+      "requires_muhurat_statement": true
+    },
+    {
+      "year": 2014,
+      "source_id": "NSE_CMTR_27792_2014_HOLIDAY_AMENDMENT",
+      "source_url": "https://nsearchives.nseindia.com/content/circulars/CMTR27792.pdf",
+      "segment_scope": "CAPITAL_MARKET",
+      "expected_sha256": "1e5e2964d919b72fc3728d2e4d2ba785f77aebb162188c260b8f3d6479590282",
+      "expected_download_number": "27792",
+      "expected_circular_date": null,
+      "expected_subject": "trading holiday on october 15, 2014 on account of general assembly elections",
+      "requires_muhurat_statement": false
+    },
+    {
+      "year": 2015,
+      "source_id": "NSE_CMTR_28337_2015_ANNUAL_CALENDAR",
+      "source_url": "https://nsearchives.nseindia.com/content/circulars/CMTR28337.pdf",
+      "segment_scope": "CAPITAL_MARKET",
+      "expected_sha256": "5733cf3b16cf5cf05879fb28777d0fbf6636c44c8dd204c8fe2f02ef9bb722c4",
+      "expected_download_number": "28337",
+      "expected_circular_date": null,
+      "expected_subject": "trading holidays for the calendar year 2015",
+      "requires_muhurat_statement": true
+    },
+    {
+      "year": 2015,
+      "source_id": "NSE_CMTR_31047_2015_SPECIAL_SESSION",
+      "source_url": "https://nsearchives.nseindia.com/content/circulars/CMTR31047.pdf",
+      "segment_scope": "CAPITAL_MARKET",
+      "expected_sha256": "060afe66d01e7d03098254bbd6fe772f485184684c3453e411dceb3339bd169d",
+      "expected_download_number": "31047",
+      "expected_circular_date": null,
+      "expected_subject": "muhurat trading session on account of diwali",
+      "requires_muhurat_statement": true
+    }
+  ],
+  "candidate_admission_automatic": false,
+  "supersession_policy": {
+    "NSE_CMTR_22027_2012_SPECIAL_SESSION_SUPERSEDED": "NSE_CMTR_22083_2012_SPECIAL_SESSION_REVISED"
+  },
+  "calendar_certification_permitted": false,
+  "production_influence": false
+}
