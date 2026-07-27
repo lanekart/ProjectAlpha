@@ -53,10 +53,12 @@ jobs:
             | tee artifacts/dsi010_pre2011_reviewed_sources_console.log
       - name: Validate source contract and full-audit preflight
         run: |
-          poetry run python - <<'PY'
+          set -o pipefail
+          poetry run python - <<'PY' 2>&1 | tee /tmp/dsi010-full-audit-preflight.log
           from __future__ import annotations
 
           import json
+          import subprocess
           from pathlib import Path
 
           from alpha.decision_superiority.pre2016_calendar_sources import (
@@ -103,9 +105,15 @@ jobs:
           required_later_years = set(range(2011, 2016))
           later_covered_years: set[int] = set()
           later_sources: list[str] = []
-          for path in sorted(Path(".").rglob("*.json")):
-              if "artifacts" in path.parts:
+          tracked = subprocess.run(
+              ["git", "ls-files", "-z", "--", "*.json"],
+              check=True,
+              capture_output=True,
+          ).stdout.decode("utf-8").split("\0")
+          for raw_path in tracked:
+              if not raw_path:
                   continue
+              path = Path(raw_path)
               try:
                   payload = json.loads(path.read_text(encoding="utf-8"))
               except (OSError, UnicodeError, json.JSONDecodeError):
@@ -122,7 +130,8 @@ jobs:
               source_years = {
                   int(year)
                   for year in covered
-                  if isinstance(year, int) or (isinstance(year, str) and year.isdigit())
+                  if isinstance(year, int)
+                  or (isinstance(year, str) and year.isdigit())
               }
               relevant_years = source_years & required_later_years
               if not relevant_years:
@@ -185,6 +194,7 @@ jobs:
         with:
           name: dsi010-pre2011-reviewed-calendar-sources
           path: |
+            /tmp/dsi010-full-audit-preflight.log
             artifacts/dsi010_pre2011_official_sources
             artifacts/dsi010_pre2011_official_sources_console.log
             artifacts/dsi010_pre2011_reviewed_sources
