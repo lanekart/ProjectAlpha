@@ -7,6 +7,8 @@ on:
       - feature/dsi-010-pre2016-external-era-validation
     paths:
       - .github/workflows/dsi010-reviewed-calendar-source-build.yml
+      - alpha/decision_superiority/pre2016_emergency_calendar.py
+      - scripts/build_dsi010_2005_emergency_holiday_source.py
       - scripts/build_dsi010_pre2011_reviewed_sources.py
       - scripts/build_dsi010_2011_2015_reviewed_sources.py
       - config/dsi010_pre2011_official_calendar_candidates.json
@@ -31,12 +33,18 @@ jobs:
       - name: Validate reviewed-source builders
         run: |
           poetry run ruff check \
+            alpha/decision_superiority/pre2016_emergency_calendar.py \
+            scripts/build_dsi010_2005_emergency_holiday_source.py \
             scripts/build_dsi010_pre2011_reviewed_sources.py \
             scripts/build_dsi010_2011_2015_reviewed_sources.py
           poetry run ruff format --check \
+            alpha/decision_superiority/pre2016_emergency_calendar.py \
+            scripts/build_dsi010_2005_emergency_holiday_source.py \
             scripts/build_dsi010_pre2011_reviewed_sources.py \
             scripts/build_dsi010_2011_2015_reviewed_sources.py
           poetry run mypy \
+            alpha/decision_superiority/pre2016_emergency_calendar.py \
+            scripts/build_dsi010_2005_emergency_holiday_source.py \
             scripts/build_dsi010_pre2011_reviewed_sources.py \
             scripts/build_dsi010_2011_2015_reviewed_sources.py
       - name: Recover immutable 2005-2010 official documents
@@ -57,6 +65,33 @@ jobs:
             --recovery-root artifacts/dsi010_pre2011_official_sources \
             --output-root artifacts/dsi010_pre2011_reviewed_sources \
             | tee artifacts/dsi010_pre2011_reviewed_sources_console.log
+      - name: Build reviewed 2005 emergency closure source
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/dsi010_2005_emergency_holiday_source
+          poetry run python - <<'PY'
+          from pathlib import Path
+
+          import requests
+
+          url = "https://nsearchives.nseindia.com/content/press/27072005.pdf"
+          response = requests.get(
+              url,
+              headers={"User-Agent": "ProjectAlpha-HistoricalTruth/1.0"},
+              timeout=45,
+          )
+          response.raise_for_status()
+          path = Path(
+              "artifacts/dsi010_2005_emergency_holiday_source/"
+              "nse_press_27072005.pdf"
+          )
+          path.write_bytes(response.content)
+          PY
+          poetry run python scripts/build_dsi010_2005_emergency_holiday_source.py \
+            --source-document \
+            artifacts/dsi010_2005_emergency_holiday_source/nse_press_27072005.pdf \
+            --output-root artifacts/dsi010_2005_emergency_holiday_source \
+            | tee artifacts/dsi010_2005_emergency_holiday_source_console.log
       - name: Recover immutable 2011-2015 official documents
         env:
           _TYPER_FORCE_DISABLE_TERMINAL: "1"
@@ -90,8 +125,10 @@ jobs:
 
           early_root = Path("artifacts/dsi010_pre2011_reviewed_sources")
           later_root = Path("artifacts/dsi010_2011_2015_reviewed_sources")
+          emergency_root = Path("artifacts/dsi010_2005_emergency_holiday_source")
           early_sources = sorted((early_root / "sources").glob("*.json"))
           later_sources = sorted((later_root / "sources").glob("*.json"))
+          emergency_source = emergency_root / "nse_2005_emergency_holiday.json"
           if len(early_sources) != 15:
               raise SystemExit(
                   f"EXPECTED_15_EARLY_REVIEWED_SOURCES_FOUND_{len(early_sources)}"
@@ -100,11 +137,14 @@ jobs:
               raise SystemExit(
                   f"EXPECTED_13_LATER_REVIEWED_SOURCES_FOUND_{len(later_sources)}"
               )
+          if not emergency_source.is_file():
+              raise SystemExit("EMERGENCY_HOLIDAY_SOURCE_MISSING")
 
+          source_paths = (*early_sources, *later_sources, emergency_source)
           years: set[int] = set()
           holiday_rows = 0
           special_rows = 0
-          for source_path in (*early_sources, *later_sources):
+          for source_path in source_paths:
               payload = validate_hash_bound_official_calendar_source(
                   source_path,
                   require_capital_market_scope=True,
@@ -126,9 +166,11 @@ jobs:
 
           if years != set(range(2005, 2016)):
               raise SystemExit(f"COVERED_YEAR_MISMATCH:{sorted(years)}")
-          if holiday_rows != 219:
+          if len(source_paths) != 29:
+              raise SystemExit(f"EXPECTED_29_REVIEWED_SOURCES_FOUND_{len(source_paths)}")
+          if holiday_rows != 220:
               raise SystemExit(
-                  f"EXPECTED_219_REVIEWED_HOLIDAY_ROWS_FOUND_{holiday_rows}"
+                  f"EXPECTED_220_REVIEWED_HOLIDAY_ROWS_FOUND_{holiday_rows}"
               )
           if special_rows != 11:
               raise SystemExit(
@@ -155,13 +197,15 @@ jobs:
               blockers.append("GOVERNED_MANIFEST_UNAVAILABLE")
 
           preflight = {
-              "reviewed_source_count": len(early_sources) + len(later_sources),
+              "reviewed_source_count": len(source_paths),
               "reviewed_covered_years": sorted(years),
               "reviewed_holiday_row_count": holiday_rows,
               "reviewed_special_session_row_count": special_rows,
               "reviewed_2005_2010_source_count": len(early_sources),
               "reviewed_2011_2015_source_count": len(later_sources),
+              "reviewed_emergency_source_count": 1,
               "reviewed_2011_2015_available": True,
+              "emergency_2005_07_28_available": True,
               "supersession_applied": True,
               "revocation_applied": True,
               "database_path": str(database),
@@ -180,11 +224,12 @@ jobs:
               encoding="utf-8",
           )
           print("===== DSI-010 FULL CALENDAR AUDIT PREFLIGHT =====")
-          print(f"Reviewed Sources: {len(early_sources) + len(later_sources)}")
+          print(f"Reviewed Sources: {len(source_paths)}")
           print(f"Reviewed Covered Years: {','.join(str(year) for year in sorted(years))}")
           print(f"Reviewed Holiday Rows: {holiday_rows}")
           print(f"Reviewed Special Sessions: {special_rows}")
           print("Reviewed 2011-2015 Available: true")
+          print("Emergency 2005-07-28 Available: true")
           print(f"Database Available: {str(database.is_file()).lower()}")
           print(f"Manifest Available: {str(manifest.is_file()).lower()}")
           print(f"Full Audit Blockers: {','.join(blockers) or 'NONE'}")
@@ -203,6 +248,8 @@ jobs:
             artifacts/dsi010_pre2011_official_sources_console.log
             artifacts/dsi010_pre2011_reviewed_sources
             artifacts/dsi010_pre2011_reviewed_sources_console.log
+            artifacts/dsi010_2005_emergency_holiday_source
+            artifacts/dsi010_2005_emergency_holiday_source_console.log
             artifacts/dsi010_2011_2015_official_sources
             artifacts/dsi010_2011_2015_official_sources_console.log
             artifacts/dsi010_2011_2015_reviewed_sources
