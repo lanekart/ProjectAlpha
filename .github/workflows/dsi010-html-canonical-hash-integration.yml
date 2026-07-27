@@ -1,0 +1,177 @@
+name: DSI-010 Canonical HTML Hash Integration
+
+on:
+  push:
+    branches:
+      - feature/dsi-010-pre2016-external-era-validation
+    paths:
+      - .github/workflows/dsi010-html-canonical-hash-integration.yml
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-html-canonical-hash-integration.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Apply canonical HTML hash recovery
+        run: poetry run python scripts/apply_dsi010_html_canonical_hash_recovery.py
+      - name: Validate canonical hash implementation
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+        run: |
+          poetry run ruff check --fix \
+            alpha/decision_superiority/pre2016_calendar_recovery.py \
+            scripts/apply_dsi010_html_canonical_hash_recovery.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery_later_years.py
+          poetry run ruff format \
+            alpha/decision_superiority/pre2016_calendar_recovery.py \
+            scripts/apply_dsi010_html_canonical_hash_recovery.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery_later_years.py
+          poetry run ruff check \
+            alpha/decision_superiority/pre2016_calendar_recovery.py \
+            scripts/apply_dsi010_html_canonical_hash_recovery.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery_later_years.py
+          poetry run mypy alpha/decision_superiority/pre2016_calendar_recovery.py
+          poetry run pytest -q \
+            tests/decision_superiority/test_pre2016_calendar_recovery.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery_later_years.py
+      - name: Recover and build both calendar eras
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+        run: |
+          set -o pipefail
+          poetry run python -m alpha benchmark \
+            decision-superiority-pre2016-calendar-source-recovery \
+            --candidate-registry config/dsi010_pre2011_official_calendar_candidates.json \
+            --output artifacts/dsi010_canonical_hash_early_recovery \
+            --timeout-seconds 45 \
+            | tee artifacts/dsi010_canonical_hash_early_recovery_console.log
+          poetry run python scripts/build_dsi010_pre2011_reviewed_sources.py \
+            --recovery-root artifacts/dsi010_canonical_hash_early_recovery \
+            --output-root artifacts/dsi010_canonical_hash_early_reviewed \
+            | tee artifacts/dsi010_canonical_hash_early_reviewed_console.log
+          poetry run python -m alpha benchmark \
+            decision-superiority-pre2016-calendar-source-recovery \
+            --candidate-registry config/dsi010_2011_2015_official_calendar_candidates.json \
+            --output artifacts/dsi010_canonical_hash_later_recovery \
+            --timeout-seconds 45 \
+            | tee artifacts/dsi010_canonical_hash_later_recovery_console.log
+          poetry run python scripts/build_dsi010_2011_2015_reviewed_sources.py \
+            --recovery-root artifacts/dsi010_canonical_hash_later_recovery \
+            --output-root artifacts/dsi010_canonical_hash_later_reviewed \
+            | tee artifacts/dsi010_canonical_hash_later_reviewed_console.log
+      - name: Validate canonical recovery results
+        run: |
+          poetry run python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          from pathlib import Path
+
+          early = json.loads(
+              Path(
+                  "artifacts/dsi010_canonical_hash_early_recovery/source_recovery_summary.json"
+              ).read_text(encoding="utf-8")
+          )
+          later = json.loads(
+              Path(
+                  "artifacts/dsi010_canonical_hash_later_recovery/source_recovery_summary.json"
+              ).read_text(encoding="utf-8")
+          )
+          if early["official_documents_accepted"] != 15:
+              raise SystemExit(f"EARLY_ACCEPTED_MISMATCH:{early}")
+          if early["unrecovered_years"] != []:
+              raise SystemExit(f"EARLY_UNRECOVERED:{early['unrecovered_years']}")
+          if later["official_documents_accepted"] != 14:
+              raise SystemExit(f"LATER_ACCEPTED_MISMATCH:{later}")
+          if later["unrecovered_years"] != []:
+              raise SystemExit(f"LATER_UNRECOVERED:{later['unrecovered_years']}")
+          early_manifest = json.loads(
+              Path(
+                  "artifacts/dsi010_canonical_hash_early_reviewed/reviewed_source_manifest.json"
+              ).read_text(encoding="utf-8")
+          )
+          later_manifest = json.loads(
+              Path(
+                  "artifacts/dsi010_canonical_hash_later_reviewed/reviewed_source_manifest.json"
+              ).read_text(encoding="utf-8")
+          )
+          if early_manifest["source_count"] != 15:
+              raise SystemExit("EARLY_SOURCE_COUNT_MISMATCH")
+          if early_manifest["holiday_row_count"] != 120:
+              raise SystemExit("EARLY_HOLIDAY_COUNT_MISMATCH")
+          if early_manifest["special_session_row_count"] != 6:
+              raise SystemExit("EARLY_SPECIAL_COUNT_MISMATCH")
+          if later_manifest["source_count"] != 13:
+              raise SystemExit("LATER_SOURCE_COUNT_MISMATCH")
+          if later_manifest["holiday_row_count"] != 99:
+              raise SystemExit("LATER_HOLIDAY_COUNT_MISMATCH")
+          if later_manifest["special_session_row_count"] != 5:
+              raise SystemExit("LATER_SPECIAL_COUNT_MISMATCH")
+          attempts = json.loads(
+              Path(
+                  "artifacts/dsi010_canonical_hash_early_recovery/source_candidate_attempts.json"
+              ).read_text(encoding="utf-8")
+          )
+          drifted = [row for row in attempts if row["html_transport_drift_accepted"]]
+          for row in drifted:
+              if row["raw_sha256_match"] is not False:
+                  raise SystemExit("DRIFTED_RAW_HASH_NOT_FALSE")
+              if row["extracted_text_sha256_match"] is not True:
+                  raise SystemExit("DRIFTED_TEXT_HASH_NOT_TRUE")
+          print(f"HTML_TRANSPORT_DRIFT_ACCEPTED_COUNT={len(drifted)}")
+          print("CANONICAL_HTML_HASH_BOUNDARY_VALIDATED=true")
+          print("CALENDAR_CERTIFICATION_PERMITTED=false")
+          print("PRODUCTION_INFLUENCE=false")
+          PY
+      - name: Commit validated canonical hash integration
+        run: |
+          git config user.name "Project Alpha Automation"
+          git config user.email "project-alpha-automation@users.noreply.github.com"
+          git add \
+            alpha/decision_superiority/pre2016_calendar_recovery.py \
+            config/dsi010_pre2011_official_calendar_candidates.json \
+            docs/DSI-010_PRE2011_OFFICIAL_CALENDAR_RECOVERY.md \
+            scripts/apply_dsi010_html_canonical_hash_recovery.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery_later_years.py
+          if git diff --cached --quiet; then
+            echo "Canonical hash integration already committed"
+            exit 0
+          fi
+          git commit -m "fix(dsi-010): govern canonical HTML archive hashes"
+          git pull --rebase origin feature/dsi-010-pre2016-external-era-validation
+          git push origin HEAD:feature/dsi-010-pre2016-external-era-validation
+      - name: Upload canonical hash evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-canonical-html-hash-evidence
+          path: |
+            artifacts/dsi010_canonical_hash_early_recovery
+            artifacts/dsi010_canonical_hash_early_recovery_console.log
+            artifacts/dsi010_canonical_hash_early_reviewed
+            artifacts/dsi010_canonical_hash_early_reviewed_console.log
+            artifacts/dsi010_canonical_hash_later_recovery
+            artifacts/dsi010_canonical_hash_later_recovery_console.log
+            artifacts/dsi010_canonical_hash_later_reviewed
+            artifacts/dsi010_canonical_hash_later_reviewed_console.log
+          if-no-files-found: warn
+          retention-days: 14
