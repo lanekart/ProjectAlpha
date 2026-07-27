@@ -1,0 +1,184 @@
+name: DSI-010 2011-2015 Calendar Integration
+
+on:
+  push:
+    branches:
+      - feature/dsi-010-pre2016-external-era-validation
+    paths:
+      - .github/workflows/dsi010-2011-2015-calendar-integration.yml
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-2011-2015-calendar-integration.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Apply generic 2005-2015 recovery integration
+        run: poetry run python scripts/apply_dsi010_2011_2015_recovery_integration.py
+      - name: Validate implementation and reviewed-source builder
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+        run: |
+          poetry run ruff check --fix \
+            alpha/decision_superiority/pre2016_calendar_recovery.py \
+            alpha/application/decision_superiority_pre2016_calendar_sources_cli.py \
+            scripts/apply_dsi010_2011_2015_recovery_integration.py \
+            scripts/build_dsi010_2011_2015_reviewed_sources.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery_later_years.py
+          poetry run ruff format \
+            alpha/decision_superiority/pre2016_calendar_recovery.py \
+            alpha/application/decision_superiority_pre2016_calendar_sources_cli.py \
+            scripts/apply_dsi010_2011_2015_recovery_integration.py \
+            scripts/build_dsi010_2011_2015_reviewed_sources.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery_later_years.py
+          poetry run ruff check \
+            alpha/decision_superiority/pre2016_calendar_recovery.py \
+            alpha/application/decision_superiority_pre2016_calendar_sources_cli.py \
+            scripts/apply_dsi010_2011_2015_recovery_integration.py \
+            scripts/build_dsi010_2011_2015_reviewed_sources.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery_later_years.py
+          poetry run mypy \
+            alpha/decision_superiority/pre2016_calendar_recovery.py \
+            alpha/application/decision_superiority_pre2016_calendar_sources_cli.py \
+            scripts/build_dsi010_2011_2015_reviewed_sources.py
+          poetry run pytest -q \
+            tests/decision_superiority/test_pre2016_calendar_recovery.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery_later_years.py
+      - name: Recover immutable 2011-2015 official documents
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+        run: |
+          poetry run python -m alpha benchmark \
+            decision-superiority-pre2016-calendar-source-recovery \
+            --candidate-registry config/dsi010_2011_2015_official_calendar_candidates.json \
+            --output artifacts/dsi010_2011_2015_official_sources \
+            --timeout-seconds 45 \
+            | tee artifacts/dsi010_2011_2015_official_sources_console.log
+      - name: Build reviewed 2011-2015 hash-bound sources
+        run: |
+          poetry run python scripts/build_dsi010_2011_2015_reviewed_sources.py \
+            --recovery-root artifacts/dsi010_2011_2015_official_sources \
+            --output-root artifacts/dsi010_2011_2015_reviewed_sources \
+            | tee artifacts/dsi010_2011_2015_reviewed_sources_console.log
+      - name: Validate recovery and reviewed-source contracts
+        run: |
+          poetry run python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          from pathlib import Path
+
+          from alpha.decision_superiority.pre2016_calendar_sources import (
+              validate_hash_bound_official_calendar_source,
+          )
+
+          recovery_root = Path("artifacts/dsi010_2011_2015_official_sources")
+          recovery = json.loads(
+              (recovery_root / "source_recovery_summary.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if recovery["fully_recovered_years"] != [2011, 2012, 2013, 2014, 2015]:
+              raise SystemExit(
+                  f"FULLY_RECOVERED_YEAR_MISMATCH:{recovery['fully_recovered_years']}"
+              )
+          if recovery["unrecovered_years"] != []:
+              raise SystemExit(f"UNRECOVERED_YEARS:{recovery['unrecovered_years']}")
+          if recovery["official_documents_accepted"] != 14:
+              raise SystemExit(
+                  "EXPECTED_14_ACCEPTED_DOCUMENTS_FOUND_"
+                  f"{recovery['official_documents_accepted']}"
+              )
+
+          reviewed_root = Path("artifacts/dsi010_2011_2015_reviewed_sources")
+          manifest = json.loads(
+              (reviewed_root / "reviewed_source_manifest.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          expected = {
+              "covered_years": [2011, 2012, 2013, 2014, 2015],
+              "source_count": 13,
+              "holiday_row_count": 99,
+              "special_session_row_count": 5,
+              "manual_review_completed": True,
+              "supersession_applied": True,
+              "production_influence": False,
+          }
+          for key, value in expected.items():
+              if manifest.get(key) != value:
+                  raise SystemExit(
+                      f"REVIEWED_MANIFEST_MISMATCH:{key}:"
+                      f"{manifest.get(key)!r}!={value!r}"
+                  )
+          recovered_not_admitted = manifest.get("recovered_not_admitted")
+          if not isinstance(recovered_not_admitted, list) or len(
+              recovered_not_admitted
+          ) != 1:
+              raise SystemExit("RECOVERED_NOT_ADMITTED_INVALID")
+
+          source_paths = sorted((reviewed_root / "sources").glob("*.json"))
+          if len(source_paths) != 13:
+              raise SystemExit(f"EXPECTED_13_REVIEWED_SOURCES_FOUND_{len(source_paths)}")
+          for source_path in source_paths:
+              payload = validate_hash_bound_official_calendar_source(
+                  source_path,
+                  require_capital_market_scope=True,
+              )
+              if payload.get("production_influence") is not False:
+                  raise SystemExit("PRODUCTION_INFLUENCE_NOT_FALSE")
+          print("RECOVERY_2011_2015_VALIDATED=true")
+          print("REVIEWED_2011_2015_SOURCES_VALIDATED=true")
+          print("CALENDAR_CERTIFICATION_PERMITTED=false")
+          print("PRODUCTION_INFLUENCE=false")
+          PY
+      - name: Commit validated integration
+        run: |
+          git config user.name "Project Alpha Automation"
+          git config user.email "project-alpha-automation@users.noreply.github.com"
+          git add \
+            alpha/decision_superiority/pre2016_calendar_recovery.py \
+            alpha/application/decision_superiority_pre2016_calendar_sources_cli.py \
+            docs/DSI-010_PRE2011_OFFICIAL_CALENDAR_RECOVERY.md \
+            scripts/apply_dsi010_2011_2015_recovery_integration.py \
+            scripts/build_dsi010_2011_2015_reviewed_sources.py \
+            tests/decision_superiority/test_pre2016_calendar_recovery_later_years.py \
+            config/dsi010_2011_2015_official_calendar_candidates.json
+          if git diff --cached --quiet; then
+            echo "Integration already committed"
+            exit 0
+          fi
+          git commit -m "feat(dsi-010): recover reviewed 2011-2015 calendars"
+          git pull --rebase origin feature/dsi-010-pre2016-external-era-validation
+          git push origin HEAD:feature/dsi-010-pre2016-external-era-validation
+      - name: Upload governed evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-2011-2015-reviewed-calendar-sources
+          path: |
+            artifacts/dsi010_2011_2015_official_sources
+            artifacts/dsi010_2011_2015_official_sources_console.log
+            artifacts/dsi010_2011_2015_reviewed_sources
+            artifacts/dsi010_2011_2015_reviewed_sources_console.log
+            config/dsi010_2011_2015_official_calendar_candidates.json
+          if-no-files-found: warn
+          retention-days: 14
