@@ -1,0 +1,174 @@
+name: DSI-010 Reviewed Calendar Source Build
+
+on:
+  push:
+    branches:
+      - feature/dsi-010-pre2016-external-era-validation
+    paths:
+      - .github/workflows/dsi010-reviewed-calendar-source-build.yml
+      - scripts/build_dsi010_pre2011_reviewed_sources.py
+      - config/dsi010_pre2011_official_calendar_candidates.json
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-reviewed-calendar-source-build.yml
+      - scripts/build_dsi010_pre2011_reviewed_sources.py
+      - config/dsi010_pre2011_official_calendar_candidates.json
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Format and validate builder
+        run: |
+          poetry run ruff check --fix scripts/build_dsi010_pre2011_reviewed_sources.py
+          poetry run ruff format scripts/build_dsi010_pre2011_reviewed_sources.py
+          poetry run ruff check scripts/build_dsi010_pre2011_reviewed_sources.py
+          poetry run mypy scripts/build_dsi010_pre2011_reviewed_sources.py
+      - name: Recover immutable official documents
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+        run: |
+          poetry run python -m alpha benchmark \
+            decision-superiority-pre2011-calendar-source-recovery \
+            --candidate-registry config/dsi010_pre2011_official_calendar_candidates.json \
+            --output artifacts/dsi010_pre2011_official_sources \
+            --timeout-seconds 45 \
+            | tee artifacts/dsi010_pre2011_official_sources_console.log
+      - name: Build reviewed hash-bound sources
+        run: |
+          poetry run python scripts/build_dsi010_pre2011_reviewed_sources.py \
+            --recovery-root artifacts/dsi010_pre2011_official_sources \
+            --output-root artifacts/dsi010_pre2011_reviewed_sources \
+            | tee artifacts/dsi010_pre2011_reviewed_sources_console.log
+      - name: Validate generated source contract and audit preflight
+        run: |
+          poetry run python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          from pathlib import Path
+
+          from alpha.decision_superiority.pre2016_calendar_sources import (
+              validate_hash_bound_official_calendar_source,
+          )
+
+          root = Path("artifacts/dsi010_pre2011_reviewed_sources")
+          source_paths = sorted((root / "sources").glob("*.json"))
+          if len(source_paths) != 15:
+              raise SystemExit(f"EXPECTED_15_REVIEWED_SOURCES_FOUND_{len(source_paths)}")
+
+          years: set[int] = set()
+          holiday_rows = 0
+          special_rows = 0
+          for source_path in source_paths:
+              payload = validate_hash_bound_official_calendar_source(
+                  source_path,
+                  require_capital_market_scope=True,
+              )
+              years.update(int(year) for year in payload["covered_years"])
+              holiday_rows += len(payload["holidays"])
+              special_rows += len(payload["special_sessions"])
+              if payload["production_influence"] is not False:
+                  raise SystemExit("PRODUCTION_INFLUENCE_NOT_FALSE")
+
+          if years != set(range(2005, 2011)):
+              raise SystemExit(f"COVERED_YEAR_MISMATCH:{sorted(years)}")
+          if holiday_rows != 120:
+              raise SystemExit(f"EXPECTED_120_REVIEWED_HOLIDAY_ROWS_FOUND_{holiday_rows}")
+          if special_rows != 6:
+              raise SystemExit(f"EXPECTED_6_REVIEWED_SPECIAL_ROWS_FOUND_{special_rows}")
+
+          database = Path("alpha_data/warehouse/historical_truth.duckdb")
+          manifest = Path("alpha_data/manifests/archive_manifest.jsonl")
+          committed_2011_2015_sources = sorted(
+              path
+              for path in Path(".").rglob("*.json")
+              if "2011" in path.name
+              or "2012" in path.name
+              or "2013" in path.name
+              or "2014" in path.name
+              or "2015" in path.name
+          )
+          preflight = {
+              "reviewed_2005_2010_source_count": len(source_paths),
+              "reviewed_2005_2010_covered_years": sorted(years),
+              "reviewed_holiday_row_count": holiday_rows,
+              "reviewed_special_session_row_count": special_rows,
+              "database_path": str(database),
+              "database_available": database.is_file(),
+              "manifest_path": str(manifest),
+              "manifest_available": manifest.is_file(),
+              "committed_2011_2015_source_candidates": [
+                  str(path) for path in committed_2011_2015_sources
+              ],
+              "full_2005_2015_audit_performed": False,
+              "full_audit_blockers": [],
+              "calendar_certification_permitted": False,
+              "production_influence": False,
+          }
+          if not database.is_file():
+              preflight["full_audit_blockers"].append("GOVERNED_DATABASE_UNAVAILABLE")
+          if not manifest.is_file():
+              preflight["full_audit_blockers"].append("GOVERNED_MANIFEST_UNAVAILABLE")
+          if not committed_2011_2015_sources:
+              preflight["full_audit_blockers"].append(
+                  "REVIEWED_2011_2015_SOURCES_UNAVAILABLE"
+              )
+          path = root / "full_audit_preflight.json"
+          path.write_text(
+              json.dumps(preflight, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print("===== DSI-010 FULL CALENDAR AUDIT PREFLIGHT =====")
+          print(f"Reviewed 2005-2010 Sources: {len(source_paths)}")
+          print(f"Reviewed Holiday Rows: {holiday_rows}")
+          print(f"Reviewed Special Sessions: {special_rows}")
+          print(f"Database Available: {str(database.is_file()).lower()}")
+          print(f"Manifest Available: {str(manifest.is_file()).lower()}")
+          print(
+              "Committed 2011-2015 Sources Available: "
+              f"{str(bool(committed_2011_2015_sources)).lower()}"
+          )
+          print("Full 2005-2015 Audit Performed: false")
+          print("Calendar Certification Permitted: false")
+          print("Production Influence: false")
+          PY
+      - name: Commit formatted builder when required
+        run: |
+          git config user.name "Project Alpha Automation"
+          git config user.email "project-alpha-automation@users.noreply.github.com"
+          git add scripts/build_dsi010_pre2011_reviewed_sources.py
+          if git diff --cached --quiet; then
+            echo "Builder formatting already canonical"
+            exit 0
+          fi
+          git commit -m "style(dsi-010): format reviewed calendar source builder"
+          git pull --rebase origin feature/dsi-010-pre2016-external-era-validation
+          git push origin HEAD:feature/dsi-010-pre2016-external-era-validation
+      - name: Upload reviewed evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-pre2011-reviewed-calendar-sources
+          path: |
+            artifacts/dsi010_pre2011_official_sources
+            artifacts/dsi010_pre2011_official_sources_console.log
+            artifacts/dsi010_pre2011_reviewed_sources
+            artifacts/dsi010_pre2011_reviewed_sources_console.log
+            config/dsi010_pre2011_official_calendar_candidates.json
+          if-no-files-found: error
+          retention-days: 14
