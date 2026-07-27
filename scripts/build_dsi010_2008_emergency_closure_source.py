@@ -22,13 +22,9 @@ def main() -> None:
     print("===== DSI-010 2008 EMERGENCY CLOSURE SOURCE =====")
     print(f"Source: {result.source_path}")
     print(f"Evidence Bundle: {result.evidence_bundle}")
+    print(f"Capital Market Document SHA256: {result.capital_market_document_sha256}")
     print(
-        "Capital Market Document SHA256: "
-        f"{result.capital_market_document_sha256}"
-    )
-    print(
-        "Futures & Options Document SHA256: "
-        f"{result.futures_options_document_sha256}"
+        f"Futures & Options Document SHA256: {result.futures_options_document_sha256}"
     )
     print(f"API Evidence SHA256: {result.api_evidence_sha256}")
     print(f"Capital Market Candle Count: {result.capital_market_candle_count}")

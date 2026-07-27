@@ -11,7 +11,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 from html.parser import HTMLParser
-from io import BytesIO
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -26,15 +25,10 @@ from .pre2016_external_validation_models import Pre2016ExternalValidationError
 
 EMERGENCY_DATE = date(2008, 11, 27)
 SOURCE_ID = "NSE_COMPOSITE_11688_11689_2008_EMERGENCY_CLOSURE"
-CAPITAL_MARKET_URL = (
-    "https://nsearchives.nseindia.com/content/circulars/cmpt11689.htm"
-)
-FUTURES_OPTIONS_URL = (
-    "https://nsearchives.nseindia.com/content/circulars/faop11688.htm"
-)
+CAPITAL_MARKET_URL = "https://nsearchives.nseindia.com/content/circulars/cmpt11689.htm"
+FUTURES_OPTIONS_URL = "https://nsearchives.nseindia.com/content/circulars/faop11688.htm"
 CIRCULAR_API_URL = (
-    "https://www.nseindia.com/api/circulars"
-    "?fromDate=25-11-2008&toDate=30-11-2008"
+    "https://www.nseindia.com/api/circulars?fromDate=25-11-2008&toDate=30-11-2008"
 )
 CAPITAL_MARKET_EXPECTED_SHA256 = (
     "adde2a6b3ced2c03e28c2239d12f72cfa250f8733ea5b60746712a6082d3a0d9"
@@ -144,9 +138,7 @@ def build_2008_emergency_closure_source(
     """Build one hash-bound Capital Market holiday from a governed evidence chain."""
 
     if not database.is_file():
-        raise Pre2016ExternalValidationError(
-            "DSI010_2008_EMERGENCY_DATABASE_MISSING"
-        )
+        raise Pre2016ExternalValidationError("DSI010_2008_EMERGENCY_DATABASE_MISSING")
     output_root.mkdir(parents=True, exist_ok=True)
     client: _HttpSession = session or _RequestsSessionAdapter()
     headers = {
@@ -159,9 +151,7 @@ def build_2008_emergency_closure_source(
     }
     warmup = client.get("https://www.nseindia.com/", headers=headers, timeout=30.0)
     if warmup.status_code >= 500:
-        raise Pre2016ExternalValidationError(
-            "DSI010_2008_EMERGENCY_NSE_WARMUP_FAILED"
-        )
+        raise Pre2016ExternalValidationError("DSI010_2008_EMERGENCY_NSE_WARMUP_FAILED")
 
     cm_response = client.get(
         CAPITAL_MARKET_URL,
@@ -200,9 +190,7 @@ def build_2008_emergency_closure_source(
     api_evidence = _validated_api_evidence(api_response.content)
     candle_count = _capital_market_candle_count(database)
     if candle_count != 0:
-        raise Pre2016ExternalValidationError(
-            "DSI010_2008_EMERGENCY_CM_CANDLES_PRESENT"
-        )
+        raise Pre2016ExternalValidationError("DSI010_2008_EMERGENCY_CM_CANDLES_PRESENT")
 
     cm_document = output_root / "cmpt11689.html"
     fo_document = output_root / "faop11688.html"
@@ -363,9 +351,7 @@ def validate_2008_emergency_closure_source(
         require_capital_market_scope=True,
     )
     if payload.get("source_id") != SOURCE_ID:
-        raise Pre2016ExternalValidationError(
-            "DSI010_2008_EMERGENCY_SOURCE_ID_INVALID"
-        )
+        raise Pre2016ExternalValidationError("DSI010_2008_EMERGENCY_SOURCE_ID_INVALID")
     if payload.get("evidence_rule") != _EVIDENCE_RULE:
         raise Pre2016ExternalValidationError(
             "DSI010_2008_EMERGENCY_EVIDENCE_RULE_INVALID"
@@ -418,18 +404,14 @@ def validate_2008_emergency_closure_source(
         _validate_futures_options_text(
             bundle.read("futures_options_holiday.txt").decode("utf-8")
         )
-        _validate_normalized_api_evidence(
-            json.loads(bundle.read("api_evidence.json"))
-        )
+        _validate_normalized_api_evidence(json.loads(bundle.read("api_evidence.json")))
         rule = json.loads(bundle.read("evidence_rule.json"))
         if rule.get("evidence_rule") != _EVIDENCE_RULE:
             raise Pre2016ExternalValidationError(
                 "DSI010_2008_EMERGENCY_BUNDLE_RULE_INVALID"
             )
     if database is not None and _capital_market_candle_count(database) != 0:
-        raise Pre2016ExternalValidationError(
-            "DSI010_2008_EMERGENCY_CM_CANDLES_PRESENT"
-        )
+        raise Pre2016ExternalValidationError("DSI010_2008_EMERGENCY_CM_CANDLES_PRESENT")
     return payload
 
 
@@ -445,9 +427,7 @@ def _extract_html_text(raw: bytes) -> str:
     parser.feed(raw.decode("utf-8", errors="replace"))
     rendered = "\n".join(parser.parts)
     if not rendered:
-        raise Pre2016ExternalValidationError(
-            "DSI010_2008_EMERGENCY_HTML_TEXT_EMPTY"
-        )
+        raise Pre2016ExternalValidationError("DSI010_2008_EMERGENCY_HTML_TEXT_EMPTY")
     return rendered
 
 
@@ -461,9 +441,7 @@ def _validate_capital_market_text(text: str) -> None:
         "settlement calendar normal segment",
     )
     if any(token not in normalized for token in required):
-        raise Pre2016ExternalValidationError(
-            "DSI010_2008_EMERGENCY_CM_CONTENT_INVALID"
-        )
+        raise Pre2016ExternalValidationError("DSI010_2008_EMERGENCY_CM_CONTENT_INVALID")
     patterns = (
         r"n\s+2008224\s+26-nov-08\s+26-nov-08\s+28-nov-08\s+01-dec-08",
         r"n\s+2008225\s+28-nov-08\s+28-nov-08\s+01-dec-08\s+02-dec-08",
@@ -483,9 +461,7 @@ def _validate_futures_options_text(text: str) -> None:
         "november 27, 2008 being declared as a trading holiday",
     )
     if any(token not in normalized for token in required):
-        raise Pre2016ExternalValidationError(
-            "DSI010_2008_EMERGENCY_FO_CONTENT_INVALID"
-        )
+        raise Pre2016ExternalValidationError("DSI010_2008_EMERGENCY_FO_CONTENT_INVALID")
 
 
 def _validated_api_evidence(raw: bytes) -> dict[str, object]:
@@ -501,7 +477,7 @@ def _validated_api_evidence(raw: bytes) -> dict[str, object]:
         for row in rows
         if str(row.get("circNumber") or "") in {"11688", "11689"}
     ]
-    evidence = {
+    evidence: dict[str, object] = {
         "api_url": CIRCULAR_API_URL,
         "rows": sorted(selected, key=lambda row: str(row["circNumber"])),
     }
@@ -516,13 +492,9 @@ def _validate_normalized_api_evidence(payload: object) -> None:
         )
     rows = payload.get("rows")
     if not isinstance(rows, list):
-        raise Pre2016ExternalValidationError(
-            "DSI010_2008_EMERGENCY_API_ROWS_INVALID"
-        )
+        raise Pre2016ExternalValidationError("DSI010_2008_EMERGENCY_API_ROWS_INVALID")
     by_number = {
-        str(row.get("circNumber") or ""): row
-        for row in rows
-        if isinstance(row, dict)
+        str(row.get("circNumber") or ""): row for row in rows if isinstance(row, dict)
     }
     cm_row = by_number.get("11689")
     fo_row = by_number.get("11688")
@@ -604,9 +576,7 @@ def _capital_market_candle_count(database: Path) -> int:
             """
         ).fetchone()
     if result is None:
-        raise Pre2016ExternalValidationError(
-            "DSI010_2008_EMERGENCY_CANDLE_QUERY_EMPTY"
-        )
+        raise Pre2016ExternalValidationError("DSI010_2008_EMERGENCY_CANDLE_QUERY_EMPTY")
     return int(result[0])
 
 

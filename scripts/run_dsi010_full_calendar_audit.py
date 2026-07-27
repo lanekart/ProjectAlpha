@@ -43,6 +43,8 @@ def _calendar_sources(
     early_root: Path,
     later_root: Path,
     emergency_source: Path,
+    additional_sources: tuple[Path, ...] = (),
+    expected_source_count: int = 29,
 ) -> tuple[Path, ...]:
     early_sources = tuple(sorted((early_root / "sources").glob("*.json")))
     later_sources = tuple(sorted((later_root / "sources").glob("*.json")))
@@ -56,8 +58,26 @@ def _calendar_sources(
         )
     if not emergency_source.is_file():
         raise RuntimeError("EMERGENCY_CALENDAR_SOURCE_MISSING")
-    source_paths = (*early_sources, *later_sources, emergency_source)
-    if len(set(source_paths)) != 29:
+    missing_additional = tuple(
+        source for source in additional_sources if not source.is_file()
+    )
+    if missing_additional:
+        raise RuntimeError(
+            "ADDITIONAL_CALENDAR_SOURCE_MISSING:"
+            + ",".join(str(source) for source in missing_additional)
+        )
+    source_paths = (
+        *early_sources,
+        *later_sources,
+        emergency_source,
+        *additional_sources,
+    )
+    if len(source_paths) != expected_source_count:
+        raise RuntimeError(
+            "CALENDAR_SOURCE_COUNT_MISMATCH:"
+            f"expected={expected_source_count}:observed={len(source_paths)}"
+        )
+    if len(set(source_paths)) != expected_source_count:
         raise RuntimeError("CALENDAR_SOURCE_PATH_DUPLICATION")
     return source_paths
 
@@ -66,6 +86,7 @@ def _validate_sources_and_special_sessions(
     *,
     source_paths: tuple[Path, ...],
     special_config: Path,
+    expected_holiday_rows: int = 220,
 ) -> list[dict[str, object]]:
     configured = json.loads(special_config.read_text(encoding="utf-8"))
     if not isinstance(configured, dict):
@@ -132,8 +153,11 @@ def _validate_sources_and_special_sessions(
 
     if covered_years != set(range(2005, 2016)):
         raise RuntimeError(f"CALENDAR_COVERED_YEAR_MISMATCH:{sorted(covered_years)}")
-    if holiday_rows != 220:
-        raise RuntimeError(f"EXPECTED_220_HOLIDAY_ROWS_FOUND_{holiday_rows}")
+    if holiday_rows != expected_holiday_rows:
+        raise RuntimeError(
+            "CALENDAR_HOLIDAY_ROW_COUNT_MISMATCH:"
+            f"expected={expected_holiday_rows}:observed={holiday_rows}"
+        )
     if special_rows != 11:
         raise RuntimeError(f"EXPECTED_11_SPECIAL_ROWS_FOUND_{special_rows}")
     if source_pairs != configured_pairs:
@@ -153,6 +177,9 @@ def run_full_calendar_audit(
     special_config: Path,
     audit_root: Path,
     source_population_run_id: int,
+    additional_sources: tuple[Path, ...] = (),
+    expected_source_count: int = 29,
+    expected_holiday_rows: int = 220,
 ) -> Path:
     database = merged_root / "warehouse" / "historical_truth.duckdb"
     manifest = merged_root / "manifests" / "archive_manifest.jsonl"
@@ -164,10 +191,13 @@ def run_full_calendar_audit(
         early_root=early_root,
         later_root=later_root,
         emergency_source=emergency_source,
+        additional_sources=additional_sources,
+        expected_source_count=expected_source_count,
     )
     source_lineage = _validate_sources_and_special_sessions(
         source_paths=source_paths,
         special_config=special_config,
+        expected_holiday_rows=expected_holiday_rows,
     )
 
     audit_root.mkdir(parents=True, exist_ok=True)
@@ -194,7 +224,7 @@ def run_full_calendar_audit(
         annual_rows,
         tuple(annual_rows[0]),
     )
-    record_rows = [
+    record_rows: list[dict[str, object]] = [
         {
             "trading_date": record.trading_date.isoformat(),
             "classification": record.classification.value,
@@ -335,6 +365,14 @@ def main() -> None:
     parser.add_argument("--special-config", type=Path, required=True)
     parser.add_argument("--audit-root", type=Path, required=True)
     parser.add_argument("--source-population-run-id", type=int, required=True)
+    parser.add_argument(
+        "--additional-source",
+        type=Path,
+        action="append",
+        default=[],
+    )
+    parser.add_argument("--expected-source-count", type=int, default=29)
+    parser.add_argument("--expected-holiday-row-count", type=int, default=220)
     args = parser.parse_args()
     run_full_calendar_audit(
         merged_root=args.merged_root,
@@ -344,6 +382,9 @@ def main() -> None:
         special_config=args.special_config,
         audit_root=args.audit_root,
         source_population_run_id=args.source_population_run_id,
+        additional_sources=tuple(args.additional_source),
+        expected_source_count=args.expected_source_count,
+        expected_holiday_rows=args.expected_holiday_row_count,
     )
 
 
