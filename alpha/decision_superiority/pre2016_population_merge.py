@@ -295,55 +295,62 @@ def _merge_database(
     shard: Pre2016PopulationShard,
 ) -> dict[str, int]:
     inserted: dict[str, int] = {table: 0 for table in _CANONICAL_TABLES}
+    escaped_path = str(shard.database).replace("'", "''")
     with (
         duckdb.connect(str(shard.database), read_only=True) as source,
         duckdb.connect(str(target_path)) as target,
     ):
-        for table in _CANONICAL_TABLES:
-            if not _table_exists(source, table):
-                continue
-            source_columns = _table_columns(source, table)
-            target_columns = _table_columns(target, table)
-            if source_columns != target_columns:
-                raise Pre2016PopulationMergeError(
-                    f"PRE2016_MERGE_TABLE_SCHEMA_MISMATCH:{table}"
+        target.execute(f"ATTACH '{escaped_path}' AS source_shard (READ_ONLY)")
+        try:
+            for table in _CANONICAL_TABLES:
+                if not _table_exists(source, table):
+                    continue
+                source_columns = _table_columns(source, table)
+                target_columns = _table_columns(target, table)
+                if source_columns != target_columns:
+                    raise Pre2016PopulationMergeError(
+                        f"PRE2016_MERGE_TABLE_SCHEMA_MISMATCH:{table}"
+                    )
+                source_count_result = source.execute(
+                    f'SELECT count(*) FROM "{table}"'
+                ).fetchone()
+                before_result = target.execute(
+                    f'SELECT count(*) FROM "{table}"'
+                ).fetchone()
+                if source_count_result is None:
+                    raise Pre2016PopulationMergeError(
+                        f"PRE2016_MERGE_TABLE_COUNT_MISSING:{table}"
+                    )
+                if before_result is None:
+                    raise Pre2016PopulationMergeError(
+                        f"PRE2016_MERGE_TARGET_COUNT_MISSING:{table}"
+                    )
+                source_count = int(source_count_result[0])
+                before = int(before_result[0])
+                target.execute(
+                    f'INSERT OR IGNORE INTO main."{table}" '
+                    f'SELECT * FROM source_shard.main."{table}"'
                 )
-            source_count_result = source.execute(
-                f'SELECT count(*) FROM "{table}"'
-            ).fetchone()
-            if source_count_result is None:
-                raise Pre2016PopulationMergeError(
-                    f"PRE2016_MERGE_TABLE_COUNT_MISSING:{table}"
-                )
-            source_count = int(source_count_result[0])
-            before_result = target.execute(f'SELECT count(*) FROM "{table}"').fetchone()
-            if before_result is None:
-                raise Pre2016PopulationMergeError(
-                    f"PRE2016_MERGE_TARGET_COUNT_MISSING:{table}"
-                )
-            before = int(before_result[0])
-            cursor = source.execute(f'SELECT * FROM "{table}"')
-            placeholders = ",".join("?" for _ in source_columns)
-            statement = (
-                f'INSERT INTO "{table}" VALUES ({placeholders}) ON CONFLICT DO NOTHING'
-            )
-            while batch := cursor.fetchmany(_BATCH_SIZE):
-                target.executemany(statement, batch)
-            after_result = target.execute(f'SELECT count(*) FROM "{table}"').fetchone()
-            if after_result is None:
-                raise Pre2016PopulationMergeError(
-                    f"PRE2016_MERGE_TARGET_COUNT_MISSING:{table}"
-                )
-            added = int(after_result[0]) - before
-            if (
-                table in {"daily_candle", "validation_quarantine"}
-                and added != source_count
-            ):
-                raise Pre2016PopulationMergeError(
-                    f"PRE2016_MERGE_TABLE_OVERLAP:{table}:"
-                    f"source={source_count}:inserted={added}:year={shard.covered_year}"
-                )
-            inserted[table] = added
+                after_result = target.execute(
+                    f'SELECT count(*) FROM "{table}"'
+                ).fetchone()
+                if after_result is None:
+                    raise Pre2016PopulationMergeError(
+                        f"PRE2016_MERGE_TARGET_COUNT_MISSING:{table}"
+                    )
+                added = int(after_result[0]) - before
+                if (
+                    table in {"daily_candle", "validation_quarantine"}
+                    and added != source_count
+                ):
+                    raise Pre2016PopulationMergeError(
+                        f"PRE2016_MERGE_TABLE_OVERLAP:{table}:"
+                        f"source={source_count}:inserted={added}:"
+                        f"year={shard.covered_year}"
+                    )
+                inserted[table] = added
+        finally:
+            target.execute("DETACH source_shard")
     return inserted
 
 
