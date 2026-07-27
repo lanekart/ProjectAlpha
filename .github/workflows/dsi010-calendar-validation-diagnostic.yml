@@ -6,6 +6,9 @@ on:
       - feature/dsi-010-pre2016-external-era-validation
     paths:
       - .github/workflows/dsi010-calendar-validation-diagnostic.yml
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-calendar-validation-diagnostic.yml
 
 permissions:
   contents: read
