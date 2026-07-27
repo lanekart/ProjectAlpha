@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feature/dsi-010-pre2016-external-era-validation
+  pull_request:
+    branches:
+      - feature/recovery-foundation-v1
   workflow_dispatch:
 
 permissions:
