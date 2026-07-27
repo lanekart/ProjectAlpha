@@ -16,6 +16,7 @@ from alpha.historical_truth.session_calendar import (
     SessionCalendarReport,
 )
 
+from .pre2016_calendar_sources import validate_hash_bound_official_calendar_source
 from .pre2016_external_validation_models import (
     DSI010_EXTERNAL_END,
     DSI010_EXTERNAL_START,
@@ -58,6 +59,11 @@ def certify_pre2016_calendar(
             "PRE2016_OFFICIAL_CALENDAR_SOURCES_MISSING"
         )
 
+    for source_path in official_sources:
+        validate_hash_bound_official_calendar_source(
+            source_path,
+            require_capital_market_scope=True,
+        )
     sources = tuple(
         OfficialSessionCalendarEngine.load_source(path) for path in official_sources
     )
