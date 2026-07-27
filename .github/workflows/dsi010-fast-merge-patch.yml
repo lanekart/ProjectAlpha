@@ -1,0 +1,123 @@
+name: DSI-010 Fast Merge Patch
+
+on:
+  push:
+    branches:
+      - feature/dsi-010-pre2016-external-era-validation
+    paths:
+      - .github/workflows/dsi010-fast-merge-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Apply set-based DuckDB merger
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("alpha/decision_superiority/pre2016_population_merge.py")
+          text = path.read_text(encoding="utf-8")
+          start = text.index("def _merge_database(")
+          end = text.index("\ndef _table_exists", start)
+          replacement = '''def _merge_database(
+              target_path: Path,
+              shard: Pre2016PopulationShard,
+          ) -> dict[str, int]:
+              inserted: dict[str, int] = {table: 0 for table in _CANONICAL_TABLES}
+              escaped_path = str(shard.database).replace("'", "''")
+              with (
+                  duckdb.connect(str(shard.database), read_only=True) as source,
+                  duckdb.connect(str(target_path)) as target,
+              ):
+                  target.execute(
+                      f"ATTACH '{escaped_path}' AS source_shard (READ_ONLY)"
+                  )
+                  try:
+                      for table in _CANONICAL_TABLES:
+                          if not _table_exists(source, table):
+                              continue
+                          source_columns = _table_columns(source, table)
+                          target_columns = _table_columns(target, table)
+                          if source_columns != target_columns:
+                              raise Pre2016PopulationMergeError(
+                                  f"PRE2016_MERGE_TABLE_SCHEMA_MISMATCH:{table}"
+                              )
+                          source_count_result = source.execute(
+                              f'SELECT count(*) FROM "{table}"'
+                          ).fetchone()
+                          before_result = target.execute(
+                              f'SELECT count(*) FROM "{table}"'
+                          ).fetchone()
+                          if source_count_result is None:
+                              raise Pre2016PopulationMergeError(
+                                  f"PRE2016_MERGE_TABLE_COUNT_MISSING:{table}"
+                              )
+                          if before_result is None:
+                              raise Pre2016PopulationMergeError(
+                                  f"PRE2016_MERGE_TARGET_COUNT_MISSING:{table}"
+                              )
+                          source_count = int(source_count_result[0])
+                          before = int(before_result[0])
+                          target.execute(
+                              f'INSERT OR IGNORE INTO main."{table}" '
+                              f'SELECT * FROM source_shard.main."{table}"'
+                          )
+                          after_result = target.execute(
+                              f'SELECT count(*) FROM "{table}"'
+                          ).fetchone()
+                          if after_result is None:
+                              raise Pre2016PopulationMergeError(
+                                  f"PRE2016_MERGE_TARGET_COUNT_MISSING:{table}"
+                              )
+                          added = int(after_result[0]) - before
+                          if (
+                              table in {"daily_candle", "validation_quarantine"}
+                              and added != source_count
+                          ):
+                              raise Pre2016PopulationMergeError(
+                                  f"PRE2016_MERGE_TABLE_OVERLAP:{table}:"
+                                  f"source={source_count}:inserted={added}:"
+                                  f"year={shard.covered_year}"
+                              )
+                          inserted[table] = added
+                  finally:
+                      target.execute("DETACH source_shard")
+              return inserted
+          '''
+          path.write_text(text[:start] + replacement + text[end:], encoding="utf-8")
+          PY
+      - name: Validate fast merger
+        run: |
+          poetry run ruff format alpha/decision_superiority/pre2016_population_merge.py
+          poetry run ruff check \
+            alpha/decision_superiority/pre2016_population_merge.py \
+            tests/decision_superiority/test_pre2016_population_merge.py
+          poetry run ruff format --check \
+            alpha/decision_superiority/pre2016_population_merge.py \
+            tests/decision_superiority/test_pre2016_population_merge.py
+          poetry run mypy alpha/decision_superiority/pre2016_population_merge.py
+          poetry run pytest -q tests/decision_superiority/test_pre2016_population_merge.py
+      - name: Commit validated merger
+        run: |
+          if git diff --quiet -- alpha/decision_superiority/pre2016_population_merge.py; then
+            echo "No merger change required"
+            exit 0
+          fi
+          git config user.name "Project Alpha Automation"
+          git config user.email "project-alpha-automation@users.noreply.github.com"
+          git add alpha/decision_superiority/pre2016_population_merge.py
+          git commit -m "perf(dsi-010): use set-based population shard merge"
+          git push origin HEAD:feature/dsi-010-pre2016-external-era-validation
