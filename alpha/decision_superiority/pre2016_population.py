@@ -48,6 +48,7 @@ def populate_pre2016_historical_truth(
     start: date,
     end: date,
     retry_failed: bool = True,
+    special_session_dates: tuple[date, ...] = (),
 ) -> Pre2016PopulationResult:
     """Download and populate raw candles into the governed Historical Truth store."""
 
@@ -55,6 +56,14 @@ def populate_pre2016_historical_truth(
         raise Pre2016PopulationError("PRE2016_POPULATION_RANGE_INVERTED")
     if end >= date(2016, 1, 1):
         raise Pre2016PopulationError("PRE2016_POPULATION_OVERLAPS_2016")
+    governed_special_sessions = tuple(sorted(set(special_session_dates)))
+    if any(
+        trading_date < start or trading_date > end
+        for trading_date in governed_special_sessions
+    ):
+        raise Pre2016PopulationError(
+            "PRE2016_POPULATION_SPECIAL_SESSION_OUTSIDE_RANGE"
+        )
 
     root = root.expanduser().resolve()
     output_dir = output_dir.expanduser().resolve()
@@ -72,7 +81,26 @@ def populate_pre2016_historical_truth(
     )
     snapshots = PointInTimeSnapshotEngine(canonical, root / "snapshots")
     engine = HistoricalPopulationEngine(archive, canonical, snapshots)
-    requests = archive.plan_nse_bhavcopies(start, end)
+    planned = (
+        *archive.plan_nse_bhavcopies(start, end),
+        *(
+            archive._nse_bhavcopy_request(trading_date)  # noqa: SLF001
+            for trading_date in governed_special_sessions
+        ),
+    )
+    requests = tuple(
+        sorted(
+            {
+                (request.exchange, request.dataset, request.trading_date): request
+                for request in planned
+            }.values(),
+            key=lambda request: (
+                request.trading_date,
+                request.exchange,
+                request.dataset.value,
+            ),
+        )
+    )
     records = engine.populate(requests, retry_failed=retry_failed)
     summary = engine.summarise(records)
     paths = tuple(engine.export(records, output_dir))
