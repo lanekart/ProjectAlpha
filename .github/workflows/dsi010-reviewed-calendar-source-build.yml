@@ -45,7 +45,48 @@ jobs:
           text = path.read_text(encoding="utf-8")
           directive = "# ruff: noqa: E501\n"
           if not text.startswith(directive):
-              path.write_text(directive + text, encoding="utf-8")
+              text = directive + text
+          old = '''        source_paths.append(source_path)
+          manifest_rows.append(
+              {
+                  "year": year,
+                  "source_id": source_id,
+                  "source_path": str(source_path),
+                  "source_json_sha256": _sha256(source_path),
+                  "source_document_sha256": payload["source_document_sha256"],
+                  "review_csv_sha256": payload["review_csv_sha256"],
+                  "holiday_count": len(payload["holidays"]),
+                  "special_session_count": len(payload["special_sessions"]),
+                  "segment_scope": payload["segment_scope"],
+              }
+          )
+'''
+          new = '''        holidays = payload.get("holidays")
+          special_sessions = payload.get("special_sessions")
+          if not isinstance(holidays, list):
+              raise RuntimeError(f"SOURCE_HOLIDAYS_INVALID:{source_id}")
+          if not isinstance(special_sessions, list):
+              raise RuntimeError(f"SOURCE_SPECIAL_SESSIONS_INVALID:{source_id}")
+          source_paths.append(source_path)
+          manifest_rows.append(
+              {
+                  "year": year,
+                  "source_id": source_id,
+                  "source_path": str(source_path),
+                  "source_json_sha256": _sha256(source_path),
+                  "source_document_sha256": payload["source_document_sha256"],
+                  "review_csv_sha256": payload["review_csv_sha256"],
+                  "holiday_count": len(holidays),
+                  "special_session_count": len(special_sessions),
+                  "segment_scope": payload["segment_scope"],
+              }
+          )
+'''
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif 'SOURCE_HOLIDAYS_INVALID' not in text:
+              raise SystemExit("reviewed source payload patch target missing")
+          path.write_text(text, encoding="utf-8")
           PY
             echo '===== RUFF FIX ====='
             poetry run ruff check --fix scripts/build_dsi010_pre2011_reviewed_sources.py
@@ -100,9 +141,18 @@ jobs:
                   source_path,
                   require_capital_market_scope=True,
               )
-              years.update(int(year) for year in payload["covered_years"])
-              holiday_rows += len(payload["holidays"])
-              special_rows += len(payload["special_sessions"])
+              covered_years = payload.get("covered_years")
+              holidays = payload.get("holidays")
+              special_sessions = payload.get("special_sessions")
+              if not isinstance(covered_years, list):
+                  raise SystemExit("COVERED_YEARS_INVALID")
+              if not isinstance(holidays, list):
+                  raise SystemExit("HOLIDAYS_INVALID")
+              if not isinstance(special_sessions, list):
+                  raise SystemExit("SPECIAL_SESSIONS_INVALID")
+              years.update(int(year) for year in covered_years)
+              holiday_rows += len(holidays)
+              special_rows += len(special_sessions)
               if payload["production_influence"] is not False:
                   raise SystemExit("PRODUCTION_INFLUENCE_NOT_FALSE")
 
@@ -176,7 +226,7 @@ jobs:
             echo "Builder formatting already canonical"
             exit 0
           fi
-          git commit -m "style(dsi-010): format reviewed calendar source builder"
+          git commit -m "fix(dsi-010): validate reviewed source payload types"
           git pull --rebase origin feature/dsi-010-pre2016-external-era-validation
           git push origin HEAD:feature/dsi-010-pre2016-external-era-validation
       - name: Upload reviewed evidence
