@@ -68,15 +68,12 @@ def export_pre2016_external_validation(
     for key, filename in DSI010_ARTIFACTS.items():
         rows = result.rows.get(key)
         if rows is None:
-            raise Pre2016ExternalValidationError(
-                f"DSI010_RESULT_ROWS_MISSING:{key}"
-            )
+            raise Pre2016ExternalValidationError(f"DSI010_RESULT_ROWS_MISSING:{key}")
         support.append(_write_csv(output / filename, rows))
     report = _write_text(output / DSI010_REPORT, _executive_report(result))
     support.append(report)
     manifest = {
-        path.name: _sha256(path)
-        for path in sorted(support, key=lambda item: item.name)
+        path.name: _sha256(path) for path in sorted(support, key=lambda item: item.name)
     }
     payload: dict[str, Any] = {
         "contract_version": DSI010_CONTRACT_VERSION,
@@ -108,12 +105,8 @@ def export_pre2016_external_validation(
         "top_five_positive_profit_share": result.summaries[
             "top_five_positive_profit_share"
         ],
-        "external_tuning_performed": result.summaries[
-            "external_tuning_performed"
-        ],
-        "challenger_contract_changed": result.summaries[
-            "challenger_contract_changed"
-        ],
+        "external_tuning_performed": result.summaries["external_tuning_performed"],
+        "challenger_contract_changed": result.summaries["challenger_contract_changed"],
         "forward_paper_eligible": result.summaries["forward_paper_eligible"],
         "readiness_by_slice": dict(result.readiness),
         "readiness_decision": result.readiness["I"],
@@ -169,17 +162,13 @@ def validate_pre2016_external_validation_certificate(
         if not path.is_relative_to(root) or not path.is_file():
             raise Pre2016ExternalValidationError("DSI010_SUPPORT_PATH_UNSAFE")
         if _sha256(path) != str(digest):
-            raise Pre2016ExternalValidationError(
-                f"DSI010_ARTIFACT_TAMPERED:{name}"
-            )
+            raise Pre2016ExternalValidationError(f"DSI010_ARTIFACT_TAMPERED:{name}")
         if b"/Users/" in path.read_bytes():
             raise Pre2016ExternalValidationError(
                 f"DSI010_MACHINE_LOCAL_PATH_LEAK:{name}"
             )
     if payload.get("executive_report_sha256") != _sha256(root / DSI010_REPORT):
-        raise Pre2016ExternalValidationError(
-            "DSI010_EXECUTIVE_REPORT_HASH_MISMATCH"
-        )
+        raise Pre2016ExternalValidationError("DSI010_EXECUTIVE_REPORT_HASH_MISMATCH")
     readiness = str(payload.get("readiness_decision") or "")
     if require_ready and not readiness.startswith("READY_"):
         raise Pre2016ExternalValidationError(f"DSI010_NOT_READY:{readiness}")
@@ -193,9 +182,7 @@ def _executive_report(result: Pre2016ExternalValidationResult) -> str:
     benchmark = cast_mapping(summary["benchmark"])
     replication = summary.get("replication_regime_aware")
     replication_metric = (
-        cast_mapping(replication)
-        if isinstance(replication, Mapping)
-        else {}
+        cast_mapping(replication) if isinstance(replication, Mapping) else {}
     )
     readiness_lines = tuple(
         f"- DSI-010{slice_id}: `{decision}`"
@@ -208,10 +195,7 @@ def _executive_report(result: Pre2016ExternalValidationResult) -> str:
             "## Certification",
             "",
             f"- Final readiness: `{result.readiness['I']}`",
-            (
-                "- External classification: "
-                f"`{summary['classification']}`"
-            ),
+            (f"- External classification: `{summary['classification']}`"),
             "- External tuning performed: `false`",
             "- Challenger contract changed: `false`",
             "- Production influence: `false`",
@@ -279,10 +263,7 @@ def _executive_report(result: Pre2016ExternalValidationResult) -> str:
                 "- Regime-aware maximum drawdown: "
                 f"{_display(replication_metric.get('maximum_drawdown'), percent=True)}"
             ),
-            (
-                "- Regime-aware trades: "
-                f"{replication_metric.get('trade_count', 0)}"
-            ),
+            (f"- Regime-aware trades: {replication_metric.get('trade_count', 0)}"),
             "",
             "## Readiness A-I",
             "",
@@ -324,12 +305,15 @@ def _write_csv(path: Path, rows: Sequence[Mapping[str, Any]]) -> Path:
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> Path:
-    text = json.dumps(
-        _normalise(dict(payload)),
-        indent=2,
-        sort_keys=True,
-        separators=(",", ": "),
-    ) + "\n"
+    text = (
+        json.dumps(
+            _normalise(dict(payload)),
+            indent=2,
+            sort_keys=True,
+            separators=(",", ": "),
+        )
+        + "\n"
+    )
     return _write_text(path, text)
 
 
@@ -354,9 +338,7 @@ def _read_json(path: Path) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise Pre2016ExternalValidationError(
-            "DSI010_CERTIFICATE_INVALID_JSON"
-        ) from exc
+        raise Pre2016ExternalValidationError("DSI010_CERTIFICATE_INVALID_JSON") from exc
     if not isinstance(payload, dict):
         raise Pre2016ExternalValidationError("DSI010_CERTIFICATE_NOT_OBJECT")
     return payload

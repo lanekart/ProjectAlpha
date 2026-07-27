@@ -24,9 +24,7 @@ from alpha.decision_superiority.pre2016_external_validation_models import (
     Pre2016ExternalValidationSourcePaths,
 )
 
-DEFAULT_DSI010_OUTPUT = Path(
-    ".alpha/benchmark/dsi010_pre2016_external_validation"
-)
+DEFAULT_DSI010_OUTPUT = Path(".alpha/benchmark/dsi010_pre2016_external_validation")
 
 
 def register_decision_superiority_pre2016_external_validation_command(
@@ -137,17 +135,12 @@ def decision_superiority_pre2016_external_validation(
     typer.echo(f"Market Rows: {result.summaries['market_rows']}")
     typer.echo(f"Incumbent Net CAGR: {_percent(incumbent.get('net_cagr'))}")
     typer.echo(f"Challenger Net CAGR: {_percent(challenger.get('net_cagr'))}")
-    typer.echo(
-        f"Nifty TRI Net CAGR: {_percent(benchmark_summary.get('net_cagr'))}"
-    )
+    typer.echo(f"Nifty TRI Net CAGR: {_percent(benchmark_summary.get('net_cagr'))}")
     typer.echo(
         "Benchmark Gap Closed: "
         f"{_percent(result.summaries.get('benchmark_gap_closed'))}"
     )
-    typer.echo(
-        "External Classification: "
-        f"{result.summaries['classification']}"
-    )
+    typer.echo(f"External Classification: {result.summaries['classification']}")
     typer.echo(
         "Forward Paper Eligible: "
         f"{str(result.summaries['forward_paper_eligible']).lower()}"
@@ -180,12 +173,10 @@ def decision_superiority_pre2016_external_validation_verify(
     typer.echo(f"Contract: {payload['contract_version']}")
     typer.echo(f"Readiness: {payload['readiness_decision']}")
     typer.echo(
-        "External Classification: "
-        f"{payload['external_validation_classification']}"
+        f"External Classification: {payload['external_validation_classification']}"
     )
     typer.echo(
-        "Forward Paper Eligible: "
-        f"{str(payload['forward_paper_eligible']).lower()}"
+        f"Forward Paper Eligible: {str(payload['forward_paper_eligible']).lower()}"
     )
     typer.echo("Certificate: VALID")
 

@@ -223,17 +223,13 @@ class GovernedPre2016ExternalValidationEngine:
             benchmark=benchmark_metrics,
         )
         stop_difference_rows = _stop_difference_rows(
-            incumbent=cast(
-                Sequence[Mapping[str, Any]], incumbent_simulation["trades"]
-            ),
+            incumbent=cast(Sequence[Mapping[str, Any]], incumbent_simulation["trades"]),
             challenger=cast(
                 Sequence[Mapping[str, Any]], challenger_simulation["trades"]
             ),
         )
         equity_rows = _equity_rows(
-            incumbent=cast(
-                Sequence[Mapping[str, Any]], incumbent_simulation["curve"]
-            ),
+            incumbent=cast(Sequence[Mapping[str, Any]], incumbent_simulation["curve"]),
             challenger=cast(
                 Sequence[Mapping[str, Any]], challenger_simulation["curve"]
             ),
@@ -400,20 +396,14 @@ def _validate_frozen_candidate(
 ) -> list[dict[str, Any]]:
     best = dsi009.get("best_descriptive_result")
     if not isinstance(best, Mapping):
-        raise Pre2016ExternalValidationError(
-            "DSI009_DESCRIPTIVE_CHALLENGER_MISSING"
-        )
+        raise Pre2016ExternalValidationError("DSI009_DESCRIPTIVE_CHALLENGER_MISSING")
     if str(best.get("mechanism_id")) != policy.frozen_challenger_id:
-        raise Pre2016ExternalValidationError(
-            "DSI009_FROZEN_CHALLENGER_MISMATCH"
-        )
+        raise Pre2016ExternalValidationError("DSI009_FROZEN_CHALLENGER_MISMATCH")
     registry_path = (
         sources.dsi009_certificate.parent / DSI009_ARTIFACTS["stop_registry"]
     )
     if not registry_path.is_file():
-        raise Pre2016ExternalValidationError(
-            "DSI009_STOP_REGISTRY_ARTIFACT_MISSING"
-        )
+        raise Pre2016ExternalValidationError("DSI009_STOP_REGISTRY_ARTIFACT_MISSING")
     registry = pd.read_csv(registry_path)
     selected = registry.loc[
         registry["mechanism_id"].astype(str) == policy.frozen_challenger_id
@@ -479,9 +469,7 @@ def _validate_frozen_candidate(
 def _load_frozen_mapping(source_dir: Path) -> dict[str, str]:
     path = source_dir / DSI007_ARTIFACTS["regime_strategy_mapping"]
     if not path.is_file():
-        raise Pre2016ExternalValidationError(
-            "DSI007_REGIME_STRATEGY_MAPPING_MISSING"
-        )
+        raise Pre2016ExternalValidationError("DSI007_REGIME_STRATEGY_MAPPING_MISSING")
     frame = pd.read_csv(path)
     required = {
         "regime_state",
@@ -492,8 +480,7 @@ def _load_frozen_mapping(source_dir: Path) -> dict[str, str]:
     missing = required - set(frame.columns)
     if missing:
         raise Pre2016ExternalValidationError(
-            "DSI007_REGIME_STRATEGY_MAPPING_SCHEMA_INVALID:"
-            + ",".join(sorted(missing))
+            "DSI007_REGIME_STRATEGY_MAPPING_SCHEMA_INVALID:" + ",".join(sorted(missing))
         )
     if frame["holdout_used"].map(_as_bool).any():
         raise Pre2016ExternalValidationError(
@@ -502,9 +489,7 @@ def _load_frozen_mapping(source_dir: Path) -> dict[str, str]:
     frame["test_end"] = pd.to_datetime(frame["test_end"], errors="raise").dt.date
     mapping: dict[str, str] = {}
     for regime, values in frame.groupby("regime_state", sort=True):
-        latest = values.sort_values(
-            ["test_end", "walk_forward_fold_id"]
-        ).iloc[-1]
+        latest = values.sort_values(["test_end", "walk_forward_fold_id"]).iloc[-1]
         mapping[str(regime)] = str(latest["selected_strategy_variant_id"])
     for regime in RegimeState:
         mapping.setdefault(regime.value, "NO_TRADE")
@@ -527,9 +512,7 @@ def _transport_fold(
     test_start_index = min(504, len(sessions) - 1)
     test_start = sessions[test_start_index]
     if test_start >= policy.external_end:
-        raise Pre2016ExternalValidationError(
-            "NO_PRE2016_EXTERNAL_TRANSPORT_WINDOW"
-        )
+        raise Pre2016ExternalValidationError("NO_PRE2016_EXTERNAL_TRANSPORT_WINDOW")
     return WalkForwardFold(
         walk_forward_fold_id="PRE2016-FROZEN-TRANSPORT",
         train_start=sessions[0],
@@ -558,9 +541,7 @@ def _transport_selection_rows(
             "eligible": True,
             "objective_score": None,
             "complexity_score": 0,
-            "strategy_variant_id": frozen_mapping.get(
-                regime.value, "NO_TRADE"
-            ),
+            "strategy_variant_id": frozen_mapping.get(regime.value, "NO_TRADE"),
             "selection_data_end": "SIGNED_DSI007_LATEST_FOLD",
             "test_start": fold.test_start,
             "test_end": fold.test_end,
@@ -594,8 +575,7 @@ def _apply_frozen_structural_stop(
         | (challenger["initial_stop"].astype(float) <= 0)
         | (
             challenger["initial_stop"].astype(float)
-            >= challenger["raw_entry_price"].astype(float)
-            * (1.0 + slippage_fraction)
+            >= challenger["raw_entry_price"].astype(float) * (1.0 + slippage_fraction)
         )
     )
     if invalid.any():
@@ -634,9 +614,9 @@ def _benchmark_metrics(
             "net_cagr": None,
             "cumulative_return": None,
         }
-    frame = benchmark.loc[
-        benchmark["trading_date"].between(start, end)
-    ].sort_values("trading_date")
+    frame = benchmark.loc[benchmark["trading_date"].between(start, end)].sort_values(
+        "trading_date"
+    )
     if len(frame) < 2:
         return {
             "portfolio_name": _BENCHMARK_PORTFOLIO,
@@ -885,9 +865,7 @@ def _concentration(
         reverse=True,
     )
     top_five_share = (
-        None
-        if positive_total <= 0
-        else round(sum(positive[:5]) / positive_total, 8)
+        None if positive_total <= 0 else round(sum(positive[:5]) / positive_total, 8)
     )
     rows.append(
         {
@@ -955,8 +933,7 @@ def _robustness(
                 "incumbent_cagr": incumbent_metrics.get("net_cagr"),
                 "directionally_better_than_incumbent": (
                     _optional_float(metrics.get("net_cagr")) is not None
-                    and _optional_float(incumbent_metrics.get("net_cagr"))
-                    is not None
+                    and _optional_float(incumbent_metrics.get("net_cagr")) is not None
                     and float(metrics["net_cagr"])
                     > float(incumbent_metrics["net_cagr"])
                 ),
@@ -1152,9 +1129,7 @@ def _readiness(
             else "READY_WITH_ZERO_EXTERNAL_TRADES"
         ),
         "F": str(
-            replication.readiness.get(
-                "J", "READY_WITH_NO_GENERALISABLE_STRATEGY"
-            )
+            replication.readiness.get("J", "READY_WITH_NO_GENERALISABLE_STRATEGY")
         ),
         "G": "READY_FOR_GOVERNED_PRE2016_PERFORMANCE_COMPARISON",
         "H": (
@@ -1184,9 +1159,7 @@ def _readiness(
         ExternalValidationClassification.BEATS_INCUMBENT_NOT_BENCHMARK: (
             "READY_WITH_DIRECTIONAL_EXTERNAL_SUPPORT"
         ),
-        ExternalValidationClassification.MIXED: (
-            "READY_WITH_MIXED_EXTERNAL_EVIDENCE"
-        ),
+        ExternalValidationClassification.MIXED: ("READY_WITH_MIXED_EXTERNAL_EVIDENCE"),
         ExternalValidationClassification.FAILED: "READY_WITH_CHALLENGER_REJECTED",
         ExternalValidationClassification.INSUFFICIENT_SAMPLE: (
             "READY_WITH_MIXED_EXTERNAL_EVIDENCE"
@@ -1255,11 +1228,7 @@ def _benchmark_gap_closed(
     incumbent_cagr = _optional_float(incumbent.get("net_cagr"))
     challenger_cagr = _optional_float(challenger.get("net_cagr"))
     benchmark_cagr = _optional_float(benchmark.get("net_cagr"))
-    if (
-        incumbent_cagr is None
-        or challenger_cagr is None
-        or benchmark_cagr is None
-    ):
+    if incumbent_cagr is None or challenger_cagr is None or benchmark_cagr is None:
         return None
     original_gap = benchmark_cagr - incumbent_cagr
     if original_gap <= 0:
@@ -1271,11 +1240,7 @@ def _metric_by_name(
     metrics: Sequence[Mapping[str, Any]],
     name: str,
 ) -> dict[str, Any] | None:
-    matches = [
-        dict(row)
-        for row in metrics
-        if str(row.get("portfolio_name")) == name
-    ]
+    matches = [dict(row) for row in metrics if str(row.get("portfolio_name")) == name]
     return matches[0] if len(matches) == 1 else None
 
 

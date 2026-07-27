@@ -51,9 +51,7 @@ class Pre2016ExternalValidationPolicy:
 
     def __post_init__(self) -> None:
         if self.external_end < self.external_start:
-            raise Pre2016ExternalValidationError(
-                "EXTERNAL_END_PRECEDES_EXTERNAL_START"
-            )
+            raise Pre2016ExternalValidationError("EXTERNAL_END_PRECEDES_EXTERNAL_START")
         if self.external_end >= date(2016, 1, 1):
             raise Pre2016ExternalValidationError("PRE2016_HOLDOUT_OVERLAPS_2016")
         if self.frozen_challenger_id != DSI010_FROZEN_CHALLENGER_ID:
@@ -67,9 +65,7 @@ class Pre2016ExternalValidationPolicy:
                 "MAXIMUM_TOP_FIVE_PROFIT_SHARE_INVALID"
             )
         if self.transaction_cost_fraction < 0 or self.slippage_fraction < 0:
-            raise Pre2016ExternalValidationError(
-                "COST_OR_SLIPPAGE_ASSUMPTION_INVALID"
-            )
+            raise Pre2016ExternalValidationError("COST_OR_SLIPPAGE_ASSUMPTION_INVALID")
 
 
 @dataclass(frozen=True, slots=True)

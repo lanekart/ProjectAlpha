@@ -161,10 +161,7 @@ def test_external_classification_distinguishes_benchmark_outperformance() -> Non
         policy=Pre2016ExternalValidationPolicy(),
     )
     assert beats_benchmark is ExternalValidationClassification.BEATS_BENCHMARK
-    assert (
-        closes_gap
-        is ExternalValidationClassification.BEATS_INCUMBENT_NOT_BENCHMARK
-    )
+    assert closes_gap is ExternalValidationClassification.BEATS_INCUMBENT_NOT_BENCHMARK
 
 
 def test_governance_flags_are_all_false() -> None:
@@ -197,9 +194,7 @@ def test_artifact_tamper_is_detected(tmp_path) -> None:  # type: ignore[no-untyp
         Pre2016ExternalValidationError,
         match="DSI010_ARTIFACT_TAMPERED",
     ):
-        validate_pre2016_external_validation_certificate(
-            tmp_path / DSI010_CERTIFICATE
-        )
+        validate_pre2016_external_validation_certificate(tmp_path / DSI010_CERTIFICATE)
 
 
 def test_cli_commands_are_registered() -> None:
