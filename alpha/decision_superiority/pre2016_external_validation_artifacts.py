@@ -386,7 +386,7 @@ def _display(value: object, *, percent: bool = False) -> str:
     if value is None:
         return "UNKNOWN"
     try:
-        number = float(value)
+        number = float(str(value))
     except (TypeError, ValueError):
         return str(value)
     return f"{number * 100:.2f}%" if percent else f"{number:.4f}"

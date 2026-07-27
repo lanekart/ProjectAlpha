@@ -194,7 +194,7 @@ def _percent(value: object) -> str:
     if value is None:
         return "UNKNOWN"
     try:
-        return f"{float(value) * 100:.2f}%"
+        return f"{float(str(value)) * 100:.2f}%"
     except (TypeError, ValueError):
         return "UNKNOWN"
 

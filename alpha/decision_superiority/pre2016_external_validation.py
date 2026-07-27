@@ -425,7 +425,12 @@ def _validate_frozen_candidate(
         if isinstance(value, bool):
             observed = _as_bool(observed)
         elif isinstance(value, int):
-            observed = int(float(observed))
+            number = _optional_float(observed)
+            if number is None:
+                raise Pre2016ExternalValidationError(
+                    f"FROZEN_CHALLENGER_CONTRACT_VALUE_INVALID:{key}"
+                )
+            observed = int(number)
         else:
             observed = str(observed)
         if observed != value:
@@ -750,14 +755,19 @@ def _equity_rows(
         for row in curve:
             rows.append({"portfolio_name": name, **dict(row)})
     if benchmark is not None and not benchmark.empty:
-        first = float(benchmark.iloc[0]["benchmark_value"])
+        first = _optional_float(benchmark.iloc[0]["benchmark_value"])
+        if first is None or first <= 0:
+            raise Pre2016ExternalValidationError("BENCHMARK_START_VALUE_INVALID")
         for item in benchmark.itertuples(index=False):
+            benchmark_value = _optional_float(item.benchmark_value)
+            if benchmark_value is None:
+                raise Pre2016ExternalValidationError("BENCHMARK_VALUE_INVALID")
             rows.append(
                 {
                     "portfolio_name": _BENCHMARK_PORTFOLIO,
                     "observed_on": item.trading_date,
                     "portfolio_value": round(
-                        1_000_000.0 * float(item.benchmark_value) / first,
+                        1_000_000.0 * benchmark_value / first,
                         8,
                     ),
                     "daily_return": None,
@@ -801,7 +811,7 @@ def _calendar_performance(
         rows.append(
             {
                 "portfolio_name": portfolio,
-                "calendar_year": int(year),
+                "calendar_year": int(str(year)),
                 "start_value": round(start_value, 8),
                 "end_value": round(end_value, 8),
                 "return": round(end_value / start_value - 1.0, 8),
@@ -1253,10 +1263,10 @@ def _difference(left: object, right: object) -> float | None:
 
 
 def _optional_float(value: object) -> float | None:
-    if value is None or pd.isna(value):
+    if value is None:
         return None
     try:
-        number = float(value)
+        number = float(str(value))
     except (TypeError, ValueError):
         return None
     return number if math.isfinite(number) else None
