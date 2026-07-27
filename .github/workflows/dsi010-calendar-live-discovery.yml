@@ -16,7 +16,7 @@ permissions:
 jobs:
   discover:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -24,13 +24,15 @@ jobs:
           python-version: "3.14"
       - name: Install probe dependency
         run: python -m pip install --disable-pip-version-check requests
-      - name: Query official NSE circular API
+      - name: Query and fetch official NSE calendar circulars
         run: |
           python - <<'PY'
           from __future__ import annotations
 
           import csv
+          import hashlib
           import json
+          import re
           import time
           from pathlib import Path
           from typing import Any
@@ -38,8 +40,10 @@ jobs:
           import requests
 
           root = Path("artifacts/dsi010_pre2011_live_discovery")
-          raw_root = root / "raw"
-          raw_root.mkdir(parents=True, exist_ok=True)
+          raw_api_root = root / "raw_api"
+          document_root = root / "documents"
+          raw_api_root.mkdir(parents=True, exist_ok=True)
+          document_root.mkdir(parents=True, exist_ok=True)
 
           session = requests.Session()
           headers = {
@@ -52,8 +56,7 @@ jobs:
           session.get("https://www.nseindia.com/", headers=headers, timeout=30)
 
           attempts: list[dict[str, Any]] = []
-          matches: list[dict[str, Any]] = []
-          keywords = ("holiday", "muhurat", "mahurat", "laxmi puja", "diwali", "market timing")
+          rows_all: list[dict[str, Any]] = []
 
           def rows_from(payload: Any) -> list[dict[str, Any]]:
               if isinstance(payload, list):
@@ -68,64 +71,144 @@ jobs:
                           return value
               return []
 
+          periods = [(2004, 4, "01-10", "31-12")]
           for year in range(2005, 2011):
-              for quarter, (start, end) in enumerate(
-                  (("01-01", "31-03"), ("01-04", "30-06"), ("01-07", "30-09"), ("01-10", "31-12")),
-                  start=1,
-              ):
-                  url = (
-                      "https://www.nseindia.com/api/circulars"
-                      f"?fromDate={start}-{year}&toDate={end}-{year}"
+              periods.extend(
+                  (year, quarter, start, end)
+                  for quarter, (start, end) in enumerate(
+                      (("01-01", "31-03"), ("01-04", "30-06"), ("01-07", "30-09"), ("01-10", "31-12")),
+                      start=1,
                   )
-                  response = session.get(url, headers=headers, timeout=45)
-                  path = raw_root / f"{year}_q{quarter}_{response.status_code}.txt"
-                  path.write_bytes(response.content)
-                  payload: Any = None
-                  error = None
-                  try:
-                      payload = response.json()
-                  except ValueError as exc:
-                      error = f"JSON_DECODE_FAILED:{type(exc).__name__}"
-                  rows = rows_from(payload)
-                  attempts.append(
-                      {
-                          "year": year,
-                          "quarter": quarter,
-                          "url": url,
-                          "status": response.status_code,
-                          "content_type": response.headers.get("Content-Type", ""),
-                          "response_bytes": len(response.content),
-                          "row_count": len(rows),
-                          "error": error or "",
-                      }
-                  )
-                  for row in rows:
-                      flattened = " ".join(str(value) for value in row.values()).casefold()
-                      if any(keyword in flattened for keyword in keywords):
-                          matches.append({"requested_year": year, "quarter": quarter, **row})
-                  time.sleep(1.1)
+              )
+
+          for year, quarter, start, end in periods:
+              url = (
+                  "https://www.nseindia.com/api/circulars"
+                  f"?fromDate={start}-{year}&toDate={end}-{year}"
+              )
+              response = session.get(url, headers=headers, timeout=45)
+              path = raw_api_root / f"{year}_q{quarter}_{response.status_code}.json"
+              path.write_bytes(response.content)
+              payload: Any = None
+              error = None
+              try:
+                  payload = response.json()
+              except ValueError as exc:
+                  error = f"JSON_DECODE_FAILED:{type(exc).__name__}"
+              rows = rows_from(payload)
+              attempts.append(
+                  {
+                      "year": year,
+                      "quarter": quarter,
+                      "url": url,
+                      "status": response.status_code,
+                      "content_type": response.headers.get("Content-Type", ""),
+                      "response_bytes": len(response.content),
+                      "row_count": len(rows),
+                      "error": error or "",
+                  }
+              )
+              rows_all.extend({"api_year": year, "api_quarter": quarter, **row} for row in rows)
+              time.sleep(1.1)
+
+          def normalized(value: object) -> str:
+              return re.sub(r"\s+", " ", str(value or "")).strip().casefold()
+
+          selected: list[dict[str, Any]] = []
+          seen: set[tuple[str, str]] = set()
+          for row in rows_all:
+              department = normalized(row.get("circDepartment"))
+              subject = normalized(row.get("sub"))
+              link = str(row.get("circFilelink") or "").strip()
+              if department != "capital market (equities) trade" or not link:
+                  continue
+
+              circular_date = str(row.get("cirDate") or "")
+              issued_year = int(circular_date[:4]) if len(circular_date) >= 4 and circular_date[:4].isdigit() else None
+              category = None
+              target_year = None
+
+              annual_match = re.search(r"calendar year\s*(20(?:0[5-9]|10))", subject)
+              if "trading holidays" in subject and annual_match:
+                  category = "ANNUAL_CALENDAR"
+                  target_year = int(annual_match.group(1))
+              elif any(token in subject for token in ("muhurat", "mahurat")):
+                  category = "SPECIAL_SESSION"
+                  target_year = issued_year
+              elif "trading holiday" in subject and issued_year in range(2005, 2011):
+                  category = "HOLIDAY_AMENDMENT"
+                  target_year = issued_year
+
+              if category is None or target_year not in range(2005, 2011):
+                  continue
+              identity = (str(row.get("circNumber") or ""), link)
+              if identity in seen:
+                  continue
+              seen.add(identity)
+              selected.append(
+                  {
+                      "target_year": target_year,
+                      "category": category,
+                      "source_id": f"NSE_CMTR_{row.get('circNumber')}_{target_year}_{category}",
+                      "source_url": link,
+                      "segment_scope": "CAPITAL_MARKET",
+                      "expected_download_number": str(row.get("circNumber") or ""),
+                      "expected_circular_date": str(row.get("cirDisplayDate") or ""),
+                      "expected_subject": str(row.get("sub") or ""),
+                      "circ_display_no": str(row.get("circDisplayNo") or ""),
+                      "circ_department": str(row.get("circDepartment") or ""),
+                      "file_ext": str(row.get("fileExt") or ""),
+                      "api_issue_date": circular_date,
+                  }
+              )
+
+          selected.sort(key=lambda row: (row["target_year"], row["category"], row["api_issue_date"], row["source_id"]))
+          downloads: list[dict[str, Any]] = []
+          for item in selected:
+              response = session.get(item["source_url"], headers={**headers, "Accept": "text/html,application/pdf,*/*"}, timeout=45)
+              raw = response.content
+              digest = hashlib.sha256(raw).hexdigest() if raw else ""
+              suffix = ".pdf" if raw.startswith(b"%PDF-") else ".htm" if b"<html" in raw[:1000].lower() or b"<body" in raw[:1000].lower() else ".bin"
+              path = document_root / str(item["target_year"]) / f"{item['source_id']}_{digest[:12]}{suffix}"
+              path.parent.mkdir(parents=True, exist_ok=True)
+              path.write_bytes(raw)
+              downloads.append(
+                  {
+                      **item,
+                      "http_status": response.status_code,
+                      "final_url": response.url,
+                      "content_type": response.headers.get("Content-Type", ""),
+                      "response_bytes": len(raw),
+                      "sha256": digest,
+                      "document_path": str(path),
+                      "document_format": suffix.lstrip("."),
+                  }
+              )
+              time.sleep(0.8)
 
           root.mkdir(parents=True, exist_ok=True)
           (root / "attempts.json").write_text(json.dumps(attempts, indent=2, sort_keys=True, default=str) + "\n")
-          (root / "calendar_matches.json").write_text(json.dumps(matches, indent=2, sort_keys=True, default=str) + "\n")
+          (root / "selected_candidates.json").write_text(json.dumps(selected, indent=2, sort_keys=True, default=str) + "\n")
+          (root / "downloads.json").write_text(json.dumps(downloads, indent=2, sort_keys=True, default=str) + "\n")
 
-          attempt_fields = sorted({key for row in attempts for key in row})
-          with (root / "attempts.csv").open("w", encoding="utf-8", newline="") as handle:
-              writer = csv.DictWriter(handle, fieldnames=attempt_fields)
-              writer.writeheader()
-              writer.writerows(attempts)
-
-          match_fields = sorted({key for row in matches for key in row})
-          with (root / "calendar_matches.csv").open("w", encoding="utf-8", newline="") as handle:
-              writer = csv.DictWriter(handle, fieldnames=match_fields or ["requested_year"])
-              writer.writeheader()
-              writer.writerows(matches)
+          for filename, rows in (("attempts.csv", attempts), ("selected_candidates.csv", selected), ("downloads.csv", downloads)):
+              fields = sorted({key for row in rows for key in row}) or ["empty"]
+              with (root / filename).open("w", encoding="utf-8", newline="") as handle:
+                  writer = csv.DictWriter(handle, fieldnames=fields)
+                  writer.writeheader()
+                  writer.writerows(rows)
 
           print("===== DSI-010 LIVE CIRCULAR DISCOVERY =====")
-          print(f"Attempts: {len(attempts)}")
+          print(f"API attempts: {len(attempts)}")
           print(f"Successful HTTP responses: {sum(row['status'] == 200 for row in attempts)}")
-          print(f"Total rows: {sum(row['row_count'] for row in attempts)}")
-          print(f"Calendar-related matches: {len(matches)}")
+          print(f"Total API rows: {len(rows_all)}")
+          print(f"Selected official CM candidates: {len(selected)}")
+          print(f"Downloaded documents: {sum(row['http_status'] == 200 for row in downloads)}")
+          for year in range(2005, 2011):
+              annual = sum(row["target_year"] == year and row["category"] == "ANNUAL_CALENDAR" for row in downloads)
+              amendments = sum(row["target_year"] == year and row["category"] == "HOLIDAY_AMENDMENT" for row in downloads)
+              special = sum(row["target_year"] == year and row["category"] == "SPECIAL_SESSION" for row in downloads)
+              print(f"{year}: annual={annual} amendments={amendments} special_sessions={special}")
           print("PRODUCTION_INFLUENCE=false")
           PY
       - name: Upload discovery evidence
