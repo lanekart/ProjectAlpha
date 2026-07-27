@@ -1,0 +1,83 @@
+name: DSI010 Governed Population TRI Repair
+
+on:
+  pull_request:
+    branches:
+      - feature/recovery-foundation-v1
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install locked Ruff
+        run: pip install ruff==0.15.20
+      - name: Patch DSI-010 benchmark transport
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("alpha/decision_superiority/pre2016_external_validation.py")
+          text = path.read_text(encoding="utf-8")
+
+          anchor = """from alpha.decision_superiority.entry_stop_improvement_artifacts import (\n    DSI009_ARTIFACTS,\n    validate_entry_stop_improvement_certificate,\n)\n"""
+          replacement = anchor + "from alpha.decision_superiority.pre2016_benchmark import (\n    load_pre2016_governed_tri,\n)\n"
+          if anchor not in text:
+              raise SystemExit("DSI010_IMPORT_ANCHOR_NOT_FOUND")
+          text = text.replace(anchor, replacement, 1)
+
+          legacy_import = "    _load_benchmark,\n"
+          if legacy_import not in text:
+              raise SystemExit("DSI010_LEGACY_BENCHMARK_IMPORT_NOT_FOUND")
+          text = text.replace(legacy_import, "", 1)
+
+          old_source = "            benchmark=str(sources.benchmark),\n"
+          if old_source not in text:
+              raise SystemExit("DSI010_TOURNAMENT_BENCHMARK_SOURCE_NOT_FOUND")
+          text = text.replace(old_source, '            benchmark="AUTO",\n', 1)
+
+          old_call = """        benchmark_frame, benchmark_rows = _load_benchmark(\n            str(sources.benchmark),\n            sessions=tuple(\n                item\n                for item in sorted(featured[\"trading_date\"].unique())\n                if transport_fold.test_start <= item <= transport_fold.test_end\n            ),\n            start=transport_fold.test_start,\n            end=transport_fold.test_end,\n        )\n"""
+          new_call = """        benchmark_frame, benchmark_rows = load_pre2016_governed_tri(\n            sources.benchmark,\n            sessions=tuple(\n                item\n                for item in sorted(featured[\"trading_date\"].unique())\n                if transport_fold.test_start <= item <= transport_fold.test_end\n            ),\n            start=transport_fold.test_start,\n            end=transport_fold.test_end,\n        )\n"""
+          if old_call not in text:
+              raise SystemExit("DSI010_LEGACY_BENCHMARK_CALL_NOT_FOUND")
+          text = text.replace(old_call, new_call, 1)
+          path.write_text(text, encoding="utf-8")
+          PY
+          ruff check --fix \
+            alpha/application/decision_superiority_pre2016_external_validation_cli.py \
+            alpha/decision_superiority/pre2016_benchmark.py \
+            alpha/decision_superiority/pre2016_external_validation.py \
+            alpha/decision_superiority/pre2016_population.py
+          ruff format \
+            alpha/application/decision_superiority_pre2016_external_validation_cli.py \
+            alpha/decision_superiority/pre2016_benchmark.py \
+            alpha/decision_superiority/pre2016_external_validation.py \
+            alpha/decision_superiority/pre2016_population.py
+          python -m py_compile \
+            alpha/application/decision_superiority_pre2016_external_validation_cli.py \
+            alpha/decision_superiority/pre2016_benchmark.py \
+            alpha/decision_superiority/pre2016_external_validation.py \
+            alpha/decision_superiority/pre2016_population.py
+      - name: Commit repair and remove temporary workflow
+        run: |
+          rm .github/workflows/dsi010-governed-population-tri-repair.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            alpha/application/decision_superiority_pre2016_external_validation_cli.py \
+            alpha/decision_superiority/pre2016_benchmark.py \
+            alpha/decision_superiority/pre2016_external_validation.py \
+            alpha/decision_superiority/pre2016_population.py \
+            .github/workflows/dsi010-governed-population-tri-repair.yml
+          git commit -m "fix(dsi-010): govern pre-2016 population and TRI loading"
+          git push origin HEAD:feature/dsi-010-pre2016-external-era-validation
