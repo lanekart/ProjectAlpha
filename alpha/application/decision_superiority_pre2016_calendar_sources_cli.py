@@ -110,9 +110,12 @@ def decision_superiority_pre2016_calendar_api_probe(
         typer.echo(f"PRE2016_CALENDAR_API_PROBE_FAILED: {exc}", err=True)
         raise typer.Exit(1) from exc
 
-    typer.echo(f"Requested Years: {','.join(str(item) for item in result.requested_years)}")
-    typer.echo(f"Accepted Years: {','.join(str(item) for item in result.accepted_years) or 'NONE'}")
-    typer.echo(f"Missing Years: {','.join(str(item) for item in result.missing_years) or 'NONE'}")
+    requested = ",".join(str(item) for item in result.requested_years)
+    accepted = ",".join(str(item) for item in result.accepted_years) or "NONE"
+    missing = ",".join(str(item) for item in result.missing_years) or "NONE"
+    typer.echo(f"Requested Years: {requested}")
+    typer.echo(f"Accepted Years: {accepted}")
+    typer.echo(f"Missing Years: {missing}")
     typer.echo(f"Probe Attempts: {len(result.attempts)}")
     typer.echo(
         "HISTORICAL_YEAR_API_SUPPORT="
