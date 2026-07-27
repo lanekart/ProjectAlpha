@@ -1,0 +1,200 @@
+name: DSI-010 Certified Calendar Rerun
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-certified-calendar-rerun.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Download validated V4 merged-store evidence
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30310808599
+          name: dsi010-fast-track-v4-full-2005-2015-governed-calendar-audit
+          path: inputs/v4
+      - name: Restore governed V4 artifacts to canonical workspace paths
+        run: |
+          set -euo pipefail
+          source_root="inputs/v4/home/runner/work/ProjectAlpha/ProjectAlpha/artifacts"
+          if [ ! -d "$source_root" ]; then
+            echo "V4_CANONICAL_ARTIFACT_ROOT_MISSING" >&2
+            find inputs/v4 -maxdepth 6 -type d | sort | head -100
+            exit 1
+          fi
+          for name in \
+            dsi010_merged_historical_truth \
+            dsi010_pre2011_official_sources \
+            dsi010_pre2011_reviewed_sources \
+            dsi010_2005_emergency_holiday_source \
+            dsi010_2011_2015_official_sources \
+            dsi010_2011_2015_reviewed_sources; do
+            if [ ! -d "$source_root/$name" ]; then
+              echo "V4_REQUIRED_ARTIFACT_MISSING_${name}" >&2
+              exit 1
+            fi
+            rm -rf "artifacts/$name"
+            cp -a "$source_root/$name" "artifacts/$name"
+          done
+          test -f artifacts/dsi010_merged_historical_truth/warehouse/historical_truth.duckdb
+          test -f artifacts/dsi010_merged_historical_truth/manifests/archive_manifest.jsonl
+          echo "V4_GOVERNED_ARTIFACTS_RESTORED=true"
+      - name: Validate new emergency-source implementation
+        run: |
+          poetry run ruff check \
+            alpha/decision_superiority/pre2016_2008_emergency_closure.py \
+            scripts/build_dsi010_2008_emergency_closure_source.py \
+            scripts/run_dsi010_full_calendar_audit.py \
+            tests/decision_superiority/test_pre2016_2008_emergency_closure.py
+          poetry run ruff format --check \
+            alpha/decision_superiority/pre2016_2008_emergency_closure.py \
+            scripts/build_dsi010_2008_emergency_closure_source.py \
+            scripts/run_dsi010_full_calendar_audit.py \
+            tests/decision_superiority/test_pre2016_2008_emergency_closure.py
+          poetry run mypy \
+            alpha/decision_superiority/pre2016_2008_emergency_closure.py \
+            scripts/build_dsi010_2008_emergency_closure_source.py \
+            scripts/run_dsi010_full_calendar_audit.py
+          poetry run pytest -q \
+            tests/decision_superiority/test_pre2016_2008_emergency_closure.py \
+            tests/decision_superiority/test_pre2016_calendar_sources.py
+      - name: Build hash-bound 27-Nov-2008 emergency closure source
+        run: |
+          set -o pipefail
+          poetry run python scripts/build_dsi010_2008_emergency_closure_source.py \
+            --database \
+            artifacts/dsi010_merged_historical_truth/warehouse/historical_truth.duckdb \
+            --output-root artifacts/dsi010_2008_emergency_closure_source \
+            --timeout-seconds 45 \
+            2>&1 | tee /tmp/dsi010-2008-emergency-source.log
+      - name: Run final certified calendar audit
+        run: |
+          set -o pipefail
+          poetry run python scripts/run_dsi010_full_calendar_audit.py \
+            --merged-root artifacts/dsi010_merged_historical_truth \
+            --early-root artifacts/dsi010_pre2011_reviewed_sources \
+            --later-root artifacts/dsi010_2011_2015_reviewed_sources \
+            --emergency-source \
+            artifacts/dsi010_2005_emergency_holiday_source/nse_2005_emergency_holiday.json \
+            --additional-source \
+            artifacts/dsi010_2008_emergency_closure_source/nse_2008_emergency_closure.json \
+            --expected-source-count 30 \
+            --expected-holiday-row-count 221 \
+            --special-config config/dsi010_2005_2015_special_sessions.json \
+            --audit-root artifacts/dsi010_2005_2015_certified_calendar_audit \
+            --source-population-run-id 30310808599 \
+            2>&1 | tee /tmp/dsi010-certified-calendar-audit.log
+      - name: Enforce certified acceptance contract
+        env:
+          CERTIFICATION_RUN_ID: ${{ github.run_id }}
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path("artifacts/dsi010_2005_2015_certified_calendar_audit")
+          summary_path = root / "full_calendar_audit_summary.json"
+          summary = json.loads(summary_path.read_text(encoding="utf-8"))
+          expected = {
+              "reviewed_source_count": 30,
+              "official_holiday_count": 221,
+              "official_special_session_count": 11,
+              "expected_session_count": 2719,
+              "observed_session_count": 2719,
+              "unresolved_weekday_count": 0,
+              "unconfirmed_special_session_count": 0,
+              "missing_special_session_count": 0,
+              "conflict_count": 0,
+              "certification_state": "certified",
+              "full_2005_2015_audit_performed": True,
+              "calendar_certification_permitted": True,
+              "classification_inferred_from_archive_status": False,
+              "classification_inferred_from_observed_candles": False,
+              "production_influence": False,
+          }
+          mismatches = {
+              key: {"expected": value, "observed": summary.get(key)}
+              for key, value in expected.items()
+              if summary.get(key) != value
+          }
+          if mismatches:
+              raise SystemExit(
+                  "CERTIFIED_CALENDAR_CONTRACT_MISMATCH:"
+                  + json.dumps(mismatches, sort_keys=True)
+              )
+          for filename in (
+              "unresolved_dates.csv",
+              "conflicts.csv",
+              "missing_special_sessions.csv",
+              "unconfirmed_special_sessions.csv",
+          ):
+              lines = (root / filename).read_text(encoding="utf-8").splitlines()
+              if len(lines) != 1:
+                  raise SystemExit(
+                      f"CERTIFIED_CALENDAR_NONEMPTY_EXCEPTION_LEDGER:{filename}:"
+                      f"rows={len(lines) - 1}"
+                  )
+          summary["certification_run_id"] = int(os.environ["CERTIFICATION_RUN_ID"])
+          summary["v4_merged_store_run_id"] = 30310808599
+          summary["v4_merged_store_artifact_id"] = 8670316603
+          summary["official_2008_emergency_source_id"] = (
+              "NSE_COMPOSITE_11688_11689_2008_EMERGENCY_CLOSURE"
+          )
+          summary_path.write_text(
+              json.dumps(summary, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print("===== DSI-010 CERTIFIED CALENDAR ACCEPTANCE =====")
+          for key in (
+              "reviewed_source_count",
+              "official_holiday_count",
+              "official_special_session_count",
+              "expected_session_count",
+              "observed_session_count",
+              "unresolved_weekday_count",
+              "conflict_count",
+              "certification_state",
+              "calendar_certification_permitted",
+              "calendar_report_sha256",
+              "database_sha256",
+              "manifest_sha256",
+          ):
+              print(f"{key}: {summary.get(key)}")
+          print("PRODUCTION_INFLUENCE=false")
+          PY
+      - name: Upload certified evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-certified-2005-2015-calendar-audit
+          path: |
+            /tmp/dsi010-2008-emergency-source.log
+            /tmp/dsi010-certified-calendar-audit.log
+            artifacts/dsi010_2008_emergency_closure_source
+            artifacts/dsi010_2005_2015_certified_calendar_audit
+            artifacts/dsi010_merged_historical_truth/merge_lineage.json
+            artifacts/dsi010_merged_historical_truth/merge_summary.json
+            artifacts/dsi010_merged_historical_truth/manifests/archive_manifest.jsonl
+            artifacts/dsi010_merged_historical_truth/warehouse/historical_truth.duckdb
+            config/dsi010_2005_2015_special_sessions.json
+          if-no-files-found: error
+          retention-days: 14
