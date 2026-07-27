@@ -1,0 +1,42 @@
+name: DSI010 Holiday API Probe MyPy
+
+on:
+  pull_request:
+    branches:
+      - feature/recovery-foundation-v1
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: github.head_ref == 'feature/dsi-010-pre2016-external-era-validation'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Install project
+        run: |
+          python -m pip install poetry
+          poetry install --no-interaction
+      - name: Run focused MyPy
+        shell: bash
+        run: |
+          set +e
+          poetry run mypy \
+            alpha/decision_superiority/pre2016_calendar_api_probe.py \
+            alpha/application/decision_superiority_pre2016_calendar_sources_cli.py \
+            tests/decision_superiority/test_pre2016_calendar_api_probe.py \
+            > dsi010-api-probe-mypy.txt 2>&1
+          status=$?
+          cat dsi010-api-probe-mypy.txt
+          echo "$status" > dsi010-api-probe-mypy-status.txt
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-api-probe-mypy
+          path: |
+            dsi010-api-probe-mypy.txt
+            dsi010-api-probe-mypy-status.txt
