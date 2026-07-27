@@ -8,7 +8,6 @@ from typing import Annotated
 
 import typer
 
-from alpha.application.historical_ingestion import HistoricalIngestionService
 from alpha.config.settings import settings
 from alpha.decision_superiority.pre2016_external_validation import (
     GovernedPre2016ExternalValidationEngine,
@@ -23,8 +22,13 @@ from alpha.decision_superiority.pre2016_external_validation_models import (
     Pre2016ExternalValidationError,
     Pre2016ExternalValidationSourcePaths,
 )
+from alpha.decision_superiority.pre2016_population import (
+    Pre2016PopulationError,
+    populate_pre2016_historical_truth,
+)
 
 DEFAULT_DSI010_OUTPUT = Path(".alpha/benchmark/dsi010_pre2016_external_validation")
+DEFAULT_DSI010_POPULATION_OUTPUT = Path("artifacts/dsi010_pre2016_population")
 
 
 def register_decision_superiority_pre2016_external_validation_command(
@@ -52,29 +56,53 @@ def decision_superiority_pre2016_archive_backfill(
         str,
         typer.Option("--end"),
     ] = DSI010_EXTERNAL_END.isoformat(),
+    root: Annotated[
+        Path,
+        typer.Option("--root"),
+    ] = Path("alpha_data"),
+    output_dir: Annotated[
+        Path,
+        typer.Option("--output-dir"),
+    ] = DEFAULT_DSI010_POPULATION_OUTPUT,
+    retry_failed: Annotated[
+        bool,
+        typer.Option("--retry-failed/--no-retry-failed"),
+    ] = True,
 ) -> None:
-    """Download and ingest official NSE archives for the frozen external era."""
+    """Populate official pre-2016 candles into governed Historical Truth."""
 
     try:
         start_date = date.fromisoformat(start)
         end_date = date.fromisoformat(end)
         _validate_external_dates(start_date, end_date)
-        result = HistoricalIngestionService().backfill_legacy_archive(
-            start_date,
-            end_date,
+        result = populate_pre2016_historical_truth(
+            root=root,
+            output_dir=output_dir,
+            start=start_date,
+            end=end_date,
+            retry_failed=retry_failed,
         )
-    except (OSError, ValueError) as exc:
+    except (OSError, Pre2016PopulationError, ValueError) as exc:
         typer.echo(f"PRE2016_ARCHIVE_BACKFILL_FAILED: {exc}", err=True)
         raise typer.Exit(1) from exc
     typer.echo(f"Requested Start: {result.requested_start}")
     typer.echo(f"Requested End: {result.requested_end}")
-    typer.echo(f"Attempted Weekdays: {result.attempted_days}")
-    typer.echo(f"Processed Archives: {result.processed_archives}")
-    typer.echo(f"Skipped Weekend Days: {result.skipped_non_trading_days}")
-    typer.echo(f"Failed Dates: {len(result.failed_dates)}")
-    for failure in result.failed_dates:
-        typer.echo(f"FAILED_DATE: {failure}")
+    typer.echo(f"Planned Requests: {result.planned_requests}")
+    typer.echo(f"Weekday Request Coverage: {result.coverage_ratio:.2%}")
+    typer.echo(f"Candle Snapshots: {result.candle_snapshots}")
+    typer.echo(f"Evidence-Complete Snapshots: {result.evidence_complete_snapshots}")
+    typer.echo(f"Evidence-Incomplete Snapshots: {result.evidence_incomplete_snapshots}")
+    typer.echo(f"Failed: {result.failed}")
+    typer.echo(f"Unavailable: {result.unavailable}")
+    typer.echo(f"Skipped: {result.skipped}")
+    typer.echo(f"Rows Ingested This Run: {result.ingested_rows}")
+    typer.echo(f"Rows Available in Snapshots: {result.available_rows}")
+    typer.echo(f"Historical Truth Database: {result.database}")
+    typer.echo(f"Snapshot Root: {result.snapshot_root}")
+    typer.echo("DOWNSTREAM_GOVERNED_A_TO_B_REBUILD_REQUIRED=true")
+    typer.echo("LEGACY_INGESTION_DATABASE_USED=false")
     typer.echo("PRODUCTION_INFLUENCE=false")
+    typer.echo(f"Artifacts: {output_dir} ({len(result.artifact_paths)} files)")
 
 
 def decision_superiority_pre2016_external_validation(
