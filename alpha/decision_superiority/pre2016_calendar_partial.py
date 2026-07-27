@@ -46,9 +46,13 @@ def audit_pre2016_calendar_partial(
     if start != DSI010_EXTERNAL_START or end != DSI010_EXTERNAL_END:
         raise Pre2016ExternalValidationError("PRE2016_PARTIAL_CALENDAR_PERIOD_MISMATCH")
     if not database.is_file():
-        raise Pre2016ExternalValidationError("PRE2016_PARTIAL_CALENDAR_DATABASE_MISSING")
+        raise Pre2016ExternalValidationError(
+            "PRE2016_PARTIAL_CALENDAR_DATABASE_MISSING"
+        )
     if not manifest.is_file():
-        raise Pre2016ExternalValidationError("PRE2016_PARTIAL_CALENDAR_MANIFEST_MISSING")
+        raise Pre2016ExternalValidationError(
+            "PRE2016_PARTIAL_CALENDAR_MANIFEST_MISSING"
+        )
     if not official_sources:
         raise Pre2016ExternalValidationError("PRE2016_PARTIAL_CALENDAR_SOURCES_MISSING")
 
