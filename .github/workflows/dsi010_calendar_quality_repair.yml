@@ -35,6 +35,8 @@ jobs:
               '                    sources.calendar_report.read_bytes()\n'
               '                ).hexdigest(),'
           )
+          if isinstance(new, tuple):
+              new = ''.join(new)
           if old not in text:
               raise SystemExit('calendar sha anchor missing')
           path.write_text(text.replace(old, new, 1), encoding='utf-8')
