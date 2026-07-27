@@ -1,0 +1,61 @@
+name: DSI010 Locked Ruff Format
+
+on:
+  pull_request:
+    branches:
+      - feature/recovery-foundation-v1
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install locked Ruff
+        run: pip install ruff==0.15.20
+      - name: Format and verify DSI-010 source
+        run: |
+          ruff format \
+            alpha/application/decision_superiority_pre2016_external_validation_cli.py \
+            alpha/application/decision_superiority_entry_stop_improvement_cli.py \
+            alpha/decision_superiority/pre2016_external_validation.py \
+            alpha/decision_superiority/pre2016_external_validation_artifacts.py \
+            alpha/decision_superiority/pre2016_external_validation_models.py \
+            tests/decision_superiority/test_pre2016_external_validation.py
+          ruff check \
+            alpha/application/decision_superiority_pre2016_external_validation_cli.py \
+            alpha/application/decision_superiority_entry_stop_improvement_cli.py \
+            alpha/decision_superiority/pre2016_external_validation.py \
+            alpha/decision_superiority/pre2016_external_validation_artifacts.py \
+            alpha/decision_superiority/pre2016_external_validation_models.py \
+            tests/decision_superiority/test_pre2016_external_validation.py
+          ruff format --check \
+            alpha/application/decision_superiority_pre2016_external_validation_cli.py \
+            alpha/application/decision_superiority_entry_stop_improvement_cli.py \
+            alpha/decision_superiority/pre2016_external_validation.py \
+            alpha/decision_superiority/pre2016_external_validation_artifacts.py \
+            alpha/decision_superiority/pre2016_external_validation_models.py \
+            tests/decision_superiority/test_pre2016_external_validation.py
+      - name: Commit formatting and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/dsi010-format.yml
+          git add \
+            alpha/application/decision_superiority_pre2016_external_validation_cli.py \
+            alpha/application/decision_superiority_entry_stop_improvement_cli.py \
+            alpha/decision_superiority/pre2016_external_validation.py \
+            alpha/decision_superiority/pre2016_external_validation_artifacts.py \
+            alpha/decision_superiority/pre2016_external_validation_models.py \
+            tests/decision_superiority/test_pre2016_external_validation.py
+          git commit -m "style(dsi-010): apply locked Ruff formatting"
+          git push origin HEAD:feature/dsi-010-pre2016-external-era-validation
