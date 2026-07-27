@@ -1,0 +1,52 @@
+name: DSI-010 Official Calendar Recovery Run
+
+on:
+  push:
+    branches:
+      - feature/dsi-010-pre2016-external-era-validation
+    paths:
+      - .github/workflows/dsi010-official-calendar-recovery-run.yml
+      - config/dsi010_pre2011_official_calendar_candidates.json
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-official-calendar-recovery-run.yml
+      - config/dsi010_pre2011_official_calendar_candidates.json
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Run permanent recovery command
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+        run: |
+          set -o pipefail
+          poetry run python -m alpha benchmark \
+            decision-superiority-pre2011-calendar-source-recovery \
+            --candidate-registry config/dsi010_pre2011_official_calendar_candidates.json \
+            --output artifacts/dsi010_pre2011_official_sources \
+            --timeout-seconds 45 \
+            2>&1 | tee artifacts/dsi010_pre2011_official_sources_console.log
+      - name: Upload recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-pre2011-official-calendar-recovery
+          path: |
+            artifacts/dsi010_pre2011_official_sources
+            artifacts/dsi010_pre2011_official_sources_console.log
+            config/dsi010_pre2011_official_calendar_candidates.json
+          if-no-files-found: error
+          retention-days: 14
