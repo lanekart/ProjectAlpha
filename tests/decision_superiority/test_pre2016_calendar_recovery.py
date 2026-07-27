@@ -199,9 +199,7 @@ def test_valid_fo_document_remains_cross_segment_partial(
 
     assert result.fully_recovered_years == ()
     assert result.partially_recovered_years == (2010,)
-    assert result.attempts[0].recovery_state == (
-        "PARTIALLY_VERIFIED_OFFICIAL_EVIDENCE"
-    )
+    assert result.attempts[0].recovery_state == ("PARTIALLY_VERIFIED_OFFICIAL_EVIDENCE")
 
 
 def test_duplicate_documents_are_detected_by_sha256(

@@ -37,9 +37,7 @@ _ALLOWED_SEGMENT_SCOPES = frozenset(
     }
 )
 _FULL_SCOPE = frozenset({"CAPITAL_MARKET", "EXCHANGE_WIDE"})
-_PARTIAL_SCOPE = frozenset(
-    {"FUTURES_AND_OPTIONS", "CROSS_SEGMENT_CORROBORATION"}
-)
+_PARTIAL_SCOPE = frozenset({"FUTURES_AND_OPTIONS", "CROSS_SEGMENT_CORROBORATION"})
 
 
 class _HttpResponse(Protocol):
@@ -463,8 +461,7 @@ def _validate_content(
         ),
         "holiday_table_match": holiday_table,
         "muhurat_statement_match": (
-            not candidate.requires_muhurat_statement
-            or "muhurat trading" in normalized
+            not candidate.requires_muhurat_statement or "muhurat trading" in normalized
         ),
     }
 
@@ -511,9 +508,7 @@ def _load_candidates(path: Path) -> tuple[Pre2011CalendarSourceCandidate, ...]:
         candidates.append(_candidate_from_payload(item))
     identities = {(item.year, item.source_id, item.source_url) for item in candidates}
     if len(identities) != len(candidates):
-        raise Pre2016ExternalValidationError(
-            "PRE2011_CALENDAR_CANDIDATE_DUPLICATE"
-        )
+        raise Pre2016ExternalValidationError("PRE2011_CALENDAR_CANDIDATE_DUPLICATE")
     return tuple(
         sorted(
             candidates,
@@ -544,16 +539,12 @@ def _candidate_from_payload(
         raise Pre2016ExternalValidationError("PRE2011_CALENDAR_CANDIDATE_INVALID")
     _validate_official_url(source_url)
     if segment_scope not in _ALLOWED_SEGMENT_SCOPES:
-        raise Pre2016ExternalValidationError(
-            "PRE2011_CALENDAR_SEGMENT_SCOPE_INVALID"
-        )
+        raise Pre2016ExternalValidationError("PRE2011_CALENDAR_SEGMENT_SCOPE_INVALID")
     expected_sha256 = _optional_string(payload.get("expected_sha256"))
     if expected_sha256 is not None and not re.fullmatch(
         r"[0-9a-f]{64}", expected_sha256
     ):
-        raise Pre2016ExternalValidationError(
-            "PRE2011_CALENDAR_EXPECTED_SHA256_INVALID"
-        )
+        raise Pre2016ExternalValidationError("PRE2011_CALENDAR_EXPECTED_SHA256_INVALID")
     requires_muhurat = payload.get("requires_muhurat_statement", False)
     if not isinstance(requires_muhurat, bool):
         raise Pre2016ExternalValidationError(
@@ -578,11 +569,7 @@ def _recovered_years(
     attempts: tuple[Pre2011CalendarSourceAttempt, ...],
     state: str,
 ) -> tuple[int, ...]:
-    years = {
-        attempt.year
-        for attempt in attempts
-        if attempt.recovery_state == state
-    }
+    years = {attempt.year for attempt in attempts if attempt.recovery_state == state}
     return tuple(sorted(years))
 
 

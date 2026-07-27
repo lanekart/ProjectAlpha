@@ -171,9 +171,7 @@ def decision_superiority_pre2011_calendar_source_recovery(
     typer.echo("===== DSI-010 PRE-2011 OFFICIAL CALENDAR RECOVERY =====")
     typer.echo(f"Requested Years: {_years(result.requested_years)}")
     typer.echo(f"Fully Recovered Years: {_years(result.fully_recovered_years)}")
-    typer.echo(
-        f"Partially Recovered Years: {_years(result.partially_recovered_years)}"
-    )
+    typer.echo(f"Partially Recovered Years: {_years(result.partially_recovered_years)}")
     typer.echo(f"Unrecovered Years: {_years(result.unrecovered_years)}")
     typer.echo(f"Official Documents Accepted: {accepted}")
     typer.echo(f"Official Documents Rejected: {rejected}")
