@@ -22,116 +22,155 @@ jobs:
           python-version: '3.13'
       - name: Install locked Ruff
         run: pip install ruff==0.15.20
-      - name: Apply type-safe source fixes
+      - name: Apply function-scoped type fixes
         run: |
           python - <<'PY'
           from pathlib import Path
 
+          def function_name(line: str) -> str | None:
+              stripped = line.strip()
+              if not stripped.startswith("def "):
+                  return None
+              return stripped.removeprefix("def ").split("(", 1)[0]
+
           engine = Path(
               "alpha/decision_superiority/pre2016_external_validation.py"
           )
-          text = engine.read_text(encoding="utf-8")
-          replacements = [
-              (
-                  '''        elif isinstance(value, int):
-                      observed = int(float(observed))
-                  ''',
-                  '''        elif isinstance(value, int):
-                      number = _optional_float(observed)
-                      if number is None:
-                          raise Pre2016ExternalValidationError(
-                              f"FROZEN_CHALLENGER_CONTRACT_VALUE_INVALID:{key}"
-                          )
-                      observed = int(number)
-                  ''',
-              ),
-              (
-                  '''    if benchmark is not None and not benchmark.empty:
-                      first = float(benchmark.iloc[0]["benchmark_value"])
-                      for item in benchmark.itertuples(index=False):
-                          rows.append(
-                  ''',
-                  '''    if benchmark is not None and not benchmark.empty:
-                      first = _optional_float(benchmark.iloc[0]["benchmark_value"])
-                      if first is None or first <= 0:
-                          raise Pre2016ExternalValidationError(
-                              "BENCHMARK_START_VALUE_INVALID"
-                          )
-                      for item in benchmark.itertuples(index=False):
-                          benchmark_value = _optional_float(item.benchmark_value)
-                          if benchmark_value is None:
-                              raise Pre2016ExternalValidationError(
-                                  "BENCHMARK_VALUE_INVALID"
-                              )
-                          rows.append(
-                  ''',
-              ),
-              (
-                  '''                        1_000_000.0 * float(item.benchmark_value) / first,
-                  ''',
-                  '''                        1_000_000.0 * benchmark_value / first,
-                  ''',
-              ),
-              (
-                  '''                "calendar_year": int(year),
-                  ''',
-                  '''                "calendar_year": int(str(year)),
-                  ''',
-              ),
-              (
-                  '''def _optional_float(value: object) -> float | None:
-                      if value is None or pd.isna(value):
-                          return None
-                      try:
-                          number = float(value)
-                      except (TypeError, ValueError):
-                          return None
-                      return number if math.isfinite(number) else None
-                  ''',
-                  '''def _optional_float(value: object) -> float | None:
-                      if value is None:
-                          return None
-                      try:
-                          number = float(str(value))
-                      except (TypeError, ValueError):
-                          return None
-                      return number if math.isfinite(number) else None
-                  ''',
-              ),
-          ]
-          for old, new in replacements:
-              if text.count(old) != 1:
-                  raise SystemExit(
-                      f"engine replacement count was {text.count(old)} for {old!r}"
+          output: list[str] = []
+          current_function: str | None = None
+          counts = {
+              "registry_int": 0,
+              "benchmark_first": 0,
+              "benchmark_item": 0,
+              "benchmark_value": 0,
+              "calendar_year": 0,
+              "optional_none": 0,
+              "optional_number": 0,
+          }
+          for line in engine.read_text(encoding="utf-8").splitlines():
+              declared = function_name(line)
+              if declared is not None:
+                  current_function = declared
+              stripped = line.strip()
+              indent = line[: len(line) - len(line.lstrip())]
+              if stripped == "observed = int(float(observed))":
+                  output.extend(
+                      [
+                          f"{indent}number = _optional_float(observed)",
+                          f"{indent}if number is None:",
+                          f"{indent}    raise Pre2016ExternalValidationError(",
+                          f'{indent}        f"FROZEN_CHALLENGER_CONTRACT_VALUE_INVALID:{{key}}"',
+                          f"{indent}    )",
+                          f"{indent}observed = int(number)",
+                      ]
                   )
-              text = text.replace(old, new, 1)
-          engine.write_text(text, encoding="utf-8")
+                  counts["registry_int"] += 1
+                  continue
+              if (
+                  current_function == "_equity_rows"
+                  and stripped
+                  == 'first = float(benchmark.iloc[0]["benchmark_value"])'
+              ):
+                  output.extend(
+                      [
+                          f'{indent}first = _optional_float(benchmark.iloc[0]["benchmark_value"])',
+                          f"{indent}if first is None or first <= 0:",
+                          f"{indent}    raise Pre2016ExternalValidationError(",
+                          f'{indent}        "BENCHMARK_START_VALUE_INVALID"',
+                          f"{indent}    )",
+                      ]
+                  )
+                  counts["benchmark_first"] += 1
+                  continue
+              output.append(line)
+              if (
+                  current_function == "_equity_rows"
+                  and stripped == "for item in benchmark.itertuples(index=False):"
+              ):
+                  child = indent + "    "
+                  output.extend(
+                      [
+                          f"{child}benchmark_value = _optional_float(item.benchmark_value)",
+                          f"{child}if benchmark_value is None:",
+                          f"{child}    raise Pre2016ExternalValidationError(",
+                          f'{child}        "BENCHMARK_VALUE_INVALID"',
+                          f"{child}    )",
+                      ]
+                  )
+                  counts["benchmark_item"] += 1
+              if (
+                  current_function == "_equity_rows"
+                  and stripped
+                  == "1_000_000.0 * float(item.benchmark_value) / first,"
+              ):
+                  output[-1] = f"{indent}1_000_000.0 * benchmark_value / first,"
+                  counts["benchmark_value"] += 1
+              elif stripped == '"calendar_year": int(year),':
+                  output[-1] = f'{indent}"calendar_year": int(str(year)),'
+                  counts["calendar_year"] += 1
+              elif (
+                  current_function == "_optional_float"
+                  and stripped == "if value is None or pd.isna(value):"
+              ):
+                  output[-1] = f"{indent}if value is None:"
+                  counts["optional_none"] += 1
+              elif (
+                  current_function == "_optional_float"
+                  and stripped == "number = float(value)"
+              ):
+                  output[-1] = f"{indent}number = float(str(value))"
+                  counts["optional_number"] += 1
+          missing = [name for name, count in counts.items() if count != 1]
+          if missing:
+              raise SystemExit(f"engine type-fix counts invalid: {counts}")
+          engine.write_text("\n".join(output) + "\n", encoding="utf-8")
 
           artifacts = Path(
               "alpha/decision_superiority/"
               "pre2016_external_validation_artifacts.py"
           )
-          text = artifacts.read_text(encoding="utf-8")
-          old = "        number = float(value)\n"
-          new = "        number = float(str(value))\n"
-          if text.count(old) != 1:
-              raise SystemExit(
-                  f"artifact scalar replacement count was {text.count(old)}"
-              )
-          artifacts.write_text(text.replace(old, new, 1), encoding="utf-8")
+          output = []
+          current_function = None
+          changed = 0
+          for line in artifacts.read_text(encoding="utf-8").splitlines():
+              declared = function_name(line)
+              if declared is not None:
+                  current_function = declared
+              stripped = line.strip()
+              indent = line[: len(line) - len(line.lstrip())]
+              if current_function == "_display" and stripped == "number = float(value)":
+                  output.append(f"{indent}number = float(str(value))")
+                  changed += 1
+              else:
+                  output.append(line)
+          if changed != 1:
+              raise SystemExit(f"artifact type-fix count invalid: {changed}")
+          artifacts.write_text("\n".join(output) + "\n", encoding="utf-8")
 
           cli = Path(
               "alpha/application/"
               "decision_superiority_pre2016_external_validation_cli.py"
           )
-          text = cli.read_text(encoding="utf-8")
-          old = '        return f"{float(value) * 100:.2f}%"\n'
-          new = '        return f"{float(str(value)) * 100:.2f}%"\n'
-          if text.count(old) != 1:
-              raise SystemExit(
-                  f"CLI scalar replacement count was {text.count(old)}"
-              )
-          cli.write_text(text.replace(old, new, 1), encoding="utf-8")
+          output = []
+          current_function = None
+          changed = 0
+          for line in cli.read_text(encoding="utf-8").splitlines():
+              declared = function_name(line)
+              if declared is not None:
+                  current_function = declared
+              stripped = line.strip()
+              indent = line[: len(line) - len(line.lstrip())]
+              if (
+                  current_function == "_percent"
+                  and stripped == 'return f"{float(value) * 100:.2f}%"'
+              ):
+                  output.append(f'{indent}return f"{{float(str(value)) * 100:.2f}}%"')
+                  changed += 1
+              else:
+                  output.append(line)
+          if changed != 1:
+              raise SystemExit(f"CLI type-fix count invalid: {changed}")
+          cli.write_text("\n".join(output) + "\n", encoding="utf-8")
           PY
           ruff format \
             alpha/application/decision_superiority_pre2016_external_validation_cli.py \
