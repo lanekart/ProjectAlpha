@@ -7,6 +7,9 @@ from typing import Annotated
 
 import typer
 
+from alpha.application.decision_superiority_pre2016_external_validation_cli import (
+    register_decision_superiority_pre2016_external_validation_command,
+)
 from alpha.config.settings import settings
 from alpha.decision_superiority.entry_stop_improvement import (
     GovernedEntryStopImprovementEngine,
@@ -26,7 +29,7 @@ DEFAULT_DSI009_OUTPUT = Path(".alpha/benchmark/dsi009_entry_stop_improvement")
 def register_decision_superiority_entry_stop_improvement_command(
     app: typer.Typer,
 ) -> None:
-    """Register the DSI-009 runner and certificate verifier."""
+    """Register DSI-009 and its governed DSI-010 successor commands."""
 
     app.command("decision-superiority-entry-stop-improvement")(
         decision_superiority_entry_stop_improvement
@@ -34,6 +37,7 @@ def register_decision_superiority_entry_stop_improvement_command(
     app.command("decision-superiority-entry-stop-improvement-verify")(
         decision_superiority_entry_stop_improvement_verify
     )
+    register_decision_superiority_pre2016_external_validation_command(app)
 
 
 def decision_superiority_entry_stop_improvement(
