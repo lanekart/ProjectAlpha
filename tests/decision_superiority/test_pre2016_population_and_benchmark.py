@@ -11,7 +11,9 @@ import pandas as pd
 import pytest
 from typer.testing import CliRunner
 
-from alpha.application import decision_superiority_pre2016_external_validation_cli as cli
+from alpha.application import (
+    decision_superiority_pre2016_external_validation_cli as cli,
+)
 from alpha.application.benchmark_cli import benchmark_app
 from alpha.decision_superiority.pre2016_benchmark import load_pre2016_governed_tri
 from alpha.decision_superiority.pre2016_population import (
