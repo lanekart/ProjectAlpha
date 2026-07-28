@@ -610,7 +610,11 @@ def derive_factors(
                 if state is FactorState.FACTOR_NOT_MULTIPLICATIVE:
                     pass
                 elif factor.price_factor is None:
-                    state = FactorState.FACTOR_UNKNOWN_MISSING_TERMS
+                    state = (
+                        FactorState.FACTOR_PROVISIONAL_REFERENCE_PRICE
+                        if _complete_equity_rights_terms(source)
+                        else FactorState.FACTOR_UNKNOWN_MISSING_TERMS
+                    )
                 elif provenance["reference_price_certified"]:
                     state = FactorState.FACTOR_CERTIFIED_REFERENCE_PRICE
                 else:
@@ -641,6 +645,17 @@ def derive_factors(
                 row["factor_id"],
             ),
         )
+    )
+
+
+def _complete_equity_rights_terms(action: CorporateActionEvent) -> bool:
+    return (
+        action.ratio_numerator is not None
+        and action.ratio_numerator > 0
+        and action.ratio_denominator is not None
+        and action.ratio_denominator > 0
+        and action.rights_price is not None
+        and action.rights_price >= 0
     )
 
 

@@ -42,6 +42,9 @@ def _historical_truth_app() -> typer.Typer:
     from alpha.historical_truth.official_bridge_evidence_population_cli import (
         official_bridge_evidence_populate,
     )
+    from alpha.historical_truth.residual_corporate_action_closure_cli import (
+        residual_corporate_action_closure_certify,
+    )
     from alpha.historical_truth.session_calendar_extension_cli import (
         session_calendar_extend_certify,
     )
@@ -70,6 +73,10 @@ def _historical_truth_app() -> typer.Typer:
     if "bridge-aware-admission-reconcile" not in registered:
         historical_truth_app.command("bridge-aware-admission-reconcile")(
             bridge_aware_admission_reconcile
+        )
+    if "residual-corporate-action-closure-certify" not in registered:
+        historical_truth_app.command("residual-corporate-action-closure-certify")(
+            residual_corporate_action_closure_certify
         )
     if "official-bridge-evidence-manifest" not in registered:
         historical_truth_app.command("official-bridge-evidence-manifest")(
