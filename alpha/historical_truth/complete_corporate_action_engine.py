@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter, defaultdict
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, replace
 from datetime import date
 from hashlib import sha256
@@ -33,7 +34,9 @@ from alpha.historical_truth.corporate_action_price_models import (
     ActionAdmissionState,
     AdjustmentFactorState,
     CorporateActionEvent,
+    CorporateActionLineage,
     CorporateActionType,
+    EvidenceConfidence,
 )
 from alpha.historical_truth.corporate_action_price_sources import (
     OfficialCorporateActionStore,
@@ -118,6 +121,7 @@ class CompleteCorporateActionDatasetEngine:
             actions_by_id,
             admitted,
             reference_bridge=reference_bridge,
+            action_lineage_by_id=lineages,
         )
         cumulative = cumulative_factors(factors)
         canonical_by_raw_id = {
@@ -517,6 +521,7 @@ def derive_factors(
     joins: dict[str, dict[str, Any]] | None = None,
     *,
     reference_bridge: LegacyIsinReferenceBridge | None = None,
+    action_lineage_by_id: Mapping[str, CorporateActionLineage] | None = None,
 ) -> tuple[dict[str, Any], ...]:
     engine = AdjustmentFactorEngine()
     factors = []
@@ -571,6 +576,8 @@ def derive_factors(
                         event=event,
                         join=joins.get(str(event["governed_identity_id"]), {}),
                         reference_bridge=reference_bridge,
+                        action_population=tuple(actions_by_id.values()),
+                        action_lineage_by_id=action_lineage_by_id or {},
                     )
             factor = engine.derive(source, reference_price=reference)
             state = map_factor_state(source, normalize_action(source))
@@ -617,6 +624,8 @@ def _rights_reference_context(
     event: dict[str, Any],
     join: dict[str, Any],
     reference_bridge: LegacyIsinReferenceBridge | None = None,
+    action_population: Sequence[CorporateActionEvent] = (),
+    action_lineage_by_id: Mapping[str, CorporateActionLineage] | None = None,
 ) -> tuple[float | None, dict[str, Any]]:
     applicable = tuple(
         str(item).upper() for item in event.get("series_applicability", ())
@@ -670,10 +679,21 @@ def _rights_reference_context(
         bridge_provenance = bridge_result.provenance()
         if bridge_result.certified:
             state = "CERTIFIED_DATED_OFFICIAL_IDENTITY_BRIDGE_PRIOR_CLOSE"
+    if state == "PRIOR_ISIN_MISSING" and prior_date is not None:
+        bounded = _bounded_official_action_identity_provenance(
+            source=source,
+            reference_date=prior_date,
+            action_population=action_population,
+            action_lineage_by_id=action_lineage_by_id or {},
+        )
+        if bounded is not None:
+            state = "CERTIFIED_BOUNDED_OFFICIAL_ACTION_IDENTITY_INTERVAL_PRIOR_CLOSE"
+            bridge_provenance = bounded
 
     certified = state in {
         "CERTIFIED_SAME_ISIN_CANONICAL_PRIOR_CLOSE",
         "CERTIFIED_DATED_OFFICIAL_IDENTITY_BRIDGE_PRIOR_CLOSE",
+        "CERTIFIED_BOUNDED_OFFICIAL_ACTION_IDENTITY_INTERVAL_PRIOR_CLOSE",
     }
     return close, {
         "reference_price_date": prior_date.isoformat() if prior_date else None,
@@ -685,6 +705,115 @@ def _rights_reference_context(
         "reference_price_certified": certified,
         **bridge_provenance,
     }
+
+
+def _bounded_official_action_identity_provenance(
+    *,
+    source: CorporateActionEvent,
+    reference_date: date,
+    action_population: Sequence[CorporateActionEvent],
+    action_lineage_by_id: Mapping[str, CorporateActionLineage],
+) -> dict[str, Any] | None:
+    isin = str(source.isin or "").upper()
+    symbol = source.symbol.upper()
+    series = source.series.upper()
+    current_lineage = action_lineage_by_id.get(source.action_id)
+    if (
+        not isin
+        or current_lineage is None
+        or not _sha256_text(current_lineage.source_sha256)
+    ):
+        return None
+    prior = tuple(
+        item
+        for item in action_population
+        if item.action_id != source.action_id
+        and str(item.isin or "").upper() == isin
+        and item.symbol.upper() == symbol
+        and item.series.upper() == series
+        and item.effective_date < source.effective_date
+        and item.confidence_state is EvidenceConfidence.HIGH
+        and item.action_id in action_lineage_by_id
+        and _sha256_text(action_lineage_by_id[item.action_id].source_sha256)
+    )
+    if not prior:
+        return None
+    lower = max(prior, key=lambda item: (item.effective_date, item.action_id))
+    if not (lower.effective_date <= reference_date < source.effective_date):
+        return None
+    if any(
+        item.symbol.upper() == symbol
+        and item.series.upper() == series
+        and item.effective_date >= lower.effective_date
+        and item.effective_date <= source.effective_date
+        and str(item.isin or "").upper() not in {"", isin}
+        for item in action_population
+    ):
+        return None
+    lower_lineage = action_lineage_by_id[lower.action_id]
+    interval_id = stable_id(
+        "htr010b3-official-action-identity-interval",
+        isin,
+        symbol,
+        series,
+        lower.effective_date.isoformat(),
+        source.effective_date.isoformat(),
+    )
+    evidence_sha = {
+        lower.source_id: lower_lineage.source_sha256,
+        source.source_id: current_lineage.source_sha256,
+    }
+    return {
+        **_empty_reference_bridge_provenance(),
+        "reference_price_bridge_contract_version": (
+            "DSI-010B3-BOUNDED-OFFICIAL-ACTION-IDENTITY-v1.0.0"
+        ),
+        "reference_price_bridge_state": (
+            "CERTIFIED_BOUNDED_OFFICIAL_ACTION_IDENTITY_INTERVAL"
+        ),
+        "reference_price_bridge_identity": f"nse:isin:{isin}",
+        "reference_price_bridge_symbol": symbol,
+        "reference_price_bridge_series": series,
+        "reference_price_bridge_isin": isin,
+        "reference_price_bridge_reference_date": reference_date.isoformat(),
+        "reference_price_bridge_candle_isin_remained_missing": True,
+        "reference_price_bridge_membership_interval_ids": [interval_id],
+        "reference_price_bridge_membership_states": [
+            "BOUNDED_OFFICIAL_ACTION_IDENTITY_INTERVAL"
+        ],
+        "reference_price_bridge_membership_confidence": "HIGH",
+        "reference_price_bridge_membership_event_ids": [
+            lower.action_id,
+            source.action_id,
+        ],
+        "reference_price_bridge_symbol_interval_ids": [interval_id],
+        "reference_price_bridge_symbol_confidence": "HIGH",
+        "reference_price_bridge_symbol_event_ids": [
+            lower.action_id,
+            source.action_id,
+        ],
+        "reference_price_bridge_official_event_ids": [
+            lower.action_id,
+            source.action_id,
+        ],
+        "reference_price_bridge_official_source_ids": sorted(evidence_sha),
+        "reference_price_bridge_evidence_sha256": evidence_sha,
+        "reference_price_bridge_source_contract_id": interval_id,
+        "reference_price_bridge_source_report_sha256": sha256(
+            "|".join(
+                (
+                    interval_id,
+                    *(f"{key}:{evidence_sha[key]}" for key in sorted(evidence_sha)),
+                )
+            ).encode()
+        ).hexdigest(),
+        "reference_price_bridge_production_influence": False,
+    }
+
+
+def _sha256_text(value: object) -> bool:
+    text = str(value or "")
+    return len(text) == 64 and all(char in "0123456789abcdef" for char in text.lower())
 
 
 def _empty_reference_bridge_provenance() -> dict[str, Any]:

@@ -32,6 +32,7 @@ from alpha.historical_truth.corporate_action_price_models import (
     ActionAdmissionState,
     AdjustmentFactorState,
     CorporateActionEvent,
+    CorporateActionLineage,
     CorporateActionType,
     EvidenceConfidence,
 )
@@ -260,6 +261,73 @@ def test_rights_without_reference_price_remains_unknown(tmp_path: Path) -> None:
 
     assert factors[0]["price_factor"] is None
     assert factors[0]["factor_state"] == "FACTOR_UNKNOWN_MISSING_TERMS"
+
+
+def test_rights_reference_uses_bounded_official_action_identity_interval(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "source.duckdb"
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            "CREATE TABLE daily_candle(symbol VARCHAR, series VARCHAR, "
+            "trading_date DATE, isin VARCHAR, close_price DOUBLE, "
+            "source_sha256 VARCHAR)"
+        )
+        connection.execute(
+            "INSERT INTO daily_candle VALUES ('ALPHA','EQ','2020-01-08',NULL,100,?)",
+            ["c" * 64],
+        )
+    rights = _action(
+        action_type=CorporateActionType.RIGHTS,
+        purpose="Rights 1:1 at Rs 50",
+        ratio_numerator=1.0,
+        ratio_denominator=1.0,
+        rights_price=50.0,
+        adjustment_factor=None,
+    )
+    prior = _action(
+        action_id="raw:prior",
+        action_type=CorporateActionType.DIVIDEND,
+        purpose="Dividend Rs 1",
+        ex_date=date(2019, 1, 9),
+        effective_date=date(2019, 1, 9),
+        adjustment_factor_state=AdjustmentFactorState.NOT_REQUIRED,
+        adjustment_factor=None,
+        source_id="official:2019",
+    )
+    canonical, _, _ = canonicalize_events((rights,), {IDENTITY: _join()})
+    lineages = {
+        prior.action_id: CorporateActionLineage(
+            action_id=prior.action_id,
+            source_id=prior.source_id,
+            source_sha256="a" * 64,
+            source_url="https://www.nseindia.com/2019",
+            parser="fixture",
+            row_number=1,
+        ),
+        rights.action_id: CorporateActionLineage(
+            action_id=rights.action_id,
+            source_id=rights.source_id,
+            source_sha256="b" * 64,
+            source_url="https://www.nseindia.com/2020",
+            parser="fixture",
+            row_number=1,
+        ),
+    }
+
+    factors = derive_factors(
+        database,
+        canonical,
+        {prior.action_id: prior, rights.action_id: rights},
+        {IDENTITY: _join()},
+        action_lineage_by_id=lineages,
+    )
+
+    assert factors[0]["factor_state"] == "FACTOR_CERTIFIED_REFERENCE_PRICE"
+    assert factors[0]["reference_price"] == pytest.approx(100.0)
+    assert factors[0]["reference_price_bridge_state"] == (
+        "CERTIFIED_BOUNDED_OFFICIAL_ACTION_IDENTITY_INTERVAL"
+    )
 
 
 def test_cumulative_factor_stops_at_unknown_boundary() -> None:

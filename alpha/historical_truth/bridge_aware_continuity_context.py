@@ -127,6 +127,50 @@ class BridgeEvidence:
 
 
 @dataclass(frozen=True, slots=True)
+class OfficialEventDateIdentityEvidence:
+    """Exact-date identity evidence from one immutable official action row."""
+
+    event_id: str
+    identity: str
+    symbol: str
+    series: tuple[str, ...]
+    isin: str
+    effective_date: date
+    source_ids: tuple[str, ...]
+    source_sha256: tuple[str, ...]
+    source_report_sha256: str
+    interval_valid_from: date | None = None
+
+    def certifies(
+        self,
+        candle: RawCanonicalCandle,
+        *,
+        identity: str,
+        symbol: str,
+        series: str,
+        isin: str,
+        role: str,
+    ) -> bool:
+        exact_action_date = role == "ACTION" and (
+            candle.trading_date == self.effective_date
+        )
+        bounded_prior_date = (
+            role == "PRIOR"
+            and self.interval_valid_from is not None
+            and self.interval_valid_from <= candle.trading_date < self.effective_date
+        )
+        return (
+            (exact_action_date or bounded_prior_date)
+            and self.identity == identity
+            and self.symbol == symbol
+            and series in self.series
+            and self.isin == isin
+            and candle.symbol.upper() == symbol
+            and candle.series.upper() == series
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class GovernedCandleRecord:
     candle: RawCanonicalCandle
     identity_state: GovernedCandleIdentityState
@@ -309,6 +353,8 @@ class BridgeAwareContinuityContextProvider:
         source_checksums: tuple[tuple[str, str], ...],
         source_contract: SignedBridgeContinuitySourceContract,
         all_material_actions: bool = False,
+        official_event_evidence: Mapping[str, OfficialEventDateIdentityEvidence]
+        | None = None,
     ) -> None:
         eligible = tuple(row for row in cases if row.get("bridge_certified") is True)
         if len(eligible) != 18:
@@ -320,6 +366,7 @@ class BridgeAwareContinuityContextProvider:
         self.source_checksums = source_checksums
         self.source_contract = source_contract
         self.all_material_actions = all_material_actions
+        self._official_event_evidence = dict(official_event_evidence or {})
         self._cases = {
             str(row["event_id"]): dict(row) for row in eligible if row.get("event_id")
         }
@@ -333,6 +380,7 @@ class BridgeAwareContinuityContextProvider:
         htr009a2_output: Path,
         htr010a3_output: Path,
         dsi010b1_output: Path,
+        htr010b_output: Path | None = None,
         all_material_actions: bool = False,
         source_contract: SignedBridgeContinuitySourceContract = (
             SIGNED_DSI010B1_CONTINUITY_SOURCE_CONTRACT
@@ -349,6 +397,11 @@ class BridgeAwareContinuityContextProvider:
             source_checksums=checksums,
             source_contract=source_contract,
             all_material_actions=all_material_actions,
+            official_event_evidence=(
+                _load_official_event_date_evidence(htr010b_output)
+                if htr010b_output is not None
+                else None
+            ),
         )
 
     @classmethod
@@ -358,6 +411,8 @@ class BridgeAwareContinuityContextProvider:
         bridge: LegacyIsinReferenceBridge,
         cases: tuple[dict[str, Any], ...],
         all_material_actions: bool = False,
+        official_event_evidence: Mapping[str, OfficialEventDateIdentityEvidence]
+        | None = None,
     ) -> BridgeAwareContinuityContextProvider:
         contract = SignedBridgeContinuitySourceContract(
             workflow_run_id=0,
@@ -372,6 +427,7 @@ class BridgeAwareContinuityContextProvider:
             source_checksums=(),
             source_contract=contract,
             all_material_actions=all_material_actions,
+            official_event_evidence=official_event_evidence,
         )
 
     @property
@@ -446,6 +502,7 @@ class BridgeAwareContinuityContextProvider:
             series=normalized_series,
             isin=isin,
             role="PRIOR",
+            official_event_evidence=self._official_event_evidence.get(event_id),
         )
         admitted_action, rejected_action, duplicate_action = self._govern_candidates(
             action_candidates,
@@ -455,6 +512,7 @@ class BridgeAwareContinuityContextProvider:
             isin=isin,
             role="ACTION",
             stop_after_first=True,
+            official_event_evidence=self._official_event_evidence.get(event_id),
         )
         selected_prior = tuple(admitted_prior[-15:])
         action_bar = admitted_action[0] if admitted_action else None
@@ -528,6 +586,7 @@ class BridgeAwareContinuityContextProvider:
         isin: str,
         role: str,
         stop_after_first: bool = False,
+        official_event_evidence: OfficialEventDateIdentityEvidence | None = None,
     ) -> tuple[
         tuple[GovernedCandleRecord, ...],
         tuple[RejectedCandleRecord, ...],
@@ -559,6 +618,7 @@ class BridgeAwareContinuityContextProvider:
                 series=series,
                 isin=isin,
                 role=role,
+                official_event_evidence=official_event_evidence,
             )
             if accepted is not None:
                 governed.append(accepted)
@@ -577,6 +637,7 @@ class BridgeAwareContinuityContextProvider:
         series: str,
         isin: str,
         role: str,
+        official_event_evidence: OfficialEventDateIdentityEvidence | None = None,
     ) -> tuple[GovernedCandleRecord | None, RejectedCandleRecord | None]:
         if candle.series.upper() != series:
             return None, _reject(
@@ -626,6 +687,37 @@ class BridgeAwareContinuityContextProvider:
                 candle,
                 GovernedCandleIdentityState.SYMBOL_CONFLICT,
                 role,
+            )
+        if official_event_evidence is not None and official_event_evidence.certifies(
+            candle,
+            identity=identity,
+            symbol=symbol,
+            series=series,
+            isin=isin,
+            role=role,
+        ):
+            evidence = BridgeEvidence(
+                decision=(
+                    "CERTIFIED_OFFICIAL_EVENT_DATE_IDENTITY"
+                    if role == "ACTION"
+                    else "CERTIFIED_BOUNDED_OFFICIAL_ACTION_IDENTITY_INTERVAL"
+                ),
+                interval_ids=(),
+                official_event_ids=(official_event_evidence.event_id,),
+                official_source_ids=official_event_evidence.source_ids,
+                source_contract_id="HTR-010B-OFFICIAL-EVENT-DATE-v1.0.0",
+                source_report_sha256=(official_event_evidence.source_report_sha256),
+            )
+            return (
+                GovernedCandleRecord(
+                    candle=candle,
+                    identity_state=(
+                        GovernedCandleIdentityState.CERTIFIED_DATED_BRIDGE_CANDLE
+                    ),
+                    role=role,
+                    bridge_evidence=evidence,
+                ),
+                None,
             )
         result = self.bridge.resolve(
             identity_key=identity,
@@ -677,6 +769,135 @@ class BridgeAwareContinuityContextProvider:
             ),
             None,
         )
+
+
+def _load_official_event_date_evidence(
+    output: Path,
+) -> dict[str, OfficialEventDateIdentityEvidence]:
+    event_path = _unique_file(output, "htr010b_canonical_events.json")
+    source_path = _unique_file(output, "htr010b_source_completeness.json")
+    source_rows = _list_or_wrapped_records(source_path)
+    source_sha = {
+        str(row.get("source_id") or ""): str(row.get("source_checksum") or "")
+        for row in source_rows
+        if row.get("acquisition_state") == "AVAILABLE_IMMUTABLE"
+        and row.get("immutable_reuse_state") == "CHECKSUM_VERIFIED"
+        and _sha256_value(row.get("source_checksum"))
+    }
+    report_sha = sha256(event_path.read_bytes()).hexdigest()
+    parsed: list[dict[str, Any]] = []
+    for row in _list_or_wrapped_records(event_path):
+        event_id = str(row.get("canonical_event_id") or "")
+        source_id = str(row.get("source_id") or "")
+        identity = str(row.get("governed_identity_id") or "")
+        isin = str(row.get("isin") or "").upper()
+        symbol = str(row.get("symbol") or "").upper()
+        effective_date = _iso_date(row.get("effective_date"))
+        series = tuple(
+            sorted(
+                {
+                    str(item).upper()
+                    for item in row.get("series_applicability", ())
+                    if str(item).strip()
+                }
+            )
+        )
+        if (
+            not event_id
+            or not identity
+            or identity != f"nse:isin:{isin}"
+            or not symbol
+            or not series
+            or effective_date is None
+            or source_id not in source_sha
+            or str(row.get("assignment_confidence") or "") != "HIGH"
+            or str(row.get("assignment_method") or "") != "OFFICIAL_ISIN_INTERVAL"
+        ):
+            continue
+        parsed.append(
+            {
+                "event_id": event_id,
+                "identity": identity,
+                "symbol": symbol,
+                "series": series,
+                "isin": isin,
+                "effective_date": effective_date,
+                "source_id": source_id,
+                "source_sha256": source_sha[source_id],
+            }
+        )
+    by_symbol_series: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for row in parsed:
+        for series_name in row["series"]:
+            by_symbol_series[(str(row["symbol"]), series_name)].append(row)
+    evidence: dict[str, OfficialEventDateIdentityEvidence] = {}
+    for row in parsed:
+        prior_rows: list[dict[str, Any]] = []
+        competing = False
+        for series_name in row["series"]:
+            population = by_symbol_series[(str(row["symbol"]), series_name)]
+            same_identity = [
+                item
+                for item in population
+                if item["identity"] == row["identity"]
+                and item["effective_date"] < row["effective_date"]
+            ]
+            if not same_identity:
+                continue
+            prior = max(same_identity, key=lambda item: item["effective_date"])
+            if any(
+                item["identity"] != row["identity"]
+                and prior["effective_date"]
+                <= item["effective_date"]
+                <= row["effective_date"]
+                for item in population
+            ):
+                competing = True
+                break
+            prior_rows.append(prior)
+        interval_valid_from = (
+            max(item["effective_date"] for item in prior_rows)
+            if prior_rows and not competing
+            else None
+        )
+        evidence_source_rows = [row, *prior_rows] if interval_valid_from else [row]
+        evidence[str(row["event_id"])] = OfficialEventDateIdentityEvidence(
+            event_id=str(row["event_id"]),
+            identity=str(row["identity"]),
+            symbol=str(row["symbol"]),
+            series=tuple(row["series"]),
+            isin=str(row["isin"]),
+            effective_date=row["effective_date"],
+            source_ids=tuple(
+                sorted({str(item["source_id"]) for item in evidence_source_rows})
+            ),
+            source_sha256=tuple(
+                sorted({str(item["source_sha256"]) for item in evidence_source_rows})
+            ),
+            source_report_sha256=report_sha,
+            interval_valid_from=interval_valid_from,
+        )
+    return evidence
+
+
+def _list_or_wrapped_records(path: Path) -> tuple[dict[str, Any], ...]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    rows = payload.get("records") if isinstance(payload, dict) else payload
+    if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
+        raise ValueError(f"expected JSON record array: {path}")
+    return tuple(rows)
+
+
+def _sha256_value(value: object) -> bool:
+    text = str(value or "")
+    return len(text) == 64 and all(char in "0123456789abcdef" for char in text.lower())
+
+
+def _iso_date(value: object) -> date | None:
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError:
+        return None
 
 
 def _load_b1_cases(

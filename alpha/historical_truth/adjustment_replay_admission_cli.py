@@ -108,6 +108,7 @@ def adjustment_replay_admission_certify(
                 htr009a2_output=htr009a2_output,
                 htr010a3_output=htr010a3_output,
                 dsi010b1_output=dsi010b1_output,
+                htr010b_output=htr010b_output,
                 all_material_actions=True,
             )
             if htr009a2_output is not None and dsi010b1_output is not None

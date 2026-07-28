@@ -22,6 +22,7 @@ from alpha.historical_truth.bridge_aware_continuity_context import (
     BridgeAwareContinuityContextProvider,
     ContinuityContextDecision,
     GovernedCandleIdentityState,
+    OfficialEventDateIdentityEvidence,
     RawCanonicalCandle,
 )
 from alpha.historical_truth.bridge_aware_factor_validation_repair import (
@@ -132,6 +133,7 @@ def _provider(
     *,
     bridge_changes: dict[str, object] | None = None,
     all_material_actions: bool = False,
+    official_event_evidence: dict[str, OfficialEventDateIdentityEvidence] | None = None,
 ) -> BridgeAwareContinuityContextProvider:
     bridge = _bridge(tmp_path, **(bridge_changes or {}))
     cases = (_case(), *(_case(f"dummy-{index}") for index in range(17)))
@@ -139,6 +141,7 @@ def _provider(
         bridge=bridge,
         cases=cases,
         all_material_actions=all_material_actions,
+        official_event_evidence=official_event_evidence,
     )
 
 
@@ -619,6 +622,137 @@ def test_generalized_provider_governs_non_b1_material_action(
         ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP.value
     )
     assert summary["bridge_aware_context_case_count"] == 1
+
+
+def test_official_action_row_certifies_only_exact_action_date(
+    tmp_path: Path,
+) -> None:
+    evidence = OfficialEventDateIdentityEvidence(
+        event_id="split-event",
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series=("EQ",),
+        isin=ISIN,
+        effective_date=EFFECTIVE,
+        source_ids=("nse_equity_corporate_actions_2015",),
+        source_sha256=("a" * 64,),
+        source_report_sha256="b" * 64,
+    )
+    provider = _provider(
+        tmp_path,
+        bridge_changes={"valid_from": EFFECTIVE.isoformat()},
+        all_material_actions=True,
+        official_event_evidence={"split-event": evidence},
+    )
+    action = _raw(trading_date=EFFECTIVE)
+    prior = _raw(trading_date=EFFECTIVE - timedelta(days=1))
+
+    accepted_action, rejected_action = provider.govern_candle(
+        action,
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series="EQ",
+        isin=ISIN,
+        role="ACTION",
+        official_event_evidence=evidence,
+    )
+    accepted_prior, rejected_prior = provider.govern_candle(
+        prior,
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series="EQ",
+        isin=ISIN,
+        role="PRIOR",
+        official_event_evidence=evidence,
+    )
+
+    assert rejected_action is None
+    assert accepted_action is not None
+    assert accepted_action.bridge_evidence is not None
+    assert (
+        accepted_action.bridge_evidence.decision
+        == "CERTIFIED_OFFICIAL_EVENT_DATE_IDENTITY"
+    )
+    assert accepted_prior is None
+    assert rejected_prior is not None
+
+
+def test_official_action_row_never_bridges_explicit_isin_mismatch(
+    tmp_path: Path,
+) -> None:
+    evidence = OfficialEventDateIdentityEvidence(
+        event_id="split-event",
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series=("EQ",),
+        isin=ISIN,
+        effective_date=EFFECTIVE,
+        source_ids=("nse_equity_corporate_actions_2015",),
+        source_sha256=("a" * 64,),
+        source_report_sha256="b" * 64,
+    )
+    provider = _provider(
+        tmp_path,
+        all_material_actions=True,
+        official_event_evidence={"split-event": evidence},
+    )
+
+    accepted, rejected = provider.govern_candle(
+        _raw(isin="INE999A01010", trading_date=EFFECTIVE),
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series="EQ",
+        isin=ISIN,
+        role="ACTION",
+        official_event_evidence=evidence,
+    )
+
+    assert accepted is None
+    assert rejected is not None
+    assert rejected.reason is GovernedCandleIdentityState.EXPLICIT_ISIN_MISMATCH
+
+
+def test_bounded_official_action_interval_certifies_individual_prior_bar(
+    tmp_path: Path,
+) -> None:
+    evidence = OfficialEventDateIdentityEvidence(
+        event_id="split-event",
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series=("EQ",),
+        isin=ISIN,
+        effective_date=EFFECTIVE,
+        source_ids=(
+            "nse_equity_corporate_actions_2014",
+            "nse_equity_corporate_actions_2015",
+        ),
+        source_sha256=("a" * 64, "b" * 64),
+        source_report_sha256="c" * 64,
+        interval_valid_from=date(2014, 1, 1),
+    )
+    provider = _provider(
+        tmp_path,
+        bridge_changes={"valid_from": EFFECTIVE.isoformat()},
+        all_material_actions=True,
+        official_event_evidence={"split-event": evidence},
+    )
+
+    accepted, rejected = provider.govern_candle(
+        _raw(trading_date=EFFECTIVE - timedelta(days=1)),
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series="EQ",
+        isin=ISIN,
+        role="PRIOR",
+        official_event_evidence=evidence,
+    )
+
+    assert rejected is None
+    assert accepted is not None
+    assert accepted.bridge_evidence is not None
+    assert accepted.bridge_evidence.decision == (
+        "CERTIFIED_BOUNDED_OFFICIAL_ACTION_IDENTITY_INTERVAL"
+    )
 
 
 def test_certified_rights_terp_can_restore_on_action_session_close(
