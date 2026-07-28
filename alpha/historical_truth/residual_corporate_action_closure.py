@@ -591,7 +591,7 @@ def _official_source_manifest(root: Path | None) -> tuple[dict[str, Any], ...]:
         raw = path.read_bytes()
         rows.append(
             {
-                "path": str(path),
+                "path": path.relative_to(root).as_posix(),
                 "byte_size": len(raw),
                 "sha256": sha256(raw).hexdigest(),
                 "production_influence": False,

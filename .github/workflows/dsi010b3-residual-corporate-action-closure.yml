@@ -1,0 +1,295 @@
+name: DSI-010B3 Residual Corporate-Action Closure
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/dsi-010-pre2016-external-era-validation
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      _TYPER_FORCE_DISABLE_TERMINAL: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install project
+        run: |
+          pip install poetry
+          poetry install --no-interaction
+
+      - name: Download signed source and prior certificates
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30352312594
+          name: dsi010-pre2016-rights-rebuild
+          path: inputs
+
+      - name: Download signed HTR-009A2 identity boundary
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30335669653
+          name: dsi010-a3-b-repaired-rerun
+          path: identity
+
+      - name: Download signed DSI-010B1 boundary
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30380882353
+          name: dsi010b1-legacy-rights-bridge-certification
+          path: signed_b1
+
+      - name: Download signed DSI-010B2 boundary
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30390124010
+          name: dsi010b2-bridge-aware-continuity-certification
+          path: signed_b2
+
+      - name: Restore immutable governed source state
+        run: |
+          set -euo pipefail
+          archive=$(find inputs -type f -name alpha_data_after_rights_rebuild.tar.gz | head -1)
+          calendar=$(find inputs -type f -name htr007_session_calendar.json | head -1)
+          a2=$(find identity -type d -name htr009a2_event_sourced_universe | head -1)
+          b1=$(find signed_b1 -type d -name dsi010b1_legacy_rights_reference_bridge | head -1)
+          baseline_htr=$(find signed_b2 -type d -name htr010b_complete_corporate_action_dataset | head -1)
+          baseline_b1e2=$(find signed_b2 -type d -name htr010b1e2_final_admission_state_propagation_b2 | head -1)
+          test -f "$archive"
+          test -f "$calendar"
+          test -d "$a2"
+          test -d "$b1"
+          test -d "$baseline_htr"
+          test -d "$baseline_b1e2"
+          mkdir -p work artifacts work/calendar signed baseline
+          tar -xzf "$archive" -C work
+          cp -a inputs/artifacts/. artifacts/
+          cp -a "$a2" signed/htr009a2_event_sourced_universe
+          cp -a "$b1" signed/dsi010b1_legacy_rights_reference_bridge
+          cp -a "$baseline_htr" baseline/htr010b
+          cp -a "$baseline_b1e2" baseline/b1e2
+          cp "$calendar" work/calendar/htr007_session_calendar.json
+          test -f work/alpha_data/warehouse/historical_truth.duckdb
+
+      - name: Acquire and verify additional authoritative evidence
+        run: |
+          set -euo pipefail
+          root=work/alpha_data/raw/official/company_identity
+          mkdir -p "$root/TATAPOWER" "$root/HINDMOTOR"
+          agent="ProjectAlpha/1.0 HistoricalEvidenceClient"
+          curl -L --fail --retry 3 -A "$agent" \
+            -o "$root/TATAPOWER/tatapower_corporate_governance_2011_12_95fd08f775bee1069ba350b2478d93366a4035ef87fc7d887776aa03a2519734.pdf" \
+            "https://www.tatapower.com/content/dam/tatapoweraemsitesprogram/tatapower/pdf-root/investor-resource-centre-corporate-governance-pdfs/corporate-governance-report/Corporate%20Governance%20Report%202011-12.pdf"
+          curl -L --fail --retry 3 -A "$agent" \
+            -o "$root/TATAPOWER/tatapower_rights_2014_bse.pdf" \
+            "https://www.bseindia.com/downloads/ipo/2014310151140Tata%20Power%20-%20Right%20DRHP.pdf"
+          curl -L --fail --retry 3 -A "$agent" \
+            -o "$root/HINDMOTOR/nse_press_20110217.htm" \
+            "https://nsearchives.nseindia.com/content/press/17022011.htm"
+          echo "95fd08f775bee1069ba350b2478d93366a4035ef87fc7d887776aa03a2519734  $root/TATAPOWER/tatapower_corporate_governance_2011_12_95fd08f775bee1069ba350b2478d93366a4035ef87fc7d887776aa03a2519734.pdf" | sha256sum -c -
+          echo "9c1a79a78b1b77adca7e6b6c9429dbadc944132b9964f03bfd250ac1a9faf5e1  $root/TATAPOWER/tatapower_rights_2014_bse.pdf" | sha256sum -c -
+          echo "a874ce997f384fedc21e74506775da58d1017b402e4c6aa2add87b1aa869d52f  $root/HINDMOTOR/nse_press_20110217.htm" | sha256sum -c -
+
+      - name: Rebuild governed chain twice
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/htr009b_corporate_action_price_continuity
+          poetry run python -m alpha historical-truth corporate-action-price-certify \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --calendar-report work/calendar/htr007_session_calendar.json \
+            --root work/alpha_data --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr009b_corporate_action_price_continuity \
+            --verify-only
+
+          run_chain() {
+            local out="$1"
+            mkdir -p "$out"
+            poetry run python -m alpha historical-truth complete-corporate-action-dataset \
+              --database work/alpha_data/warehouse/historical_truth.duckdb \
+              --root work/alpha_data \
+              --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+              --htr009a2-output signed/htr009a2_event_sourced_universe \
+              --start 2005-01-01 --end 2015-12-31 \
+              --output "$out/htr010b"
+            poetry run python -m alpha historical-truth adjustment-replay-admission-certify \
+              --database work/alpha_data/warehouse/historical_truth.duckdb \
+              --root work/alpha_data \
+              --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+              --htr010b-output "$out/htr010b" \
+              --htr009a2-output signed/htr009a2_event_sourced_universe \
+              --dsi010b1-output signed/dsi010b1_legacy_rights_reference_bridge \
+              --session-calendar-report work/calendar/htr007_session_calendar.json \
+              --start 2005-01-01 --end 2015-12-31 \
+              --output "$out/b1c"
+            poetry run python -m alpha historical-truth factor-transformation-forensics \
+              --database work/alpha_data/warehouse/historical_truth.duckdb \
+              --htr010b-output "$out/htr010b" \
+              --htr010b1c-output "$out/b1c" \
+              --start 2005-01-01 --end 2015-12-31 \
+              --output "$out/b1d"
+            poetry run python -m alpha historical-truth factor-transformation-bridge-forensics \
+              --database work/alpha_data/warehouse/historical_truth.duckdb \
+              --htr010b-output "$out/htr010b" \
+              --htr010b1d-output "$out/b1d" \
+              --start 2005-01-01 --end 2015-12-31 \
+              --output "$out/b1d1"
+            poetry run python -m alpha historical-truth bridge-aware-factor-validation-repair \
+              --htr010b1d1-output "$out/b1d1" \
+              --start 2005-01-01 --end 2015-12-31 \
+              --output "$out/b1d2"
+            poetry run python -m alpha historical-truth bridge-aware-admission-reconcile \
+              --database work/alpha_data/warehouse/historical_truth.duckdb \
+              --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+              --htr010b-output "$out/htr010b" \
+              --htr009a2-output signed/htr009a2_event_sourced_universe \
+              --dsi010b1-output signed/dsi010b1_legacy_rights_reference_bridge \
+              --htr010b1d2-output "$out/b1d2" \
+              --session-calendar-report work/calendar/htr007_session_calendar.json \
+              --start 2005-01-01 --end 2015-12-31 \
+              --output "$out/b1e2"
+            poetry run python -m alpha historical-truth residual-corporate-action-closure-certify \
+              --baseline-b1c-output baseline/b1e2 \
+              --final-b1c-output "$out/b1e2" \
+              --baseline-htr010b-output baseline/htr010b \
+              --final-htr010b-output "$out/htr010b" \
+              --official-source-root work/alpha_data/raw/official/company_identity \
+              --dsi010b1-output signed/dsi010b1_legacy_rights_reference_bridge \
+              --output "$out/closure"
+          }
+
+          run_chain acceptance-a
+          run_chain acceptance-b
+
+      - name: Certify deterministic closure
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from hashlib import sha256
+          from pathlib import Path
+          from subprocess import check_output
+
+          import duckdb
+
+          first = Path("acceptance-a")
+          second = Path("acceptance-b")
+          first_files = {
+              path.relative_to(first): sha256(path.read_bytes()).hexdigest()
+              for path in first.rglob("*")
+              if path.is_file() and path.suffix != ".duckdb"
+          }
+          second_files = {
+              path.relative_to(second): sha256(path.read_bytes()).hexdigest()
+              for path in second.rglob("*")
+              if path.is_file() and path.suffix != ".duckdb"
+          }
+          assert first_files == second_files
+
+          connection = duckdb.connect()
+          quote = "'"
+          first_db = str(first / "htr010b/htr010b_corporate_action.duckdb")
+          second_db = str(second / "htr010b/htr010b_corporate_action.duckdb")
+          connection.execute(f"ATTACH {quote}{first_db}{quote} AS first (READ_ONLY)")
+          connection.execute(f"ATTACH {quote}{second_db}{quote} AS second (READ_ONLY)")
+          tables = [
+              row[0]
+              for row in connection.execute(
+                  "SELECT table_name FROM information_schema.tables "
+                  "WHERE table_catalog='first' ORDER BY table_name"
+              ).fetchall()
+          ]
+          table_rows = {}
+          for table in tables:
+              left = connection.execute(
+                  f"SELECT COUNT(*) FROM (SELECT * FROM first.{table} "
+                  f"EXCEPT ALL SELECT * FROM second.{table})"
+              ).fetchone()[0]
+              right = connection.execute(
+                  f"SELECT COUNT(*) FROM (SELECT * FROM second.{table} "
+                  f"EXCEPT ALL SELECT * FROM first.{table})"
+              ).fetchone()[0]
+              assert left == right == 0
+              table_rows[table] = connection.execute(
+                  f"SELECT COUNT(*) FROM first.{table}"
+              ).fetchone()[0]
+
+          root = first / "closure"
+          summary_path = root / "dsi010b3_closure_summary.json"
+          certificate_path = root / "dsi010b3_replay_readiness_certificate.json"
+          report_path = root / "dsi010b3_executive_report.md"
+          summary = json.loads(summary_path.read_text())
+          assert summary["initial_residual_count"] == 453
+          assert summary["final_residual_count"] == 172
+          assert summary["net_resolved_count"] == 281
+          assert summary["unresolved_admission_intervals"] == 0
+          assert summary["adjusted_replay_ready"] is False
+          assert summary["production_influence"] is False
+          acceptance = {
+              "contract": "DSI-010B3-ACCEPTANCE-v1",
+              "source_commit": check_output(
+                  ["git", "rev-parse", "HEAD"], text=True
+              ).strip(),
+              "summary": summary,
+              "governed_non_database_artifact_count": len(first_files),
+              "governed_non_database_artifacts_byte_identical": True,
+              "duckdb_tables_logically_identical": True,
+              "duckdb_table_rows": table_rows,
+              "summary_file_sha256": sha256(summary_path.read_bytes()).hexdigest(),
+              "certificate_file_sha256": sha256(
+                  certificate_path.read_bytes()
+              ).hexdigest(),
+              "report_file_sha256": sha256(report_path.read_bytes()).hexdigest(),
+              "full_benchmark_replays": 0,
+              "production_influence": False,
+          }
+          output = Path("acceptance")
+          output.mkdir()
+          (output / "acceptance_summary.json").write_text(
+              json.dumps(acceptance, indent=2, sort_keys=True) + "\n"
+          )
+          (output / "artifact_hashes.json").write_text(
+              json.dumps(
+                  {str(path): digest for path, digest in first_files.items()},
+                  indent=2,
+                  sort_keys=True,
+              )
+              + "\n"
+          )
+          print(json.dumps(acceptance, indent=2, sort_keys=True))
+          print("FULL_BENCHMARK_REPLAYS=0")
+          print("STOP_POLICY_AUTOMATIC_PROMOTION_ENABLED=false")
+          print("ADJUSTED_REPLAY_READY=false")
+          print("PRODUCTION_INFLUENCE=false")
+          PY
+
+      - name: Upload signed acceptance evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsi010b3-residual-corporate-action-closure
+          retention-days: 14
+          compression-level: 6
+          if-no-files-found: error
+          path: |
+            acceptance
+            acceptance-a
+            work/alpha_data/raw/official/company_identity

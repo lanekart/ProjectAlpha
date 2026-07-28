@@ -272,3 +272,27 @@ def test_exports_are_deterministic(tmp_path: Path) -> None:
     assert [path.read_bytes() for path in first] == [
         path.read_bytes() for path in second
     ]
+
+
+def test_official_source_manifest_is_root_independent(tmp_path: Path) -> None:
+    inputs = _fixture(tmp_path)
+    source_a = tmp_path / "source-a"
+    source_b = tmp_path / "source-b"
+    for root in (source_a, source_b):
+        evidence = root / "TATAPOWER" / "official.pdf"
+        evidence.parent.mkdir(parents=True)
+        evidence.write_bytes(b"official evidence")
+
+    reports = [
+        ResidualCorporateActionClosureEngine().run(
+            baseline_b1c_output=inputs[0],
+            final_b1c_output=inputs[1],
+            baseline_htr010b_output=inputs[2],
+            final_htr010b_output=inputs[3],
+            official_source_root=root,
+        )
+        for root in (source_a, source_b)
+    ]
+
+    assert reports[0].recovered_sources == reports[1].recovered_sources
+    assert reports[0].recovered_sources[0]["path"] == "TATAPOWER/official.pdf"
