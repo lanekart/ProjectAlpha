@@ -1,0 +1,153 @@
+name: DSI-010 HTR-010B1 Admission Audit
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-htr010b1-admission-rerun.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+
+      - name: Download preserved HTR-010B state
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30340688435
+          name: dsi010-htr010b-repaired-rerun
+          path: inputs/htr010b
+
+      - name: Restore governed HTR-010B1 prerequisites
+        run: |
+          set -euo pipefail
+          ARCHIVE=$(find inputs/htr010b -type f -name alpha_data_after_htr010b.tar.gz | head -1)
+          CALENDAR=$(find inputs/htr010b -type f -name htr007_session_calendar.json | head -1)
+          test -n "$ARCHIVE" && test -f "$ARCHIVE"
+          test -n "$CALENDAR" && test -f "$CALENDAR"
+          mkdir -p work artifacts/dsi010_htr010b1_admission
+          tar -xzf "$ARCHIVE" -C work
+          mkdir -p work/certified_calendar
+          cp "$CALENDAR" work/certified_calendar/htr007_session_calendar.json
+          for name in \
+            htr009b_corporate_action_price_continuity \
+            htr010a_complete_security_dataset \
+            htr010a1_population_interval_repair \
+            htr010a2_lifecycle_session_semantics \
+            htr010a3_tier_a_foundation_readiness \
+            htr010b_complete_corporate_action_dataset; do
+            source=$(find inputs/htr010b -type d -path "*/artifacts/${name}" | head -1)
+            test -n "$source" && test -d "$source"
+            rm -rf "artifacts/${name}"
+            cp -a "$source" "artifacts/${name}"
+          done
+          rm -rf artifacts/htr010b1_adjustment_replay_admission
+          test -f work/alpha_data/warehouse/historical_truth.duckdb
+          test -f artifacts/htr010b_complete_corporate_action_dataset/htr010b_adjusted_replay_readiness.json
+
+      - name: Run HTR-010B1 adjustment validation and replay admission
+        id: b1
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          poetry run python -m alpha historical-truth adjustment-replay-admission-certify \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --root work/alpha_data \
+            --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            --start 2005-01-01 \
+            --end 2015-12-31 \
+            --output artifacts/htr010b1_adjustment_replay_admission \
+            2>&1 | tee artifacts/dsi010_htr010b1_admission/htr010b1.log
+
+      - name: Export governed HTR-010B1 result
+        if: always()
+        env:
+          B1_OUTCOME: ${{ steps.b1.outcome }}
+        run: |
+          poetry run python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          output = Path("artifacts/htr010b1_adjustment_replay_admission")
+          executive_path = output / "htr010b1_executive_report.json"
+          readiness_path = output / "htr010b1_replay_readiness.json"
+          population_path = output / "htr010b1_population_reconciliation.json"
+          quarantine_path = output / "htr010b1_quarantine_population_reconciliation.json"
+          executive = json.loads(executive_path.read_text(encoding="utf-8")) if executive_path.is_file() else {}
+          readiness = json.loads(readiness_path.read_text(encoding="utf-8")) if readiness_path.is_file() else {}
+          population = json.loads(population_path.read_text(encoding="utf-8")) if population_path.is_file() else {}
+          quarantine = json.loads(quarantine_path.read_text(encoding="utf-8")) if quarantine_path.is_file() else {}
+          summary = {
+              "htr010b1_outcome": os.environ.get("B1_OUTCOME", "unknown"),
+              "factor_validation_cases": executive.get("factor_validation_cases"),
+              "validation_outcomes": executive.get("validation_outcomes", {}),
+              "evidence_quarantined_identities": executive.get("evidence_quarantined_identities"),
+              "admission_quarantined_identities": executive.get("admission_quarantined_identities"),
+              "unresolved_case_identities": executive.get("unresolved_case_identities"),
+              "quarantined_intervals": executive.get("quarantined_intervals"),
+              "admission_intervals": executive.get("admission_intervals"),
+              "economic_weight_measurement_state": executive.get("economic_weight_measurement_state"),
+              "pct_observed_tier_a_rows_quarantined": executive.get("pct_observed_tier_a_rows_quarantined"),
+              "pct_observed_tier_a_identity_sessions_quarantined": executive.get("pct_observed_tier_a_identity_sessions_quarantined"),
+              "replay_readiness": readiness.get("state"),
+              "readiness_blockers": readiness.get("blockers", []),
+              "population_reconciliation": population,
+              "quarantine_population_reconciliation": quarantine,
+              "report_sha256": executive.get("report_sha256"),
+              "production_influence": False,
+          }
+          target = Path("artifacts/dsi010_htr010b1_admission")
+          target.mkdir(parents=True, exist_ok=True)
+          (target / "htr010b1_summary.json").write_text(
+              json.dumps(summary, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          PY
+          tar -czf artifacts/dsi010_htr010b1_admission/alpha_data_after_htr010b1.tar.gz \
+            -C work alpha_data
+
+      - name: Upload governed HTR-010B1 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-htr010b1-admission-audit
+          path: |
+            artifacts/dsi010_htr010b1_admission
+            artifacts/htr010b1_adjustment_replay_admission
+            artifacts/htr010b_complete_corporate_action_dataset
+            artifacts/htr010a3_tier_a_foundation_readiness
+            artifacts/htr010a2_lifecycle_session_semantics
+            artifacts/htr010a1_population_interval_repair
+            artifacts/htr010a_complete_security_dataset
+            artifacts/htr009b_corporate_action_price_continuity
+            work/certified_calendar/htr007_session_calendar.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Enforce audit execution
+        if: always()
+        env:
+          B1_OUTCOME: ${{ steps.b1.outcome }}
+        run: |
+          echo "HTR010B1_OUTCOME=${B1_OUTCOME}"
+          test "${B1_OUTCOME}" = success
+          test -f artifacts/htr010b1_adjustment_replay_admission/htr010b1_executive_report.json
+          test -f artifacts/htr010b1_adjustment_replay_admission/htr010b1_replay_readiness.json
+          echo "PRODUCTION_INFLUENCE=false"
