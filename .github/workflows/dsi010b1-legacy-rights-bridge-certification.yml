@@ -2,6 +2,9 @@ name: DSI-010B1 Legacy Rights Bridge Certification
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/dsi-010-pre2016-external-era-validation
 
 permissions:
   actions: read
