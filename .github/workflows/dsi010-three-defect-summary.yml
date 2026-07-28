@@ -1,0 +1,75 @@
+name: DSI-010 Three Defect Summary
+
+on:
+  pull_request:
+    paths: [.github/workflows/dsi010-three-defect-summary.yml]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30343241834
+          name: dsi010-b1e-admission-reconciliation
+          path: inputs/e
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30342652599
+          name: dsi010-b1d2-validation-repair
+          path: inputs/d2
+      - run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          def rows(name,root):
+              path=next(Path(root).rglob(name))
+              payload=json.loads(path.read_text())
+              return payload.get('records',[]) if isinstance(payload,dict) else payload
+          validations=rows('htr010b1_factor_validation_results.json','inputs/e')
+          factors=rows('htr010b_adjustment_factors.json','inputs/e')
+          events=rows('htr010b_canonical_events.json','inputs/e')
+          repairs=rows('htr010b1d2_reclassified_cases.json','inputs/d2')
+          factor={str(r.get('canonical_event_id')):r for r in factors}
+          event={str(r.get('canonical_event_id')):r for r in events}
+          repair={str(r.get('event_id')):r for r in repairs}
+          defects=[r for r in validations if r.get('validation_outcome')=='IMPLEMENTATION_DEFECT']
+          print('DEFECT_COUNT='+str(len(defects)))
+          for r in defects:
+              eid=str(r.get('event_id'))
+              f=factor.get(eid,{})
+              e=event.get(eid,{})
+              d=repair.get(eid,{})
+              out={
+                'event_id':eid,
+                'identity_key':r.get('identity_key'),
+                'symbol':e.get('symbol') or r.get('symbol'),
+                'series':e.get('series_applicability') or r.get('series'),
+                'effective_date':e.get('effective_date') or f.get('effective_date'),
+                'action_type':e.get('action_type'),
+                'raw_action_text':e.get('raw_action_text'),
+                'official_price_factor':f.get('price_factor'),
+                'factor_state':f.get('factor_state'),
+                'raw_gap_atr':r.get('raw_gap_atr'),
+                'adjusted_gap_atr':r.get('adjusted_gap_atr'),
+                'continuity_state':r.get('recomputed_continuity_state'),
+                'corrected_disposition':d.get('corrected_disposition'),
+                'proposed_outcome':d.get('proposed_validation_outcome'),
+                'factor_quality_confirmed':d.get('factor_quality_confirmed'),
+                'bridge_certified_for_replay':d.get('bridge_certified_for_replay'),
+                'recommended_contract_repair':d.get('recommended_contract_repair'),
+                'prior_series':d.get('prior_series'),
+                'current_series':d.get('current_series'),
+                'prior_close':(d.get('selected_bridge') or {}).get('prior',{}).get('close_price') if isinstance(d.get('selected_bridge'),dict) else None,
+                'current_open':(d.get('selected_bridge') or {}).get('current',{}).get('open_price') if isinstance(d.get('selected_bridge'),dict) else None,
+              }
+              print(json.dumps(out,sort_keys=True))
+          PY
