@@ -104,6 +104,11 @@ DSI-010B2 remains the immutable prior boundary. Its signed 39-case artifacts
 and hashes are preserved; its fixed `55/22/28` rights-state assertion is not
 weakened to accept the evolved DSI-010B3 population.
 
+The DSI-010B1 and DSI-010B2 certification workflows are therefore frozen as
+manual revalidation workflows. They no longer rebuild superseded populations
+on every branch push. Repository CI and lint remain automatic for every pushed
+head.
+
 `FULL_BENCHMARK_REPLAYS=0`
 
 `PRODUCTION_INFLUENCE=false`
