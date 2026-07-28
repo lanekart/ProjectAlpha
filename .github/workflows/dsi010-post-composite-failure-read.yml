@@ -1,0 +1,24 @@
+name: DSI-010 Post-Composite Failure Read
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-post-composite-failure-read.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          JOB_ID: "90243661024"
+        run: |
+          curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${REPOSITORY}/actions/jobs/${JOB_ID}/logs" -o /tmp/log
+          grep -nE 'HTR-010B|HTR-010B1|Traceback|Error|ERROR|failed|Failure|BadParameter|InputContract|No such file|not found|missing|mismatch' /tmp/log | tail -260 || true
+          tail -180 /tmp/log
