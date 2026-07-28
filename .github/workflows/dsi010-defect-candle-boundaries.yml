@@ -12,6 +12,13 @@ jobs:
   read:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry && poetry install --no-interaction
       - uses: actions/download-artifact@v4
         with:
           github-token: ${{ github.token }}
@@ -24,7 +31,7 @@ jobs:
           test -f "$archive"
           mkdir -p work
           tar -xzf "$archive" -C work
-          python - <<'PY'
+          poetry run python - <<'PY'
           import json
           from pathlib import Path
           import duckdb
