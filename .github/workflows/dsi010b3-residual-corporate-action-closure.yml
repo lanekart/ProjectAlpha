@@ -183,7 +183,7 @@ jobs:
       - name: Certify deterministic closure
         run: |
           set -euo pipefail
-          python - <<'PY'
+          poetry run python - <<'PY'
           import json
           from hashlib import sha256
           from pathlib import Path
