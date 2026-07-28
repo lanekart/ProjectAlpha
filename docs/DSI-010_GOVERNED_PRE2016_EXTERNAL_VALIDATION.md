@@ -216,4 +216,7 @@ remain.
 DSI-010B2 uses signed DSI-010B1 identity evidence to validate missing-ISIN
 candles one date at a time. Reference certification, context certification,
 factor confirmation and replay admission remain distinct fail-closed stages.
-The external-era benchmark experiment remains disabled.
+The governed run completed 18 contexts, confirmed 17 factors, and exposed one
+implementation defect without changing factor-state counts. Its signed source
+acceptance is workflow `30389083773`, artifact `8700502533`. Adjusted replay
+remains not ready, and the external-era benchmark experiment remains disabled.

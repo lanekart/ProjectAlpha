@@ -139,6 +139,27 @@ The certification emits:
 The bar ledger contains enough price, source, identity-path and bridge
 provenance data to reproduce every continuity metric.
 
+## Signed Acceptance
+
+The governed source acceptance is bound to:
+
+- source commit:
+  `e44f5a77be38fb4ee4b02efe6c14e48e34cd7b2f`;
+- workflow run: `30389083773`;
+- workflow job: `90375699700`;
+- artifact ID: `8700502533`;
+- artifact digest:
+  `sha256:aff7b0b0e408330bf3141a9f3ecb6027e36ad88e05326770b62f2778f719ed14`;
+- report SHA-256:
+  `836a403e1f20112b34ceaca19dd7cb95546c1f145e5ed1b2e3406b37f37d6047`;
+- certificate file SHA-256:
+  `5815587538ba638e617f717aae7579245867a7f4e13a77a53d3f8fd6cf86b807`.
+
+The workflow rebuilt the governed bridge-aware B1C through B1E2 chain under a
+second clean root and proved all eight DSI-010B2 artifacts byte-identical. It
+also reproduced the signed DSI-010B1 report and certificate exactly before
+applying the new context provider.
+
 ## Remaining Blockers
 
 Adjusted replay remains not ready. DSI-010B2 does not close:
@@ -156,5 +177,7 @@ execution policy or recommendation behavior changed. No benchmark replay ran.
 `FULL_BENCHMARK_REPLAYS=0`
 
 `STOP_POLICY_AUTOMATIC_PROMOTION_ENABLED=false`
+
+`ADJUSTED_REPLAY_READY=false`
 
 `PRODUCTION_INFLUENCE=false`
