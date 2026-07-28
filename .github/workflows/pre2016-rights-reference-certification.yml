@@ -1,0 +1,86 @@
+name: Pre-2016 Rights Reference Certification
+
+on:
+  push:
+    branches:
+      - feature/dsi-010-pre2016-external-era-validation
+    paths:
+      - .github/workflows/pre2016-rights-reference-certification.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    env:
+      _TYPER_FORCE_DISABLE_TERMINAL: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Apply reference certification repair
+        run: poetry run python scripts/patch_pre2016_rights_reference_certification.py
+      - name: Validate reference certification repair
+        run: |
+          poetry run ruff format \
+            alpha/historical_truth/complete_corporate_action_models.py \
+            alpha/historical_truth/complete_corporate_action_engine.py \
+            alpha/historical_truth/adjustment_replay_admission_continuity_validation.py \
+            alpha/historical_truth/factor_transformation_forensics.py \
+            alpha/historical_truth/factor_transformation_bridge_forensics.py \
+            alpha/historical_truth/bridge_aware_factor_validation_repair.py \
+            tests/historical_truth/test_pre2016_rights_reference_certification.py
+          poetry run ruff check \
+            alpha/historical_truth/complete_corporate_action_models.py \
+            alpha/historical_truth/complete_corporate_action_engine.py \
+            alpha/historical_truth/adjustment_replay_admission_continuity_validation.py \
+            alpha/historical_truth/factor_transformation_forensics.py \
+            alpha/historical_truth/factor_transformation_bridge_forensics.py \
+            alpha/historical_truth/bridge_aware_factor_validation_repair.py \
+            tests/historical_truth/test_pre2016_rights_reference_certification.py
+          poetry run ruff format --check \
+            alpha/historical_truth/complete_corporate_action_models.py \
+            alpha/historical_truth/complete_corporate_action_engine.py \
+            alpha/historical_truth/adjustment_replay_admission_continuity_validation.py \
+            alpha/historical_truth/factor_transformation_forensics.py \
+            alpha/historical_truth/factor_transformation_bridge_forensics.py \
+            alpha/historical_truth/bridge_aware_factor_validation_repair.py \
+            tests/historical_truth/test_pre2016_rights_reference_certification.py
+          poetry run mypy \
+            alpha/historical_truth/complete_corporate_action_models.py \
+            alpha/historical_truth/complete_corporate_action_engine.py \
+            alpha/historical_truth/adjustment_replay_admission_continuity_validation.py \
+            alpha/historical_truth/factor_transformation_forensics.py \
+            alpha/historical_truth/factor_transformation_bridge_forensics.py \
+            alpha/historical_truth/bridge_aware_factor_validation_repair.py
+          poetry run pytest -q \
+            tests/historical_truth/test_pre2016_rights_reference_certification.py \
+            tests/historical_truth/test_pre2016_rights_price_terms.py \
+            tests/historical_truth/test_complete_corporate_action_pre2016_regressions.py \
+            tests/historical_truth/test_complete_corporate_action_dataset.py \
+            tests/historical_truth/test_adjustment_replay_admission_continuity.py \
+            tests/historical_truth/test_factor_transformation_forensics.py \
+            tests/historical_truth/test_factor_transformation_bridge_forensics.py \
+            tests/historical_truth/test_bridge_aware_factor_validation_repair.py \
+            tests/historical_truth/test_pre2016_composite_factor_closure.py
+      - name: Publish permanent reference certification
+        run: |
+          git config user.name 'Project Alpha Automation'
+          git config user.email 'project-alpha-automation@users.noreply.github.com'
+          git add \
+            alpha/historical_truth/complete_corporate_action_models.py \
+            alpha/historical_truth/complete_corporate_action_engine.py \
+            alpha/historical_truth/adjustment_replay_admission_continuity_validation.py \
+            alpha/historical_truth/factor_transformation_forensics.py \
+            alpha/historical_truth/factor_transformation_bridge_forensics.py \
+            alpha/historical_truth/bridge_aware_factor_validation_repair.py \
+            tests/historical_truth/test_pre2016_rights_reference_certification.py
+          git commit -m 'fix(htr-010b1): certify governed rights reference prices'
+          git push origin HEAD:feature/dsi-010-pre2016-external-era-validation
