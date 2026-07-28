@@ -1,0 +1,72 @@
+name: DSI-010 Rebuild Summary Fixer
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-rebuild-summary-fixer.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+          fetch-depth: 0
+      - name: Correct bridge provenance versus promotion assertions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/dsi010-legacy-interval-v2-tail.yml')
+          text = path.read_text(encoding='utf-8')
+          replacements = {
+              '"bridge_certified_factor_count": len(bridge),': (
+                  '"bridge_provenance_count": len(bridge),\n'
+                  '              "bridge_promoted_factor_count": sum(\n'
+                  '                  row.get("factor_state") == "FACTOR_CERTIFIED_REFERENCE_PRICE"\n'
+                  '                  for row in bridge\n'
+                  '              ),'
+              ),
+              'assert provenance[bridge_state] == 18, summary': (
+                  'assert provenance[bridge_state] == 22, summary\n'
+                  '          assert summary["bridge_promoted_factor_count"] == 18, summary'
+              ),
+              'assert summary["bridge_reference_isin_empty_count"] == 18, summary': (
+                  'assert summary["bridge_reference_isin_empty_count"] == 22, summary'
+              ),
+              'assert summary["bridge_source_sha_present_count"] == 18, summary': (
+                  'assert summary["bridge_source_sha_present_count"] == 22, summary'
+              ),
+              '                  "CENTRALBK",': (
+                  '                  "CENTEXT",\n'
+                  '                  "CENTRALBK",'
+              ),
+              '                  "INFOMEDIA",': (
+                  '                  "INFOMEDIA",\n'
+                  '                  "JYOTISTRUC",'
+              ),
+              '                  "MURUDCERA",': (
+                  '                  "MURUDCERA",\n'
+                  '                  "NETWORK18",\n'
+                  '                  "ORIENTPPR",'
+              ),
+          }
+          for old, new in replacements.items():
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(f'expected one occurrence of {old!r}, found {count}')
+              text = text.replace(old, new)
+          path.write_text(text, encoding='utf-8')
+          PY
+          git diff --check
+      - name: Commit corrected acceptance contract
+        run: |
+          git config user.name "lanekart"
+          git config user.email "10551192+lanekart@users.noreply.github.com"
+          git add .github/workflows/dsi010-legacy-interval-v2-tail.yml
+          git commit -m "ci(dsi010): distinguish bridge provenance from factor promotion"
+          git push origin HEAD:feature/dsi-010-pre2016-external-era-validation
