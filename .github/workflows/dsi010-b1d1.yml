@@ -1,0 +1,100 @@
+name: DSI-010 B1D1 Bridge Audit
+
+on:
+  pull_request:
+    paths: [.github/workflows/dsi010-b1d1.yml]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry && poetry install --no-interaction
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30341875633
+          name: dsi010-htr010b1d-factor-forensics
+          path: inputs
+      - name: Restore inputs
+        run: |
+          set -euo pipefail
+          archive=$(find inputs -name alpha_data_after_htr010b1d.tar.gz | head -1)
+          calendar=$(find inputs -name htr007_session_calendar.json | head -1)
+          test -f "$archive" && test -f "$calendar"
+          mkdir -p work artifacts/dsi010_b1d1
+          tar -xzf "$archive" -C work
+          mkdir -p work/calendar
+          cp "$calendar" work/calendar/htr007_session_calendar.json
+          for name in htr009b_corporate_action_price_continuity htr010b_complete_corporate_action_dataset htr010b1_adjustment_replay_admission htr010b1d_factor_transformation_forensics; do
+            source=$(find inputs -type d -path "*/artifacts/$name" | head -1)
+            test -d "$source"
+            rm -rf "artifacts/$name"
+            cp -a "$source" "artifacts/$name"
+          done
+      - name: Run B1D1
+        id: run
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          poetry run python -m alpha historical-truth factor-transformation-bridge-forensics \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            --htr010b1d-output artifacts/htr010b1d_factor_transformation_forensics \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010b1d1_cross_series_identity_bridge \
+            2>&1 | tee artifacts/dsi010_b1d1/run.log
+      - name: Summarize
+        if: always()
+        env:
+          OUTCOME: ${{ steps.run.outcome }}
+        run: |
+          poetry run python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path('artifacts/htr010b1d1_cross_series_identity_bridge')
+          candidates = list(root.glob('*forensics*.json'))
+          report = json.loads(candidates[0].read_text()) if candidates else {}
+          summary = {k: report.get(k) for k in (
+              'case_count','classification_counts','recommended_repair_action_counts',
+              'cross_series_pairing_artifact_count','governed_cross_isin_bridge_count',
+              'identity_transition_noncomparable_count','candle_lineage_missing_count',
+              'report_sha256')}
+          summary['outcome'] = os.environ.get('OUTCOME')
+          summary['production_influence'] = False
+          target = Path('artifacts/dsi010_b1d1/summary.json')
+          target.write_text(json.dumps(summary, indent=2, sort_keys=True)+'\n')
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dsi010-b1d1-bridge-audit
+          path: |
+            artifacts/dsi010_b1d1
+            artifacts/htr010b1d1_cross_series_identity_bridge
+            artifacts/htr010b1d_factor_transformation_forensics
+            artifacts/htr010b1_adjustment_replay_admission
+            artifacts/htr010b_complete_corporate_action_dataset
+            artifacts/htr009b_corporate_action_price_continuity
+            work/calendar/htr007_session_calendar.json
+          retention-days: 14
+      - name: Enforce
+        if: always()
+        env:
+          OUTCOME: ${{ steps.run.outcome }}
+        run: |
+          test "$OUTCOME" = success
+          test -d artifacts/htr010b1d1_cross_series_identity_bridge
+          echo PRODUCTION_INFLUENCE=false
