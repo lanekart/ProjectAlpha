@@ -651,7 +651,7 @@ def _parse_terms(
     old_face, new_face = _face_values(purpose)
     if new_face is None:
         new_face = face_value
-    ratio = _ratio(purpose)
+    ratio = _ratio_for_action(action_type, purpose)
     cash = (
         _money_amount(purpose) if action_type is CorporateActionType.DIVIDEND else None
     )
@@ -720,12 +720,12 @@ def _face_values(value: str) -> tuple[float | None, float | None]:
     patterns = (
         (
             r"FROM\s+(?:RS\.?|RE\.?)?\s*([0-9]+(?:\.[0-9]+)?)"
-            r".*?TO\s+(?:RS\.?|RE\.?)?\s*([0-9]+(?:\.[0-9]+)?)"
+            r".*?TO\s*(?:RS\.?|RE\.?)?\s*([0-9]+(?:\.[0-9]+)?)"
         ),
         (
             r"(?:SPLIT|SUB-DIVISION|SUB DIVISION).*?"
             r"(?:RS\.?|RE\.?)?\s*([0-9]+(?:\.[0-9]+)?)\s*(?:/-)?"
-            r".*?TO\s+(?:RS\.?|RE\.?)?\s*"
+            r".*?TO\s*(?:RS\.?|RE\.?)?\s*"
             r"([0-9]+(?:\.[0-9]+)?)"
         ),
     )
@@ -734,6 +734,44 @@ def _face_values(value: str) -> tuple[float | None, float | None]:
         if match is not None:
             return float(match.group(1)), float(match.group(2))
     return None, None
+
+
+def _ratio_for_action(
+    action_type: CorporateActionType,
+    value: str,
+) -> tuple[float, float] | None:
+    if action_type is CorporateActionType.RIGHTS:
+        patterns = (
+            r"\bRIGHTS?\b(?:\s+ISSUE)?\s*(?:[-/]\s*)?"
+            r"(?:EQ(?:UITY)?\s*)?:?\s*(\d+(?:\.\d+)?)\s*:\s*"
+            r"(\d+(?:\.\d+)?)",
+            r"\bRIGHTS?\b\s+AT\s+(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)",
+            r"\bRATIO\s+OF\s+(?:THE\s+)?RIGHTS?\s+(?:IS|AT)\s+"
+            r"(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)",
+        )
+        return _first_ratio(value, patterns)
+    if action_type is CorporateActionType.BONUS:
+        return _first_ratio(
+            value,
+            (
+                r"\bBONUS(?:\b|(?=\d))\s*(?:[-/]\s*)?"
+                r"(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)",
+                r"\bBONUS\s+(?:ISSUE|SHARES?\s+IN\s+THE\s+RATIO\s+OF)\s+"
+                r"(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)",
+            ),
+        )
+    return _ratio(value)
+
+
+def _first_ratio(
+    value: str,
+    patterns: Sequence[str],
+) -> tuple[float, float] | None:
+    for pattern in patterns:
+        match = re.search(pattern, value, re.IGNORECASE)
+        if match is not None:
+            return float(match.group(1)), float(match.group(2))
+    return None
 
 
 def _ratio(value: str) -> tuple[float, float] | None:
@@ -762,7 +800,8 @@ def _rights_price(value: str, face_value: float | None) -> float | None:
         return face_value if face_value is not None and face_value > 0 else None
 
     premium_matches = re.findall(
-        r"(?:PREMIUM|PREM)\s*(?:RS\.?|RE\.?|₹)?\s*"
+        r"(?:AT\s+A\s+)?(?:PREMIUM|PREM)(?:\s+OF)?\s*@?\s*"
+        r"(?:RS\.?|RE\.?|₹)?\s*"
         r"([0-9]+(?:\.[0-9]+)?)",
         normalized,
         flags=re.IGNORECASE,

@@ -101,3 +101,95 @@ def test_mixed_debt_rights_without_equity_ratio_remains_fail_closed() -> None:
     factor = AdjustmentFactorEngine().derive(action, reference_price=100.0)
     assert factor.price_factor is None
     assert factor.state is AdjustmentFactorState.UNKNOWN
+
+
+@pytest.mark.parametrize(
+    ("subject", "face_value", "expected"),
+    [
+        ("Rights 2:5 @ Premium Of Rs 380 Per Share", "10", 390.0),
+        ("Right Issue 1:15 @ Premium Of Rs 333 Per Share", "2", 335.0),
+        ("Rights 1:1 Prem@Rs.6", "1", 7.0),
+        ("Rights At 2:1 At A Premium Of Rs.39.50 Per Share", "10", 49.5),
+    ],
+)
+def test_historical_premium_wording_is_parsed_as_full_issue_price(
+    subject: str,
+    face_value: str,
+    expected: float,
+) -> None:
+    action = _action(subject, face_value=face_value)
+
+    assert action.rights_price == pytest.approx(expected)
+
+
+def test_composite_bonus_rights_text_selects_the_rights_ratio() -> None:
+    action = _action("Bonus - 1:5/Rights - 1:2 at Rs 12", face_value="10")
+
+    assert action.ratio_numerator == pytest.approx(1.0)
+    assert action.ratio_denominator == pytest.approx(2.0)
+    assert action.rights_price == pytest.approx(12.0)
+
+
+@pytest.mark.parametrize(
+    ("subject", "expected_ratio"),
+    [
+        ("Rights : 24:10 At Par", (24.0, 10.0)),
+        (
+            "Issue Price Per Equity Share Is At Par And Ratio Of The Rights Is 3:2",
+            (3.0, 2.0),
+        ),
+    ],
+)
+def test_historical_rights_ratio_phrasing_is_supported(
+    subject: str,
+    expected_ratio: tuple[float, float],
+) -> None:
+    action = _action(subject, face_value="10")
+
+    assert action.ratio_numerator == pytest.approx(expected_ratio[0])
+    assert action.ratio_denominator == pytest.approx(expected_ratio[1])
+    assert action.rights_price == pytest.approx(10.0)
+
+
+def test_equity_ratio_is_selected_before_non_equity_components() -> None:
+    action = _action(
+        "Right-Eq6:10 & 1ncd:4eq @ Premium Rs 99",
+        face_value="1",
+    )
+
+    assert action.ratio_numerator == pytest.approx(6.0)
+    assert action.ratio_denominator == pytest.approx(10.0)
+    assert action.rights_price == pytest.approx(100.0)
+
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "Rights - 1pccps:5eq",
+        "Right-1 Bond:9eqsh@Rs.101",
+        "Rights Issue - 1 Ncd For Every 8 Equity Shares",
+    ],
+)
+def test_non_equity_rights_components_remain_fail_closed(subject: str) -> None:
+    action = _action(subject)
+
+    assert action.ratio_numerator is None
+    assert action.ratio_denominator is None
+
+
+@pytest.mark.parametrize(
+    ("purpose", "expected"),
+    [
+        ("Bonus Shares In The Ratio Of 1:1", (1.0, 1.0)),
+        ("Bonus Issue 1 : 1", (1.0, 1.0)),
+        ("Bonus1:1", (1.0, 1.0)),
+    ],
+)
+def test_bonus_ratio_supports_historical_equity_wording(
+    purpose: str,
+    expected: tuple[float, float],
+) -> None:
+    action = _action(purpose)
+
+    assert action.ratio_numerator == pytest.approx(expected[0])
+    assert action.ratio_denominator == pytest.approx(expected[1])

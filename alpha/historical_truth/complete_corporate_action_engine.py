@@ -420,6 +420,8 @@ def normalize_action(action: CorporateActionEvent) -> GovernedActionType:
 def map_factor_state(
     action: CorporateActionEvent, normalized: GovernedActionType
 ) -> FactorState:
+    if normalized is GovernedActionType.BONUS and _is_separate_security_bonus(action):
+        return FactorState.FACTOR_NOT_MULTIPLICATIVE
     non_adjusting = {
         GovernedActionType.DIVIDEND_ORDINARY,
         GovernedActionType.DIVIDEND_INTERIM,
@@ -460,6 +462,23 @@ def map_factor_state(
         AdjustmentFactorState.CONFLICTING: FactorState.FACTOR_CONFLICTING_EVENTS,
     }
     return mapping[action.adjustment_factor_state]
+
+
+def _is_separate_security_bonus(action: CorporateActionEvent) -> bool:
+    purpose = action.purpose.upper()
+    return any(
+        marker in purpose
+        for marker in (
+            " DVR ",
+            " DVR:",
+            "DVR :",
+            "PCCPS",
+            "CCPS",
+            "WARRANT",
+            "BONUS DEB",
+            "BONUS PREFERENCE",
+        )
+    )
 
 
 def admission_state(

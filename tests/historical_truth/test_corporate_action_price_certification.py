@@ -356,6 +356,22 @@ def test_split_bonus_and_dividend_terms_are_governed() -> None:
     assert dividend.cash_amount == pytest.approx(10.0)
 
 
+def test_historical_compact_split_wording_is_parsed() -> None:
+    parsed = _parse(
+        [
+            _row(
+                "Split-Rs.10tors.2/Div-60%Purpose Revised",
+                face_value="2",
+            )
+        ]
+    )[1]
+    split = parsed[0]
+
+    assert split.old_face_value == pytest.approx(10.0)
+    assert split.new_face_value == pytest.approx(2.0)
+    assert split.adjustment_factor == pytest.approx(0.2)
+
+
 def test_rights_terp_requires_complete_inputs() -> None:
     complete = _action("Rights 1:4 at Rs 50")
     missing_price = _action("Rights 1:4")

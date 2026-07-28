@@ -178,6 +178,41 @@ def test_merger_is_non_multiplicative() -> None:
     )
 
 
+def test_bonus_of_separate_dvr_security_is_non_multiplicative() -> None:
+    action = _action(
+        action_type=CorporateActionType.BONUS,
+        purpose="Bonus 1 Dvr : 10 Eq Share",
+        adjustment_factor_state=AdjustmentFactorState.AMBIGUOUS,
+        adjustment_factor=None,
+    )
+
+    assert (
+        map_factor_state(action, normalize_action(action))
+        is FactorState.FACTOR_NOT_MULTIPLICATIVE
+    )
+
+
+@pytest.mark.parametrize(
+    "purpose",
+    [
+        "Sch Of Agmt- Bonus Deb1:1",
+        "Bonus Preference Shares 21:1",
+    ],
+)
+def test_bonus_of_separate_security_is_non_multiplicative(purpose: str) -> None:
+    action = _action(
+        action_type=CorporateActionType.BONUS,
+        purpose=purpose,
+        adjustment_factor_state=AdjustmentFactorState.AMBIGUOUS,
+        adjustment_factor=None,
+    )
+
+    assert (
+        map_factor_state(action, normalize_action(action))
+        is FactorState.FACTOR_NOT_MULTIPLICATIVE
+    )
+
+
 def test_rights_factor_uses_governed_prior_close(tmp_path: Path) -> None:
     database = tmp_path / "source.duckdb"
     with duckdb.connect(str(database)) as connection:
