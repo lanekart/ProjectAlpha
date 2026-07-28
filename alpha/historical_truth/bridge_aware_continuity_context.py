@@ -326,6 +326,7 @@ class EventBarContext:
     first_market_session_date: date | None = None
     action_search_end_date: date | None = None
     action_session_delay_market_sessions: int | None = None
+    pre_event_gap_market_sessions: int | None = None
 
     @property
     def complete(self) -> bool:
@@ -364,6 +365,7 @@ class EventBarContext:
             "action_session_delay_market_sessions": (
                 self.action_session_delay_market_sessions
             ),
+            "pre_event_gap_market_sessions": self.pre_event_gap_market_sessions,
             "selected_prior_bars": [
                 item.as_dict(
                     atr_included=item.candle.trading_date in atr_ids,
@@ -650,6 +652,15 @@ class BridgeAwareContinuityContextProvider:
             if action_bar is not None
             else None
         )
+        pre_event_gap = (
+            _pre_event_market_session_gap(
+                connection,
+                selected_date=selected_prior[-1].candle.trading_date,
+                effective_date=effective_date,
+            )
+            if selected_prior
+            else None
+        )
         if decision is ContinuityContextDecision.COMPLETE_GOVERNED_CONTINUITY_CONTEXT:
             if atr is None:
                 decision = ContinuityContextDecision.INSUFFICIENT_ATR_HISTORY
@@ -681,6 +692,7 @@ class BridgeAwareContinuityContextProvider:
             first_market_session_date=first_market_session,
             action_search_end_date=action_search_end,
             action_session_delay_market_sessions=action_session_delay,
+            pre_event_gap_market_sessions=pre_event_gap,
         )
 
     def _next_material_action_date(
@@ -1751,6 +1763,20 @@ def _market_session_delay(
         "SELECT count(DISTINCT trading_date) FROM daily_candle "
         "WHERE trading_date>=? AND trading_date<?",
         [effective_date, selected_date],
+    ).fetchone()
+    return int(row[0]) if row else 0
+
+
+def _pre_event_market_session_gap(
+    connection: duckdb.DuckDBPyConnection,
+    *,
+    selected_date: date,
+    effective_date: date,
+) -> int:
+    row = connection.execute(
+        "SELECT count(DISTINCT trading_date) FROM daily_candle "
+        "WHERE trading_date>? AND trading_date<?",
+        [selected_date, effective_date],
     ).fetchone()
     return int(row[0]) if row else 0
 

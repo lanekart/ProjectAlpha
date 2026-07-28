@@ -554,6 +554,37 @@ def test_first_governed_security_session_may_follow_market_session_by_months(
     assert context.action_session_delay_market_sessions == 1
 
 
+def test_pre_event_market_session_gap_is_recorded(tmp_path: Path) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database)
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            "DELETE FROM daily_candle WHERE symbol='ALPHA' "
+            "AND trading_date>'2015-01-10' AND trading_date<'2015-01-16'"
+        )
+        connection.execute(
+            "INSERT INTO daily_candle VALUES "
+            "('2015-01-11','NSE','MARKET','EQ','INE999A01010',"
+            "100,101,99,100,1000,?)",
+            [SOURCE_SHA],
+        )
+        connection.execute(
+            "INSERT INTO daily_candle VALUES "
+            "('2015-01-12','NSE','MARKET','EQ','INE999A01010',"
+            "100,101,99,100,1000,?)",
+            [SOURCE_SHA],
+        )
+    provider = _provider(tmp_path / "evidence")
+
+    context = _context(database, provider)
+
+    assert context.complete is False
+    assert context.metrics.previous_session == date(2015, 1, 10)
+    assert context.pre_event_gap_market_sessions == 2
+    assert context.as_dict()["pre_event_gap_market_sessions"] == 2
+
+
 def test_action_search_stops_before_next_material_action(tmp_path: Path) -> None:
     database = tmp_path / "truth.duckdb"
     _database(database)

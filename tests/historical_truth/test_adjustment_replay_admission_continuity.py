@@ -9,6 +9,10 @@ from alpha.historical_truth.adjustment_replay_admission_continuity import (
     recompute_factor_validation,
     tier_a_quarantine_economic_weight,
 )
+from alpha.historical_truth.adjustment_replay_admission_continuity_validation import (
+    _classify,
+    _official_term_factor_matches,
+)
 from alpha.historical_truth.adjustment_replay_admission_models import (
     ValidationOutcome,
 )
@@ -133,6 +137,66 @@ def test_inverse_factor_is_diagnostic_not_autocorrection(tmp_path: Path) -> None
     )
     assert results[0]["market_derived_factor_autocorrection"] is False
     assert summary["possible_factor_orientation_defect_count"] == 1
+
+
+def test_composite_bonus_split_matches_product_of_official_terms() -> None:
+    event = {
+        "action_type": "BONUS",
+        "ratio_numerator": 1.0,
+        "ratio_denominator": 1.0,
+        "old_face_value": 10.0,
+        "new_face_value": 2.0,
+    }
+
+    assert _official_term_factor_matches(event, {"price_factor": 0.1}) is True
+    assert _official_term_factor_matches(event, {"price_factor": 0.5}) is False
+
+
+def test_exact_official_factor_across_stale_window_is_market_gap() -> None:
+    result = _classify(
+        {
+            "action_type": "SPLIT",
+            "factor_state": "FACTOR_DERIVED_OFFICIAL_TERMS",
+            "price_factor": 0.2,
+            "official_term_factor_matches": True,
+            "reference_price_certified": False,
+            "raw_gap_atr": 12.0,
+            "adjusted_gap_atr": 16.0,
+            "inverse_adjusted_gap_atr": 18.0,
+            "governed_continuity_context": {
+                "complete": True,
+                "action_session_delay_market_sessions": 109,
+                "pre_event_gap_market_sessions": 0,
+            },
+        }
+    )
+
+    assert result["validation_outcome"] == (
+        ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP.value
+    )
+    assert result["implementation_defect_code"] is None
+
+
+def test_wrong_factor_remains_defect_across_stale_window() -> None:
+    result = _classify(
+        {
+            "action_type": "BONUS",
+            "factor_state": "FACTOR_DERIVED_OFFICIAL_TERMS",
+            "price_factor": 0.4,
+            "official_term_factor_matches": False,
+            "reference_price_certified": False,
+            "raw_gap_atr": 12.0,
+            "adjusted_gap_atr": 16.0,
+            "inverse_adjusted_gap_atr": 18.0,
+            "governed_continuity_context": {
+                "complete": True,
+                "action_session_delay_market_sessions": 109,
+                "pre_event_gap_market_sessions": 0,
+            },
+        }
+    )
+
+    assert result["validation_outcome"] == ValidationOutcome.IMPLEMENTATION_DEFECT.value
 
 
 def test_weight_is_clipped_and_closed_to_tier_a(tmp_path: Path) -> None:

@@ -217,6 +217,8 @@ def _classify(case: dict[str, Any]) -> dict[str, Any]:
         outcome = ValidationOutcome.FACTOR_INSUFFICIENT_EVIDENCE
     elif _certified_official_term_close_restoration(case):
         outcome = ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP
+    elif _certified_official_terms_across_noncomparable_window(case):
+        outcome = ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP
     elif adjusted_gap <= 2.0 or adjusted_gap < raw_gap:
         outcome = ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP
     elif inverse_gap is not None and (inverse_gap <= 2.0 or inverse_gap < raw_gap):
@@ -271,6 +273,26 @@ def _certified_official_term_close_restoration(case: dict[str, Any]) -> bool:
     )
 
 
+def _certified_official_terms_across_noncomparable_window(
+    case: dict[str, Any],
+) -> bool:
+    if case.get("official_term_factor_matches") is not True:
+        return False
+    if str(case.get("factor_state") or "") not in CERTIFIED_FACTOR_STATES:
+        return False
+    if str(case.get("action_type") or "") == "RIGHTS" and (
+        case.get("factor_state") != "FACTOR_CERTIFIED_REFERENCE_PRICE"
+        or case.get("reference_price_certified") is not True
+    ):
+        return False
+    context = case.get("governed_continuity_context")
+    if not isinstance(context, dict) or context.get("complete") is not True:
+        return False
+    action_delay = int(context.get("action_session_delay_market_sessions") or 0)
+    pre_event_gap = int(context.get("pre_event_gap_market_sessions") or 0)
+    return action_delay > 1 or pre_event_gap > 1
+
+
 def _official_term_factor_matches(
     event: dict[str, Any],
     factor: dict[str, Any],
@@ -290,6 +312,16 @@ def _official_term_factor_matches(
         ):
             return None
         expected = denominator / (denominator + numerator)
+        old_face = _number(event.get("old_face_value"))
+        new_face = _number(event.get("new_face_value"))
+        if (
+            old_face is not None
+            and new_face is not None
+            and old_face > 0
+            and new_face > 0
+            and not isclose(old_face, new_face, rel_tol=1e-12, abs_tol=1e-12)
+        ):
+            expected *= new_face / old_face
         return isclose(observed, expected, rel_tol=1e-12, abs_tol=1e-12)
     if action_type in {"SPLIT", "FACE_VALUE_CHANGE"}:
         old_face = _number(event.get("old_face_value"))
