@@ -1,0 +1,52 @@
+name: DSI-010 Rights Reference Result Reader
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-rights-reference-result-reader.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30355398752
+          name: dsi010-rights-reference-certified-rebuild
+          path: inputs
+      - name: Print signed summary and report hashes
+        run: |
+          set -euo pipefail
+          summary=$(find inputs -type f -name reference_certification_summary.json | head -1)
+          test -f "$summary"
+          echo '=== SIGNED REFERENCE CERTIFICATION SUMMARY ==='
+          cat "$summary"
+          echo '=== REPORT HASHES ==='
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          patterns={
+              'htr009b':'htr009b_executive_report.json',
+              'htr010b':'htr010b_executive_report.json',
+              'htr010b1c':'htr010b1_replay_readiness.json',
+              'htr010b1d':'htr010b1d_factor_transformation_forensics.json',
+              'htr010b1d1':'htr010b1d1_bridge_forensics.json',
+              'htr010b1d2':'htr010b1d2_validation_repair.json',
+              'htr010b1e2':'htr010b1_replay_readiness.json',
+          }
+          for label,name in patterns.items():
+              matches=list(Path('inputs').rglob(name))
+              if not matches:
+                  print(f'{label}=MISSING')
+                  continue
+              chosen=matches[-1]
+              payload=json.loads(chosen.read_text(encoding='utf-8'))
+              report_hash=(payload.get('report_sha256') if isinstance(payload,dict) else None)
+              print(f'{label}={report_hash or "NO_REPORT_SHA"}|{chosen}')
+          PY
