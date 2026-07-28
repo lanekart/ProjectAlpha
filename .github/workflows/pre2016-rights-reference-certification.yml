@@ -1,4 +1,4 @@
-# validation attempt 4: Ruff-safe legacy compatibility
+# validation attempt 5: derive-factors-only compatibility
 name: Pre-2016 Rights Reference Certification
 
 on:
