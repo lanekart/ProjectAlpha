@@ -1,0 +1,29 @@
+name: DSI-010 A3 Artifact Inspect
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-a3-artifact-inspect.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          artifact-ids: 8679067292
+          path: inputs
+      - name: Inspect preserved boundary
+        run: |
+          echo '=== FILES ==='
+          find inputs -maxdepth 5 -type f -printf '%p|%s\n' | sort | head -300
+          echo '=== ARCHIVES ==='
+          find inputs -type f \( -name '*.tar.gz' -o -name '*.tgz' -o -name '*.zip' \) -printf '%p|%s\n' | sort
+          echo '=== A3 MARKERS ==='
+          find inputs -type f | grep -Ei 'htr010a3|tier.a|readiness|summary|result' | sort | head -200 || true
