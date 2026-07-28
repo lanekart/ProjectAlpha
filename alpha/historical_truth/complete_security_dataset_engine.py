@@ -387,7 +387,16 @@ class CompleteSecurityDatasetCertificationEngine:
             entry["sources"].add(item[6])
             entry["source_count"] += 1
         result = []
-        for (exchange, symbol, series, isin), value in sorted(keyed.items()):
+        for (exchange, symbol, series, isin), value in sorted(
+            keyed.items(),
+            key=lambda item: (
+                item[0][0],
+                item[0][1],
+                item[0][2],
+                item[0][3] is None,
+                item[0][3] or "",
+            ),
+        ):
             valid_isin = _valid_isin(isin)
             identity = (
                 f"nse:isin:{isin}"
