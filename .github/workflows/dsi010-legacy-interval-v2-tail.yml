@@ -175,8 +175,13 @@ jobs:
               for row in rights
               if row.get("reference_price_provenance_state") == bridge_state
           ]
+          bridge_promoted = [
+              row
+              for row in bridge
+              if row.get("factor_state") == "FACTOR_CERTIFIED_REFERENCE_PRICE"
+          ]
           bridge_symbols = sorted(
-              str(event_by_id[str(row["canonical_event_id"])]["symbol"])
+              str(event_by_id[str(row["canonical_event_id"])] ["symbol"])
               for row in bridge
           )
           evidence_files = (
@@ -194,7 +199,8 @@ jobs:
               "rights_factor_count": len(rights),
               "rights_factor_states": dict(sorted(states.items())),
               "rights_reference_provenance_states": dict(sorted(provenance.items())),
-              "bridge_certified_factor_count": len(bridge),
+              "bridge_provenance_count": len(bridge),
+              "bridge_promoted_factor_count": len(bridge_promoted),
               "bridge_certified_symbols": bridge_symbols,
               "bridge_reference_isin_empty_count": sum(
                   row.get("reference_price_isin") is None for row in bridge
@@ -220,6 +226,7 @@ jobs:
               [
                   "ADANIENT",
                   "ASAL",
+                  "CENTEXT",
                   "CENTRALBK",
                   "CUB",
                   "DHANBANK",
@@ -231,8 +238,11 @@ jobs:
                   "GTLINFRA",
                   "HINDOILEXP",
                   "INFOMEDIA",
+                  "JYOTISTRUC",
                   "KTKBANK",
                   "MURUDCERA",
+                  "NETWORK18",
+                  "ORIENTPPR",
                   "RELIGARE",
                   "SUZLON",
                   "TTML",
@@ -242,11 +252,12 @@ jobs:
           assert states["FACTOR_CERTIFIED_REFERENCE_PRICE"] == 55, summary
           assert states["FACTOR_PROVISIONAL_REFERENCE_PRICE"] == 22, summary
           assert states["FACTOR_UNKNOWN_MISSING_TERMS"] == 28, summary
-          assert provenance[bridge_state] == 18, summary
+          assert provenance[bridge_state] == 22, summary
+          assert len(bridge_promoted) == 18, summary
           assert provenance["PRIOR_ISIN_MISMATCH"] == 1, summary
           assert bridge_symbols == expected_symbols, summary
-          assert summary["bridge_reference_isin_empty_count"] == 18, summary
-          assert summary["bridge_source_sha_present_count"] == 18, summary
+          assert summary["bridge_reference_isin_empty_count"] == 22, summary
+          assert summary["bridge_source_sha_present_count"] == 22, summary
           assert summary["implementation_defect_count"] == 0, summary
           assert summary["final_unresolved_interval_count"] == 0, summary
           assert summary["full_benchmark_replays"] == 0, summary
