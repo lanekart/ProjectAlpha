@@ -100,21 +100,19 @@ jobs:
           cp "$calendar" work/calendar/htr007_session_calendar.json
           test -f work/alpha_data/warehouse/historical_truth.duckdb
 
-      - name: Acquire and verify additional authoritative evidence
+      - name: Restore and verify signed authoritative evidence
         run: |
           set -euo pipefail
           root=work/alpha_data/raw/official/company_identity
           mkdir -p "$root/TATAPOWER" "$root/HINDMOTOR"
-          agent="ProjectAlpha/1.0 HistoricalEvidenceClient"
-          curl -L --fail --retry 3 -A "$agent" \
-            -o "$root/TATAPOWER/tatapower_corporate_governance_2011_12_95fd08f775bee1069ba350b2478d93366a4035ef87fc7d887776aa03a2519734.pdf" \
-            "https://www.tatapower.com/content/dam/tatapoweraemsitesprogram/tatapower/pdf-root/investor-resource-centre-corporate-governance-pdfs/corporate-governance-report/Corporate%20Governance%20Report%202011-12.pdf"
-          curl -L --fail --retry 3 -A "$agent" \
-            -o "$root/TATAPOWER/tatapower_rights_2014_bse.pdf" \
-            "https://www.bseindia.com/downloads/ipo/2014310151140Tata%20Power%20-%20Right%20DRHP.pdf"
-          curl -L --fail --retry 3 -A "$agent" \
-            -o "$root/HINDMOTOR/nse_press_20110217.htm" \
-            "https://nsearchives.nseindia.com/content/press/17022011.htm"
+          signed_root=signed_b3/work/alpha_data/raw/official/company_identity
+          cp \
+            "$signed_root/TATAPOWER/tatapower_corporate_governance_2011_12_95fd08f775bee1069ba350b2478d93366a4035ef87fc7d887776aa03a2519734.pdf" \
+            "$root/TATAPOWER/"
+          cp "$signed_root/TATAPOWER/tatapower_rights_2014_bse.pdf" \
+            "$root/TATAPOWER/"
+          cp "$signed_root/HINDMOTOR/nse_press_20110217.htm" \
+            "$root/HINDMOTOR/"
           echo "95fd08f775bee1069ba350b2478d93366a4035ef87fc7d887776aa03a2519734  $root/TATAPOWER/tatapower_corporate_governance_2011_12_95fd08f775bee1069ba350b2478d93366a4035ef87fc7d887776aa03a2519734.pdf" | sha256sum -c -
           echo "9c1a79a78b1b77adca7e6b6c9429dbadc944132b9964f03bfd250ac1a9faf5e1  $root/TATAPOWER/tatapower_rights_2014_bse.pdf" | sha256sum -c -
           echo "a874ce997f384fedc21e74506775da58d1017b402e4c6aa2add87b1aa869d52f  $root/HINDMOTOR/nse_press_20110217.htm" | sha256sum -c -
