@@ -1,0 +1,138 @@
+name: DSI-010 Legacy ISIN Interval Eligibility
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-legacy-isin-interval-eligibility.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30335669653
+          name: dsi010-a3-b-repaired-rerun
+          path: foundation
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30356547188
+          name: dsi010-insufficient-factor-evidence-audit
+          path: audit
+      - name: Audit dated identity bridge eligibility
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          from collections import Counter
+          from datetime import date
+          from pathlib import Path
+          from typing import Any
+
+          def load(path: Path) -> list[dict[str, Any]]:
+              payload=json.loads(path.read_text(encoding='utf-8'))
+              rows=payload.get('records',payload) if isinstance(payload,dict) else payload
+              return [dict(row) for row in rows]
+
+          cases=load(next(Path('audit').rglob('insufficient_factor_evidence_cases.json')))
+          legacy=[row for row in cases if row.get('insufficient_reason')=='LEGACY_CANDLES_MISSING_ISIN']
+          base=next(Path('foundation').rglob('htr009a2_event_sourced_universe'))
+          membership=load(next(base.glob('*membership_intervals.json')))
+          symbols=load(next(base.glob('*symbol_intervals.json')))
+          series=load(next(base.glob('*series_intervals.json')))
+
+          def contains(row: dict[str,Any], value: date) -> bool:
+              try:
+                  lower=date.fromisoformat(str(row.get('valid_from')))
+                  upper=date.fromisoformat(str(row.get('valid_to')))
+              except ValueError:
+                  return False
+              return lower <= value <= upper
+
+          def issue_free(row: dict[str,Any]) -> bool:
+              return not tuple(row.get('issue_codes') or ())
+
+          def lineage_present(row: dict[str,Any]) -> bool:
+              return bool(tuple(row.get('source_event_ids') or ()))
+
+          rows=[]
+          for case in legacy:
+              identity=str(case['identity_key'])
+              symbol=str(case['symbol'])
+              event_series=str(case['series'])
+              effective=date.fromisoformat(str(case['effective_date']))
+              prior=date.fromisoformat(str(case['prior_symbol_date']))
+              current=date.fromisoformat(str(case['current_symbol_date']))
+              memberships=[row for row in membership if str(row.get('identity_key'))==identity and contains(row,effective)]
+              symbol_rows=[row for row in symbols if str(row.get('identity_key'))==identity and str(row.get('symbol'))==symbol and all(contains(row,d) for d in (prior,effective,current))]
+              series_rows=[row for row in series if str(row.get('identity_key'))==identity and str(row.get('series'))==event_series and all(contains(row,d) for d in (prior,effective,current))]
+              conflicts=[row for row in symbols if str(row.get('identity_key'))!=identity and str(row.get('symbol'))==symbol and any(contains(row,d) for d in (prior,effective,current))]
+              membership_states=sorted({str(row.get('state')) for row in memberships})
+              symbol_confidence=sorted({str(row.get('confidence_state')) for row in symbol_rows})
+              series_confidence=sorted({str(row.get('confidence_state')) for row in series_rows})
+              if len(memberships)!=1:
+                  reason='MEMBERSHIP_INTERVAL_NOT_UNIQUE'
+              elif not membership_states[0].startswith('CERTIFIED_ACTIVE'):
+                  reason='MEMBERSHIP_NOT_CERTIFIED_ACTIVE'
+              elif len(symbol_rows)!=1:
+                  reason='SYMBOL_INTERVAL_NOT_UNIQUE'
+              elif len(series_rows)!=1:
+                  reason='SERIES_INTERVAL_NOT_UNIQUE'
+              elif conflicts:
+                  reason='OVERLAPPING_SYMBOL_IDENTITY'
+              elif not issue_free(memberships[0]) or not issue_free(symbol_rows[0]) or not issue_free(series_rows[0]):
+                  reason='INTERVAL_ISSUE_CODES_PRESENT'
+              elif not lineage_present(memberships[0]) or not lineage_present(symbol_rows[0]) or not lineage_present(series_rows[0]):
+                  reason='INTERVAL_LINEAGE_MISSING'
+              elif symbol_confidence != ['HIGH'] or series_confidence != ['HIGH']:
+                  reason='INTERVAL_CONFIDENCE_NOT_HIGH'
+              else:
+                  reason='ELIGIBLE_DATED_SYMBOL_SERIES_BRIDGE'
+              rows.append({
+                  **case,
+                  'membership_interval_count':len(memberships),
+                  'membership_states':membership_states,
+                  'symbol_interval_count':len(symbol_rows),
+                  'series_interval_count':len(series_rows),
+                  'overlapping_identity_count':len(conflicts),
+                  'symbol_confidence_states':symbol_confidence,
+                  'series_confidence_states':series_confidence,
+                  'bridge_eligibility':reason,
+                  'production_influence':False,
+              })
+
+          summary={
+              'contract':'DSI-010-LEGACY-ISIN-DATED-BRIDGE-ELIGIBILITY-v1',
+              'case_count':len(rows),
+              'eligibility_counts':dict(sorted(Counter(str(row['bridge_eligibility']) for row in rows).items())),
+              'eligible_count':sum(row['bridge_eligibility']=='ELIGIBLE_DATED_SYMBOL_SERIES_BRIDGE' for row in rows),
+              'membership_state_counts':dict(sorted(Counter(state for row in rows for state in row['membership_states']).items())),
+              'symbol_confidence_counts':dict(sorted(Counter(state for row in rows for state in row['symbol_confidence_states']).items())),
+              'series_confidence_counts':dict(sorted(Counter(state for row in rows for state in row['series_confidence_states']).items())),
+              'identity_bridge_admitted':False,
+              'factor_mutated':False,
+              'admission_policy_changed':False,
+              'full_benchmark_replays':0,
+              'production_influence':False,
+          }
+          out=Path('artifacts/dsi010_legacy_isin_interval_eligibility')
+          out.mkdir(parents=True,exist_ok=True)
+          (out/'legacy_isin_interval_eligibility_summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          (out/'legacy_isin_interval_eligibility_cases.json').write_text(json.dumps(rows,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          print(json.dumps(summary,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-legacy-isin-interval-eligibility
+          retention-days: 14
+          path: artifacts/dsi010_legacy_isin_interval_eligibility
