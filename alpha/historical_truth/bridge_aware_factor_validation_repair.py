@@ -226,7 +226,13 @@ def _repair_case(row: dict[str, Any], group: dict[str, Any]) -> dict[str, Any]:
     elif (
         bridge_type == "STABLE_SECURITY_SERIES"
         and row.get("b1d_official_term_factor_matches") is True
-        and str(row.get("action_type") or "") in {"BONUS", "SPLIT", "FACE_VALUE_CHANGE"}
+        and (
+            str(row.get("action_type") or "") in {"BONUS", "SPLIT", "FACE_VALUE_CHANGE"}
+            or (
+                str(row.get("action_type") or "") == "RIGHTS"
+                and row.get("b1d_reference_price_certified") is True
+            )
+        )
     ):
         disposition = "FACTOR_CONFIRMED_BY_GOVERNED_OFFICIAL_TERMS"
         proposed = "FACTOR_CONFIRMED_CORRECT_MARKET_GAP"

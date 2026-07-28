@@ -156,6 +156,10 @@ def _bridge_case(
         "b1d_official_term_factor": case.get("official_term_factor"),
         "b1d_official_term_formula": case.get("official_term_formula"),
         "b1d_official_term_factor_matches": case.get("official_term_factor_matches"),
+        "b1d_reference_price_certified": case.get("reference_price_certified"),
+        "b1d_reference_price_provenance_state": case.get(
+            "reference_price_provenance_state"
+        ),
         "b1d_official_gap": (
             original_evidence.get("official_gap")
             if isinstance(original_evidence, dict)

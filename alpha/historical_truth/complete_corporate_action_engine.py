@@ -100,7 +100,7 @@ class CompleteCorporateActionDatasetEngine:
             _event_lineage(item, source_by_id, lineages) for item in canonical
         )
         actions_by_id = {item.action_id: item for item in tier_actions}
-        factors = derive_factors(self.database_path, canonical, actions_by_id)
+        factors = derive_factors(self.database_path, canonical, actions_by_id, admitted)
         cumulative = cumulative_factors(factors)
         canonical_by_raw_id = {
             str(raw_id): str(item["canonical_event_id"])
@@ -452,6 +452,7 @@ def admission_state(
     if factor in {
         FactorState.FACTOR_DERIVED_OFFICIAL_TERMS,
         FactorState.FACTOR_CERTIFIED,
+        FactorState.FACTOR_CERTIFIED_REFERENCE_PRICE,
     }:
         return EventAdmission.ADMITTED_FACTOR_DERIVABLE
     if factor in {
@@ -467,6 +468,7 @@ def derive_factors(
     database_path: Path,
     events: tuple[dict[str, Any], ...],
     actions_by_id: dict[str, CorporateActionEvent],
+    joins: dict[str, dict[str, Any]] | None = None,
 ) -> tuple[dict[str, Any], ...]:
     engine = AdjustmentFactorEngine()
     factors = []
@@ -477,21 +479,51 @@ def derive_factors(
             if source is None:
                 continue
             reference = None
+            provenance: dict[str, Any] = {
+                "reference_price_date": None,
+                "reference_price_series": None,
+                "reference_price_isin": None,
+                "reference_price_source_sha256": None,
+                "reference_price_provenance_state": "NOT_APPLICABLE",
+                "reference_price_certified": False,
+            }
             if source.action_type is CorporateActionType.RIGHTS:
-                row = connection.execute(
-                    "SELECT close_price FROM daily_candle WHERE symbol=? AND "
-                    "series=? AND trading_date<? ORDER BY trading_date DESC LIMIT 1",
-                    [source.symbol, source.series, source.effective_date],
-                ).fetchone()
-                reference = float(row[0]) if row else None
+                if joins is None:
+                    row = connection.execute(
+                        "SELECT close_price FROM daily_candle WHERE symbol=? AND "
+                        "series=? AND trading_date<? ORDER BY trading_date DESC "
+                        "LIMIT 1",
+                        [source.symbol, source.series, source.effective_date],
+                    ).fetchone()
+                    reference = float(row[0]) if row else None
+                    provenance = {
+                        "reference_price_date": None,
+                        "reference_price_series": source.series.upper(),
+                        "reference_price_isin": None,
+                        "reference_price_source_sha256": None,
+                        "reference_price_provenance_state": (
+                            "LEGACY_UNCERTIFIED_REFERENCE_PRICE"
+                            if reference is not None
+                            else "PRIOR_CANDLE_MISSING"
+                        ),
+                        "reference_price_certified": False,
+                    }
+                else:
+                    reference, provenance = _rights_reference_context(
+                        connection,
+                        source=source,
+                        event=event,
+                        join=joins.get(str(event["governed_identity_id"]), {}),
+                    )
             factor = engine.derive(source, reference_price=reference)
             state = map_factor_state(source, normalize_action(source))
             if source.action_type is CorporateActionType.RIGHTS:
-                state = (
-                    FactorState.FACTOR_PROVISIONAL_REFERENCE_PRICE
-                    if factor.price_factor is not None
-                    else FactorState.FACTOR_UNKNOWN_MISSING_TERMS
-                )
+                if factor.price_factor is None:
+                    state = FactorState.FACTOR_UNKNOWN_MISSING_TERMS
+                elif provenance["reference_price_certified"]:
+                    state = FactorState.FACTOR_CERTIFIED_REFERENCE_PRICE
+                else:
+                    state = FactorState.FACTOR_PROVISIONAL_REFERENCE_PRICE
             factors.append(
                 {
                     "factor_id": stable_id(
@@ -503,6 +535,7 @@ def derive_factors(
                     "price_factor": factor.price_factor,
                     "quantity_factor": factor.quantity_factor,
                     "reference_price": reference,
+                    **provenance,
                     "factor_state": state.value,
                     "calculation_version": ADJUSTMENT_POLICY_VERSION,
                     "explanation": factor.explanation,
@@ -518,6 +551,59 @@ def derive_factors(
             ),
         )
     )
+
+
+def _rights_reference_context(
+    connection: duckdb.DuckDBPyConnection,
+    *,
+    source: CorporateActionEvent,
+    event: dict[str, Any],
+    join: dict[str, Any],
+) -> tuple[float | None, dict[str, Any]]:
+    applicable = tuple(
+        str(item).upper() for item in event.get("series_applicability", ())
+    )
+    row = connection.execute(
+        "SELECT trading_date, upper(coalesce(isin, '')), close_price, "
+        "coalesce(source_sha256, '') FROM daily_candle "
+        "WHERE upper(symbol)=? AND upper(series)=? AND trading_date<? "
+        "ORDER BY trading_date DESC LIMIT 1",
+        [source.symbol.upper(), source.series.upper(), source.effective_date],
+    ).fetchone()
+    prior_date = row[0] if row else None
+    prior_isin = str(row[1]) if row else ""
+    close = float(row[2]) if row and row[2] is not None else None
+    source_sha = str(row[3]) if row else ""
+    event_isin = str(source.isin or "").upper()
+
+    if not join.get("admitted_to_certified_join"):
+        state = "A3_JOIN_NOT_ADMITTED"
+    elif len(applicable) != 1 or applicable[0] != source.series.upper():
+        state = "SERIES_NOT_UNIQUE"
+    elif row is None:
+        state = "PRIOR_CANDLE_MISSING"
+    elif close is None or close <= 0:
+        state = "PRIOR_CLOSE_INVALID"
+    elif not source_sha:
+        state = "SOURCE_SHA256_MISSING"
+    elif not event_isin:
+        state = "EVENT_ISIN_MISSING"
+    elif not prior_isin:
+        state = "PRIOR_ISIN_MISSING"
+    elif prior_isin != event_isin:
+        state = "PRIOR_ISIN_MISMATCH"
+    else:
+        state = "CERTIFIED_SAME_ISIN_CANONICAL_PRIOR_CLOSE"
+
+    certified = state == "CERTIFIED_SAME_ISIN_CANONICAL_PRIOR_CLOSE"
+    return close, {
+        "reference_price_date": prior_date.isoformat() if prior_date else None,
+        "reference_price_series": source.series.upper(),
+        "reference_price_isin": prior_isin or None,
+        "reference_price_source_sha256": source_sha or None,
+        "reference_price_provenance_state": state,
+        "reference_price_certified": certified,
+    }
 
 
 def cumulative_factors(
@@ -538,6 +624,7 @@ def cumulative_factors(
             unknown = state in {
                 FactorState.FACTOR_UNKNOWN_MISSING_TERMS.value,
                 FactorState.FACTOR_AMBIGUOUS_TERMS.value,
+                FactorState.FACTOR_PROVISIONAL_REFERENCE_PRICE.value,
                 FactorState.FACTOR_CONFLICTING_EVENTS.value,
                 FactorState.FACTOR_NOT_MULTIPLICATIVE.value,
                 FactorState.FACTOR_INVALID.value,
@@ -600,6 +687,7 @@ def price_basis(
             in {
                 FactorState.FACTOR_UNKNOWN_MISSING_TERMS.value,
                 FactorState.FACTOR_AMBIGUOUS_TERMS.value,
+                FactorState.FACTOR_PROVISIONAL_REFERENCE_PRICE.value,
                 FactorState.FACTOR_NOT_MULTIPLICATIVE.value,
             }
             for row in identity_factors
@@ -700,13 +788,14 @@ def coverage_matrix(
         ]
         unknown = counts[FactorState.FACTOR_UNKNOWN_MISSING_TERMS.value]
         ambiguous = counts[FactorState.FACTOR_AMBIGUOUS_TERMS.value]
+        provisional = counts[FactorState.FACTOR_PROVISIONAL_REFERENCE_PRICE.value]
         if not identity_events and complete_sources:
             certification = CertificationState.NO_MATERIAL_ACTIONS_FOUND
         elif transitions:
             certification = (
                 CertificationState.IDENTITY_TRANSITION_CERTIFIED_PRICE_NONCOMPARABLE
             )
-        elif unknown or ambiguous:
+        elif unknown or ambiguous or provisional:
             certification = CertificationState.FACTOR_COVERAGE_PARTIAL
         elif identity_events:
             certification = CertificationState.CORPORATE_ACTION_CERTIFIED
@@ -729,6 +818,9 @@ def coverage_matrix(
                 "event_count": len(identity_events),
                 "factor_required_event_count": len(factor_required),
                 "certified_factor_count": counts[FactorState.FACTOR_CERTIFIED.value],
+                "reference_certified_factor_count": counts[
+                    FactorState.FACTOR_CERTIFIED_REFERENCE_PRICE.value
+                ],
                 "derived_factor_count": counts[
                     FactorState.FACTOR_DERIVED_OFFICIAL_TERMS.value
                 ],
@@ -763,6 +855,7 @@ def adjusted_replay_readiness(
             in {
                 FactorState.FACTOR_UNKNOWN_MISSING_TERMS.value,
                 FactorState.FACTOR_AMBIGUOUS_TERMS.value,
+                FactorState.FACTOR_PROVISIONAL_REFERENCE_PRICE.value,
                 FactorState.FACTOR_NOT_MULTIPLICATIVE.value,
             }
         }
@@ -814,6 +907,7 @@ def ytd_2026(
     ]
     derived_states = {
         FactorState.FACTOR_CERTIFIED.value,
+        FactorState.FACTOR_CERTIFIED_REFERENCE_PRICE.value,
         FactorState.FACTOR_DERIVED_OFFICIAL_TERMS.value,
         FactorState.FACTOR_PROVISIONAL_REFERENCE_PRICE.value,
     }

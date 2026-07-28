@@ -189,7 +189,11 @@ def _case_diagnostics(
         result.get("action_type") or event.get("action_type") or "UNKNOWN"
     )
 
-    term_factor, term_formula = _official_term_factor(event, action_type)
+    reference_price = _number(factor.get("reference_price"))
+    reference_price_certified = factor.get("reference_price_certified") is True
+    term_factor, term_formula = _official_term_factor(
+        event, action_type, reference_price=reference_price
+    )
     term_match = _nearly_equal(official_factor, term_factor)
     series_metrics = _series_metrics(connection, isin, effective, official_factor)
     selected_metrics = _selected_series_metrics(series_metrics, selected_series)
@@ -233,6 +237,7 @@ def _case_diagnostics(
         effective=effective,
         best_same_day=best_same_day,
         same_day_factor_count=len(same_day_factors),
+        reference_price_certified=reference_price_certified,
     )
     return {
         "case_id": f"htr010b1d:{sha256(event_id.encode()).hexdigest()}",
@@ -252,6 +257,14 @@ def _case_diagnostics(
         "official_term_factor": term_factor,
         "official_term_formula": term_formula,
         "official_term_factor_matches": term_match,
+        "reference_price": reference_price,
+        "reference_price_date": factor.get("reference_price_date"),
+        "reference_price_isin": factor.get("reference_price_isin"),
+        "reference_price_source_sha256": factor.get("reference_price_source_sha256"),
+        "reference_price_provenance_state": factor.get(
+            "reference_price_provenance_state"
+        ),
+        "reference_price_certified": reference_price_certified,
         "inverse_factor_diagnostic": inverse_factor,
         "same_day_cumulative_factor_diagnostic": same_day_factor,
         "same_day_factor_count": len(same_day_factors),
@@ -295,6 +308,7 @@ def _classify(
     effective: date | None,
     best_same_day: dict[str, Any] | None,
     same_day_factor_count: int,
+    reference_price_certified: bool = False,
 ) -> tuple[str, str, dict[str, Any]]:
     official_gap = _metric(selected_metrics, "open_adjusted_gap_atr")
     raw_gap = _metric(selected_metrics, "open_raw_gap_atr")
@@ -361,6 +375,12 @@ def _classify(
             "COMPOSE_SAME_SESSION_FACTORS_IN_GOVERNED_ORDER",
             evidence,
         )
+    if action_type == "RIGHTS" and reference_price_certified and term_match is True:
+        return (
+            "RESIDUAL_MARKET_GAP_NOT_FACTOR_ERROR",
+            "RETAIN_CERTIFIED_TERP_CLASSIFY_RESIDUAL_AS_MARKET_GAP",
+            evidence,
+        )
     if action_type == "RIGHTS":
         return (
             "RIGHTS_REFERENCE_PRICE_BASIS_UNCERTAIN",
@@ -389,7 +409,10 @@ def _classify(
 
 
 def _official_term_factor(
-    event: dict[str, Any], action_type: str
+    event: dict[str, Any],
+    action_type: str,
+    *,
+    reference_price: float | None = None,
 ) -> tuple[float | None, str | None]:
     numerator = _number(event.get("ratio_numerator"))
     denominator = _number(event.get("ratio_denominator"))
@@ -410,6 +433,24 @@ def _official_term_factor(
                 factor *= new_face / old_face
                 formula += " * new_face_value / old_face_value"
             return factor, formula
+    if action_type == "RIGHTS" and numerator and denominator:
+        rights_price = _number(event.get("rights_price"))
+        if (
+            numerator > 0
+            and denominator > 0
+            and rights_price is not None
+            and rights_price >= 0
+            and reference_price is not None
+            and reference_price > 0
+        ):
+            terp = (denominator * reference_price + numerator * rights_price) / (
+                denominator + numerator
+            )
+            return terp / reference_price, (
+                "((ratio_denominator * reference_price) + "
+                "(ratio_numerator * rights_price)) / "
+                "(ratio_denominator + ratio_numerator) / reference_price"
+            )
     return None, None
 
 
