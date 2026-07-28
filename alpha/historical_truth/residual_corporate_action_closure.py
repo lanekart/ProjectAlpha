@@ -69,6 +69,10 @@ class ResidualCorporateActionClosureEngine:
             final_htr010b_output / "htr010b_adjustment_factors.json",
             "canonical_event_id",
         )
+        final_events = _indexed_records(
+            final_htr010b_output / "htr010b_canonical_events.json",
+            "canonical_event_id",
+        )
         same_population = set(baseline) == set(final)
         event_ids = sorted(set(baseline) | set(final))
         comparisons = tuple(
@@ -82,7 +86,11 @@ class ResidualCorporateActionClosureEngine:
             for event_id in event_ids
         )
         remaining = tuple(
-            _remaining_case(final[event_id], final_factors.get(event_id))
+            _remaining_case(
+                final[event_id],
+                final_factors.get(event_id),
+                final_events.get(event_id),
+            )
             for event_id in sorted(final)
             if str(final[event_id].get("validation_outcome")) in _UNRESOLVED_OUTCOMES
         )
@@ -269,12 +277,13 @@ def _resolution_channel(
 def _remaining_case(
     row: dict[str, Any],
     factor: dict[str, Any] | None,
+    event: dict[str, Any] | None,
 ) -> dict[str, Any]:
     context = row.get("governed_continuity_context")
     context_row = context if isinstance(context, dict) else {}
     outcome = str(row.get("validation_outcome") or "")
     if outcome == "FACTOR_REQUIRES_REFERENCE_PRICE":
-        missing = "OFFICIAL_REFERENCE_PRICE_IDENTITY_OR_RIGHTS_TERMS"
+        missing = _reference_price_blocker(factor, event)
     elif outcome == "FACTOR_CONFLICTING_OFFICIAL_EVIDENCE":
         missing = "AUTHORITATIVE_SUPERSEDING_OFFICIAL_TERMS"
     elif outcome == "IMPLEMENTATION_DEFECT":
@@ -296,6 +305,10 @@ def _remaining_case(
         "effective_date": row.get("effective_date"),
         "action_type": row.get("action_type"),
         "factor_state": (factor or {}).get("factor_state"),
+        "raw_action_text": (event or {}).get("raw_action_text"),
+        "ratio_numerator": (event or {}).get("ratio_numerator"),
+        "ratio_denominator": (event or {}).get("ratio_denominator"),
+        "rights_price": (event or {}).get("rights_price"),
         "validation_outcome": outcome,
         "continuity_decision": context_row.get("decision"),
         "missing_component": missing,
@@ -307,11 +320,48 @@ def _remaining_case(
     }
 
 
+def _reference_price_blocker(
+    factor: dict[str, Any] | None,
+    event: dict[str, Any] | None,
+) -> str:
+    factor_row = factor or {}
+    event_row = event or {}
+    if str(factor_row.get("reference_price_original_provenance_state")) == (
+        "PRIOR_ISIN_MISMATCH"
+    ):
+        return "OFFICIAL_EFFECTIVE_DATED_ISIN_TRANSITION"
+    if not _complete_equity_rights_terms(event_row):
+        return "COMPLETE_OFFICIAL_EQUITY_RIGHTS_TERMS"
+    return "GOVERNED_REFERENCE_PRICE_IDENTITY"
+
+
+def _complete_equity_rights_terms(event: dict[str, Any]) -> bool:
+    numerator = event.get("ratio_numerator")
+    denominator = event.get("ratio_denominator")
+    rights_price = event.get("rights_price")
+    return (
+        isinstance(numerator, (int, float))
+        and numerator > 0
+        and isinstance(denominator, (int, float))
+        and denominator > 0
+        and isinstance(rights_price, (int, float))
+        and rights_price >= 0
+    )
+
+
 def _required_evidence(missing: str) -> str:
     return {
-        "OFFICIAL_REFERENCE_PRICE_IDENTITY_OR_RIGHTS_TERMS": (
-            "effective-dated official identity interval and complete "
-            "official rights terms"
+        "OFFICIAL_EFFECTIVE_DATED_ISIN_TRANSITION": (
+            "official effective-dated predecessor-successor or ISIN-transition "
+            "evidence linking the reference session to the action identity"
+        ),
+        "COMPLETE_OFFICIAL_EQUITY_RIGHTS_TERMS": (
+            "official rights ratio, equity issue price, and applicable identity "
+            "terms from an authoritative action document"
+        ),
+        "GOVERNED_REFERENCE_PRICE_IDENTITY": (
+            "effective-dated official identity evidence certifying the governed "
+            "prior-close reference candle"
         ),
         "AUTHORITATIVE_SUPERSEDING_OFFICIAL_TERMS": (
             "official amendment, superseding circular, or scheme document"

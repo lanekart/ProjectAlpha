@@ -89,6 +89,23 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
     _write(final_htr, "htr010b_adjustment_factors.json", new_factors)
     _write(
         final_htr,
+        "htr010b_canonical_events.json",
+        [
+            {
+                "canonical_event_id": "one",
+                "raw_action_text": "Rights 1:1 at Rs 10",
+                "ratio_numerator": 1.0,
+                "ratio_denominator": 1.0,
+                "rights_price": 10.0,
+            },
+            {
+                "canonical_event_id": "two",
+                "raw_action_text": "Bonus 1:1",
+            },
+        ],
+    )
+    _write(
+        final_htr,
         "htr010b_adjusted_candle_summary.json",
         [{"price_basis_state": "MIXED_PRICE_BASIS"}],
     )
@@ -119,6 +136,44 @@ def test_closure_attributes_resolution_and_retains_exact_blocker(
         "FIRST_GOVERNED_ACTION_SESSION_CANDLE"
     )
     assert report.summary["production_influence"] is False
+
+
+def test_closure_separates_terms_identity_and_isin_transition(
+    tmp_path: Path,
+) -> None:
+    inputs = _fixture(tmp_path)
+    final_rows = [
+        {
+            "event_id": "one",
+            "validation_outcome": "FACTOR_REQUIRES_REFERENCE_PRICE",
+        },
+        {
+            "event_id": "two",
+            "validation_outcome": "FACTOR_REQUIRES_REFERENCE_PRICE",
+        },
+    ]
+    _write(inputs[1], "htr010b1_factor_validation_results.json", final_rows)
+    factors = json.loads(
+        (inputs[3] / "htr010b_adjustment_factors.json").read_text(encoding="utf-8")
+    )
+    factors[0]["reference_price_original_provenance_state"] = "PRIOR_ISIN_MISMATCH"
+    _write(inputs[3], "htr010b_adjustment_factors.json", factors)
+
+    report = ResidualCorporateActionClosureEngine().run(
+        baseline_b1c_output=inputs[0],
+        final_b1c_output=inputs[1],
+        baseline_htr010b_output=inputs[2],
+        final_htr010b_output=inputs[3],
+    )
+
+    blockers = {
+        str(row["event_id"]): str(row["missing_component"])
+        for row in report.remaining_blockers
+    }
+    assert blockers == {
+        "one": "OFFICIAL_EFFECTIVE_DATED_ISIN_TRANSITION",
+        "two": "COMPLETE_OFFICIAL_EQUITY_RIGHTS_TERMS",
+    }
 
 
 def test_closure_certifies_only_empty_queue_and_clean_basis(tmp_path: Path) -> None:

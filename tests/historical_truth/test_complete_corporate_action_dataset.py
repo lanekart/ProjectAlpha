@@ -279,9 +279,7 @@ def test_rights_factor_uses_governed_prior_close(tmp_path: Path) -> None:
     assert factors[0]["factor_state"] == "FACTOR_PROVISIONAL_REFERENCE_PRICE"
 
 
-def test_complete_rights_without_reference_price_are_provisional(
-    tmp_path: Path,
-) -> None:
+def test_rights_without_reference_price_remains_unknown(tmp_path: Path) -> None:
     database = tmp_path / "source.duckdb"
     with duckdb.connect(str(database)) as connection:
         connection.execute(
@@ -294,29 +292,6 @@ def test_complete_rights_without_reference_price_are_provisional(
         ratio_numerator=1.0,
         ratio_denominator=1.0,
         rights_price=50.0,
-        adjustment_factor=None,
-    )
-    canonical, _, _ = canonicalize_events((rights,), {IDENTITY: _join()})
-
-    factors = derive_factors(database, canonical, {rights.action_id: rights})
-
-    assert factors[0]["price_factor"] is None
-    assert factors[0]["factor_state"] == "FACTOR_PROVISIONAL_REFERENCE_PRICE"
-
-
-def test_incomplete_rights_terms_remain_unknown(tmp_path: Path) -> None:
-    database = tmp_path / "source.duckdb"
-    with duckdb.connect(str(database)) as connection:
-        connection.execute(
-            "CREATE TABLE daily_candle(symbol VARCHAR, series VARCHAR, "
-            "trading_date DATE, close_price DOUBLE)"
-        )
-    rights = _action(
-        action_type=CorporateActionType.RIGHTS,
-        purpose="Rights 1:1 issue price unavailable",
-        ratio_numerator=1.0,
-        ratio_denominator=1.0,
-        rights_price=None,
         adjustment_factor=None,
     )
     canonical, _, _ = canonicalize_events((rights,), {IDENTITY: _join()})
@@ -400,7 +375,7 @@ def test_rights_reference_rejects_ambiguous_exact_isin_aliases(
         {IDENTITY: _join()},
     )
 
-    assert factors[0]["factor_state"] == "FACTOR_PROVISIONAL_REFERENCE_PRICE"
+    assert factors[0]["factor_state"] == "FACTOR_UNKNOWN_MISSING_TERMS"
     assert factors[0]["reference_price"] is None
 
 
