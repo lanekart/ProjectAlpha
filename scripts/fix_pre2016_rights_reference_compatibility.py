@@ -33,7 +33,8 @@ def main() -> None:
                 if joins is None:
                     row = connection.execute(
                         "SELECT close_price FROM daily_candle WHERE symbol=? AND "
-                        "series=? AND trading_date<? ORDER BY trading_date DESC LIMIT 1",
+                        "series=? AND trading_date<? ORDER BY trading_date DESC "
+                        "LIMIT 1",
                         [source.symbol, source.series, source.effective_date],
                     ).fetchone()
                     reference = float(row[0]) if row else None
