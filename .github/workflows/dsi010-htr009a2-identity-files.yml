@@ -1,4 +1,4 @@
-name: DSI-010 HTR009A2 Identity Files
+name: DSI-010 Legacy ISIN Bridge Audit
 
 on:
   pull_request:
@@ -10,18 +10,142 @@ permissions:
   contents: read
 
 jobs:
-  inspect:
+  audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download signed HTR-009A2 foundation
+        uses: actions/download-artifact@v4
         with:
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
           run-id: 30335669653
           name: dsi010-a3-b-repaired-rerun
           path: foundation
-      - name: List HTR009A2 identity files
+      - name: Download final reference-certified rebuild
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30355398752
+          name: dsi010-rights-reference-certified-rebuild
+          path: final
+      - name: Audit interval schemas and legacy rights cases
         run: |
-          base=$(find foundation -type d -name htr009a2_event_sourced_universe | head -1)
-          test -d "$base"
-          find "$base" -maxdepth 1 -type f -printf '%f\n' | sort | grep -Ei 'symbol|series|membership|tradab|identity|relationship|event' || true
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          from collections import Counter
+          from pathlib import Path
+          from typing import Any
+
+          def locate(root: Path, name: str) -> Path:
+              matches = sorted(root.rglob(name))
+              if len(matches) != 1:
+                  raise RuntimeError(
+                      f"expected exactly one {name} under {root}, found {len(matches)}: {matches[:10]}"
+                  )
+              return matches[0]
+
+          def records(path: Path) -> list[dict[str, Any]]:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              if isinstance(payload, list):
+                  return [dict(item) for item in payload]
+              for key in (
+                  "records",
+                  "rows",
+                  "items",
+                  "factors",
+                  "events",
+                  "intervals",
+                  "relationships",
+              ):
+                  value = payload.get(key) if isinstance(payload, dict) else None
+                  if isinstance(value, list):
+                      return [dict(item) for item in value]
+              if isinstance(payload, dict):
+                  return [dict(payload)]
+              raise TypeError(f"unsupported JSON payload in {path}")
+
+          foundation = Path("foundation")
+          final = Path("final")
+          names = (
+              "htr009a2_membership_intervals.json",
+              "htr009a2_symbol_intervals.json",
+              "htr009a2_tradability_intervals.json",
+              "htr009a2_identity_relationships.json",
+              "htr009a2_security_events.json",
+          )
+          schemas: dict[str, Any] = {}
+          datasets: dict[str, list[dict[str, Any]]] = {}
+          for name in names:
+              path = locate(foundation, name)
+              rows = records(path)
+              datasets[name] = rows
+              schemas[name] = {
+                  "path": str(path),
+                  "row_count": len(rows),
+                  "keys": sorted({key for row in rows[:100] for key in row}),
+                  "samples": rows[:3],
+              }
+
+          factor_path = locate(final, "htr010b_adjustment_factors.json")
+          event_path = locate(final, "htr010b_canonical_events.json")
+          factors = records(factor_path)
+          events = records(event_path)
+          event_by_id = {
+              str(row.get("canonical_event_id")): row
+              for row in events
+              if row.get("canonical_event_id")
+          }
+          targets = []
+          for factor in factors:
+              state = str(factor.get("reference_price_provenance_state") or "")
+              if state not in {"PRIOR_ISIN_MISSING", "PRIOR_ISIN_MISMATCH"}:
+                  continue
+              event = event_by_id.get(str(factor.get("canonical_event_id")), {})
+              targets.append(
+                  {
+                      "canonical_event_id": factor.get("canonical_event_id"),
+                      "identity_key": factor.get("identity_key"),
+                      "effective_date": factor.get("effective_date"),
+                      "reference_price_date": factor.get("reference_price_date"),
+                      "reference_price_series": factor.get("reference_price_series"),
+                      "reference_price_isin": factor.get("reference_price_isin"),
+                      "reference_price_provenance_state": state,
+                      "symbol": event.get("symbol"),
+                      "event_isin": event.get("isin"),
+                      "series_applicability": event.get("series_applicability"),
+                      "raw_action_text": event.get("raw_action_text"),
+                  }
+              )
+
+          summary = {
+              "contract": "DSI-010-LEGACY-ISIN-BRIDGE-SCHEMA-AUDIT-v1",
+              "factor_path": str(factor_path),
+              "event_path": str(event_path),
+              "target_count": len(targets),
+              "target_state_counts": dict(
+                  sorted(Counter(row["reference_price_provenance_state"] for row in targets).items())
+              ),
+              "schemas": schemas,
+              "targets": targets,
+              "production_influence": False,
+              "factor_mutated": False,
+              "admission_policy_changed": False,
+              "full_benchmark_replays": 0,
+          }
+          out = Path("artifacts/dsi010_legacy_isin_bridge_schema_audit")
+          out.mkdir(parents=True, exist_ok=True)
+          (out / "legacy_isin_bridge_schema_audit.json").write_text(
+              json.dumps(summary, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          PY
+      - name: Upload audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-legacy-isin-bridge-schema-audit
+          path: artifacts/dsi010_legacy_isin_bridge_schema_audit
+          if-no-files-found: error
