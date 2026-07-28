@@ -1,0 +1,71 @@
+name: DSI-010 Three Residual Defect Dossiers
+
+on:
+  pull_request:
+    paths: [.github/workflows/dsi010-three-defect-dossiers.yml]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30343241834
+          name: dsi010-b1e-admission-reconciliation
+          path: inputs/e
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30342652599
+          name: dsi010-b1d2-validation-repair
+          path: inputs/d2
+      - name: Print governed defect dossiers
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          def find(name, root):
+              paths=list(Path(root).rglob(name))
+              if not paths:
+                  raise SystemExit(f'MISSING:{name}')
+              return paths[0]
+
+          validation_path=find('htr010b1_factor_validation_results.json','inputs/e')
+          factor_path=find('htr010b_adjustment_factors.json','inputs/e')
+          event_path=find('htr010b_canonical_events.json','inputs/e')
+          repair_path=find('htr010b1d2_reclassified_cases.json','inputs/d2')
+
+          validations=json.loads(validation_path.read_text())
+          factors=json.loads(factor_path.read_text())
+          events=json.loads(event_path.read_text())
+          repairs=json.loads(repair_path.read_text())
+          if isinstance(validations,dict): validations=validations.get('records',[])
+          if isinstance(factors,dict): factors=factors.get('records',[])
+          if isinstance(events,dict): events=events.get('records',[])
+          if isinstance(repairs,dict): repairs=repairs.get('records',[])
+
+          defects=[row for row in validations if row.get('validation_outcome')=='IMPLEMENTATION_DEFECT']
+          factor_by_event={str(row.get('canonical_event_id')):row for row in factors}
+          event_by_id={str(row.get('canonical_event_id')):row for row in events}
+          repair_by_event={str(row.get('event_id')):row for row in repairs}
+          print('DEFECT_COUNT',len(defects))
+          for index,row in enumerate(defects,1):
+              event_id=str(row.get('event_id'))
+              payload={
+                  'index':index,
+                  'validation':row,
+                  'factor':factor_by_event.get(event_id),
+                  'event':event_by_id.get(event_id),
+                  'b1d2_repair':repair_by_event.get(event_id),
+              }
+              print('=== DOSSIER',index,'===')
+              print(json.dumps(payload,indent=2,sort_keys=True))
+          PY
