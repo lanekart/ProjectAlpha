@@ -35,6 +35,8 @@ def write_bridge_fixture(
     overlap: bool = False,
     symbol_reuse: bool = False,
     symbol_change: bool = False,
+    certified_symbol_change: bool = False,
+    recoverable_provisional_symbol_change: bool = False,
     series_transition: bool = False,
     tradable: bool = True,
     tradability_state: str | None = None,
@@ -95,6 +97,7 @@ def write_bridge_fixture(
             "new_isin": event_isin,
             "predecessor_identity": None,
             "successor_identity": IDENTITY,
+            "security_name": "Alpha Limited",
             "official_source_id": SOURCE_ID,
             "admission_state": event_admission,
             "confidence_state": event_confidence,
@@ -131,6 +134,58 @@ def write_bridge_fixture(
                 "old_identity": IDENTITY,
                 "new_identity": IDENTITY,
                 "final_status": "UNRESOLVED_IDENTITY_TRANSITION",
+            }
+        )
+    if certified_symbol_change:
+        transition_event_id = "nse-event:certified-symbol-change"
+        events.append(
+            {
+                "event_id": transition_event_id,
+                "event_type": "SYMBOL_CHANGED",
+                "effective_date": "2015-06-01",
+                "old_symbol": "OLDALPHA",
+                "new_symbol": "ALPHA",
+                "old_series": None,
+                "new_series": None,
+                "old_isin": ISIN,
+                "new_isin": ISIN,
+                "predecessor_identity": IDENTITY,
+                "successor_identity": IDENTITY,
+                "official_source_id": SOURCE_ID,
+                "admission_state": "ADMITTED",
+                "confidence_state": "HIGH",
+            }
+        )
+        change_rows.append(
+            {
+                "old_symbol": "OLDALPHA",
+                "new_symbol": "ALPHA",
+                "effective_date": "2015-06-01",
+                "old_identity": IDENTITY,
+                "new_identity": IDENTITY,
+                "classification": "CONTINUOUS_IDENTITY",
+                "final_status": "CERTIFIED_ACTIVE_TRADABLE",
+                "source_event_ids": [transition_event_id],
+            }
+        )
+    if recoverable_provisional_symbol_change:
+        events.append(
+            {
+                "event_id": "nse-event:provisional-symbol-change",
+                "event_type": "SYMBOL_CHANGED",
+                "effective_date": "2015-06-01",
+                "old_symbol": "OLDALPHA",
+                "new_symbol": "ALPHA",
+                "old_series": None,
+                "new_series": None,
+                "old_isin": None,
+                "new_isin": None,
+                "predecessor_identity": None,
+                "successor_identity": None,
+                "security_name": "Alpha Limited",
+                "official_source_id": SOURCE_ID,
+                "admission_state": "PROVISIONAL",
+                "confidence_state": "LOW",
             }
         )
     if series_transition:

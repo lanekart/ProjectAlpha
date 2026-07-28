@@ -156,6 +156,16 @@ class LegacyBridgeEvidenceSource:
 
 
 @dataclass(frozen=True, slots=True)
+class CertifiedSymbolTransition:
+    identity_key: str
+    old_symbol: str
+    new_symbol: str
+    effective_date: date
+    source_event_ids: tuple[str, ...]
+    official_sources: tuple[LegacyBridgeEvidenceSource, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class LegacyBridgeIntervalMatch:
     interval_id: str
     interval_type: str
@@ -765,6 +775,259 @@ class LegacyIsinReferenceBridge:
             sources=sources,
         )
 
+    def certified_symbol_transitions(
+        self,
+        *,
+        identity_key: str,
+        allow_isin_transition_resolved_reuse: bool = False,
+    ) -> tuple[CertifiedSymbolTransition, ...]:
+        """Return only source-bound continuous-identity symbol transitions."""
+
+        transitions: list[CertifiedSymbolTransition] = []
+        for row in self._symbol_changes:
+            if row.get("classification") != "CONTINUOUS_IDENTITY":
+                continue
+            if row.get("old_identity") != identity_key:
+                continue
+            if row.get("new_identity") != identity_key:
+                continue
+            old_symbol = str(row.get("old_symbol") or "").upper()
+            new_symbol = str(row.get("new_symbol") or "").upper()
+            event_ids = tuple(
+                sorted(
+                    {str(item) for item in row.get("source_event_ids", ()) if str(item)}
+                )
+            )
+            if not old_symbol or not new_symbol or old_symbol == new_symbol:
+                continue
+            lineage_decision, sources = self._lineage_evidence(event_ids)
+            if lineage_decision is not None or not sources:
+                continue
+            transitions.append(
+                CertifiedSymbolTransition(
+                    identity_key=identity_key,
+                    old_symbol=old_symbol,
+                    new_symbol=new_symbol,
+                    effective_date=_date_value(
+                        row["effective_date"],
+                        "symbol transition effective date",
+                    ),
+                    source_event_ids=event_ids,
+                    official_sources=sources,
+                )
+            )
+        transitions.extend(
+            self._recovered_official_symbol_transitions(
+                identity_key=identity_key,
+                allow_isin_transition_resolved_reuse=(
+                    allow_isin_transition_resolved_reuse
+                ),
+            )
+        )
+        grouped: dict[
+            tuple[str, str, date],
+            list[CertifiedSymbolTransition],
+        ] = defaultdict(list)
+        for item in transitions:
+            grouped[(item.old_symbol, item.new_symbol, item.effective_date)].append(
+                item
+            )
+        merged = tuple(
+            CertifiedSymbolTransition(
+                identity_key=identity_key,
+                old_symbol=key[0],
+                new_symbol=key[1],
+                effective_date=key[2],
+                source_event_ids=tuple(
+                    sorted(
+                        {
+                            event_id
+                            for item in population
+                            for event_id in item.source_event_ids
+                        }
+                    )
+                ),
+                official_sources=_merge_sources(
+                    *(item.official_sources for item in population)
+                ),
+            )
+            for key, population in grouped.items()
+        )
+        return tuple(
+            sorted(
+                merged,
+                key=lambda item: (
+                    item.effective_date,
+                    item.old_symbol,
+                    item.new_symbol,
+                    item.source_event_ids,
+                ),
+            )
+        )
+
+    def _recovered_official_symbol_transitions(
+        self,
+        *,
+        identity_key: str,
+        allow_isin_transition_resolved_reuse: bool = False,
+    ) -> tuple[CertifiedSymbolTransition, ...]:
+        listing_rows = tuple(
+            row
+            for row in self._events_by_id.values()
+            if row.get("event_type") == "LISTED"
+            and row.get("admission_state") == "ADMITTED"
+            and row.get("confidence_state") == "HIGH"
+            and row.get("successor_identity") == identity_key
+            and str(row.get("security_name") or "").strip()
+        )
+        names = {
+            _normalized_security_name(row.get("security_name")) for row in listing_rows
+        }
+        if len(names) != 1:
+            return ()
+        security_name = next(iter(names))
+        listing_event_ids = tuple(sorted(str(row["event_id"]) for row in listing_rows))
+        listing_decision, listing_sources = self._lineage_evidence(listing_event_ids)
+        if listing_decision is not None or not listing_sources:
+            return ()
+        transitions: list[CertifiedSymbolTransition] = []
+        for row in self._events_by_id.values():
+            if row.get("event_type") != "SYMBOL_CHANGED":
+                continue
+            if _normalized_security_name(row.get("security_name")) != security_name:
+                continue
+            old_symbol = str(row.get("old_symbol") or "").upper()
+            new_symbol = str(row.get("new_symbol") or "").upper()
+            if not old_symbol or not new_symbol or old_symbol == new_symbol:
+                continue
+            if (
+                not allow_isin_transition_resolved_reuse
+                and self._symbol_has_reuse_conflict(old_symbol)
+            ):
+                continue
+            if (
+                not allow_isin_transition_resolved_reuse
+                and self._symbol_has_reuse_conflict(new_symbol)
+            ):
+                continue
+            old_isin = str(row.get("old_isin") or "").upper()
+            new_isin = str(row.get("new_isin") or "").upper()
+            if old_isin and old_isin != identity_key.removeprefix("nse:isin:"):
+                continue
+            if new_isin and new_isin != identity_key.removeprefix("nse:isin:"):
+                continue
+            source = self._sources.get(str(row.get("official_source_id") or ""))
+            if source is None or not source.sha256 or not source.official_host:
+                continue
+            transitions.append(
+                CertifiedSymbolTransition(
+                    identity_key=identity_key,
+                    old_symbol=old_symbol,
+                    new_symbol=new_symbol,
+                    effective_date=_date_value(
+                        row["effective_date"],
+                        "symbol transition effective date",
+                    ),
+                    source_event_ids=tuple(
+                        sorted(
+                            {
+                                str(row["event_id"]),
+                                *listing_event_ids,
+                            }
+                        )
+                    ),
+                    official_sources=_merge_sources((source,), listing_sources),
+                )
+            )
+        return tuple(transitions)
+
+    def _symbol_has_reuse_conflict(self, symbol: str) -> bool:
+        return any(
+            row.get("final_status") == "SYMBOL_REUSE_CONFLICT"
+            for row in self._symbol_reuse.get(symbol.upper(), ())
+        )
+
+    def resolve_symbol_alias(
+        self,
+        *,
+        identity_key: str,
+        event_symbol: str,
+        candle_symbol: str,
+        series: str,
+        isin: str,
+        reference_date: date,
+        allow_isin_transition_resolved_reuse: bool = False,
+    ) -> LegacyIsinReferenceBridgeResult:
+        """Certify a dated historical symbol from an official identity transition."""
+
+        normalized_event_symbol = event_symbol.upper()
+        normalized_candle_symbol = candle_symbol.upper()
+        normalized_series = series.upper()
+        normalized_isin = isin.upper()
+        base = {
+            "identity_key": identity_key,
+            "symbol": normalized_candle_symbol,
+            "series": normalized_series,
+            "isin": normalized_isin,
+            "reference_date": reference_date,
+            "source_contract_id": self.source_contract.contract_id,
+            "source_report_sha256": self.source_report_sha256,
+        }
+        if identity_key != f"nse:isin:{normalized_isin}":
+            return self._result(LegacyBridgeDecision.IDENTITY_MISMATCH, base)
+        join = self._admitted_joins.get(identity_key)
+        if join is None or not join.get("admitted_to_certified_join"):
+            return self._result(LegacyBridgeDecision.INTERVAL_NOT_ADMITTED, base)
+        transitions = self.certified_symbol_transitions(
+            identity_key=identity_key,
+            allow_isin_transition_resolved_reuse=(allow_isin_transition_resolved_reuse),
+        )
+        path = _governed_symbol_path(
+            transitions,
+            from_symbol=normalized_candle_symbol,
+            to_symbol=normalized_event_symbol,
+            reference_date=reference_date,
+        )
+        if not path:
+            return self._result(
+                LegacyBridgeDecision.SYMBOL_MISMATCH,
+                base,
+            )
+        conflict = self._conflicts(
+            identity_key=identity_key,
+            symbol=normalized_candle_symbol,
+            series=normalized_series,
+            reference_date=reference_date,
+        )
+        if conflict.symbol_reuse_conflict and not allow_isin_transition_resolved_reuse:
+            return self._result(
+                LegacyBridgeDecision.SYMBOL_REUSE_CONFLICT,
+                base,
+                conflict=conflict,
+            )
+        if conflict.overlapping_identity_keys:
+            return self._result(
+                LegacyBridgeDecision.OVERLAPPING_IDENTITY_CONFLICT,
+                base,
+                conflict=conflict,
+            )
+        return self._result(
+            LegacyBridgeDecision.CERTIFIED_DATED_OFFICIAL_IDENTITY_BRIDGE,
+            base,
+            official_event_ids=tuple(
+                sorted(
+                    {
+                        event_id
+                        for transition in path
+                        for event_id in transition.source_event_ids
+                    }
+                )
+            ),
+            sources=_merge_sources(
+                *(transition.official_sources for transition in path)
+            ),
+        )
+
     def _state_at(
         self, identity_key: str, reference_date: date
     ) -> tuple[_OfficialState, ...]:
@@ -1311,6 +1574,59 @@ def _merge_sources(
     return tuple(by_id[key] for key in sorted(by_id))
 
 
+def _governed_symbol_path(
+    transitions: tuple[CertifiedSymbolTransition, ...],
+    *,
+    from_symbol: str,
+    to_symbol: str,
+    reference_date: date,
+) -> tuple[CertifiedSymbolTransition, ...]:
+    paths: list[tuple[CertifiedSymbolTransition, ...]] = []
+
+    def visit(
+        current: str,
+        after: date,
+        path: tuple[CertifiedSymbolTransition, ...],
+        visited: frozenset[str],
+    ) -> None:
+        if current == to_symbol:
+            paths.append(path)
+            return
+        for transition in transitions:
+            if transition.old_symbol != current:
+                continue
+            if transition.effective_date <= after:
+                continue
+            if transition.new_symbol in visited:
+                continue
+            visit(
+                transition.new_symbol,
+                transition.effective_date,
+                (*path, transition),
+                visited | {transition.new_symbol},
+            )
+
+    visit(from_symbol, reference_date, (), frozenset({from_symbol}))
+    unique = {
+        tuple(
+            (
+                item.old_symbol,
+                item.new_symbol,
+                item.effective_date,
+                item.source_event_ids,
+            )
+            for item in path
+        ): path
+        for path in paths
+        if path
+    }
+    return next(iter(unique.values())) if len(unique) == 1 else ()
+
+
+def _normalized_security_name(value: object) -> str:
+    return " ".join(str(value or "").upper().split())
+
+
 def _date_value(value: object, label: str) -> date:
     try:
         return date.fromisoformat(str(value))
@@ -1338,6 +1654,7 @@ __all__ = [
     "LEGACY_ISIN_REFERENCE_BRIDGE_CONTRACT_VERSION",
     "PRODUCTION_INFLUENCE",
     "SIGNED_DSI010_H09A2_SOURCE_CONTRACT",
+    "CertifiedSymbolTransition",
     "LegacyBridgeConflictResult",
     "LegacyBridgeDecision",
     "LegacyBridgeEvidenceSource",
