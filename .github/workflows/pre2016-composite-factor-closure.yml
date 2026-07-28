@@ -28,6 +28,7 @@ jobs:
       - run: |
           poetry run python scripts/patch_pre2016_composite_factor_closure.py
           poetry run python scripts/patch_pre2016_composite_factor_precision.py
+          poetry run python scripts/patch_pre2016_composite_factor_test_escapes.py
       - name: Validate repair
         run: |
           poetry run ruff format \
