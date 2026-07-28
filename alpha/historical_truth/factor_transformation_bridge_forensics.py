@@ -153,6 +153,9 @@ def _bridge_case(
         "effective_date": effective.isoformat() if effective else None,
         "official_price_factor": factor,
         "b1d_classification": case.get("forensic_classification"),
+        "b1d_official_term_factor": case.get("official_term_factor"),
+        "b1d_official_term_formula": case.get("official_term_formula"),
+        "b1d_official_term_factor_matches": case.get("official_term_factor_matches"),
         "b1d_official_gap": (
             original_evidence.get("official_gap")
             if isinstance(original_evidence, dict)

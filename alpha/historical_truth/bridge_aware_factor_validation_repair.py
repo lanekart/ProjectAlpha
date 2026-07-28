@@ -225,6 +225,15 @@ def _repair_case(row: dict[str, Any], group: dict[str, Any]) -> dict[str, Any]:
         repair = "USE_EXPLICIT_STABLE_SERIES_BOUNDARY_PAIR"
     elif (
         bridge_type == "STABLE_SECURITY_SERIES"
+        and row.get("b1d_official_term_factor_matches") is True
+        and str(row.get("action_type") or "") in {"BONUS", "SPLIT", "FACE_VALUE_CHANGE"}
+    ):
+        disposition = "FACTOR_CONFIRMED_BY_GOVERNED_OFFICIAL_TERMS"
+        proposed = "FACTOR_CONFIRMED_CORRECT_MARKET_GAP"
+        confirmed = True
+        repair = "RETAIN_OFFICIAL_FACTOR_CLASSIFY_RESIDUAL_AS_MARKET_GAP"
+    elif (
+        bridge_type == "STABLE_SECURITY_SERIES"
         and raw_gap is not None
         and raw_gap <= 2.0
         and (adjusted_gap is None or adjusted_gap >= raw_gap)

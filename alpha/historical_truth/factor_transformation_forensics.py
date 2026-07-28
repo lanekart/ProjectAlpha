@@ -402,9 +402,14 @@ def _official_term_factor(
             return denominator / numerator, "ratio_denominator / ratio_numerator"
     if action_type == "BONUS" and numerator and denominator:
         if numerator > 0 and denominator > 0:
-            return denominator / (numerator + denominator), (
-                "ratio_denominator / (ratio_numerator + ratio_denominator)"
-            )
+            factor = denominator / (numerator + denominator)
+            formula = "ratio_denominator / (ratio_numerator + ratio_denominator)"
+            if old_face is not None:
+                if not new_face or old_face <= 0 or new_face <= 0:
+                    return None, None
+                factor *= new_face / old_face
+                formula += " * new_face_value / old_face_value"
+            return factor, formula
     return None, None
 
 

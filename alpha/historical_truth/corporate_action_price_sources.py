@@ -692,10 +692,14 @@ def _initial_factor(
             return AdjustmentFactorState.AMBIGUOUS, None
         if numerator <= 0 or denominator <= 0:
             return AdjustmentFactorState.INVALID, None
-        return (
-            AdjustmentFactorState.DERIVED_FROM_OFFICIAL_TERMS,
-            denominator / (denominator + numerator),
-        )
+        factor = denominator / (denominator + numerator)
+        if old_face is not None:
+            if new_face is None:
+                return AdjustmentFactorState.AMBIGUOUS, None
+            if old_face <= 0 or new_face <= 0:
+                return AdjustmentFactorState.INVALID, None
+            factor *= new_face / old_face
+        return AdjustmentFactorState.DERIVED_FROM_OFFICIAL_TERMS, factor
     if action_type is CorporateActionType.RIGHTS:
         if numerator is None or denominator is None or terms["rights_price"] is None:
             return AdjustmentFactorState.UNKNOWN, None
@@ -711,15 +715,23 @@ def _initial_factor(
 
 def _face_values(value: str) -> tuple[float | None, float | None]:
     normalized = value.replace(",", " ")
-    match = re.search(
-        r"FROM\s+(?:RS\.?|RE\.?)?\s*([0-9]+(?:\.[0-9]+)?)"
-        r".*?TO\s+(?:RS\.?|RE\.?)?\s*([0-9]+(?:\.[0-9]+)?)",
-        normalized,
-        flags=re.IGNORECASE,
+    patterns = (
+        (
+            r"FROM\s+(?:RS\.?|RE\.?)?\s*([0-9]+(?:\.[0-9]+)?)"
+            r".*?TO\s+(?:RS\.?|RE\.?)?\s*([0-9]+(?:\.[0-9]+)?)"
+        ),
+        (
+            r"(?:SPLIT|SUB-DIVISION|SUB DIVISION).*?"
+            r"(?:RS\.?|RE\.?)?\s*([0-9]+(?:\.[0-9]+)?)\s*(?:/-)?"
+            r".*?TO\s+(?:RS\.?|RE\.?)?\s*"
+            r"([0-9]+(?:\.[0-9]+)?)"
+        ),
     )
-    if match is None:
-        return None, None
-    return float(match.group(1)), float(match.group(2))
+    for pattern in patterns:
+        match = re.search(pattern, normalized, flags=re.IGNORECASE)
+        if match is not None:
+            return float(match.group(1)), float(match.group(2))
+    return None, None
 
 
 def _ratio(value: str) -> tuple[float, float] | None:
