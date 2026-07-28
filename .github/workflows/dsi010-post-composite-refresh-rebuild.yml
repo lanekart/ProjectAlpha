@@ -1,0 +1,169 @@
+name: DSI-010 Post-Composite Refresh Rebuild
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-post-composite-refresh-rebuild.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      _TYPER_FORCE_DISABLE_TERMINAL: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry && poetry install --no-interaction
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30341297898
+          name: dsi010-htr010b1-admission-audit
+          path: inputs
+      - name: Restore governed prerequisites
+        run: |
+          archive=$(find inputs -name alpha_data_after_htr010b1.tar.gz | head -1)
+          calendar=$(find inputs -name htr007_session_calendar.json | head -1)
+          a3=$(find inputs -type d -name htr010a3_tier_a_foundation_readiness | head -1)
+          test -f "$archive" && test -f "$calendar" && test -d "$a3"
+          tar -xzf "$archive"
+          mkdir -p work/calendar artifacts
+          cp "$calendar" work/calendar/htr007_session_calendar.json
+          rm -rf artifacts/htr010a3_tier_a_foundation_readiness
+          cp -R "$a3" artifacts/htr010a3_tier_a_foundation_readiness
+          test -f alpha_data/warehouse/historical_truth.duckdb
+      - name: Refresh HTR-009B official evidence
+        run: |
+          rm -rf artifacts/htr009b_corporate_action_price_continuity
+          poetry run python -m alpha historical-truth corporate-action-price-certify \
+            --database alpha_data/warehouse/historical_truth.duckdb \
+            --calendar-report work/calendar/htr007_session_calendar.json \
+            --root alpha_data \
+            --start 2005-01-01 \
+            --end 2015-12-31 \
+            --refresh-sources \
+            --output artifacts/htr009b_corporate_action_price_continuity
+      - name: Refresh HTR-010B official evidence
+        run: |
+          rm -rf artifacts/htr010b_complete_corporate_action_dataset
+          poetry run python -m alpha historical-truth complete-corporate-action-dataset \
+            --database alpha_data/warehouse/historical_truth.duckdb \
+            --root alpha_data \
+            --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+            --start 2005-01-01 \
+            --end 2015-12-31 \
+            --refresh-sources \
+            --output artifacts/htr010b_complete_corporate_action_dataset
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('artifacts/htr010b_complete_corporate_action_dataset/htr010b_canonical_events.json')
+          payload = json.loads(path.read_text())
+          rows = payload.get('records', []) if isinstance(payload, dict) else payload
+          print(f'HTR010B_CANONICAL_EVENT_COUNT={len(rows)}')
+          if not rows:
+              raise SystemExit('EMPTY_HTR010B_EVENT_POPULATION')
+          PY
+      - name: Rebuild HTR-010B1C
+        run: |
+          rm -rf artifacts/htr010b1_adjustment_replay_admission
+          poetry run python -m alpha historical-truth adjustment-replay-admission-certify \
+            --database alpha_data/warehouse/historical_truth.duckdb \
+            --root alpha_data \
+            --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            --session-calendar-report work/calendar/htr007_session_calendar.json \
+            --start 2005-01-01 \
+            --end 2015-12-31 \
+            --output artifacts/htr010b1_adjustment_replay_admission
+      - name: Rebuild HTR-010B1D
+        run: |
+          rm -rf artifacts/htr010b1d_factor_transformation_forensics
+          poetry run python -m alpha historical-truth factor-transformation-forensics \
+            --database alpha_data/warehouse/historical_truth.duckdb \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            --htr010b1c-output artifacts/htr010b1_adjustment_replay_admission \
+            --start 2005-01-01 \
+            --end 2015-12-31 \
+            --output artifacts/htr010b1d_factor_transformation_forensics
+      - name: Rebuild HTR-010B1D1
+        run: |
+          rm -rf artifacts/htr010b1d1_cross_series_identity_bridge
+          poetry run python -m alpha historical-truth factor-transformation-bridge-forensics \
+            --database alpha_data/warehouse/historical_truth.duckdb \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            --htr010b1d-output artifacts/htr010b1d_factor_transformation_forensics \
+            --start 2005-01-01 \
+            --end 2015-12-31 \
+            --output artifacts/htr010b1d1_cross_series_identity_bridge
+      - name: Rebuild HTR-010B1D2
+        run: |
+          rm -rf artifacts/htr010b1d2_bridge_aware_validation_repair
+          poetry run python -m alpha historical-truth bridge-aware-factor-validation-repair \
+            --htr010b1d1-output artifacts/htr010b1d1_cross_series_identity_bridge \
+            --start 2005-01-01 \
+            --end 2015-12-31 \
+            --output artifacts/htr010b1d2_bridge_aware_validation_repair
+      - name: Rebuild HTR-010B1E2
+        run: |
+          rm -rf artifacts/htr010b1e2_final_admission_state_propagation
+          poetry run python -m alpha historical-truth bridge-aware-admission-reconcile \
+            --database alpha_data/warehouse/historical_truth.duckdb \
+            --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            --htr010b1d2-output artifacts/htr010b1d2_bridge_aware_validation_repair \
+            --session-calendar-report work/calendar/htr007_session_calendar.json \
+            --start 2005-01-01 \
+            --end 2015-12-31 \
+            --output artifacts/htr010b1e2_final_admission_state_propagation
+      - name: Export compact governed summary
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          def load(name):
+              matches = list(Path('artifacts').rglob(name))
+              if not matches:
+                  return {'missing': name}
+              return json.loads(matches[0].read_text())
+          summary = {
+              'production_influence': False,
+              'b1d': load('htr010b1d_factor_transformation_forensics.json'),
+              'b1d2': load('htr010b1d2_validation_repair.json'),
+              'b1e2': load('htr010b1_replay_readiness.json'),
+          }
+          Path('artifacts/dsi010_post_composite_refresh_summary.json').write_text(
+              json.dumps(summary, indent=2, sort_keys=True) + '\n'
+          )
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dsi010-post-composite-refresh-rebuild
+          path: |
+            artifacts/dsi010_post_composite_refresh_summary.json
+            artifacts/htr009b_corporate_action_price_continuity
+            artifacts/htr010b_complete_corporate_action_dataset
+            artifacts/htr010b1_adjustment_replay_admission
+            artifacts/htr010b1d_factor_transformation_forensics
+            artifacts/htr010b1d1_cross_series_identity_bridge
+            artifacts/htr010b1d2_bridge_aware_validation_repair
+            artifacts/htr010b1e2_final_admission_state_propagation
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Enforce complete execution
+        run: |
+          test -f artifacts/htr010b1e2_final_admission_state_propagation/htr010b1_replay_readiness.json
+          echo PRODUCTION_INFLUENCE=false
