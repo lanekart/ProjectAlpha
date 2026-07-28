@@ -1,0 +1,179 @@
+name: DSI-010 Identity and Adjustment Rebuild Chain V2
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-identity-adjustment-chain-v2.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Download preserved governed chain state
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30331737579
+          name: dsi010-identity-adjustment-chain
+          path: inputs/chain
+      - name: Restore governed store and certified calendar
+        run: |
+          set -euo pipefail
+          ARCHIVE=$(find inputs/chain -type f -name alpha_data_after_chain.tar.gz | head -1)
+          CALENDAR=$(find inputs/chain -type f -name htr007_session_calendar.json | head -1)
+          test -n "$ARCHIVE" && test -f "$ARCHIVE"
+          test -n "$CALENDAR" && test -f "$CALENDAR"
+          mkdir -p work artifacts/dsi010_identity_adjustment_chain_v2
+          tar -xzf "$ARCHIVE" -C work
+          mkdir -p work/certified_calendar
+          cp "$CALENDAR" work/certified_calendar/htr007_session_calendar.json
+          test -f work/alpha_data/warehouse/historical_truth.duckdb
+          test -d work/alpha_data/raw
+          test -d work/alpha_data/snapshots
+      - name: Build HTR-009A point-in-time identity baseline
+        id: htr009a
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          poetry run python -m alpha historical-truth point-in-time-universe-certify \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --calendar-report work/certified_calendar/htr007_session_calendar.json \
+            --snapshot-root work/alpha_data/snapshots \
+            --start 2005-01-01 --end 2015-12-31 \
+            --root work/alpha_data \
+            --output artifacts/htr009a_point_in_time_universe \
+            --refresh-sources \
+            2>&1 | tee artifacts/dsi010_identity_adjustment_chain_v2/htr009a.log
+      - name: Build HTR-009A2 event-sourced universe
+        id: htr009a2
+        if: steps.htr009a.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          poetry run python -m alpha historical-truth event-sourced-universe-certify \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --calendar-report work/certified_calendar/htr007_session_calendar.json \
+            --root work/alpha_data \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr009a2_event_sourced_universe \
+            --refresh-sources \
+            2>&1 | tee artifacts/dsi010_identity_adjustment_chain_v2/htr009a2.log
+      - name: Build HTR-009B corporate-action and price basis
+        id: htr009b
+        if: steps.htr009a.outcome == 'success' && steps.htr009a2.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          poetry run python -m alpha historical-truth corporate-action-price-certify \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --calendar-report work/certified_calendar/htr007_session_calendar.json \
+            --root work/alpha_data \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr009b_corporate_action_price_continuity \
+            --refresh-sources \
+            2>&1 | tee artifacts/dsi010_identity_adjustment_chain_v2/htr009b.log
+      - name: Build HTR-010A complete security dataset
+        id: htr010a
+        if: steps.htr009a.outcome == 'success' && steps.htr009a2.outcome == 'success' && steps.htr009b.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          poetry run python -m alpha historical-truth complete-security-dataset-certify \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --calendar-report work/certified_calendar/htr007_session_calendar.json \
+            --snapshot-root work/alpha_data/snapshots \
+            --root work/alpha_data \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010a_complete_security_dataset \
+            --refresh-sources \
+            2>&1 | tee artifacts/dsi010_identity_adjustment_chain_v2/htr010a.log
+      - name: Export governed chain state
+        if: always()
+        env:
+          HTR009A_OUTCOME: ${{ steps.htr009a.outcome }}
+          HTR009A2_OUTCOME: ${{ steps.htr009a2.outcome }}
+          HTR009B_OUTCOME: ${{ steps.htr009b.outcome }}
+          HTR010A_OUTCOME: ${{ steps.htr010a.outcome }}
+        run: |
+          poetry run python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import duckdb
+          database = Path("work/alpha_data/warehouse/historical_truth.duckdb")
+          names = []
+          counts = {}
+          if database.is_file():
+              with duckdb.connect(str(database), read_only=True) as connection:
+                  names = [str(row[0]) for row in connection.execute(
+                      "select table_name from information_schema.tables where table_schema='main' order by table_name"
+                  ).fetchall()]
+                  for table in (
+                      "daily_candle", "security_identity_interval", "security_event",
+                      "security_membership_interval", "corporate_action_event",
+                      "corporate_action_adjustment_factor", "adjusted_daily_candle",
+                      "complete_security_identity", "security_dataset_certification",
+                  ):
+                      if table in names:
+                          row = connection.execute(f'SELECT count(*) FROM "{table}"').fetchone()
+                          counts[table] = int(row[0]) if row else 0
+          summary = {
+              "htr009a_outcome": os.environ.get("HTR009A_OUTCOME", "unknown"),
+              "htr009a2_outcome": os.environ.get("HTR009A2_OUTCOME", "unknown"),
+              "htr009b_outcome": os.environ.get("HTR009B_OUTCOME", "unknown"),
+              "htr010a_outcome": os.environ.get("HTR010A_OUTCOME", "unknown"),
+              "database_tables": names,
+              "table_counts": counts,
+              "production_influence": False,
+          }
+          out = Path("artifacts/dsi010_identity_adjustment_chain_v2")
+          out.mkdir(parents=True, exist_ok=True)
+          (out / "chain_summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          PY
+          tar -czf artifacts/dsi010_identity_adjustment_chain_v2/alpha_data_after_chain_v2.tar.gz -C work alpha_data
+      - name: Upload governed chain evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-identity-adjustment-chain-v2
+          path: |
+            artifacts/dsi010_identity_adjustment_chain_v2
+            artifacts/htr009a_point_in_time_universe
+            artifacts/htr009a2_event_sourced_universe
+            artifacts/htr009b_corporate_action_price_continuity
+            artifacts/htr010a_complete_security_dataset
+            work/certified_calendar/htr007_session_calendar.json
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Enforce chain completion
+        if: always()
+        env:
+          HTR009A_OUTCOME: ${{ steps.htr009a.outcome }}
+          HTR009A2_OUTCOME: ${{ steps.htr009a2.outcome }}
+          HTR009B_OUTCOME: ${{ steps.htr009b.outcome }}
+          HTR010A_OUTCOME: ${{ steps.htr010a.outcome }}
+        run: |
+          echo "HTR009A_OUTCOME=${HTR009A_OUTCOME}"
+          echo "HTR009A2_OUTCOME=${HTR009A2_OUTCOME}"
+          echo "HTR009B_OUTCOME=${HTR009B_OUTCOME}"
+          echo "HTR010A_OUTCOME=${HTR010A_OUTCOME}"
+          test "${HTR009A_OUTCOME}" = success
+          test "${HTR009A2_OUTCOME}" = success
+          test "${HTR009B_OUTCOME}" = success
+          test "${HTR010A_OUTCOME}" = success
+          echo "PRODUCTION_INFLUENCE=false"
