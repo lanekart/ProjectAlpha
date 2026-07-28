@@ -15,9 +15,21 @@ def main() -> None:
     text = ENGINE.read_text(encoding="utf-8")
     text = replace_once(
         text,
-        "    joins: dict[str, dict[str, Any]],\n",
-        "    joins: dict[str, dict[str, Any]] | None = None,\n",
-        "RIGHTS_REFERENCE_OPTIONAL_JOIN_SIGNATURE_MISSING",
+        '''def derive_factors(
+    database_path: Path,
+    events: tuple[dict[str, Any], ...],
+    actions_by_id: dict[str, CorporateActionEvent],
+    joins: dict[str, dict[str, Any]],
+) -> tuple[dict[str, Any], ...]:
+''',
+        '''def derive_factors(
+    database_path: Path,
+    events: tuple[dict[str, Any], ...],
+    actions_by_id: dict[str, CorporateActionEvent],
+    joins: dict[str, dict[str, Any]] | None = None,
+) -> tuple[dict[str, Any], ...]:
+''',
+        "RIGHTS_REFERENCE_OPTIONAL_DERIVE_SIGNATURE_MISSING",
     )
     text = replace_once(
         text,
