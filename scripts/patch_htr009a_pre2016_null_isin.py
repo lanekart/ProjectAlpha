@@ -102,8 +102,8 @@ def test_symbol_reuse_ignores_null_isin_rows_without_losing_conflict() -> None:
     assert len(records) == 1
     record = records[0]
     assert record.involved_isins == ("INE000A01001", "INE000B01002")
-    assert all("None" not in item for item in record.observed_intervals)
-    assert record.candle_rows == 2
+    assert all("None" not in item for item in record.interval_summaries)
+    assert record.candle_count == 2
     assert record.final_classification is IdentityState.SYMBOL_REUSE_CONFLICT
 ''',
         encoding="utf-8",
