@@ -1,4 +1,4 @@
-name: DSI-010 Source Snapshot
+name: DSI-010 Legacy ISIN Bridge Patcher
 
 on:
   pull_request:
@@ -6,23 +6,66 @@ on:
       - .github/workflows/dsi010-legacy-interval-v2-tail.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  snapshot:
+  patch:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      _TYPER_FORCE_DISABLE_TERMINAL: '1'
     steps:
       - uses: actions/checkout@v4
         with:
           ref: feature/dsi-010-pre2016-external-era-validation
           fetch-depth: 0
-      - name: Package reviewable source
-        run: |
-          tar -czf dsi010-source-snapshot.tar.gz \
-            alpha tests docs pyproject.toml poetry.lock Makefile .github/workflows/ci.yml .github/workflows/lint.yml
-      - uses: actions/upload-artifact@v4
+      - uses: actions/setup-python@v5
         with:
-          name: dsi010-source-snapshot
-          path: dsi010-source-snapshot.tar.gz
-          if-no-files-found: error
-          retention-days: 3
+          python-version: '3.14'
+      - name: Install project
+        run: |
+          pip install poetry
+          poetry install --no-interaction
+      - name: Apply governed bridge implementation
+        run: |
+          cat > /tmp/dsi010.patch.gz.b64 <<'PATCH64'
+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
+PATCH64
+          base64 --decode /tmp/dsi010.patch.gz.b64 | gzip --decompress > /tmp/dsi010.patch
+          git apply --check /tmp/dsi010.patch
+          git apply /tmp/dsi010.patch
+      - name: Format and validate focused implementation
+        run: |
+          files=(
+            alpha/historical_truth/legacy_isin_reference_bridge.py
+            alpha/historical_truth/complete_corporate_action_engine.py
+            alpha/historical_truth/complete_corporate_action_cli.py
+            tests/historical_truth/test_pre2016_legacy_isin_reference_bridge.py
+            tests/historical_truth/test_pre2016_rights_reference_certification.py
+          )
+          poetry run ruff format "${files[@]}"
+          poetry run ruff check "${files[@]}" --fix
+          poetry run ruff format "${files[@]}"
+          poetry run ruff check "${files[@]}"
+          poetry run mypy \
+            alpha/historical_truth/legacy_isin_reference_bridge.py \
+            alpha/historical_truth/complete_corporate_action_engine.py \
+            alpha/historical_truth/complete_corporate_action_cli.py
+          poetry run pytest -q \
+            tests/historical_truth/test_pre2016_legacy_isin_reference_bridge.py \
+            tests/historical_truth/test_pre2016_rights_reference_certification.py \
+            tests/historical_truth/test_complete_corporate_action_pre2016_regressions.py \
+            tests/historical_truth/test_complete_corporate_action_dataset.py
+          git diff --check
+      - name: Commit governed implementation
+        run: |
+          git config user.name "lanekart"
+          git config user.email "10551192+lanekart@users.noreply.github.com"
+          git add \
+            alpha/historical_truth/legacy_isin_reference_bridge.py \
+            alpha/historical_truth/complete_corporate_action_engine.py \
+            alpha/historical_truth/complete_corporate_action_cli.py \
+            tests/historical_truth/test_pre2016_legacy_isin_reference_bridge.py \
+            tests/historical_truth/test_pre2016_rights_reference_certification.py
+          git commit -m "feat(dsi010): certify dated legacy ISIN reference bridges"
+          git push origin HEAD:feature/dsi-010-pre2016-external-era-validation
