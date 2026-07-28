@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Sequence
 from datetime import date
+from math import isclose
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ from alpha.historical_truth.adjustment_replay_admission_models import (
     stable_id,
 )
 from alpha.historical_truth.bridge_aware_continuity_context import (
+    BRIDGE_AWARE_CONTINUITY_CONTRACT_VERSION,
     BridgeAwareContinuityContextProvider,
 )
 
@@ -130,7 +132,7 @@ def recompute_factor_validation(
                     "governed_continuity_context_id": context.context_id,
                     "governed_continuity_context": context.as_dict(),
                     "continuity_context_contract": (
-                        "DSI-010B2-BRIDGE-AWARE-CONTINUITY-v1.0.0"
+                        BRIDGE_AWARE_CONTINUITY_CONTRACT_VERSION
                     ),
                 }
                 continuity_source = (
@@ -154,6 +156,11 @@ def recompute_factor_validation(
                 "effective_date": effective.isoformat(),
                 "factor_state": factor.get("factor_state"),
                 "price_factor": factor.get("price_factor"),
+                "official_term_factor_matches": _official_term_factor_matches(
+                    event,
+                    factor,
+                ),
+                "reference_price_certified": factor.get("reference_price_certified"),
                 **metrics,
                 "legacy_continuity_state": legacy.get("continuity_state"),
                 "legacy_raw_gap_atr": legacy.get("raw_gap_atr"),
@@ -208,6 +215,8 @@ def _classify(case: dict[str, Any]) -> dict[str, Any]:
         defect_code = "CERTIFIED_FACTOR_MISSING_VALUE"
     elif raw_gap is None or adjusted_gap is None:
         outcome = ValidationOutcome.FACTOR_INSUFFICIENT_EVIDENCE
+    elif _certified_rights_close_restoration(case):
+        outcome = ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP
     elif adjusted_gap <= 2.0 or adjusted_gap < raw_gap:
         outcome = ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP
     elif inverse_gap is not None and (inverse_gap <= 2.0 or inverse_gap < raw_gap):
@@ -242,6 +251,53 @@ def _classify(case: dict[str, Any]) -> dict[str, Any]:
         "market_derived_factor_autocorrection": False,
         "production_influence": False,
     }
+
+
+def _certified_rights_close_restoration(case: dict[str, Any]) -> bool:
+    if case.get("action_type") != "RIGHTS":
+        return False
+    if case.get("factor_state") != "FACTOR_CERTIFIED_REFERENCE_PRICE":
+        return False
+    if case.get("reference_price_certified") is not True:
+        return False
+    if case.get("official_term_factor_matches") is not True:
+        return False
+    raw_close = _number(case.get("close_raw_gap_atr"))
+    adjusted_close = _number(case.get("close_adjusted_gap_atr"))
+    if adjusted_close is None:
+        return False
+    return adjusted_close <= 2.0 or (
+        raw_close is not None and adjusted_close < raw_close
+    )
+
+
+def _official_term_factor_matches(
+    event: dict[str, Any],
+    factor: dict[str, Any],
+) -> bool | None:
+    if event.get("action_type") != "RIGHTS":
+        return None
+    numerator = _number(event.get("ratio_numerator"))
+    denominator = _number(event.get("ratio_denominator"))
+    rights_price = _number(event.get("rights_price"))
+    reference = _number(factor.get("reference_price"))
+    observed = _number(factor.get("price_factor"))
+    if (
+        numerator is None
+        or denominator is None
+        or rights_price is None
+        or reference is None
+        or observed is None
+        or numerator <= 0
+        or denominator <= 0
+        or rights_price < 0
+        or reference <= 0
+    ):
+        return None
+    expected = ((denominator * reference) + (numerator * rights_price)) / (
+        (denominator + numerator) * reference
+    )
+    return isclose(observed, expected, rel_tol=1e-12, abs_tol=1e-12)
 
 
 def _event_bars(

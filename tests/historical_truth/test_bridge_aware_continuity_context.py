@@ -64,12 +64,20 @@ def _insert(
     series: str = "EQ",
     source_sha256: str | None = SOURCE_SHA,
     action_open: float = 50.0,
+    action_close: float | None = None,
 ) -> None:
     rows = []
     start = date(2015, 1, 1)
     for offset in range(count):
         session = start + timedelta(days=offset)
         open_price = action_open if session == EFFECTIVE else 100.0
+        close_price = (
+            action_close
+            if session == EFFECTIVE and action_close is not None
+            else open_price
+            if session == EFFECTIVE
+            else 100.0
+        )
         rows.append(
             (
                 session,
@@ -78,9 +86,9 @@ def _insert(
                 series,
                 isin,
                 open_price,
-                max(open_price, 100.0) + 1.0,
-                min(open_price, 100.0) - 1.0,
-                open_price if session == EFFECTIVE else 100.0,
+                max(open_price, close_price, 100.0) + 1.0,
+                min(open_price, close_price, 100.0) - 1.0,
+                close_price,
                 1_000,
                 source_sha256,
             )
@@ -123,17 +131,19 @@ def _provider(
     tmp_path: Path,
     *,
     bridge_changes: dict[str, object] | None = None,
+    all_material_actions: bool = False,
 ) -> BridgeAwareContinuityContextProvider:
     bridge = _bridge(tmp_path, **(bridge_changes or {}))
     cases = (_case(), *(_case(f"dummy-{index}") for index in range(17)))
     return BridgeAwareContinuityContextProvider.from_fixture(
         bridge=bridge,
         cases=cases,
+        all_material_actions=all_material_actions,
     )
 
 
-def _event() -> dict[str, object]:
-    return {
+def _event(**changes: object) -> dict[str, object]:
+    payload: dict[str, object] = {
         "canonical_event_id": EVENT_ID,
         "governed_identity_id": IDENTITY,
         "symbol": "ALPHA",
@@ -142,6 +152,8 @@ def _event() -> dict[str, object]:
         "action_type": "RIGHTS",
         "effective_date": EFFECTIVE.isoformat(),
     }
+    payload.update(changes)
+    return payload
 
 
 def _factor(
@@ -570,6 +582,113 @@ def test_complete_context_uses_existing_validation_thresholds(
 
     assert results[0]["validation_outcome"] == expected
     assert results[0]["price_factor"] == factor
+
+
+def test_generalized_provider_governs_non_b1_material_action(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database)
+    provider = _provider(tmp_path / "evidence", all_material_actions=True)
+    event = _event(
+        canonical_event_id="split-event",
+        action_type="SPLIT",
+    )
+    factor = {
+        "factor_id": "split-factor",
+        "canonical_event_id": "split-event",
+        "identity_key": IDENTITY,
+        "factor_state": "FACTOR_DERIVED_OFFICIAL_TERMS",
+        "price_factor": 0.5,
+    }
+
+    contexts, results, summary = recompute_factor_validation(
+        database_path=database,
+        events=(event,),
+        factors=(factor,),
+        legacy_continuity=(),
+        start_date=date(2015, 1, 1),
+        end_date=date(2015, 1, 31),
+        continuity_context_provider=provider,
+    )
+
+    assert contexts[0]["candle_context_state"] == "AVAILABLE"
+    assert contexts[0]["governed_continuity_context"]["complete"] is True
+    assert results[0]["validation_outcome"] == (
+        ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP.value
+    )
+    assert summary["bridge_aware_context_case_count"] == 1
+
+
+def test_certified_rights_terp_can_restore_on_action_session_close(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, action_open=80.0, action_close=50.0)
+    provider = _provider(tmp_path / "evidence")
+    event = _event(
+        ratio_numerator=1.0,
+        ratio_denominator=1.0,
+        rights_price=0.0,
+    )
+    factor = _factor(
+        provider,
+        price_factor=0.5,
+        reference_price_certified=True,
+    )
+
+    _, results, _ = recompute_factor_validation(
+        database_path=database,
+        events=(event,),
+        factors=(factor,),
+        legacy_continuity=(),
+        start_date=date(2015, 1, 1),
+        end_date=date(2015, 1, 31),
+        continuity_context_provider=provider,
+    )
+
+    assert results[0]["adjusted_gap_atr"] > results[0]["raw_gap_atr"]
+    assert results[0]["close_adjusted_gap_atr"] == 0.0
+    assert results[0]["official_term_factor_matches"] is True
+    assert results[0]["validation_outcome"] == (
+        ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP.value
+    )
+
+
+def test_uncertified_rights_factor_cannot_use_close_restoration(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, action_open=80.0, action_close=50.0)
+    provider = _provider(tmp_path / "evidence")
+    event = _event(
+        ratio_numerator=1.0,
+        ratio_denominator=1.0,
+        rights_price=0.0,
+    )
+    factor = _factor(
+        provider,
+        factor_state="FACTOR_DERIVED_OFFICIAL_TERMS",
+        price_factor=0.5,
+        reference_price_certified=False,
+    )
+
+    _, results, _ = recompute_factor_validation(
+        database_path=database,
+        events=(event,),
+        factors=(factor,),
+        legacy_continuity=(),
+        start_date=date(2015, 1, 1),
+        end_date=date(2015, 1, 31),
+        continuity_context_provider=provider,
+    )
+
+    assert results[0]["validation_outcome"] == (
+        ValidationOutcome.IMPLEMENTATION_DEFECT.value
+    )
 
 
 def test_rejected_bars_do_not_influence_atr(tmp_path: Path) -> None:

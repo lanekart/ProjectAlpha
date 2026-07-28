@@ -21,8 +21,9 @@ from alpha.historical_truth.legacy_isin_reference_bridge import (
     LegacyIsinReferenceBridge,
 )
 
-BRIDGE_AWARE_CONTINUITY_CONTRACT_VERSION = "DSI-010B2-BRIDGE-AWARE-CONTINUITY-v1.0.0"
+BRIDGE_AWARE_CONTINUITY_CONTRACT_VERSION = "DSI-010B3-GOVERNED-CONTINUITY-v1.0.0"
 PRODUCTION_INFLUENCE = False
+_CANDIDATE_SCAN_LIMIT = 64
 
 
 class GovernedCandleIdentityState(StrEnum):
@@ -298,7 +299,7 @@ class FinalValidationEligibility:
 
 
 class BridgeAwareContinuityContextProvider:
-    """Build immutable bar contexts only for signed DSI-010B1 cases."""
+    """Build immutable bar contexts from signed point-in-time identity evidence."""
 
     def __init__(
         self,
@@ -307,6 +308,7 @@ class BridgeAwareContinuityContextProvider:
         cases: tuple[dict[str, Any], ...],
         source_checksums: tuple[tuple[str, str], ...],
         source_contract: SignedBridgeContinuitySourceContract,
+        all_material_actions: bool = False,
     ) -> None:
         eligible = tuple(row for row in cases if row.get("bridge_certified") is True)
         if len(eligible) != 18:
@@ -317,6 +319,7 @@ class BridgeAwareContinuityContextProvider:
         self.bridge = bridge
         self.source_checksums = source_checksums
         self.source_contract = source_contract
+        self.all_material_actions = all_material_actions
         self._cases = {
             str(row["event_id"]): dict(row) for row in eligible if row.get("event_id")
         }
@@ -330,6 +333,7 @@ class BridgeAwareContinuityContextProvider:
         htr009a2_output: Path,
         htr010a3_output: Path,
         dsi010b1_output: Path,
+        all_material_actions: bool = False,
         source_contract: SignedBridgeContinuitySourceContract = (
             SIGNED_DSI010B1_CONTINUITY_SOURCE_CONTRACT
         ),
@@ -344,6 +348,7 @@ class BridgeAwareContinuityContextProvider:
             cases=cases,
             source_checksums=checksums,
             source_contract=source_contract,
+            all_material_actions=all_material_actions,
         )
 
     @classmethod
@@ -352,6 +357,7 @@ class BridgeAwareContinuityContextProvider:
         *,
         bridge: LegacyIsinReferenceBridge,
         cases: tuple[dict[str, Any], ...],
+        all_material_actions: bool = False,
     ) -> BridgeAwareContinuityContextProvider:
         contract = SignedBridgeContinuitySourceContract(
             workflow_run_id=0,
@@ -365,6 +371,7 @@ class BridgeAwareContinuityContextProvider:
             cases=cases,
             source_checksums=(),
             source_contract=contract,
+            all_material_actions=all_material_actions,
         )
 
     @property
@@ -372,7 +379,7 @@ class BridgeAwareContinuityContextProvider:
         return tuple(sorted(self._cases))
 
     def supports(self, event_id: str) -> bool:
-        return event_id in self._cases
+        return self.all_material_actions or event_id in self._cases
 
     def case(self, event_id: str) -> dict[str, Any]:
         return dict(self._cases[event_id])
@@ -388,7 +395,7 @@ class BridgeAwareContinuityContextProvider:
     ) -> EventBarContext:
         event_id = str(event.get("canonical_event_id") or "")
         signed_case = self._cases.get(event_id)
-        if signed_case is None:
+        if signed_case is None and not self.all_material_actions:
             return _empty_context(
                 event_id,
                 ContinuityContextDecision.NO_SIGNED_BRIDGE_CASE,
@@ -397,16 +404,24 @@ class BridgeAwareContinuityContextProvider:
         symbol = str(event.get("symbol") or "").upper()
         isin = str(event.get("isin") or "").upper()
         normalized_series = series.upper()
-        _validate_case_identity(
-            signed_case,
-            identity=identity,
-            symbol=symbol,
-            series=normalized_series,
-            isin=isin,
-            effective_date=effective_date,
-            factor=factor,
-            bridge=self.bridge,
-        )
+        if signed_case is not None:
+            _validate_case_identity(
+                signed_case,
+                identity=identity,
+                symbol=symbol,
+                series=normalized_series,
+                isin=isin,
+                effective_date=effective_date,
+                factor=factor,
+                bridge=self.bridge,
+            )
+        else:
+            _validate_material_action_identity(
+                identity=identity,
+                symbol=symbol,
+                series=normalized_series,
+                isin=isin,
+            )
 
         prior_candidates = _candidate_rows(
             connection,
@@ -743,6 +758,23 @@ def _validate_case_identity(
         raise ValueError("factor bridge report hash mismatch")
 
 
+def _validate_material_action_identity(
+    *,
+    identity: str,
+    symbol: str,
+    series: str,
+    isin: str,
+) -> None:
+    if not identity:
+        raise ValueError("governed identity is required for continuity context")
+    if not symbol:
+        raise ValueError("event symbol is required for continuity context")
+    if not series:
+        raise ValueError("event series is required for continuity context")
+    if not isin:
+        raise ValueError("event ISIN is required for continuity context")
+
+
 def _candidate_rows(
     connection: duckdb.DuckDBPyConnection,
     *,
@@ -753,14 +785,17 @@ def _candidate_rows(
     prior: bool,
 ) -> tuple[RawCanonicalCandle, ...]:
     comparator = "<" if prior else ">="
+    direction = "DESC" if prior else "ASC"
     rows = connection.execute(
-        "SELECT trading_date, upper(symbol), upper(series), upper(isin), "
-        "open_price, high_price, low_price, close_price, volume, source_sha256 "
-        "FROM daily_candle WHERE trading_date "
+        "SELECT * FROM (SELECT trading_date, upper(symbol), upper(series), "
+        "upper(isin), open_price, high_price, low_price, close_price, volume, "
+        "source_sha256 FROM daily_candle WHERE trading_date "
         + comparator
         + " ? AND upper(series)=? AND "
-        "((upper(symbol)=?) OR (upper(isin)=?)) ORDER BY trading_date",
-        [effective_date, series, symbol, isin],
+        "((upper(symbol)=?) OR (upper(isin)=?)) ORDER BY trading_date "
+        + direction
+        + " LIMIT ?) ORDER BY trading_date",
+        [effective_date, series, symbol, isin, _CANDIDATE_SCAN_LIMIT],
     ).fetchall()
     return tuple(
         RawCanonicalCandle(
@@ -784,7 +819,7 @@ def _context_decision(
     selected_prior: tuple[GovernedCandleRecord, ...],
     action_bar: GovernedCandleRecord | None,
     duplicate: bool,
-    signed_case: Mapping[str, Any],
+    signed_case: Mapping[str, Any] | None,
     factor: Mapping[str, Any],
     bridge: LegacyIsinReferenceBridge,
 ) -> ContinuityContextDecision:
@@ -794,6 +829,8 @@ def _context_decision(
         return ContinuityContextDecision.ACTION_SESSION_MISSING
     if len(selected_prior) < 2:
         return ContinuityContextDecision.INSUFFICIENT_ATR_HISTORY
+    if signed_case is None:
+        return ContinuityContextDecision.COMPLETE_GOVERNED_CONTINUITY_CONTEXT
     prior = selected_prior[-1].candle
     expected_date = _as_date(factor.get("reference_price_date"))
     if expected_date is None:
