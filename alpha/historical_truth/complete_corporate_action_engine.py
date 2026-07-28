@@ -39,6 +39,9 @@ from alpha.historical_truth.corporate_action_price_sources import (
     OfficialCorporateActionStore,
     default_corporate_action_sources,
 )
+from alpha.historical_truth.legacy_isin_reference_bridge import (
+    LegacyIsinReferenceBridge,
+)
 
 
 class CompleteCorporateActionDatasetEngine:
@@ -52,6 +55,7 @@ class CompleteCorporateActionDatasetEngine:
         self,
         *,
         htr010a3_output: Path,
+        htr009a2_output: Path | None = None,
         start_date: date,
         end_date: date,
         output: Path,
@@ -61,6 +65,11 @@ class CompleteCorporateActionDatasetEngine:
         if refresh_sources and verify_only:
             raise ValueError("refresh_sources and verify_only are mutually exclusive")
         joins, upstream_a3_readiness = _validated_a3_join_contract(htr010a3_output)
+        reference_bridge = (
+            LegacyIsinReferenceBridge.from_output(htr009a2_output)
+            if htr009a2_output is not None
+            else None
+        )
         admitted = {
             str(row["identity_key"]): row
             for row in joins
@@ -100,7 +109,13 @@ class CompleteCorporateActionDatasetEngine:
             _event_lineage(item, source_by_id, lineages) for item in canonical
         )
         actions_by_id = {item.action_id: item for item in tier_actions}
-        factors = derive_factors(self.database_path, canonical, actions_by_id, admitted)
+        factors = derive_factors(
+            self.database_path,
+            canonical,
+            actions_by_id,
+            admitted,
+            reference_bridge=reference_bridge,
+        )
         cumulative = cumulative_factors(factors)
         canonical_by_raw_id = {
             str(raw_id): str(item["canonical_event_id"])
@@ -161,8 +176,17 @@ class CompleteCorporateActionDatasetEngine:
         )
         checksums = tuple(
             sorted(
-                (item.immutable_path or item.source_id, item.sha256 or "")
-                for item in inventory
+                (
+                    *(
+                        (item.immutable_path or item.source_id, item.sha256 or "")
+                        for item in inventory
+                    ),
+                    *(
+                        reference_bridge.source_checksums
+                        if reference_bridge is not None
+                        else ()
+                    ),
+                )
             )
         )
         report = CompleteCorporateActionReport(
@@ -469,6 +493,8 @@ def derive_factors(
     events: tuple[dict[str, Any], ...],
     actions_by_id: dict[str, CorporateActionEvent],
     joins: dict[str, dict[str, Any]] | None = None,
+    *,
+    reference_bridge: LegacyIsinReferenceBridge | None = None,
 ) -> tuple[dict[str, Any], ...]:
     engine = AdjustmentFactorEngine()
     factors = []
@@ -486,6 +512,7 @@ def derive_factors(
                 "reference_price_source_sha256": None,
                 "reference_price_provenance_state": "NOT_APPLICABLE",
                 "reference_price_certified": False,
+                **_empty_reference_bridge_provenance(),
             }
             if source.action_type is CorporateActionType.RIGHTS:
                 if joins is None:
@@ -507,6 +534,7 @@ def derive_factors(
                             else "PRIOR_CANDLE_MISSING"
                         ),
                         "reference_price_certified": False,
+                        **_empty_reference_bridge_provenance(),
                     }
                 else:
                     reference, provenance = _rights_reference_context(
@@ -514,6 +542,7 @@ def derive_factors(
                         source=source,
                         event=event,
                         join=joins.get(str(event["governed_identity_id"]), {}),
+                        reference_bridge=reference_bridge,
                     )
             factor = engine.derive(source, reference_price=reference)
             state = map_factor_state(source, normalize_action(source))
@@ -559,6 +588,7 @@ def _rights_reference_context(
     source: CorporateActionEvent,
     event: dict[str, Any],
     join: dict[str, Any],
+    reference_bridge: LegacyIsinReferenceBridge | None = None,
 ) -> tuple[float | None, dict[str, Any]]:
     applicable = tuple(
         str(item).upper() for item in event.get("series_applicability", ())
@@ -595,7 +625,27 @@ def _rights_reference_context(
     else:
         state = "CERTIFIED_SAME_ISIN_CANONICAL_PRIOR_CLOSE"
 
-    certified = state == "CERTIFIED_SAME_ISIN_CANONICAL_PRIOR_CLOSE"
+    bridge_provenance = _empty_reference_bridge_provenance()
+    if (
+        state == "PRIOR_ISIN_MISSING"
+        and reference_bridge is not None
+        and prior_date is not None
+    ):
+        bridge_result = reference_bridge.resolve(
+            identity_key=str(event["governed_identity_id"]),
+            symbol=source.symbol,
+            series=source.series,
+            isin=event_isin,
+            reference_date=prior_date,
+        )
+        bridge_provenance = bridge_result.provenance()
+        if bridge_result.certified:
+            state = "CERTIFIED_DATED_OFFICIAL_IDENTITY_BRIDGE_PRIOR_CLOSE"
+
+    certified = state in {
+        "CERTIFIED_SAME_ISIN_CANONICAL_PRIOR_CLOSE",
+        "CERTIFIED_DATED_OFFICIAL_IDENTITY_BRIDGE_PRIOR_CLOSE",
+    }
     return close, {
         "reference_price_date": prior_date.isoformat() if prior_date else None,
         "reference_price_series": source.series.upper(),
@@ -603,6 +653,22 @@ def _rights_reference_context(
         "reference_price_source_sha256": source_sha or None,
         "reference_price_provenance_state": state,
         "reference_price_certified": certified,
+        **bridge_provenance,
+    }
+
+
+def _empty_reference_bridge_provenance() -> dict[str, Any]:
+    return {
+        "reference_price_bridge_contract_version": None,
+        "reference_price_bridge_state": "NOT_APPLICABLE",
+        "reference_price_bridge_identity": None,
+        "reference_price_bridge_symbol": None,
+        "reference_price_bridge_series": None,
+        "reference_price_bridge_isin": None,
+        "reference_price_bridge_membership_event_ids": [],
+        "reference_price_bridge_symbol_event_ids": [],
+        "reference_price_bridge_official_event_ids": [],
+        "reference_price_bridge_official_source_ids": [],
     }
 
 
