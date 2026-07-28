@@ -1,0 +1,63 @@
+name: DSI-010 Legacy ISIN Bridge Contract Audit
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-legacy-isin-bridge-contract-audit.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30355398752
+          name: dsi010-rights-reference-certified-rebuild
+          path: final
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30356547188
+          name: dsi010-insufficient-factor-evidence-audit
+          path: audit
+      - name: Inspect A3 identity contract for legacy missing-ISIN cases
+        run: |
+          python - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+
+          def load(path):
+              payload=json.loads(Path(path).read_text(encoding='utf-8'))
+              return payload.get('records',payload) if isinstance(payload,dict) else payload
+
+          cases_path=next(Path('audit').rglob('insufficient_factor_evidence_cases.json'))
+          cases=load(cases_path)
+          legacy=[row for row in cases if row.get('insufficient_reason')=='LEGACY_CANDLES_MISSING_ISIN']
+          a3_dir=next(Path('final').rglob('htr010a3_tier_a_foundation_readiness'))
+          joins=load(a3_dir/'htr010a3_corporate_action_join_readiness.json')
+          join_by_identity={str(row.get('identity_key')):row for row in joins}
+          selected=[]
+          key_counts=Counter()
+          for case in legacy:
+              join=join_by_identity.get(str(case.get('identity_key')),{})
+              key_counts.update(join.keys())
+              selected.append({'case':case,'join':join})
+              if len(selected)>=8:
+                  break
+          print('LEGACY_CASE_COUNT='+str(len(legacy)))
+          print('A3_JOIN_COUNT='+str(len(joins)))
+          print('A3_JOIN_KEYS='+json.dumps(sorted(key_counts),sort_keys=True))
+          print('SAMPLES='+json.dumps(selected,indent=2,sort_keys=True))
+          print('A3_FILES=')
+          for path in sorted(a3_dir.glob('*')):
+              print(path.name)
+          PY
