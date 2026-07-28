@@ -1,0 +1,35 @@
+name: DSI-010 HTR-010B1D Result Diagnostic
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-htr010b1d-result-diagnostic.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print HTR-010B1D forensic result
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          JOB_ID: "90219069309"
+        run: |
+          curl --fail --location --silent --show-error \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${REPOSITORY}/actions/jobs/${JOB_ID}/logs" \
+            --output /tmp/job.log
+          echo "===== HTR-010B1D CONSOLE ====="
+          grep -nE \
+            'HTR-010B1D Factor|Cases audited|Classifications|Recommended repairs|Orientation candidates|Term arithmetic|Series mismatches|Series ambiguities|Event-date mismatches|Unresolved forensic|Report SHA|HTR010B1D_OUTCOME|PRODUCTION_INFLUENCE' \
+            /tmp/job.log | tail -200 || true
+          echo "===== HTR-010B1D SUMMARY ====="
+          grep -n -A120 -B5 '"htr010b1d_outcome"' /tmp/job.log | tail -180 || true
+          echo "===== TRACEBACKS ====="
+          grep -n -A80 -B10 'Traceback' /tmp/job.log | tail -180 || true
