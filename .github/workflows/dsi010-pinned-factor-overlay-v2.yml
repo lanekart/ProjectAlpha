@@ -1,0 +1,269 @@
+name: DSI-010 Complete Composite Overlay Rebuild
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-pinned-factor-overlay-v2.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      _TYPER_FORCE_DISABLE_TERMINAL: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry && poetry install --no-interaction
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30341297898
+          name: dsi010-htr010b1-admission-audit
+          path: inputs
+      - name: Restore pinned governed state
+        run: |
+          archive=$(find inputs -name alpha_data_after_htr010b1.tar.gz | head -1)
+          calendar=$(find inputs -name htr007_session_calendar.json | head -1)
+          a3=$(find inputs -type d -name htr010a3_tier_a_foundation_readiness | head -1)
+          b=$(find inputs -type d -name htr010b_complete_corporate_action_dataset | head -1)
+          test -f "$archive" && test -f "$calendar" && test -d "$a3" && test -d "$b"
+          tar -xzf "$archive"
+          mkdir -p work/calendar artifacts
+          cp "$calendar" work/calendar/htr007_session_calendar.json
+          rm -rf artifacts/htr010a3_tier_a_foundation_readiness
+          cp -R "$a3" artifacts/htr010a3_tier_a_foundation_readiness
+          rm -rf artifacts/htr010b_complete_corporate_action_dataset_reprocessed
+          cp -R "$b" artifacts/htr010b_complete_corporate_action_dataset_reprocessed
+      - name: Build complete hash-bound factor overlay
+        run: |
+          poetry run python - <<'PY'
+          import csv
+          import hashlib
+          import json
+          from pathlib import Path
+
+          from alpha.historical_truth.complete_corporate_action_engine import cumulative_factors
+          from alpha.historical_truth.corporate_action_price_sources import _face_values
+
+          root = Path('artifacts/htr010b_complete_corporate_action_dataset_reprocessed')
+          event_path = root / 'htr010b_canonical_events.json'
+          factor_path = root / 'htr010b_adjustment_factors.json'
+          cumulative_path = root / 'htr010b_cumulative_factors.json'
+
+          def digest(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          original = {
+              'canonical_events_sha256': digest(event_path),
+              'adjustment_factors_sha256': digest(factor_path),
+              'cumulative_factors_sha256': digest(cumulative_path),
+          }
+          events = json.loads(event_path.read_text())
+          factors = json.loads(factor_path.read_text())
+          events_by_id = {str(row['canonical_event_id']): row for row in events}
+          changes = []
+          for factor in factors:
+              event = events_by_id[str(factor['canonical_event_id'])]
+              if str(event.get('action_type')) != 'BONUS':
+                  continue
+              numerator = event.get('ratio_numerator')
+              denominator = event.get('ratio_denominator')
+              if numerator is None or denominator is None:
+                  continue
+              text = str(event.get('raw_action_text') or '')
+              parsed_old, parsed_new = _face_values(text)
+              if parsed_old is None:
+                  continue
+              if parsed_new is None or parsed_old <= 0 or parsed_new <= 0:
+                  raise RuntimeError(f'INVALID_COMPOSITE_FACE_VALUE:{event["canonical_event_id"]}')
+              if 'SPLIT' not in text.upper() and 'SUB-DIVISION' not in text.upper() and 'SUB DIVISION' not in text.upper():
+                  raise RuntimeError(f'COMPOSITE_WITHOUT_EXPLICIT_SPLIT:{event["canonical_event_id"]}')
+              event['old_face_value'] = float(parsed_old)
+              event['new_face_value'] = float(parsed_new)
+              price = float(denominator) / (float(denominator) + float(numerator))
+              price *= float(parsed_new) / float(parsed_old)
+              before = factor.get('price_factor')
+              factor['price_factor'] = price
+              factor['quantity_factor'] = 1.0 / price
+              factor['explanation'] = (
+                  'Bonus ratio and explicit face-value split terms determine '
+                  'the composite reciprocal price/quantity factors.'
+              )
+              if before != price:
+                  changes.append({
+                      'canonical_event_id': event['canonical_event_id'],
+                      'identity_key': factor['identity_key'],
+                      'symbol': event.get('symbol'),
+                      'effective_date': event.get('effective_date'),
+                      'raw_action_text': text,
+                      'old_price_factor': before,
+                      'new_price_factor': price,
+                      'old_face_value': parsed_old,
+                      'new_face_value': parsed_new,
+                  })
+
+          if len(changes) != 21:
+              raise RuntimeError(f'UNEXPECTED_COMPOSITE_CHANGE_COUNT:{len(changes)}:{changes}')
+          required = {'MINDACORP', 'JBMA'}
+          observed = {str(row['symbol']) for row in changes}
+          if not required <= observed:
+              raise RuntimeError(f'MISSING_KNOWN_DEFECT_CASES:{sorted(required-observed)}')
+
+          factors = sorted(
+              factors,
+              key=lambda row: (
+                  str(row['identity_key']),
+                  str(row['effective_date']),
+                  str(row['factor_id']),
+              ),
+          )
+          cumulative = list(cumulative_factors(tuple(factors)))
+
+          def write_json(path: Path, rows: list[dict]):
+              path.write_text(json.dumps(rows, indent=2, sort_keys=True) + '\n')
+
+          def write_csv(path: Path, rows: list[dict]):
+              fields = sorted({key for row in rows for key in row})
+              with path.open('w', newline='', encoding='utf-8') as handle:
+                  writer = csv.DictWriter(handle, fieldnames=fields)
+                  writer.writeheader()
+                  for row in rows:
+                      writer.writerow({
+                          key: json.dumps(value, sort_keys=True)
+                          if isinstance(value, (list, dict)) else value
+                          for key, value in row.items()
+                      })
+
+          write_json(event_path, events)
+          write_csv(root / 'htr010b_canonical_events.csv', events)
+          write_json(factor_path, factors)
+          write_csv(root / 'htr010b_adjustment_factors.csv', factors)
+          write_json(cumulative_path, cumulative)
+          write_csv(root / 'htr010b_cumulative_factors.csv', cumulative)
+
+          repaired = {
+              'canonical_events_sha256': digest(event_path),
+              'adjustment_factors_sha256': digest(factor_path),
+              'cumulative_factors_sha256': digest(cumulative_path),
+          }
+          manifest = {
+              'contract_version': 'HTR-010B-PINNED-FACTOR-OVERLAY-v1.1.0',
+              'source_artifact_id': 8681172140,
+              'source_workflow_run_id': 30341297898,
+              'original_hashes': original,
+              'repaired_hashes': repaired,
+              'changes': sorted(changes, key=lambda row: (str(row['effective_date']), str(row['symbol']))),
+              'change_count': len(changes),
+              'canonical_event_count': len(events),
+              'factor_count': len(factors),
+              'raw_ohlcv_mutated': False,
+              'official_event_lineage_mutated': False,
+              'market_derived_autocorrection': False,
+              'production_influence': False,
+          }
+          (root / 'htr010b_pinned_factor_overlay_manifest.json').write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + '\n'
+          )
+          print(json.dumps(manifest, indent=2, sort_keys=True))
+          PY
+      - name: Rebuild HTR-010B1C
+        run: |
+          rm -rf artifacts/htr010b1_adjustment_replay_admission_reprocessed
+          poetry run python -m alpha historical-truth adjustment-replay-admission-certify \
+            --database alpha_data/warehouse/historical_truth.duckdb \
+            --root alpha_data \
+            --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset_reprocessed \
+            --session-calendar-report work/calendar/htr007_session_calendar.json \
+            --start 2005-01-01 \
+            --end 2015-12-31 \
+            --output artifacts/htr010b1_adjustment_replay_admission_reprocessed
+      - name: Rebuild HTR-010B1D
+        run: |
+          rm -rf artifacts/htr010b1d_factor_transformation_forensics_reprocessed
+          poetry run python -m alpha historical-truth factor-transformation-forensics \
+            --database alpha_data/warehouse/historical_truth.duckdb \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset_reprocessed \
+            --htr010b1c-output artifacts/htr010b1_adjustment_replay_admission_reprocessed \
+            --start 2005-01-01 \
+            --end 2015-12-31 \
+            --output artifacts/htr010b1d_factor_transformation_forensics_reprocessed
+      - name: Rebuild HTR-010B1D1
+        run: |
+          rm -rf artifacts/htr010b1d1_cross_series_identity_bridge_reprocessed
+          poetry run python -m alpha historical-truth factor-transformation-bridge-forensics \
+            --database alpha_data/warehouse/historical_truth.duckdb \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset_reprocessed \
+            --htr010b1d-output artifacts/htr010b1d_factor_transformation_forensics_reprocessed \
+            --start 2005-01-01 \
+            --end 2015-12-31 \
+            --output artifacts/htr010b1d1_cross_series_identity_bridge_reprocessed
+      - name: Rebuild HTR-010B1D2
+        run: |
+          rm -rf artifacts/htr010b1d2_bridge_aware_validation_repair_reprocessed
+          poetry run python -m alpha historical-truth bridge-aware-factor-validation-repair \
+            --htr010b1d1-output artifacts/htr010b1d1_cross_series_identity_bridge_reprocessed \
+            --start 2005-01-01 \
+            --end 2015-12-31 \
+            --output artifacts/htr010b1d2_bridge_aware_validation_repair_reprocessed
+      - name: Rebuild HTR-010B1E2
+        run: |
+          rm -rf artifacts/htr010b1e2_final_admission_state_propagation_reprocessed
+          poetry run python -m alpha historical-truth bridge-aware-admission-reconcile \
+            --database alpha_data/warehouse/historical_truth.duckdb \
+            --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset_reprocessed \
+            --htr010b1d2-output artifacts/htr010b1d2_bridge_aware_validation_repair_reprocessed \
+            --session-calendar-report work/calendar/htr007_session_calendar.json \
+            --start 2005-01-01 \
+            --end 2015-12-31 \
+            --output artifacts/htr010b1e2_final_admission_state_propagation_reprocessed
+      - name: Export governed summary
+        if: always()
+        run: |
+          poetry run python - <<'PY'
+          import json
+          from pathlib import Path
+          def load(name):
+              paths = list(Path('artifacts').rglob(name))
+              return json.loads(paths[-1].read_text()) if paths else {'missing': name}
+          summary = {
+              'overlay': load('htr010b_pinned_factor_overlay_manifest.json'),
+              'b1d': load('htr010b1d_factor_transformation_forensics.json'),
+              'b1d2': load('htr010b1d2_validation_repair.json'),
+              'b1e2': load('htr010b1_replay_readiness.json'),
+              'production_influence': False,
+          }
+          Path('artifacts/dsi010_complete_composite_overlay_summary.json').write_text(
+              json.dumps(summary, indent=2, sort_keys=True) + '\n'
+          )
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dsi010-complete-composite-overlay-rebuild
+          path: |
+            artifacts/dsi010_complete_composite_overlay_summary.json
+            artifacts/htr010b_complete_corporate_action_dataset_reprocessed
+            artifacts/htr010b1_adjustment_replay_admission_reprocessed
+            artifacts/htr010b1d_factor_transformation_forensics_reprocessed
+            artifacts/htr010b1d1_cross_series_identity_bridge_reprocessed
+            artifacts/htr010b1d2_bridge_aware_validation_repair_reprocessed
+            artifacts/htr010b1e2_final_admission_state_propagation_reprocessed
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Enforce complete execution
+        run: |
+          test -f artifacts/htr010b1e2_final_admission_state_propagation_reprocessed/htr010b1_replay_readiness.json
+          echo PRODUCTION_INFLUENCE=false
