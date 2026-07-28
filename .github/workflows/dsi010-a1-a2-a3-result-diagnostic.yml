@@ -1,0 +1,35 @@
+name: DSI-010 A1 A2 A3 Result Diagnostic
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-a1-a2-a3-result-diagnostic.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print stage results and A3 failure
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          JOB_ID: "90196243449"
+        run: |
+          curl --fail --location --silent --show-error \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${REPOSITORY}/actions/jobs/${JOB_ID}/logs" \
+            --output /tmp/job.log
+          echo "===== A1 A2 A3 RESULT MARKERS ====="
+          grep -nE \
+            'HTR-010A1|HTR-010A2|HTR-010A3|Certification:|HTR-010B readiness|Readiness:|Corrected identities|Tier A|Remaining overlaps|Remaining gaps|Conflict case|Blocking conflicts|Quarantined|Report SHA|PRODUCTION_INFLUENCE|Traceback|TypeError|ValueError|KeyError|AttributeError' \
+            /tmp/job.log | tail -360 || true
+          echo "===== A3 TRACEBACK RANGE ====="
+          grep -n -A80 -B10 'Traceback' /tmp/job.log | tail -180 || true
+          echo "===== CHAIN OUTCOMES ====="
+          grep -nE 'HTR010A1_OUTCOME|HTR010A2_OUTCOME|HTR010A3_OUTCOME|HTR010B_OUTCOME' /tmp/job.log | tail -40 || true
