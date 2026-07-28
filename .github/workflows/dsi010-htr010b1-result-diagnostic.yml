@@ -13,7 +13,7 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Print HTR-010B1 admission result
+      - name: Print HTR-010B1 admission result details
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -26,14 +26,10 @@ jobs:
             "https://api.github.com/repos/${REPOSITORY}/actions/jobs/${JOB_ID}/logs" \
             --output /tmp/job.log
           echo "===== HTR-010B1 CONSOLE ====="
+          sed -n '425,450p' /tmp/job.log
+          echo "===== HTR-010B1 SUMMARY PAYLOAD ====="
+          sed -n '500,575p' /tmp/job.log
+          echo "===== HTR-010B1 BLOCKER MARKERS ====="
           grep -nE \
-            'HTR-010B1 Adjustment|Factor validation cases|Quarantine intervals|Replay admission intervals|Replay readiness|Report SHA|HTR010B1_OUTCOME|PRODUCTION_INFLUENCE' \
-            /tmp/job.log | tail -160 || true
-          echo "===== HTR-010B1 SUMMARY ====="
-          grep -n -A180 -B5 '"htr010b1_outcome"' /tmp/job.log | tail -240 || true
-          echo "===== BLOCKER AND WEIGHT DETAILS ====="
-          grep -nE \
-            'readiness_blockers|validation_outcomes|economic_weight_measurement_state|pct_observed_tier_a|admission_quarantined|evidence_quarantined|unresolved_case|requested_window_fully_observed|contract|schema|coverage|blockers' \
-            /tmp/job.log | tail -320 || true
-          echo "===== TRACEBACKS ====="
-          grep -n -A80 -B10 'Traceback' /tmp/job.log | tail -180 || true
+            'readiness_blockers|validation_outcomes|economic_weight_measurement_state|pct_observed_tier_a|admission_quarantined|evidence_quarantined|unresolved_case|requested_window_fully_observed|input_contract|schema|coverage|blockers' \
+            /tmp/job.log | tail -360 || true
