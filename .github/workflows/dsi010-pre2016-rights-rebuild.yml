@@ -1,0 +1,183 @@
+name: DSI-010 Pre-2016 Rights Evidence Rebuild
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-pre2016-rights-rebuild.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      _TYPER_FORCE_DISABLE_TERMINAL: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - run: pip install poetry && poetry install --no-interaction
+      - name: Download signed pre-rights rebuild state
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30349513142
+          name: dsi010-pre2016-b1e2-rebuild
+          path: inputs
+      - name: Restore immutable inputs
+        run: |
+          set -euo pipefail
+          archive=$(find inputs -type f -name alpha_data_after_pre2016_b1e2.tar.gz | head -1)
+          calendar=$(find inputs -type f -name htr007_session_calendar.json | head -1)
+          test -f "$archive"
+          test -f "$calendar"
+          mkdir -p work artifacts work/calendar
+          tar -xzf "$archive" -C work
+          cp -a inputs/artifacts/. artifacts/
+          cp "$calendar" work/calendar/htr007_session_calendar.json
+          test -f work/alpha_data/warehouse/historical_truth.duckdb
+          test -f artifacts/htr010a3_tier_a_foundation_readiness/htr010a3_corporate_action_join_readiness.json
+          rm -rf \
+            artifacts/htr009b_corporate_action_price_continuity \
+            artifacts/htr010b_complete_corporate_action_dataset \
+            artifacts/htr010b1_adjustment_replay_admission \
+            artifacts/htr010b1d_factor_transformation_forensics \
+            artifacts/htr010b1d1_cross_series_identity_bridge \
+            artifacts/htr010b1d2_bridge_aware_validation_repair \
+            artifacts/htr010b1e2_final_admission_state_propagation \
+            artifacts/dsi010_pre2016_rights_rebuild
+          mkdir -p artifacts/dsi010_pre2016_rights_rebuild
+      - name: Run governed post-rights chain
+        run: |
+          set -euo pipefail
+          poetry run python -m alpha historical-truth corporate-action-price-certify \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --calendar-report work/calendar/htr007_session_calendar.json \
+            --root work/alpha_data \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr009b_corporate_action_price_continuity \
+            --verify-only \
+            2>&1 | tee artifacts/dsi010_pre2016_rights_rebuild/htr009b.log
+          poetry run python -m alpha historical-truth complete-corporate-action-dataset \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --root work/alpha_data \
+            --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010b_complete_corporate_action_dataset \
+            --verify-only \
+            2>&1 | tee artifacts/dsi010_pre2016_rights_rebuild/htr010b.log
+          poetry run python -m alpha historical-truth adjustment-replay-admission-certify \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --root work/alpha_data \
+            --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            --session-calendar-report work/calendar/htr007_session_calendar.json \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010b1_adjustment_replay_admission \
+            --verify-only \
+            2>&1 | tee artifacts/dsi010_pre2016_rights_rebuild/htr010b1c.log
+          poetry run python -m alpha historical-truth factor-transformation-forensics \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            --htr010b1c-output artifacts/htr010b1_adjustment_replay_admission \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010b1d_factor_transformation_forensics \
+            2>&1 | tee artifacts/dsi010_pre2016_rights_rebuild/htr010b1d.log
+          poetry run python -m alpha historical-truth factor-transformation-bridge-forensics \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            --htr010b1d-output artifacts/htr010b1d_factor_transformation_forensics \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010b1d1_cross_series_identity_bridge \
+            2>&1 | tee artifacts/dsi010_pre2016_rights_rebuild/htr010b1d1.log
+          poetry run python -m alpha historical-truth bridge-aware-factor-validation-repair \
+            --htr010b1d1-output artifacts/htr010b1d1_cross_series_identity_bridge \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010b1d2_bridge_aware_validation_repair \
+            2>&1 | tee artifacts/dsi010_pre2016_rights_rebuild/htr010b1d2.log
+          poetry run python -m alpha historical-truth bridge-aware-admission-reconcile \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            --htr010b1d2-output artifacts/htr010b1d2_bridge_aware_validation_repair \
+            --session-calendar-report work/calendar/htr007_session_calendar.json \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010b1e2_final_admission_state_propagation \
+            2>&1 | tee artifacts/dsi010_pre2016_rights_rebuild/htr010b1e2.log
+      - name: Build signed rights summary
+        run: |
+          python - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+
+          def load(path):
+              payload=json.loads(Path(path).read_text(encoding='utf-8'))
+              return payload.get('records',payload) if isinstance(payload,dict) else payload
+
+          b=Path('artifacts/htr010b_complete_corporate_action_dataset')
+          final=Path('artifacts/htr010b1e2_final_admission_state_propagation')
+          events=load(b/'htr010b_canonical_events.json')
+          factors=load(b/'htr010b_adjustment_factors.json')
+          results=load(final/'htr010b1_factor_validation_results.json')
+          readiness=json.loads((final/'htr010b1_replay_readiness.json').read_text())
+          event_type={str(row.get('canonical_event_id')):str(row.get('action_type')) for row in events}
+          rights_factors=[row for row in factors if event_type.get(str(row.get('canonical_event_id')))=='RIGHTS']
+          rights_results=[row for row in results if str(row.get('action_type'))=='RIGHTS']
+          summary={
+              'rights_factor_count':len(rights_factors),
+              'rights_factor_states':dict(sorted(Counter(str(row.get('factor_state')) for row in rights_factors).items())),
+              'rights_validation_outcomes':dict(sorted(Counter(str(row.get('validation_outcome')) for row in rights_results).items())),
+              'all_validation_outcomes':dict(sorted(Counter(str(row.get('validation_outcome')) for row in results).items())),
+              'rights_missing_terms_count':sum(str(row.get('factor_state'))=='FACTOR_UNKNOWN_MISSING_TERMS' for row in rights_factors),
+              'rights_provisional_reference_price_count':sum(str(row.get('factor_state'))=='FACTOR_PROVISIONAL_REFERENCE_PRICE' for row in rights_factors),
+              'implementation_defect_count':sum(str(row.get('validation_outcome'))=='IMPLEMENTATION_DEFECT' for row in results),
+              'final_unresolved_interval_count':readiness.get('final_unresolved_interval_count'),
+              'readiness_state':readiness.get('state'),
+              'readiness_blockers':readiness.get('blockers',[]),
+              'production_influence':readiness.get('production_influence'),
+              'full_benchmark_replays':0,
+          }
+          out=Path('artifacts/dsi010_pre2016_rights_rebuild/rights_rebuild_summary.json')
+          out.write_text(json.dumps(summary,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          print(json.dumps(summary,indent=2,sort_keys=True))
+          PY
+          tar -czf artifacts/dsi010_pre2016_rights_rebuild/alpha_data_after_rights_rebuild.tar.gz -C work alpha_data
+      - name: Enforce rights parsing boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('artifacts/dsi010_pre2016_rights_rebuild/rights_rebuild_summary.json').read_text())
+          assert p['rights_missing_terms_count'] < 98, p
+          assert p['implementation_defect_count'] == 0, p
+          assert p['final_unresolved_interval_count'] == 0, p
+          assert p['production_influence'] is False, p
+          assert p['full_benchmark_replays'] == 0, p
+          print('PRE2016_RIGHTS_TERMS_REBUILD=success')
+          print('ADJUSTED_REPLAY_READY=false')
+          print('PRODUCTION_INFLUENCE=false')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-pre2016-rights-rebuild
+          retention-days: 14
+          compression-level: 6
+          path: |
+            artifacts/dsi010_pre2016_rights_rebuild
+            artifacts/htr009b_corporate_action_price_continuity
+            artifacts/htr010a3_tier_a_foundation_readiness
+            artifacts/htr010b_complete_corporate_action_dataset
+            artifacts/htr010b1_adjustment_replay_admission
+            artifacts/htr010b1d_factor_transformation_forensics
+            artifacts/htr010b1d1_cross_series_identity_bridge
+            artifacts/htr010b1d2_bridge_aware_validation_repair
+            artifacts/htr010b1e2_final_admission_state_propagation
+            work/calendar/htr007_session_calendar.json
