@@ -1,0 +1,104 @@
+name: DSI-010 B1E Admission Reconciliation
+
+on:
+  pull_request:
+    paths: [.github/workflows/dsi010-b1e.yml]
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry && poetry install --no-interaction
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30341297898
+          name: dsi010-htr010b1-admission-audit
+          path: inputs/base
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30342652599
+          name: dsi010-b1d2-validation-repair
+          path: inputs/d2
+      - name: Restore evidence
+        run: |
+          set -euo pipefail
+          archive=$(find inputs/base -name alpha_data_after_htr010b1.tar.gz | head -1)
+          calendar=$(find inputs/base -name htr007_session_calendar.json | head -1)
+          test -f "$archive" && test -f "$calendar"
+          mkdir -p work artifacts/dsi010_b1e work/calendar
+          tar -xzf "$archive" -C work
+          cp "$calendar" work/calendar/htr007_session_calendar.json
+          for name in htr010a3_tier_a_foundation_readiness htr010b_complete_corporate_action_dataset; do
+            source=$(find inputs/base -type d -path "*/artifacts/$name" | head -1)
+            test -d "$source"
+            rm -rf "artifacts/$name"
+            cp -a "$source" "artifacts/$name"
+          done
+          source=$(find inputs/d2 -type d -path '*/artifacts/htr010b1d2_bridge_aware_validation_repair' | head -1)
+          test -d "$source"
+          rm -rf artifacts/htr010b1d2_bridge_aware_validation_repair artifacts/htr010b1e_bridge_aware_admission_reconciliation
+          cp -a "$source" artifacts/htr010b1d2_bridge_aware_validation_repair
+      - name: Run B1E
+        id: run
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          poetry run python -m alpha historical-truth bridge-aware-admission-reconcile \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            --htr010b1d2-output artifacts/htr010b1d2_bridge_aware_validation_repair \
+            --session-calendar-report work/calendar/htr007_session_calendar.json \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010b1e_bridge_aware_admission_reconciliation \
+            2>&1 | tee artifacts/dsi010_b1e/run.log
+      - name: Summarize
+        if: always()
+        env:
+          OUTCOME: ${{ steps.run.outcome }}
+        run: |
+          poetry run python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root=Path('artifacts/htr010b1e_bridge_aware_admission_reconciliation')
+          executive=json.loads((root/'htr010b1_executive_report.json').read_text()) if (root/'htr010b1_executive_report.json').is_file() else {}
+          readiness=json.loads((root/'htr010b1_replay_readiness.json').read_text()) if (root/'htr010b1_replay_readiness.json').is_file() else {}
+          summary={'outcome':os.environ.get('OUTCOME'),'executive':executive,'readiness':readiness,'production_influence':False}
+          Path('artifacts/dsi010_b1e/summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(summary,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dsi010-b1e-admission-reconciliation
+          path: |
+            artifacts/dsi010_b1e
+            artifacts/htr010b1e_bridge_aware_admission_reconciliation
+            artifacts/htr010b1d2_bridge_aware_validation_repair
+            artifacts/htr010b_complete_corporate_action_dataset
+            artifacts/htr010a3_tier_a_foundation_readiness
+            work/calendar/htr007_session_calendar.json
+          retention-days: 14
+      - name: Enforce
+        if: always()
+        env:
+          OUTCOME: ${{ steps.run.outcome }}
+        run: |
+          test "$OUTCOME" = success
+          test -f artifacts/htr010b1e_bridge_aware_admission_reconciliation/htr010b1_replay_readiness.json
+          echo PRODUCTION_INFLUENCE=false
