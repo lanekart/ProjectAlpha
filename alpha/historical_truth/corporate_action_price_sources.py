@@ -656,7 +656,9 @@ def _parse_terms(
         _money_amount(purpose) if action_type is CorporateActionType.DIVIDEND else None
     )
     rights_price = (
-        _rights_price(purpose) if action_type is CorporateActionType.RIGHTS else None
+        _rights_price(purpose, face_value)
+        if action_type is CorporateActionType.RIGHTS
+        else None
     )
     return {
         "old_face_value": old_face,
@@ -754,10 +756,27 @@ def _money_amount(value: str) -> float | None:
     return float(matches[-1]) if matches else None
 
 
-def _rights_price(value: str) -> float | None:
+def _rights_price(value: str, face_value: float | None) -> float | None:
+    normalized = value.replace(",", " ")
+    if re.search(r"(?:\bAT\s+PAR\b|@\s*PAR\b)", normalized, re.IGNORECASE):
+        return face_value if face_value is not None and face_value > 0 else None
+
+    premium_matches = re.findall(
+        r"(?:PREMIUM|PREM)\s*(?:RS\.?|RE\.?|₹)?\s*"
+        r"([0-9]+(?:\.[0-9]+)?)",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    if premium_matches:
+        if face_value is None or face_value <= 0:
+            return None
+        return face_value + float(premium_matches[-1])
+
     matches = re.findall(
-        r"(?:AT|@|PRICE(?:\s+OF)?)\s*(?:RS\.?|RE\.?)?\s*([0-9]+(?:\.[0-9]+)?)",
-        value,
+        r"(?:AT|@|PRICE(?:\s+OF)?|ISSUE\s+PRICE(?:\s+PER\s+EQUITY\s+SHARE)?"
+        r"(?:\s+IS)?)\s*(?:RS\.?|RE\.?|₹)?\s*"
+        r"([0-9]+(?:\.[0-9]+)?)",
+        normalized,
         flags=re.IGNORECASE,
     )
     return float(matches[-1]) if matches else None
