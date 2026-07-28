@@ -426,6 +426,8 @@ def map_factor_state(
 ) -> FactorState:
     if normalized is GovernedActionType.BONUS and _is_separate_security_bonus(action):
         return FactorState.FACTOR_NOT_MULTIPLICATIVE
+    if normalized is GovernedActionType.RIGHTS and _is_separate_security_rights(action):
+        return FactorState.FACTOR_NOT_MULTIPLICATIVE
     non_adjusting = {
         GovernedActionType.DIVIDEND_ORDINARY,
         GovernedActionType.DIVIDEND_INTERIM,
@@ -483,6 +485,29 @@ def _is_separate_security_bonus(action: CorporateActionEvent) -> bool:
             "BONUS PREFERENCE",
         )
     )
+
+
+def _is_separate_security_rights(action: CorporateActionEvent) -> bool:
+    purpose = action.purpose.upper()
+    offered_non_equity = any(
+        marker in purpose
+        for marker in (
+            " NCD",
+            " BOND",
+            " PCD",
+            "PCCPS",
+        )
+    )
+    offered_equity = any(
+        marker in purpose
+        for marker in (
+            "RIGHT-EQ",
+            "RIGHTS-EQ",
+            "RIGHTS EQ",
+            "RIGHTS EQUITY",
+        )
+    )
+    return offered_non_equity and not offered_equity
 
 
 def admission_state(
@@ -582,7 +607,9 @@ def derive_factors(
             factor = engine.derive(source, reference_price=reference)
             state = map_factor_state(source, normalize_action(source))
             if source.action_type is CorporateActionType.RIGHTS:
-                if factor.price_factor is None:
+                if state is FactorState.FACTOR_NOT_MULTIPLICATIVE:
+                    pass
+                elif factor.price_factor is None:
                     state = FactorState.FACTOR_UNKNOWN_MISSING_TERMS
                 elif provenance["reference_price_certified"]:
                     state = FactorState.FACTOR_CERTIFIED_REFERENCE_PRICE
@@ -630,18 +657,37 @@ def _rights_reference_context(
     applicable = tuple(
         str(item).upper() for item in event.get("series_applicability", ())
     )
+    event_isin = str(source.isin or "").upper()
     row = connection.execute(
         "SELECT trading_date, upper(coalesce(isin, '')), close_price, "
+        "upper(symbol), "
         "coalesce(source_sha256, '') FROM daily_candle "
         "WHERE upper(symbol)=? AND upper(series)=? AND trading_date<? "
         "ORDER BY trading_date DESC LIMIT 1",
         [source.symbol.upper(), source.series.upper(), source.effective_date],
     ).fetchone()
+    used_exact_isin_alias = False
+    if row is None and event_isin:
+        rows = connection.execute(
+            "SELECT trading_date, upper(coalesce(isin, '')), close_price, "
+            "upper(symbol), coalesce(source_sha256, '') FROM daily_candle "
+            "WHERE upper(isin)=? AND upper(series)=? AND trading_date<? "
+            "QUALIFY trading_date=max(trading_date) OVER () "
+            "ORDER BY upper(symbol), coalesce(source_sha256, '')",
+            [event_isin, source.series.upper(), source.effective_date],
+        ).fetchall()
+        unique_rows = {
+            (item[0], str(item[1]), item[2], str(item[3]), str(item[4]))
+            for item in rows
+        }
+        if len(unique_rows) == 1:
+            row = next(iter(unique_rows))
+            used_exact_isin_alias = str(row[3]) != source.symbol.upper()
     prior_date = row[0] if row else None
     prior_isin = str(row[1]) if row else ""
     close = float(row[2]) if row and row[2] is not None else None
-    source_sha = str(row[3]) if row else ""
-    event_isin = str(source.isin or "").upper()
+    observed_symbol = str(row[3]) if row else ""
+    source_sha = str(row[4]) if row else ""
 
     if not join.get("admitted_to_certified_join"):
         state = "A3_JOIN_NOT_ADMITTED"
@@ -659,6 +705,8 @@ def _rights_reference_context(
         state = "PRIOR_ISIN_MISSING"
     elif prior_isin != event_isin:
         state = "PRIOR_ISIN_MISMATCH"
+    elif used_exact_isin_alias:
+        state = "CERTIFIED_SAME_ISIN_ALTERNATE_SYMBOL_PRIOR_CLOSE"
     else:
         state = "CERTIFIED_SAME_ISIN_CANONICAL_PRIOR_CLOSE"
 
@@ -689,14 +737,15 @@ def _rights_reference_context(
         if bounded is not None:
             state = "CERTIFIED_BOUNDED_OFFICIAL_ACTION_IDENTITY_INTERVAL_PRIOR_CLOSE"
             bridge_provenance = bounded
-
     certified = state in {
         "CERTIFIED_SAME_ISIN_CANONICAL_PRIOR_CLOSE",
+        "CERTIFIED_SAME_ISIN_ALTERNATE_SYMBOL_PRIOR_CLOSE",
         "CERTIFIED_DATED_OFFICIAL_IDENTITY_BRIDGE_PRIOR_CLOSE",
         "CERTIFIED_BOUNDED_OFFICIAL_ACTION_IDENTITY_INTERVAL_PRIOR_CLOSE",
     }
     return close, {
         "reference_price_date": prior_date.isoformat() if prior_date else None,
+        "reference_price_observed_symbol": observed_symbol or None,
         "reference_price_series": source.series.upper(),
         "reference_price_isin": prior_isin or None,
         "reference_price_source_sha256": source_sha or None,

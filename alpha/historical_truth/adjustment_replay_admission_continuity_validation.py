@@ -215,7 +215,7 @@ def _classify(case: dict[str, Any]) -> dict[str, Any]:
         defect_code = "CERTIFIED_FACTOR_MISSING_VALUE"
     elif raw_gap is None or adjusted_gap is None:
         outcome = ValidationOutcome.FACTOR_INSUFFICIENT_EVIDENCE
-    elif _certified_rights_close_restoration(case):
+    elif _certified_official_term_close_restoration(case):
         outcome = ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP
     elif adjusted_gap <= 2.0 or adjusted_gap < raw_gap:
         outcome = ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP
@@ -253,12 +253,12 @@ def _classify(case: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _certified_rights_close_restoration(case: dict[str, Any]) -> bool:
-    if case.get("action_type") != "RIGHTS":
-        return False
-    if case.get("factor_state") != "FACTOR_CERTIFIED_REFERENCE_PRICE":
-        return False
-    if case.get("reference_price_certified") is not True:
+def _certified_official_term_close_restoration(case: dict[str, Any]) -> bool:
+    action_type = str(case.get("action_type") or "")
+    if action_type == "RIGHTS" and (
+        case.get("factor_state") != "FACTOR_CERTIFIED_REFERENCE_PRICE"
+        or case.get("reference_price_certified") is not True
+    ):
         return False
     if case.get("official_term_factor_matches") is not True:
         return False
@@ -275,13 +275,35 @@ def _official_term_factor_matches(
     event: dict[str, Any],
     factor: dict[str, Any],
 ) -> bool | None:
-    if event.get("action_type") != "RIGHTS":
+    action_type = str(event.get("action_type") or "")
+    observed = _number(factor.get("price_factor"))
+    if observed is None:
+        return None
+    if action_type == "BONUS":
+        numerator = _number(event.get("ratio_numerator"))
+        denominator = _number(event.get("ratio_denominator"))
+        if (
+            numerator is None
+            or denominator is None
+            or numerator <= 0
+            or denominator <= 0
+        ):
+            return None
+        expected = denominator / (denominator + numerator)
+        return isclose(observed, expected, rel_tol=1e-12, abs_tol=1e-12)
+    if action_type in {"SPLIT", "FACE_VALUE_CHANGE"}:
+        old_face = _number(event.get("old_face_value"))
+        new_face = _number(event.get("new_face_value"))
+        if old_face is None or new_face is None or old_face <= 0 or new_face <= 0:
+            return None
+        expected = new_face / old_face
+        return isclose(observed, expected, rel_tol=1e-12, abs_tol=1e-12)
+    if action_type != "RIGHTS":
         return None
     numerator = _number(event.get("ratio_numerator"))
     denominator = _number(event.get("ratio_denominator"))
     rights_price = _number(event.get("rights_price"))
     reference = _number(factor.get("reference_price"))
-    observed = _number(factor.get("price_factor"))
     if (
         numerator is None
         or denominator is None

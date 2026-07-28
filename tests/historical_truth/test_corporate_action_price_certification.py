@@ -322,6 +322,30 @@ def test_checksum_mismatch_is_fail_closed(tmp_path: Path) -> None:
     assert reused.inventory.failure_code is FailureCode.CHECKSUM_MISMATCH
 
 
+def test_manifest_adjacent_source_is_reused_after_root_move(tmp_path: Path) -> None:
+    raw = json.dumps([_row("Bonus 1:1")]).encode()
+    store = OfficialCorporateActionStore(tmp_path)
+    acquired = store.acquire(
+        (_spec(),),
+        session=FakeSession(FakeResponse(raw)),
+    )[0]
+    manifest = next(
+        tmp_path.glob("raw/nse/corporate_actions/historical/**/*.manifest.json")
+    )
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    payload["immutable_path"] = "unavailable/original/acquisition/root.json"
+    manifest.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    reused = store.verify_or_missing((_spec(),))[0]
+
+    assert reused.inventory.status is SourceStatus.REUSED
+    assert reused.inventory.reuse_state == "CHECKSUM_VERIFIED"
+    assert reused.inventory.sha256 == acquired.inventory.sha256
+
+
 @pytest.mark.parametrize(
     ("purpose", "expected"),
     [

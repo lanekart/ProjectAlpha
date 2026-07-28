@@ -23,6 +23,7 @@ from alpha.historical_truth.bridge_aware_continuity_context import (
     ContinuityContextDecision,
     GovernedCandleIdentityState,
     OfficialEventDateIdentityEvidence,
+    OfficialIsinTransitionEvidence,
     RawCanonicalCandle,
 )
 from alpha.historical_truth.bridge_aware_factor_validation_repair import (
@@ -483,7 +484,7 @@ def test_duplicate_candle_date_fails_closed(tmp_path: Path) -> None:
     )
 
 
-def test_first_valid_action_session_is_selected_without_performance_search(
+def test_later_action_session_is_not_selected_after_first_market_session_rejects(
     tmp_path: Path,
 ) -> None:
     database = tmp_path / "truth.duckdb"
@@ -508,9 +509,44 @@ def test_first_valid_action_session_is_selected_without_performance_search(
     context = _context(database, provider)
 
     assert context.first_candidate_action_date == date(2015, 1, 16)
-    assert context.action_bar is not None
-    assert context.action_bar.candle.trading_date == date(2015, 1, 17)
-    assert context.metrics.action_open == 50.0
+    assert context.action_bar is None
+    assert context.decision is ContinuityContextDecision.ACTION_SESSION_MISSING
+    assert all(
+        row.candle.trading_date == date(2015, 1, 16)
+        for row in context.rejected_bars
+        if row.role == "ACTION"
+    )
+
+
+def test_stock_row_months_after_open_market_session_is_not_action_session(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, source_sha256=SOURCE_SHA)
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            "DELETE FROM daily_candle WHERE symbol='ALPHA' AND trading_date>=?",
+            [EFFECTIVE],
+        )
+        connection.execute(
+            "INSERT INTO daily_candle VALUES "
+            "('2015-01-16','NSE','MARKET','EQ','INE999A01010',"
+            "100,101,99,100,1000,?)",
+            [SOURCE_SHA],
+        )
+        connection.execute(
+            "INSERT INTO daily_candle VALUES "
+            "('2015-03-02','NSE','ALPHA','EQ',NULL,"
+            "100,101,99,100,1000,?)",
+            [SOURCE_SHA],
+        )
+    provider = _provider(tmp_path / "evidence")
+
+    context = _context(database, provider)
+
+    assert context.action_bar is None
+    assert context.decision is ContinuityContextDecision.ACTION_SESSION_MISSING
 
 
 def test_future_and_post_event_bars_never_enter_atr(tmp_path: Path) -> None:
@@ -637,6 +673,7 @@ def test_official_action_row_certifies_only_exact_action_date(
         source_ids=("nse_equity_corporate_actions_2015",),
         source_sha256=("a" * 64,),
         source_report_sha256="b" * 64,
+        action_type="RIGHTS",
     )
     provider = _provider(
         tmp_path,
@@ -690,6 +727,7 @@ def test_official_action_row_never_bridges_explicit_isin_mismatch(
         source_ids=("nse_equity_corporate_actions_2015",),
         source_sha256=("a" * 64,),
         source_report_sha256="b" * 64,
+        action_type="RIGHTS",
     )
     provider = _provider(
         tmp_path,
@@ -729,6 +767,7 @@ def test_bounded_official_action_interval_certifies_individual_prior_bar(
         source_sha256=("a" * 64, "b" * 64),
         source_report_sha256="c" * 64,
         interval_valid_from=date(2014, 1, 1),
+        action_type="SPLIT",
     )
     provider = _provider(
         tmp_path,
@@ -752,6 +791,38 @@ def test_bounded_official_action_interval_certifies_individual_prior_bar(
     assert accepted.bridge_evidence is not None
     assert accepted.bridge_evidence.decision == (
         "CERTIFIED_BOUNDED_OFFICIAL_ACTION_IDENTITY_INTERVAL"
+    )
+
+
+def test_prior_bar_accepts_governed_predecessor_successor_path(
+    tmp_path: Path,
+) -> None:
+    provider = _provider(tmp_path)
+    transition = OfficialIsinTransitionEvidence(
+        from_isin=ISIN,
+        to_isin="INE999A01010",
+        effective_date=date(2014, 1, 1),
+        event_id="official-split-event",
+        source_ids=("nse_equity_corporate_actions_2014",),
+        source_report_sha256="a" * 64,
+    )
+
+    accepted, rejected = provider.govern_candle(
+        _raw(isin="INE999A01010", trading_date=EFFECTIVE - timedelta(days=1)),
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series="EQ",
+        isin=ISIN,
+        role="PRIOR",
+        transition_evidence=(transition,),
+    )
+
+    assert rejected is None
+    assert accepted is not None
+    assert accepted.bridge_evidence is not None
+    assert (
+        accepted.bridge_evidence.decision
+        == "CERTIFIED_OFFICIAL_PREDECESSOR_SUCCESSOR_PATH"
     )
 
 
@@ -820,6 +891,75 @@ def test_uncertified_rights_factor_cannot_use_close_restoration(
         continuity_context_provider=provider,
     )
 
+    assert results[0]["validation_outcome"] == (
+        ValidationOutcome.IMPLEMENTATION_DEFECT.value
+    )
+
+
+def test_official_bonus_factor_can_restore_on_action_session_close(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, action_open=80.0, action_close=50.0)
+    provider = _provider(tmp_path / "evidence")
+    event = _event(
+        action_type="BONUS",
+        ratio_numerator=1.0,
+        ratio_denominator=1.0,
+    )
+    factor = _factor(
+        provider,
+        factor_state="FACTOR_DERIVED_OFFICIAL_TERMS",
+        price_factor=0.5,
+        reference_price_certified=False,
+    )
+
+    _, results, _ = recompute_factor_validation(
+        database_path=database,
+        events=(event,),
+        factors=(factor,),
+        legacy_continuity=(),
+        start_date=date(2015, 1, 1),
+        end_date=date(2015, 1, 31),
+        continuity_context_provider=provider,
+    )
+
+    assert results[0]["official_term_factor_matches"] is True
+    assert results[0]["close_adjusted_gap_atr"] == 0.0
+    assert results[0]["validation_outcome"] == (
+        ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP.value
+    )
+
+
+def test_wrong_bonus_factor_cannot_use_close_restoration(tmp_path: Path) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, action_open=80.0, action_close=50.0)
+    provider = _provider(tmp_path / "evidence")
+    event = _event(
+        action_type="BONUS",
+        ratio_numerator=1.0,
+        ratio_denominator=1.0,
+    )
+    factor = _factor(
+        provider,
+        factor_state="FACTOR_DERIVED_OFFICIAL_TERMS",
+        price_factor=0.4,
+        reference_price_certified=False,
+    )
+
+    _, results, _ = recompute_factor_validation(
+        database_path=database,
+        events=(event,),
+        factors=(factor,),
+        legacy_continuity=(),
+        start_date=date(2015, 1, 1),
+        end_date=date(2015, 1, 31),
+        continuity_context_provider=provider,
+    )
+
+    assert results[0]["official_term_factor_matches"] is False
     assert results[0]["validation_outcome"] == (
         ValidationOutcome.IMPLEMENTATION_DEFECT.value
     )

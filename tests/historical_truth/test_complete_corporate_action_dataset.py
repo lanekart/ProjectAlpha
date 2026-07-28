@@ -214,6 +214,45 @@ def test_bonus_of_separate_security_is_non_multiplicative(purpose: str) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "purpose",
+    [
+        "Rights Issue - 1 Ncd With 2 Detachable Warrants For Every 8 Equity Shares",
+        "Right-1 Bond:9eqsh@Rs.101",
+        "Rights-1 Pcd:2 Eq @Rs.400",
+        "Rights - 1pccps:5eq",
+    ],
+)
+def test_non_equity_rights_distribution_is_non_multiplicative(
+    purpose: str,
+) -> None:
+    action = _action(
+        action_type=CorporateActionType.RIGHTS,
+        purpose=purpose,
+        adjustment_factor_state=AdjustmentFactorState.UNKNOWN,
+        adjustment_factor=None,
+    )
+
+    assert (
+        map_factor_state(action, normalize_action(action))
+        is FactorState.FACTOR_NOT_MULTIPLICATIVE
+    )
+
+
+def test_explicit_equity_rights_component_remains_adjustable() -> None:
+    action = _action(
+        action_type=CorporateActionType.RIGHTS,
+        purpose="Right-Eq1:5 & 9ccps:10eq",
+        adjustment_factor_state=AdjustmentFactorState.UNKNOWN,
+        adjustment_factor=None,
+    )
+
+    assert (
+        map_factor_state(action, normalize_action(action))
+        is not FactorState.FACTOR_NOT_MULTIPLICATIVE
+    )
+
+
 def test_rights_factor_uses_governed_prior_close(tmp_path: Path) -> None:
     database = tmp_path / "source.duckdb"
     with duckdb.connect(str(database)) as connection:
@@ -261,6 +300,83 @@ def test_rights_without_reference_price_remains_unknown(tmp_path: Path) -> None:
 
     assert factors[0]["price_factor"] is None
     assert factors[0]["factor_state"] == "FACTOR_UNKNOWN_MISSING_TERMS"
+
+
+def test_rights_reference_uses_exact_isin_historical_symbol_alias(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "source.duckdb"
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            "CREATE TABLE daily_candle(symbol VARCHAR, series VARCHAR, "
+            "trading_date DATE, isin VARCHAR, close_price DOUBLE, "
+            "source_sha256 VARCHAR)"
+        )
+        connection.execute(
+            "INSERT INTO daily_candle VALUES "
+            "('OLDALPHA','EQ','2020-01-08','INE000A01001',100,?)",
+            ["c" * 64],
+        )
+    rights = _action(
+        action_type=CorporateActionType.RIGHTS,
+        purpose="Rights 1:1 at Rs 50",
+        ratio_numerator=1.0,
+        ratio_denominator=1.0,
+        rights_price=50.0,
+        adjustment_factor=None,
+    )
+    canonical, _, _ = canonicalize_events((rights,), {IDENTITY: _join()})
+
+    factors = derive_factors(
+        database,
+        canonical,
+        {rights.action_id: rights},
+        {IDENTITY: _join()},
+    )
+
+    assert factors[0]["factor_state"] == "FACTOR_CERTIFIED_REFERENCE_PRICE"
+    assert factors[0]["reference_price"] == pytest.approx(100.0)
+    assert factors[0]["reference_price_observed_symbol"] == "OLDALPHA"
+    assert factors[0]["reference_price_provenance_state"] == (
+        "CERTIFIED_SAME_ISIN_ALTERNATE_SYMBOL_PRIOR_CLOSE"
+    )
+
+
+def test_rights_reference_rejects_ambiguous_exact_isin_aliases(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "source.duckdb"
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            "CREATE TABLE daily_candle(symbol VARCHAR, series VARCHAR, "
+            "trading_date DATE, isin VARCHAR, close_price DOUBLE, "
+            "source_sha256 VARCHAR)"
+        )
+        connection.execute(
+            "INSERT INTO daily_candle VALUES "
+            "('OLDONE','EQ','2020-01-08','INE000A01001',100,?),"
+            "('OLDTWO','EQ','2020-01-08','INE000A01001',101,?)",
+            ["c" * 64, "d" * 64],
+        )
+    rights = _action(
+        action_type=CorporateActionType.RIGHTS,
+        purpose="Rights 1:1 at Rs 50",
+        ratio_numerator=1.0,
+        ratio_denominator=1.0,
+        rights_price=50.0,
+        adjustment_factor=None,
+    )
+    canonical, _, _ = canonicalize_events((rights,), {IDENTITY: _join()})
+
+    factors = derive_factors(
+        database,
+        canonical,
+        {rights.action_id: rights},
+        {IDENTITY: _join()},
+    )
+
+    assert factors[0]["factor_state"] == "FACTOR_UNKNOWN_MISSING_TERMS"
+    assert factors[0]["reference_price"] is None
 
 
 def test_rights_reference_uses_bounded_official_action_identity_interval(

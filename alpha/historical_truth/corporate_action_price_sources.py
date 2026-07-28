@@ -260,7 +260,9 @@ class OfficialCorporateActionStore:
             )
         try:
             payload = json.loads(manifest.read_text(encoding="utf-8"))
-            source_path = Path(str(payload["immutable_path"]))
+            recorded_path = Path(str(payload["immutable_path"]))
+            adjacent_path = Path(str(manifest).removesuffix(".manifest.json"))
+            source_path = recorded_path if recorded_path.exists() else adjacent_path
             raw = source_path.read_bytes()
             actual = sha256(raw).hexdigest()
             expected = str(payload["sha256"])
