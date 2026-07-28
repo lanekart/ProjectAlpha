@@ -1,0 +1,124 @@
+name: DSI-010 Repaired HTR-010A Rerun
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-htr010a-repaired-rerun.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Download preserved identity and adjustment chain
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30333051020
+          name: dsi010-identity-adjustment-chain-v2
+          path: inputs/chain-v2
+      - name: Restore governed prerequisites
+        run: |
+          set -euo pipefail
+          ARCHIVE=$(find inputs/chain-v2 -type f -name alpha_data_after_chain_v2.tar.gz | head -1)
+          CALENDAR=$(find inputs/chain-v2 -type f -name htr007_session_calendar.json | head -1)
+          test -n "$ARCHIVE" && test -f "$ARCHIVE"
+          test -n "$CALENDAR" && test -f "$CALENDAR"
+          mkdir -p work artifacts/dsi010_htr010a_repaired_rerun
+          tar -xzf "$ARCHIVE" -C work
+          mkdir -p work/certified_calendar
+          cp "$CALENDAR" work/certified_calendar/htr007_session_calendar.json
+          for name in \
+            htr009a_point_in_time_universe \
+            htr009a2_event_sourced_universe \
+            htr009b_corporate_action_price_continuity; do
+            source=$(find inputs/chain-v2 -type d -path "*/artifacts/${name}" | head -1)
+            test -n "$source" && test -d "$source"
+            cp -a "$source" "artifacts/${name}"
+          done
+          test -f work/alpha_data/warehouse/historical_truth.duckdb
+      - name: Run repaired HTR-010A certification
+        id: htr010a
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          poetry run python -m alpha historical-truth complete-security-dataset-certify \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --calendar-report work/certified_calendar/htr007_session_calendar.json \
+            --snapshot-root work/alpha_data/snapshots \
+            --root work/alpha_data \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010a_complete_security_dataset \
+            2>&1 | tee artifacts/dsi010_htr010a_repaired_rerun/htr010a.log
+      - name: Export rerun state
+        if: always()
+        env:
+          HTR010A_OUTCOME: ${{ steps.htr010a.outcome }}
+        run: |
+          poetry run python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import duckdb
+          database = Path("work/alpha_data/warehouse/historical_truth.duckdb")
+          names = []
+          counts = {}
+          if database.is_file():
+              with duckdb.connect(str(database), read_only=True) as connection:
+                  names = [str(row[0]) for row in connection.execute(
+                      "select table_name from information_schema.tables where table_schema='main' order by table_name"
+                  ).fetchall()]
+                  for table in (
+                      "daily_candle", "adjusted_daily_candle",
+                      "complete_security_identity", "security_dataset_certification",
+                  ):
+                      if table in names:
+                          row = connection.execute(f'SELECT count(*) FROM "{table}"').fetchone()
+                          counts[table] = int(row[0]) if row else 0
+          summary = {
+              "htr010a_outcome": os.environ.get("HTR010A_OUTCOME", "unknown"),
+              "database_tables": names,
+              "table_counts": counts,
+              "production_influence": False,
+          }
+          out = Path("artifacts/dsi010_htr010a_repaired_rerun")
+          out.mkdir(parents=True, exist_ok=True)
+          (out / "rerun_summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          PY
+          tar -czf artifacts/dsi010_htr010a_repaired_rerun/alpha_data_after_htr010a.tar.gz -C work alpha_data
+      - name: Upload repaired HTR-010A evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-htr010a-repaired-rerun
+          path: |
+            artifacts/dsi010_htr010a_repaired_rerun
+            artifacts/htr010a_complete_security_dataset
+            artifacts/htr009a_point_in_time_universe
+            artifacts/htr009a2_event_sourced_universe
+            artifacts/htr009b_corporate_action_price_continuity
+            work/certified_calendar/htr007_session_calendar.json
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Enforce execution completion
+        if: always()
+        env:
+          HTR010A_OUTCOME: ${{ steps.htr010a.outcome }}
+        run: |
+          echo "HTR010A_OUTCOME=${HTR010A_OUTCOME}"
+          test "${HTR010A_OUTCOME}" = success
+          echo "PRODUCTION_INFLUENCE=false"
