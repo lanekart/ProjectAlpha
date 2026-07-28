@@ -77,7 +77,7 @@ def test_unmapped_external_era_discrepancy_is_retained_and_blocks_readiness() ->
 
     decision = readiness_decision((), (), rows)
     assert decision.state is FoundationReadiness.NOT_READY_FOR_HTR_010B
-    assert "UNEXPLAINED_2026_DISCREPANCIES" in decision.blockers
+    assert decision.blockers == ("1 unexplained 2026 discrepancies",)
 ''',
         encoding="utf-8",
     )
