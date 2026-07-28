@@ -1,0 +1,28 @@
+name: DSI-010 HTR-010A Traceback Tail
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-htr010a-traceback-tail.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print traceback tail only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          JOB_ID: "90192084558"
+        run: |
+          curl --fail --location --silent --show-error \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${REPOSITORY}/actions/jobs/${JOB_ID}/logs" \
+            --output /tmp/job.log
+          sed -n '570,606p' /tmp/job.log
