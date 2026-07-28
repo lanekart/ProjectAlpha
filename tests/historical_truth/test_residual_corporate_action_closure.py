@@ -86,6 +86,20 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
         [{"admission_state": "UNRESOLVED"}],
     )
     _write(baseline_htr, "htr010b_adjustment_factors.json", old_factors)
+    _write(
+        baseline_htr,
+        "htr010b_canonical_events.json",
+        [
+            {
+                "canonical_event_id": "one",
+                "action_type": "RIGHTS",
+            },
+            {
+                "canonical_event_id": "two",
+                "action_type": "BONUS",
+            },
+        ],
+    )
     _write(final_htr, "htr010b_adjustment_factors.json", new_factors)
     _write(
         final_htr,
@@ -136,6 +150,7 @@ def test_closure_attributes_resolution_and_retains_exact_blocker(
         "FIRST_GOVERNED_ACTION_SESSION_CANDLE"
     )
     assert report.summary["production_influence"] is False
+    assert report.original_missing_rights_term_outcomes == ()
 
 
 def test_closure_separates_terms_identity_and_isin_transition(
@@ -174,6 +189,40 @@ def test_closure_separates_terms_identity_and_isin_transition(
         "one": "OFFICIAL_EFFECTIVE_DATED_ISIN_TRANSITION",
         "two": "COMPLETE_OFFICIAL_EQUITY_RIGHTS_TERMS",
     }
+
+
+def test_closure_emits_original_missing_terms_and_interval_outcomes(
+    tmp_path: Path,
+) -> None:
+    inputs = _fixture(tmp_path)
+    factors = json.loads(
+        (inputs[2] / "htr010b_adjustment_factors.json").read_text(encoding="utf-8")
+    )
+    factors[0]["factor_state"] = "FACTOR_UNKNOWN_MISSING_TERMS"
+    _write(inputs[2], "htr010b_adjustment_factors.json", factors)
+    bridge = tmp_path / "bridge"
+    _write(
+        bridge,
+        "legacy_rights_reference_bridge_rejections.json",
+        [
+            {
+                "event_id": "one",
+                "rejection_reason": "NO_MATCHING_OFFICIAL_INTERVAL",
+            }
+        ],
+    )
+
+    report = ResidualCorporateActionClosureEngine().run(
+        baseline_b1c_output=inputs[0],
+        final_b1c_output=inputs[1],
+        baseline_htr010b_output=inputs[2],
+        final_htr010b_output=inputs[3],
+        dsi010b1_output=bridge,
+    )
+
+    assert len(report.original_missing_rights_term_outcomes) == 1
+    assert len(report.original_unmatched_interval_outcomes) == 1
+    assert report.original_unmatched_interval_outcomes[0]["resolved"] is True
 
 
 def test_closure_certifies_only_empty_queue_and_clean_basis(tmp_path: Path) -> None:

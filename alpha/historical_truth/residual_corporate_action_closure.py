@@ -38,6 +38,14 @@ class ResidualClosureReport:
     before_after: tuple[dict[str, Any], ...]
     remaining_blockers: tuple[dict[str, Any], ...]
     recovered_sources: tuple[dict[str, Any], ...]
+    parser_repairs: tuple[dict[str, Any], ...]
+    identity_interval_repairs: tuple[dict[str, Any], ...]
+    continuity_context_repairs: tuple[dict[str, Any], ...]
+    conflict_adjudications: tuple[dict[str, Any], ...]
+    transformation_repairs: tuple[dict[str, Any], ...]
+    original_missing_rights_term_outcomes: tuple[dict[str, Any], ...]
+    original_unmatched_interval_outcomes: tuple[dict[str, Any], ...]
+    named_case_outcomes: tuple[dict[str, Any], ...]
     certificate_sha256: str
 
 
@@ -52,6 +60,7 @@ class ResidualCorporateActionClosureEngine:
         baseline_htr010b_output: Path,
         final_htr010b_output: Path,
         official_source_root: Path | None = None,
+        dsi010b1_output: Path | None = None,
     ) -> ResidualClosureReport:
         baseline = _indexed_records(
             baseline_b1c_output / "htr010b1_factor_validation_results.json",
@@ -71,6 +80,10 @@ class ResidualCorporateActionClosureEngine:
         )
         final_events = _indexed_records(
             final_htr010b_output / "htr010b_canonical_events.json",
+            "canonical_event_id",
+        )
+        baseline_events = _indexed_records(
+            baseline_htr010b_output / "htr010b_canonical_events.json",
             "canonical_event_id",
         )
         same_population = set(baseline) == set(final)
@@ -95,6 +108,52 @@ class ResidualCorporateActionClosureEngine:
             if str(final[event_id].get("validation_outcome")) in _UNRESOLVED_OUTCOMES
         )
         sources = _official_source_manifest(official_source_root)
+        parser_repairs = _channel_rows(
+            comparisons,
+            "PARSER_OR_REFERENCE_PRICE_RECOVERY",
+        )
+        identity_repairs = _channel_rows(
+            comparisons,
+            "IDENTITY_INTERVAL_OR_BRIDGE_RECOVERY",
+        )
+        continuity_repairs = _channel_rows(
+            comparisons,
+            "BRIDGE_AWARE_CONTINUITY_RECOVERY",
+        )
+        conflict_adjudications = tuple(
+            row
+            for row in comparisons
+            if "CONFLICTING_OFFICIAL_EVIDENCE"
+            in {
+                row["old_validation_outcome"],
+                row["new_validation_outcome"],
+            }
+        )
+        transformation_repairs = tuple(
+            row
+            for row in comparisons
+            if "IMPLEMENTATION_DEFECT"
+            in {
+                row["old_validation_outcome"],
+                row["new_validation_outcome"],
+            }
+        )
+        missing_rights_terms = _original_missing_rights_term_outcomes(
+            baseline_events=baseline_events,
+            baseline_factors=baseline_factors,
+            final_events=final_events,
+            final_factors=final_factors,
+            final_validations=final,
+        )
+        unmatched_intervals = _original_unmatched_interval_outcomes(
+            dsi010b1_output=dsi010b1_output,
+            comparisons={str(row["event_id"]): row for row in comparisons},
+        )
+        named_cases = tuple(
+            row
+            for row in comparisons
+            if str(row.get("symbol")) in {"MURUDCERA", "TATAPOWER"}
+        )
         before_counts = Counter(
             str(row.get("validation_outcome")) for row in baseline.values()
         )
@@ -153,6 +212,15 @@ class ResidualCorporateActionClosureEngine:
             "unresolved_admission_intervals": unresolved_intervals,
             "mixed_price_basis_intervals": mixed_basis,
             "new_official_source_count": len(sources),
+            "original_missing_rights_term_count": len(missing_rights_terms),
+            "original_missing_rights_term_resolved_count": sum(
+                str(row["final_validation_outcome"]) not in _UNRESOLVED_OUTCOMES
+                for row in missing_rights_terms
+            ),
+            "original_unmatched_interval_count": len(unmatched_intervals),
+            "original_unmatched_interval_resolved_count": sum(
+                bool(row["resolved"]) for row in unmatched_intervals
+            ),
             "readiness": readiness.value,
             "adjusted_replay_ready": (
                 readiness is ClosureReadiness.ADJUSTED_REPLAY_CERTIFIED
@@ -166,6 +234,14 @@ class ResidualCorporateActionClosureEngine:
             "before_after_sha256": _digest(comparisons),
             "remaining_blockers_sha256": _digest(remaining),
             "recovered_sources_sha256": _digest(sources),
+            "parser_repairs_sha256": _digest(parser_repairs),
+            "identity_interval_repairs_sha256": _digest(identity_repairs),
+            "continuity_context_repairs_sha256": _digest(continuity_repairs),
+            "conflict_adjudications_sha256": _digest(conflict_adjudications),
+            "transformation_repairs_sha256": _digest(transformation_repairs),
+            "missing_rights_term_outcomes_sha256": _digest(missing_rights_terms),
+            "unmatched_interval_outcomes_sha256": _digest(unmatched_intervals),
+            "named_case_outcomes_sha256": _digest(named_cases),
         }
         certificate_sha256 = _digest(certificate)
         summary["certificate_sha256"] = certificate_sha256
@@ -174,6 +250,14 @@ class ResidualCorporateActionClosureEngine:
             before_after=comparisons,
             remaining_blockers=remaining,
             recovered_sources=sources,
+            parser_repairs=parser_repairs,
+            identity_interval_repairs=identity_repairs,
+            continuity_context_repairs=continuity_repairs,
+            conflict_adjudications=conflict_adjudications,
+            transformation_repairs=transformation_repairs,
+            original_missing_rights_term_outcomes=missing_rights_terms,
+            original_unmatched_interval_outcomes=unmatched_intervals,
+            named_case_outcomes=named_cases,
             certificate_sha256=certificate_sha256,
         )
 
@@ -208,6 +292,46 @@ class ResidualCorporateActionClosureExporter:
             _write_json(
                 output / "dsi010b3_recovered_official_sources.json",
                 report.recovered_sources,
+            ),
+            *_write_ledger_pair(
+                output,
+                "dsi010b3_parser_repairs",
+                report.parser_repairs,
+            ),
+            *_write_ledger_pair(
+                output,
+                "dsi010b3_identity_interval_repairs",
+                report.identity_interval_repairs,
+            ),
+            *_write_ledger_pair(
+                output,
+                "dsi010b3_continuity_context_repairs",
+                report.continuity_context_repairs,
+            ),
+            *_write_ledger_pair(
+                output,
+                "dsi010b3_conflict_adjudications",
+                report.conflict_adjudications,
+            ),
+            *_write_ledger_pair(
+                output,
+                "dsi010b3_transformation_repairs",
+                report.transformation_repairs,
+            ),
+            *_write_ledger_pair(
+                output,
+                "dsi010b3_original_missing_rights_term_outcomes",
+                report.original_missing_rights_term_outcomes,
+            ),
+            *_write_ledger_pair(
+                output,
+                "dsi010b3_original_unmatched_interval_outcomes",
+                report.original_unmatched_interval_outcomes,
+            ),
+            *_write_ledger_pair(
+                output,
+                "dsi010b3_named_case_outcomes",
+                report.named_case_outcomes,
             ),
             _write_json(
                 output / "dsi010b3_replay_readiness_certificate.json",
@@ -272,6 +396,84 @@ def _resolution_channel(
             return "IDENTITY_INTERVAL_OR_BRIDGE_RECOVERY"
         return "PARSER_OR_REFERENCE_PRICE_RECOVERY"
     return "BRIDGE_AWARE_CONTINUITY_RECOVERY"
+
+
+def _channel_rows(
+    rows: tuple[dict[str, Any], ...],
+    channel: str,
+) -> tuple[dict[str, Any], ...]:
+    return tuple(row for row in rows if row["resolution_channel"] == channel)
+
+
+def _original_missing_rights_term_outcomes(
+    *,
+    baseline_events: dict[str, dict[str, Any]],
+    baseline_factors: dict[str, dict[str, Any]],
+    final_events: dict[str, dict[str, Any]],
+    final_factors: dict[str, dict[str, Any]],
+    final_validations: dict[str, dict[str, Any]],
+) -> tuple[dict[str, Any], ...]:
+    event_ids = sorted(
+        event_id
+        for event_id, factor in baseline_factors.items()
+        if factor.get("factor_state") == "FACTOR_UNKNOWN_MISSING_TERMS"
+        and (baseline_events.get(event_id) or {}).get("action_type") == "RIGHTS"
+    )
+    return tuple(
+        _factor_outcome(
+            event_id,
+            final_events.get(event_id),
+            final_factors.get(event_id),
+            final_validations.get(event_id),
+        )
+        for event_id in event_ids
+    )
+
+
+def _original_unmatched_interval_outcomes(
+    *,
+    dsi010b1_output: Path | None,
+    comparisons: dict[str, dict[str, Any]],
+) -> tuple[dict[str, Any], ...]:
+    if dsi010b1_output is None:
+        return ()
+    rows = _records(dsi010b1_output / "legacy_rights_reference_bridge_rejections.json")
+    return tuple(
+        {
+            **row,
+            "final_validation_outcome": (
+                comparisons.get(str(row.get("event_id"))) or {}
+            ).get("new_validation_outcome"),
+            "resolved": bool(
+                (comparisons.get(str(row.get("event_id"))) or {}).get("resolved")
+            ),
+        }
+        for row in rows
+        if row.get("rejection_reason") == "NO_MATCHING_OFFICIAL_INTERVAL"
+    )
+
+
+def _factor_outcome(
+    event_id: str,
+    event: dict[str, Any] | None,
+    factor: dict[str, Any] | None,
+    validation: dict[str, Any] | None,
+) -> dict[str, Any]:
+    event_row = event or {}
+    factor_row = factor or {}
+    validation_row = validation or {}
+    return {
+        "event_id": event_id,
+        "symbol": event_row.get("symbol"),
+        "effective_date": event_row.get("effective_date"),
+        "raw_action_text": event_row.get("raw_action_text"),
+        "ratio_numerator": event_row.get("ratio_numerator"),
+        "ratio_denominator": event_row.get("ratio_denominator"),
+        "rights_price": event_row.get("rights_price"),
+        "final_factor_state": factor_row.get("factor_state"),
+        "final_validation_outcome": validation_row.get("validation_outcome"),
+        "production_influence": False,
+    }
 
 
 def _remaining_case(
@@ -455,6 +657,17 @@ def _write_csv(path: Path, rows: tuple[dict[str, Any], ...]) -> Path:
                 }
             )
     return path
+
+
+def _write_ledger_pair(
+    output: Path,
+    stem: str,
+    rows: tuple[dict[str, Any], ...],
+) -> tuple[Path, Path]:
+    return (
+        _write_json(output / f"{stem}.json", rows),
+        _write_csv(output / f"{stem}.csv", rows),
+    )
 
 
 def _write_markdown(path: Path, report: ResidualClosureReport) -> Path:

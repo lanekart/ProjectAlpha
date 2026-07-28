@@ -28,6 +28,12 @@ def residual_corporate_action_closure_certify(
     official_source_root: Path | None = typer.Option(
         None, "--official-source-root", file_okay=False
     ),
+    dsi010b1_output: Path | None = typer.Option(
+        None,
+        "--dsi010b1-output",
+        exists=True,
+        file_okay=False,
+    ),
     output: Path = typer.Option(
         Path("artifacts/dsi010b3_residual_corporate_action_closure"),
         "--output",
@@ -41,6 +47,7 @@ def residual_corporate_action_closure_certify(
         baseline_htr010b_output=baseline_htr010b_output,
         final_htr010b_output=final_htr010b_output,
         official_source_root=official_source_root,
+        dsi010b1_output=dsi010b1_output,
     )
     paths = ResidualCorporateActionClosureExporter().export(report, output)
     summary = report.summary
