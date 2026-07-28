@@ -188,3 +188,10 @@ STOP_POLICY_AUTOMATIC_PROMOTION_ENABLED=false
 ADJUSTED_REPLAY_READY=false
 PRODUCTION_INFLUENCE=false
 ```
+
+## DSI-010B2 Continuity Boundary
+
+DSI-010B1 certifies reference-price identity only. It does not certify the ATR
+window, action-session candle, factor continuity or replay admission.
+DSI-010B2 adds those separate bar-level contracts without weakening this
+bridge. See `DSI-010B2_GOVERNED_BRIDGE_AWARE_CONTINUITY.md`.

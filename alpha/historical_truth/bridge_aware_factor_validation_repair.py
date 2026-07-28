@@ -206,7 +206,13 @@ def _repair_case(row: dict[str, Any], group: dict[str, Any]) -> dict[str, Any]:
     factor_count = int(group.get("factor_count") or 0)
     group_state = str(group.get("group_disposition") or "")
 
-    if factor_count > 1 and group_state == "COMPOSITE_FACTOR_CONFIRMED":
+    governed_outcome = str(row.get("governed_continuity_validation_outcome") or "")
+    if row.get("governed_continuity_context_id"):
+        disposition = "GOVERNED_CONTINUITY_OUTCOME_RETAINED"
+        proposed = governed_outcome or "IMPLEMENTATION_DEFECT"
+        confirmed = proposed.startswith("FACTOR_CONFIRMED_")
+        repair = "RETAIN_UPSTREAM_GOVERNED_CONTINUITY_OUTCOME"
+    elif factor_count > 1 and group_state == "COMPOSITE_FACTOR_CONFIRMED":
         disposition = "FACTOR_CONFIRMED_VIA_SAME_SESSION_COMPOSITE"
         proposed = "FACTOR_CONFIRMED_CORRECT_MULTIPLE_ACTIONS"
         confirmed = True
@@ -280,6 +286,7 @@ def _repair_case(row: dict[str, Any], group: dict[str, Any]) -> dict[str, Any]:
     bridge_certified = dependency in {
         "NONE_STABLE_SECURITY",
         "GOVERNED_CROSS_ISIN",
+        "GOVERNED_DATED_IDENTITY_CONTEXT",
     }
     return {
         **row,
@@ -302,6 +309,8 @@ def _repair_case(row: dict[str, Any], group: dict[str, Any]) -> dict[str, Any]:
 
 
 def _bridge_dependency(bridge_type: str, bridge_class: str) -> str:
+    if bridge_type == "GOVERNED_DATED_IDENTITY_CONTEXT":
+        return "GOVERNED_DATED_IDENTITY_CONTEXT"
     if bridge_type == "STABLE_SECURITY_SERIES":
         return "NONE_STABLE_SECURITY"
     if bridge_class == "GOVERNED_CROSS_ISIN_BRIDGE_AVAILABLE":

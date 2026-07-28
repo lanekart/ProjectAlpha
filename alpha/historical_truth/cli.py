@@ -5,6 +5,9 @@ from pathlib import Path
 
 import typer
 
+from alpha.historical_truth.bridge_aware_continuity_cli import (
+    bridge_aware_continuity_certify,
+)
 from alpha.historical_truth.canonical import CanonicalPointInTimeWarehouse
 from alpha.historical_truth.complete_corporate_action_cli import (
     complete_corporate_action_dataset,
@@ -75,6 +78,9 @@ historical_truth_app.command("complete-corporate-action-dataset")(
 )
 historical_truth_app.command("legacy-rights-reference-bridge-certify")(
     legacy_rights_reference_bridge_certify
+)
+historical_truth_app.command("bridge-aware-continuity-certify")(
+    bridge_aware_continuity_certify
 )
 
 

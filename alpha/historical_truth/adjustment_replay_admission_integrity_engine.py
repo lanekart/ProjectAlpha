@@ -23,6 +23,9 @@ from alpha.historical_truth.adjustment_replay_admission_session_coverage import 
     HTR010B1C_CONTRACT_VERSION,
     governed_session_coverage,
 )
+from alpha.historical_truth.bridge_aware_continuity_context import (
+    BridgeAwareContinuityContextProvider,
+)
 
 
 class AdjustmentReplayAdmissionIntegrityEngine:
@@ -37,6 +40,7 @@ class AdjustmentReplayAdmissionIntegrityEngine:
         session_calendar_report: Path,
         start_date: date,
         end_date: date,
+        continuity_context_provider: BridgeAwareContinuityContextProvider | None = None,
     ) -> AdjustmentReplayAdmissionReport:
         base = AdjustmentReplayAdmissionContinuityEngine().run(
             database_path=database_path,
@@ -44,6 +48,7 @@ class AdjustmentReplayAdmissionIntegrityEngine:
             htr010b_output=htr010b_output,
             start_date=start_date,
             end_date=end_date,
+            continuity_context_provider=continuity_context_provider,
         )
         session_coverage = governed_session_coverage(
             calendar_report=session_calendar_report,

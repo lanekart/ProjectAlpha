@@ -38,6 +38,9 @@ from alpha.historical_truth.bridge_aware_admission_quarantine import (
 from alpha.historical_truth.bridge_aware_admission_reconciliation_integrity import (
     BridgeAwareAdmissionReconciliationIntegrityEngine,
 )
+from alpha.historical_truth.bridge_aware_continuity_context import (
+    BridgeAwareContinuityContextProvider,
+)
 
 HTR010B1E2_CONTRACT_VERSION = "HTR-010B1E2-v1.0.0"
 
@@ -64,6 +67,7 @@ class BridgeAwareAdmissionStatePropagationEngine:
         session_calendar_report: Path,
         start_date: date,
         end_date: date,
+        continuity_context_provider: BridgeAwareContinuityContextProvider | None = None,
     ) -> AdjustmentReplayAdmissionReport:
         base = BridgeAwareAdmissionReconciliationIntegrityEngine().run(
             database_path=database_path,
@@ -73,6 +77,7 @@ class BridgeAwareAdmissionStatePropagationEngine:
             session_calendar_report=session_calendar_report,
             start_date=start_date,
             end_date=end_date,
+            continuity_context_provider=continuity_context_provider,
         )
         inputs = HTR010BInputAdapter().load(htr010b_output, htr010a3_output)
         population = candle_population(

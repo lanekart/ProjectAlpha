@@ -210,3 +210,10 @@ separate non-bridgeable ISIN mismatch. Rights factor states are now 55
 certified-reference, 22 provisional-reference, and 28 missing-terms. Adjusted
 replay remains not ready because independent insufficient-evidence cases
 remain.
+
+## Bridge-Aware Continuity
+
+DSI-010B2 uses signed DSI-010B1 identity evidence to validate missing-ISIN
+candles one date at a time. Reference certification, context certification,
+factor confirmation and replay admission remain distinct fail-closed stages.
+The external-era benchmark experiment remains disabled.

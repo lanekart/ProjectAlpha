@@ -14,6 +14,9 @@ from alpha.historical_truth.adjustment_replay_admission_models import (
     ValidationOutcome,
     stable_id,
 )
+from alpha.historical_truth.bridge_aware_continuity_context import (
+    BridgeAwareContinuityContextProvider,
+)
 
 HTR010B1B_CONTRACT_VERSION = "HTR-010B1B-v1.0.0"
 
@@ -52,6 +55,7 @@ def recompute_factor_validation(
     legacy_continuity: tuple[dict[str, Any], ...],
     start_date: date,
     end_date: date,
+    continuity_context_provider: BridgeAwareContinuityContextProvider | None = None,
 ) -> tuple[
     tuple[dict[str, Any], ...],
     tuple[dict[str, Any], ...],
@@ -68,6 +72,8 @@ def recompute_factor_validation(
     }
     cases: list[dict[str, Any]] = []
     results: list[dict[str, Any]] = []
+    bridge_context_count = 0
+    complete_bridge_context_count = 0
 
     with duckdb.connect(str(database_path), read_only=True) as connection:
         for factor in factors:
@@ -90,10 +96,52 @@ def recompute_factor_validation(
                 str(item).upper() for item in event.get("series_applicability") or ()
             )
             series = applicable[0] if len(applicable) == 1 else None
-            metrics = _continuity_metrics(
-                _event_bars(connection, isin, series, effective),
-                _number(factor.get("price_factor")),
-            )
+            context_payload: dict[str, Any] = {}
+            if (
+                continuity_context_provider is not None
+                and series is not None
+                and continuity_context_provider.supports(event_id)
+            ):
+                context = continuity_context_provider.build(
+                    connection,
+                    event=event,
+                    factor=factor,
+                    series=series,
+                    effective_date=effective,
+                )
+                bridge_context_count += 1
+                complete_bridge_context_count += int(context.complete)
+                governed_metrics = context.metrics.as_dict()
+                metrics = (
+                    {
+                        **governed_metrics,
+                        "candle_context_state": "AVAILABLE",
+                    }
+                    if context.complete
+                    else {
+                        **governed_metrics,
+                        "raw_gap_atr": None,
+                        "adjusted_gap_atr": None,
+                        "inverse_adjusted_gap_atr": None,
+                        "candle_context_state": context.decision.value,
+                    }
+                )
+                context_payload = {
+                    "governed_continuity_context_id": context.context_id,
+                    "governed_continuity_context": context.as_dict(),
+                    "continuity_context_contract": (
+                        "DSI-010B2-BRIDGE-AWARE-CONTINUITY-v1.0.0"
+                    ),
+                }
+                continuity_source = (
+                    "HTR010B_FACTOR_RECOMPUTED_FROM_GOVERNED_BRIDGE_AWARE_CANDLES"
+                )
+            else:
+                metrics = _continuity_metrics(
+                    _event_bars(connection, isin, series, effective),
+                    _number(factor.get("price_factor")),
+                )
+                continuity_source = "HTR010B_FACTOR_RECOMPUTED_FROM_CANONICAL_CANDLES"
             legacy = legacy_by_event.get(event_id, {})
             case = {
                 "case_id": stable_id("factor-case-recomputed", event_id),
@@ -110,9 +158,8 @@ def recompute_factor_validation(
                 "legacy_continuity_state": legacy.get("continuity_state"),
                 "legacy_raw_gap_atr": legacy.get("raw_gap_atr"),
                 "legacy_adjusted_gap_atr": legacy.get("adjusted_gap_atr"),
-                "continuity_source": (
-                    "HTR010B_FACTOR_RECOMPUTED_FROM_CANONICAL_CANDLES"
-                ),
+                "continuity_source": continuity_source,
+                **context_payload,
             }
             cases.append(case)
             results.append(_classify(case))
@@ -134,6 +181,8 @@ def recompute_factor_validation(
         "legacy_case_count": len(legacy_continuity),
         "legacy_recomputed_state_disagreement_count": disagreements,
         "possible_factor_orientation_defect_count": orientation_defects,
+        "bridge_aware_context_case_count": bridge_context_count,
+        "complete_bridge_aware_context_count": complete_bridge_context_count,
         "market_derived_factor_autocorrection": False,
         "continuity_recomputed_from_canonical_candles": True,
     }

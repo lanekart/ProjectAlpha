@@ -1,0 +1,310 @@
+name: DSI-010B2 Bridge-Aware Continuity Certification
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/dsi-010-pre2016-external-era-validation
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      _TYPER_FORCE_DISABLE_TERMINAL: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install project
+        run: |
+          pip install poetry
+          poetry install --no-interaction
+
+      - name: Download signed post-rights source boundary
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30352312594
+          name: dsi010-pre2016-rights-rebuild
+          path: inputs
+
+      - name: Download signed HTR-009A2 identity boundary
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30335669653
+          name: dsi010-a3-b-repaired-rerun
+          path: identity
+
+      - name: Restore immutable governed source state
+        run: |
+          set -euo pipefail
+          archive=$(find inputs -type f -name alpha_data_after_rights_rebuild.tar.gz | head -1)
+          calendar=$(find inputs -type f -name htr007_session_calendar.json | head -1)
+          a2=$(find identity -type d -name htr009a2_event_sourced_universe | head -1)
+          test -f "$archive"
+          test -f "$calendar"
+          test -d "$a2"
+          mkdir -p work artifacts work/calendar
+          tar -xzf "$archive" -C work
+          cp -a inputs/artifacts/. artifacts/
+          rm -rf artifacts/htr009a2_event_sourced_universe
+          cp -a "$a2" artifacts/
+          cp "$calendar" work/calendar/htr007_session_calendar.json
+          test -f work/alpha_data/warehouse/historical_truth.duckdb
+          rm -rf \
+            artifacts/htr009b_corporate_action_price_continuity \
+            artifacts/htr010b_complete_corporate_action_dataset \
+            artifacts/htr010b1_adjustment_replay_admission \
+            artifacts/htr010b1d_factor_transformation_forensics \
+            artifacts/htr010b1d1_cross_series_identity_bridge \
+            artifacts/htr010b1d2_bridge_aware_validation_repair \
+            artifacts/htr010b1e2_final_admission_state_propagation \
+            artifacts/dsi010b1_legacy_rights_reference_bridge \
+            artifacts/htr010b1_adjustment_replay_admission_b2 \
+            artifacts/htr010b1d_factor_transformation_forensics_b2 \
+            artifacts/htr010b1d1_cross_series_identity_bridge_b2 \
+            artifacts/htr010b1d2_bridge_aware_validation_repair_b2 \
+            artifacts/htr010b1e2_final_admission_state_propagation_b2 \
+            artifacts/dsi010b2_bridge_aware_continuity \
+            artifacts/dsi010b2_bridge_aware_continuity_reuse \
+            artifacts/dsi010b2_acceptance
+          mkdir -p artifacts/dsi010b2_acceptance
+
+      - name: Validate focused bridge-aware boundaries
+        run: |
+          poetry run pytest \
+            tests/historical_truth/test_pre2016_legacy_isin_reference_bridge.py \
+            tests/historical_truth/test_pre2016_rights_reference_certification.py \
+            tests/historical_truth/test_legacy_rights_reference_bridge_artifacts.py \
+            tests/historical_truth/test_bridge_aware_continuity_context.py \
+            -q
+
+      - name: Rebuild HTR-009B and HTR-010B
+        run: |
+          set -euo pipefail
+          out=artifacts/dsi010b2_acceptance
+          poetry run python -m alpha historical-truth corporate-action-price-certify \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --calendar-report work/calendar/htr007_session_calendar.json \
+            --root work/alpha_data --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr009b_corporate_action_price_continuity \
+            --verify-only 2>&1 | tee "$out/htr009b.log"
+          poetry run python -m alpha historical-truth complete-corporate-action-dataset \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --root work/alpha_data \
+            --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+            --htr009a2-output artifacts/htr009a2_event_sourced_universe \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010b_complete_corporate_action_dataset \
+            --verify-only 2>&1 | tee "$out/htr010b.log"
+
+      - name: Reproduce signed DSI-010B1 boundary
+        run: |
+          set -euo pipefail
+          out=artifacts/dsi010b2_acceptance
+          poetry run python -m alpha historical-truth adjustment-replay-admission-certify \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --root work/alpha_data \
+            --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            --session-calendar-report work/calendar/htr007_session_calendar.json \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010b1_adjustment_replay_admission \
+            --verify-only 2>&1 | tee "$out/b1c_baseline.log"
+          poetry run python -m alpha historical-truth factor-transformation-forensics \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            --htr010b1c-output artifacts/htr010b1_adjustment_replay_admission \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010b1d_factor_transformation_forensics
+          poetry run python -m alpha historical-truth factor-transformation-bridge-forensics \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            --htr010b1d-output artifacts/htr010b1d_factor_transformation_forensics \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010b1d1_cross_series_identity_bridge
+          poetry run python -m alpha historical-truth bridge-aware-factor-validation-repair \
+            --htr010b1d1-output artifacts/htr010b1d1_cross_series_identity_bridge \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010b1d2_bridge_aware_validation_repair
+          poetry run python -m alpha historical-truth bridge-aware-admission-reconcile \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            --htr010b1d2-output artifacts/htr010b1d2_bridge_aware_validation_repair \
+            --session-calendar-report work/calendar/htr007_session_calendar.json \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010b1e2_final_admission_state_propagation
+          poetry run python -m alpha historical-truth \
+            legacy-rights-reference-bridge-certify \
+            --htr009a2-output artifacts/htr009a2_event_sourced_universe \
+            --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            --htr010b1e2-output artifacts/htr010b1e2_final_admission_state_propagation \
+            --output artifacts/dsi010b1_legacy_rights_reference_bridge
+          test "$(sha256sum artifacts/dsi010b1_legacy_rights_reference_bridge/legacy_rights_reference_bridge_report.md | cut -d' ' -f1)" = \
+            "b8c1b8b99c13a7a3e740f5e8c1731fa497e1d1ec42d24cbdf6da8c57d7ac54cc"
+          test "$(sha256sum artifacts/dsi010b1_legacy_rights_reference_bridge/legacy_rights_reference_bridge_certificate.json | cut -d' ' -f1)" = \
+            "4a204ead7417d68187bcaf0c8c8330a82054641ff740c4659cd6404cc1e37e41"
+
+      - name: Rebuild bridge-aware B1C through B1E2
+        run: |
+          set -euo pipefail
+          bridge="--htr009a2-output artifacts/htr009a2_event_sourced_universe \
+            --dsi010b1-output artifacts/dsi010b1_legacy_rights_reference_bridge"
+          poetry run python -m alpha historical-truth adjustment-replay-admission-certify \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --root work/alpha_data \
+            --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            $bridge \
+            --session-calendar-report work/calendar/htr007_session_calendar.json \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010b1_adjustment_replay_admission_b2 \
+            --verify-only
+          poetry run python -m alpha historical-truth factor-transformation-forensics \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            --htr010b1c-output artifacts/htr010b1_adjustment_replay_admission_b2 \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010b1d_factor_transformation_forensics_b2
+          poetry run python -m alpha historical-truth factor-transformation-bridge-forensics \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            --htr010b1d-output artifacts/htr010b1d_factor_transformation_forensics_b2 \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010b1d1_cross_series_identity_bridge_b2
+          poetry run python -m alpha historical-truth bridge-aware-factor-validation-repair \
+            --htr010b1d1-output artifacts/htr010b1d1_cross_series_identity_bridge_b2 \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010b1d2_bridge_aware_validation_repair_b2
+          poetry run python -m alpha historical-truth bridge-aware-admission-reconcile \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            $bridge \
+            --htr010b1d2-output artifacts/htr010b1d2_bridge_aware_validation_repair_b2 \
+            --session-calendar-report work/calendar/htr007_session_calendar.json \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output artifacts/htr010b1e2_final_admission_state_propagation_b2
+
+      - name: Certify DSI-010B2 and deterministic reuse
+        run: |
+          set -euo pipefail
+          common="--database work/alpha_data/warehouse/historical_truth.duckdb \
+            --htr009a2-output artifacts/htr009a2_event_sourced_universe \
+            --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+            --htr010b-output artifacts/htr010b_complete_corporate_action_dataset \
+            --htr010b1c-output artifacts/htr010b1_adjustment_replay_admission_b2 \
+            --htr010b1e2-output artifacts/htr010b1e2_final_admission_state_propagation_b2 \
+            --dsi010b1-output artifacts/dsi010b1_legacy_rights_reference_bridge"
+          poetry run python -m alpha historical-truth \
+            bridge-aware-continuity-certify $common \
+            --output artifacts/dsi010b2_bridge_aware_continuity
+          poetry run python -m alpha historical-truth \
+            bridge-aware-continuity-certify $common \
+            --output artifacts/dsi010b2_bridge_aware_continuity_reuse
+          diff -ru \
+            artifacts/dsi010b2_bridge_aware_continuity \
+            artifacts/dsi010b2_bridge_aware_continuity_reuse
+          DSI010B2_ACCEPTANCE_ROOT="$GITHUB_WORKSPACE" poetry run pytest \
+            tests/historical_truth/test_bridge_aware_continuity_context.py \
+            -q
+
+      - name: Build acceptance summary
+        run: |
+          python - <<'PY'
+          import json
+          from hashlib import sha256
+          from pathlib import Path
+          from subprocess import check_output
+
+          root = Path("artifacts/dsi010b2_bridge_aware_continuity")
+          summary = json.loads(
+              (root / "bridge_aware_continuity_summary.json").read_text()
+          )
+          certificate = root / "bridge_aware_continuity_certificate.json"
+          report = root / "bridge_aware_continuity_report.md"
+          acceptance = {
+              "contract": "DSI-010B2-ACCEPTANCE-v1",
+              "source_commit": check_output(
+                  ["git", "rev-parse", "HEAD"], text=True
+              ).strip(),
+              "M": summary["M_complete_governed_context"],
+              "K": summary["K_confirmed_correct"],
+              "D": summary["D_implementation_defect"],
+              "U": summary["U_insufficient_evidence"],
+              "C": summary["C_conflicting_official_evidence"],
+              "rights_factor_states": summary["rights_factor_states"],
+              "validation_outcomes": summary["new_validation_outcomes"],
+              "replay_admission_count_changed": summary[
+                  "replay_admission_count_changed"
+              ],
+              "implementation_defect_count": summary[
+                  "implementation_defect_count"
+              ],
+              "unresolved_admission_interval_count": summary[
+                  "unresolved_admission_interval_count"
+              ],
+              "readiness_state": summary["global_readiness_state"],
+              "readiness_blockers": summary["global_readiness_blockers"],
+              "certificate_sha256": sha256(certificate.read_bytes()).hexdigest(),
+              "report_sha256": sha256(report.read_bytes()).hexdigest(),
+              "deterministic_reuse": True,
+              "full_benchmark_replays": 0,
+              "production_influence": False,
+          }
+          output = Path("artifacts/dsi010b2_acceptance")
+          (output / "acceptance_summary.json").write_text(
+              json.dumps(acceptance, indent=2, sort_keys=True) + "\n"
+          )
+          assert acceptance["M"] <= 18
+          assert sum(acceptance[key] for key in ("K", "D", "U", "C")) == 18
+          assert acceptance["rights_factor_states"] == {
+              "FACTOR_CERTIFIED_REFERENCE_PRICE": 55,
+              "FACTOR_PROVISIONAL_REFERENCE_PRICE": 22,
+              "FACTOR_UNKNOWN_MISSING_TERMS": 28,
+          }
+          assert acceptance["unresolved_admission_interval_count"] == 0
+          assert acceptance["production_influence"] is False
+          print(json.dumps(acceptance, indent=2, sort_keys=True))
+          print("FULL_BENCHMARK_REPLAYS=0")
+          print("STOP_POLICY_AUTOMATIC_PROMOTION_ENABLED=false")
+          print(
+              "ADJUSTED_REPLAY_READY="
+              + str(summary["adjusted_replay_ready"]).lower()
+          )
+          print("PRODUCTION_INFLUENCE=false")
+          PY
+
+      - name: Upload signed acceptance evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsi010b2-bridge-aware-continuity-certification
+          retention-days: 14
+          compression-level: 6
+          if-no-files-found: error
+          path: |
+            artifacts/dsi010b2_acceptance
+            artifacts/dsi010b2_bridge_aware_continuity
+            artifacts/dsi010b1_legacy_rights_reference_bridge
+            artifacts/htr009b_corporate_action_price_continuity
+            artifacts/htr010b_complete_corporate_action_dataset
+            artifacts/htr010b1_adjustment_replay_admission_b2
+            artifacts/htr010b1d_factor_transformation_forensics_b2
+            artifacts/htr010b1d1_cross_series_identity_bridge_b2
+            artifacts/htr010b1d2_bridge_aware_validation_repair_b2
+            artifacts/htr010b1e2_final_admission_state_propagation_b2

@@ -195,32 +195,62 @@ def _case_diagnostics(
         event, action_type, reference_price=reference_price
     )
     term_match = _nearly_equal(official_factor, term_factor)
-    series_metrics = _series_metrics(connection, isin, effective, official_factor)
-    selected_metrics = _selected_series_metrics(series_metrics, selected_series)
-    best_series = _best_metric(series_metrics, "open_adjusted_gap_atr")
-    close_basis = _best_metric(series_metrics, "close_adjusted_gap_atr")
     inverse_factor = (
         1.0 / official_factor if official_factor and official_factor > 0 else None
     )
-    best_inverse = _best_metric(
-        _series_metrics(connection, isin, effective, inverse_factor),
-        "open_adjusted_gap_atr",
-    )
-    date_candidates = _date_candidates(
-        connection,
-        isin,
-        selected_series,
-        event,
-        official_factor,
-    )
-    best_date = _best_metric(date_candidates, "open_adjusted_gap_atr")
     same_day_factor = _product(
         tuple(_number(row.get("price_factor")) for row in same_day_factors)
     )
-    best_same_day = _best_metric(
-        _series_metrics(connection, isin, effective, same_day_factor),
-        "open_adjusted_gap_atr",
-    )
+    governed_context = result.get("governed_continuity_context")
+    series_metrics: list[dict[str, Any]]
+    selected_metrics: dict[str, Any] | None
+    best_series: dict[str, Any] | None
+    close_basis: dict[str, Any] | None
+    best_inverse: dict[str, Any] | None
+    date_candidates: list[dict[str, Any]]
+    best_date: dict[str, Any] | None
+    best_same_day: dict[str, Any] | None
+    if isinstance(governed_context, dict) and governed_context:
+        selected_metrics = _governed_context_metrics(
+            result,
+            selected_series,
+            official_factor,
+        )
+        series_metrics = [selected_metrics]
+        best_series = selected_metrics
+        close_basis = selected_metrics
+        best_inverse = {
+            **selected_metrics,
+            "open_adjusted_gap_atr": result.get("inverse_adjusted_gap_atr"),
+        }
+        date_candidates = [selected_metrics]
+        best_date = selected_metrics
+        best_same_day = (
+            _governed_context_metrics(result, selected_series, same_day_factor)
+            if same_day_factor is not None
+            else None
+        )
+    else:
+        series_metrics = _series_metrics(connection, isin, effective, official_factor)
+        selected_metrics = _selected_series_metrics(series_metrics, selected_series)
+        best_series = _best_metric(series_metrics, "open_adjusted_gap_atr")
+        close_basis = _best_metric(series_metrics, "close_adjusted_gap_atr")
+        best_inverse = _best_metric(
+            _series_metrics(connection, isin, effective, inverse_factor),
+            "open_adjusted_gap_atr",
+        )
+        date_candidates = _date_candidates(
+            connection,
+            isin,
+            selected_series,
+            event,
+            official_factor,
+        )
+        best_date = _best_metric(date_candidates, "open_adjusted_gap_atr")
+        best_same_day = _best_metric(
+            _series_metrics(connection, isin, effective, same_day_factor),
+            "open_adjusted_gap_atr",
+        )
 
     classification, recommendation, evidence = _classify(
         result=result,
@@ -274,6 +304,9 @@ def _case_diagnostics(
         "reported_adjusted_gap_atr": result.get("adjusted_gap_atr"),
         "reported_raw_gap_atr": result.get("raw_gap_atr"),
         "reported_residual_attribution": result.get("residual_attribution"),
+        "governed_continuity_context_id": result.get("governed_continuity_context_id"),
+        "governed_continuity_context": result.get("governed_continuity_context"),
+        "governed_continuity_validation_outcome": result.get("validation_outcome"),
         "selected_series_metrics": selected_metrics or {},
         "best_series_metrics": best_series or {},
         "best_close_basis_metrics": close_basis or {},
@@ -290,6 +323,66 @@ def _case_diagnostics(
         "admitted_to_replay": False,
         "production_influence": False,
     }
+
+
+def _governed_context_metrics(
+    result: dict[str, Any],
+    series: str | None,
+    factor: float | None,
+) -> dict[str, Any]:
+    context = result.get("governed_continuity_context")
+    payload = context if isinstance(context, dict) else {}
+    metrics = payload.get("metrics")
+    values = metrics if isinstance(metrics, dict) else {}
+    previous_close = _number(values.get("previous_close"))
+    action_open = _number(values.get("action_open"))
+    action_close = _number(values.get("action_close"))
+    atr = _number(values.get("atr_before"))
+    return {
+        "series": series,
+        "candidate_date": result.get("effective_date"),
+        "previous_session": values.get("previous_session"),
+        "action_session": values.get("action_session"),
+        "previous_close": previous_close,
+        "action_open": action_open,
+        "action_close": action_close,
+        "atr_before": atr,
+        "median_prior_volume": values.get("median_prior_volume"),
+        "open_raw_gap_atr": _optional_gap(action_open, previous_close, atr, 1.0),
+        "open_adjusted_gap_atr": _optional_gap(
+            action_open,
+            previous_close,
+            atr,
+            factor,
+        ),
+        "close_raw_gap_atr": _optional_gap(
+            action_close,
+            previous_close,
+            atr,
+            1.0,
+        ),
+        "close_adjusted_gap_atr": _optional_gap(
+            action_close,
+            previous_close,
+            atr,
+            factor,
+        ),
+        "candle_context": (
+            "AVAILABLE" if payload.get("complete") is True else "INSUFFICIENT"
+        ),
+        "governed_continuity_context_id": result.get("governed_continuity_context_id"),
+    }
+
+
+def _optional_gap(
+    price: float | None,
+    previous_close: float | None,
+    atr: float | None,
+    factor: float | None,
+) -> float | None:
+    if price is None or previous_close is None:
+        return None
+    return _gap(price, previous_close, atr, factor)
 
 
 def _classify(

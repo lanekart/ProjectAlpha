@@ -19,6 +19,9 @@ from alpha.historical_truth.adjustment_replay_admission_models import (
 from alpha.historical_truth.adjustment_replay_admission_repair import (
     InputContractError,
 )
+from alpha.historical_truth.bridge_aware_continuity_context import (
+    BridgeAwareContinuityContextProvider,
+)
 
 
 def adjustment_replay_admission_certify(
@@ -38,6 +41,18 @@ def adjustment_replay_admission_certify(
     htr010b_output: Path = typer.Option(
         Path("artifacts/htr010b_complete_corporate_action_dataset"),
         "--htr010b-output",
+        exists=True,
+        file_okay=False,
+    ),
+    htr009a2_output: Path | None = typer.Option(
+        None,
+        "--htr009a2-output",
+        exists=True,
+        file_okay=False,
+    ),
+    dsi010b1_output: Path | None = typer.Option(
+        None,
+        "--dsi010b1-output",
         exists=True,
         file_okay=False,
     ),
@@ -81,6 +96,22 @@ def adjustment_replay_admission_certify(
     if end_date < start_date:
         raise typer.BadParameter("must be on or after --start", param_hint="--end")
     try:
+        bridge_inputs = (htr009a2_output, dsi010b1_output)
+        if any(item is not None for item in bridge_inputs) and not all(
+            item is not None for item in bridge_inputs
+        ):
+            raise typer.BadParameter(
+                "--htr009a2-output and --dsi010b1-output must be supplied together"
+            )
+        context_provider = (
+            BridgeAwareContinuityContextProvider.from_signed_outputs(
+                htr009a2_output=htr009a2_output,
+                htr010a3_output=htr010a3_output,
+                dsi010b1_output=dsi010b1_output,
+            )
+            if htr009a2_output is not None and dsi010b1_output is not None
+            else None
+        )
         report = AdjustmentReplayAdmissionIntegrityEngine().run(
             database_path=database,
             htr010a3_output=htr010a3_output,
@@ -88,6 +119,7 @@ def adjustment_replay_admission_certify(
             session_calendar_report=session_calendar_report,
             start_date=start_date,
             end_date=end_date,
+            continuity_context_provider=context_provider,
         )
     except InputContractError as exc:
         raise typer.BadParameter(str(exc), param_hint="--htr010b-output") from exc
