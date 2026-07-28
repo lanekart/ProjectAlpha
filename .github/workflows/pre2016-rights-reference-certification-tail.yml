@@ -17,7 +17,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
-          JOB_ID: '90257896139'
+          JOB_ID: '90258728049'
         run: |
           curl --fail --location --silent --show-error \
             -H "Accept: application/vnd.github+json" \
