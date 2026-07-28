@@ -29,6 +29,7 @@ jobs:
         run: |
           poetry run python scripts/fix_pre2016_rights_reference_patcher_boundary.py
           poetry run python scripts/patch_pre2016_rights_reference_certification.py
+          poetry run python scripts/fix_pre2016_rights_reference_compatibility.py
       - name: Validate reference certification repair
         run: |
           poetry run ruff format \
