@@ -35,16 +35,28 @@ jobs:
           run-id: 30352312594
           name: dsi010-pre2016-rights-rebuild
           path: inputs
+      - name: Download signed HTR-009A2 identity boundary
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30335669653
+          name: dsi010-a3-b-repaired-rerun
+          path: identity
       - name: Restore governed source state
         run: |
           set -euo pipefail
           archive=$(find inputs -type f -name alpha_data_after_rights_rebuild.tar.gz | head -1)
           calendar=$(find inputs -type f -name htr007_session_calendar.json | head -1)
+          a2=$(find identity -type d -name htr009a2_event_sourced_universe | head -1)
           test -f "$archive"
           test -f "$calendar"
+          test -d "$a2"
           mkdir -p work artifacts work/calendar
           tar -xzf "$archive" -C work
           cp -a inputs/artifacts/. artifacts/
+          rm -rf artifacts/htr009a2_event_sourced_universe
+          cp -a "$a2" artifacts/
           cp "$calendar" work/calendar/htr007_session_calendar.json
           test -f work/alpha_data/warehouse/historical_truth.duckdb
           test -f artifacts/htr010a3_tier_a_foundation_readiness/htr010a3_corporate_action_join_readiness.json
