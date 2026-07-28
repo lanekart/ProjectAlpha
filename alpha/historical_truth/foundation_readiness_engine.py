@@ -433,8 +433,22 @@ def resolve_discrepancies(
     result = []
     for row in rows:
         symbol = str(row["symbol"])
-        cause, state, treatment, join, event_date = _DISCREPANCY_RULES[symbol]
-        evidence = tuple(row.get("source_evidence", []))
+        rule = _DISCREPANCY_RULES.get(symbol)
+        if rule is None:
+            cause = (
+                "No governed named discrepancy rule or effective-dated official "
+                "evidence resolves this checkpoint difference."
+            )
+            state = "UNRESOLVED_EXTERNAL_ERA_CHECKPOINT_DISCREPANCY"
+            treatment = (
+                "Retain the discrepancy, quarantine checkpoint parity, and require "
+                "effective-dated official identity evidence before admission."
+            )
+            join = JoinReadiness.UNRESOLVED_IDENTITY
+            event_date = None
+        else:
+            cause, state, treatment, join, event_date = rule
+        evidence = tuple(str(item) for item in row.get("source_evidence", []))
         if symbol == "AMIORG":
             evidence += ("nse_symbol_change_events:AMIORG:ACUTAAS:2025-06-02",)
         result.append(
