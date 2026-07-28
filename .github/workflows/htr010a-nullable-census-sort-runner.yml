@@ -1,0 +1,48 @@
+name: HTR-010A Nullable Census Sort Repair
+
+on:
+  push:
+    branches:
+      - feature/dsi-010-pre2016-external-era-validation
+    paths:
+      - .github/workflows/htr010a-nullable-census-sort-runner.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - run: poetry run python scripts/patch_htr010a_nullable_census_sort.py
+      - run: |
+          poetry run ruff format \
+            alpha/historical_truth/complete_security_dataset_engine.py \
+            tests/historical_truth/test_complete_security_dataset_pre2016_regressions.py
+          poetry run ruff check \
+            alpha/historical_truth/complete_security_dataset_engine.py \
+            tests/historical_truth/test_complete_security_dataset_pre2016_regressions.py
+          poetry run ruff format --check \
+            alpha/historical_truth/complete_security_dataset_engine.py \
+            tests/historical_truth/test_complete_security_dataset_pre2016_regressions.py
+          poetry run mypy alpha/historical_truth/complete_security_dataset_engine.py
+          poetry run pytest -q \
+            tests/historical_truth/test_complete_security_dataset_pre2016_regressions.py \
+            tests/historical_truth/test_complete_security_dataset.py
+      - run: |
+          git config user.name "Project Alpha Automation"
+          git config user.email "project-alpha-automation@users.noreply.github.com"
+          git add \
+            alpha/historical_truth/complete_security_dataset_engine.py \
+            tests/historical_truth/test_complete_security_dataset_pre2016_regressions.py
+          git commit -m "fix(htr-010a): sort nullable census identities"
+          git push origin HEAD:feature/dsi-010-pre2016-external-era-validation
