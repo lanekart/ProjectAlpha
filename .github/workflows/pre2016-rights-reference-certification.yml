@@ -26,7 +26,9 @@ jobs:
       - run: pip install poetry
       - run: poetry install --no-interaction
       - name: Apply reference certification repair
-        run: poetry run python scripts/patch_pre2016_rights_reference_certification.py
+        run: |
+          poetry run python scripts/fix_pre2016_rights_reference_patcher_boundary.py
+          poetry run python scripts/patch_pre2016_rights_reference_certification.py
       - name: Validate reference certification repair
         run: |
           poetry run ruff format \
