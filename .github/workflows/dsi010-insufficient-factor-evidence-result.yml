@@ -1,0 +1,27 @@
+name: DSI-010 Insufficient Factor Evidence Result
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-insufficient-factor-evidence-result.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30356547188
+          name: dsi010-insufficient-factor-evidence-audit
+          path: inputs
+      - name: Print signed audit summary
+        run: |
+          summary=$(find inputs -type f -name insufficient_factor_evidence_summary.json | head -1)
+          test -f "$summary"
+          cat "$summary"
