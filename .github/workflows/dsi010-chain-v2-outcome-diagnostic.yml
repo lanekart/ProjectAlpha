@@ -1,0 +1,33 @@
+name: DSI-010 Chain V2 Outcome Diagnostic
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-chain-v2-outcome-diagnostic.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print chain outcomes and failures
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          JOB_ID: "90192084558"
+        run: |
+          curl --fail --location --silent --show-error \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${REPOSITORY}/actions/jobs/${JOB_ID}/logs" \
+            --output /tmp/job.log
+          echo "===== CHAIN OUTCOMES ====="
+          grep -nE 'HTR009A_OUTCOME|HTR009A2_OUTCOME|HTR009B_OUTCOME|HTR010A_OUTCOME' /tmp/job.log | tail -40 || true
+          echo "===== FAILURES ====="
+          grep -nE 'Traceback|error:|ERROR|FAILED|Failure|SystemExit|BLOCKED_|CERTIFICATION|Primary State|primary_state|state:' /tmp/job.log | tail -240 || true
+          echo "===== FINAL 260 LINES ====="
+          tail -260 /tmp/job.log
