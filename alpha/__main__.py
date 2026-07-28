@@ -25,6 +25,9 @@ def _historical_truth_app() -> typer.Typer:
     from alpha.historical_truth.factor_transformation_forensics_cli import (
         factor_transformation_forensics,
     )
+    from alpha.historical_truth.final_pre2016_adjusted_history_closure_cli import (
+        final_pre2016_adjusted_history_closure_certify,
+    )
     from alpha.historical_truth.official_bridge_certification_cli import (
         official_bridge_certify,
         official_bridge_evidence_acquire,
@@ -77,6 +80,10 @@ def _historical_truth_app() -> typer.Typer:
     if "residual-corporate-action-closure-certify" not in registered:
         historical_truth_app.command("residual-corporate-action-closure-certify")(
             residual_corporate_action_closure_certify
+        )
+    if "final-pre2016-adjusted-history-closure-certify" not in registered:
+        historical_truth_app.command("final-pre2016-adjusted-history-closure-certify")(
+            final_pre2016_adjusted_history_closure_certify
         )
     if "official-bridge-evidence-manifest" not in registered:
         historical_truth_app.command("official-bridge-evidence-manifest")(

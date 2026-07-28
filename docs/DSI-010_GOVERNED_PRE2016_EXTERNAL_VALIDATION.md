@@ -220,3 +220,22 @@ The governed run completed 18 contexts, confirmed 17 factors, and exposed one
 implementation defect without changing factor-state counts. Its signed source
 acceptance is workflow `30389083773`, artifact `8700502533`. Adjusted replay
 remains not ready, and the external-era benchmark experiment remains disabled.
+
+## Final Pre-2016 Closure Boundary
+
+DSI-010B4 replaces the incorrect global-market action-session lookup with a
+security-specific governed search and wires official effective-dated identity
+transitions into the permanent continuity path. It closes 106 of the 172
+DSI-010B3 residual events: 62 through action-session selection and 44 through
+identity-transition evidence.
+
+The final population contains 631 confirmed market-gap factors, 41
+insufficient-evidence factors, 24 factors requiring a reference price, eight
+non-multiplicative actions, one official-evidence conflict, and zero
+implementation defects. Sixty-six cases remain tied to explicit official
+evidence or governed-candle requirements. The 349 mixed-price-basis intervals
+therefore remain fail-closed and `ADJUSTED_REPLAY_READY=false`.
+
+The full contract, empirical counts, blocker categories, CLI and governance
+boundary are documented in
+`DSI-010B4_FINAL_PRE2016_ADJUSTED_HISTORY_CLOSURE.md`.
