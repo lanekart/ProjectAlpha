@@ -22,6 +22,9 @@ from alpha.historical_truth.foundation_readiness_cli import (
     tier_a_foundation_readiness,
 )
 from alpha.historical_truth.integrity import HistoricalTruthIntegrityAudit
+from alpha.historical_truth.legacy_rights_reference_bridge_cli import (
+    legacy_rights_reference_bridge_certify,
+)
 from alpha.historical_truth.lifecycle_session_cli import (
     lifecycle_session_semantics_certify,
 )
@@ -69,6 +72,9 @@ historical_truth_app.command("lifecycle-session-semantics-certify")(
 historical_truth_app.command("tier-a-foundation-readiness")(tier_a_foundation_readiness)
 historical_truth_app.command("complete-corporate-action-dataset")(
     complete_corporate_action_dataset
+)
+historical_truth_app.command("legacy-rights-reference-bridge-certify")(
+    legacy_rights_reference_bridge_certify
 )
 
 

@@ -3,6 +3,23 @@
 Use this checklist only after the DSI-010 source boundary is green in permanent
 GitHub CI.
 
+## DSI-010B1 legacy rights reference bridge
+
+- [ ] Signed HTR-009A2 artifact identity and digest are retained.
+- [ ] Every used HTR-009A2 file matches the version-pinned SHA-256 contract.
+- [ ] HTR-010A3 join population reconciles before bridge use.
+- [ ] All 39 missing-ISIN complete-term rights cases are represented.
+- [ ] TATAPOWER remains a separate non-bridgeable mismatch control.
+- [ ] Accepted cases have high-confidence interval and immutable source lineage.
+- [ ] Rejected cases do not enter cumulative factors or replay admission.
+- [ ] Canonical candle ISIN values remain unchanged.
+- [ ] HTR-009B through HTR-010B1E2 rebuild completes.
+- [ ] Deterministic reuse produces byte-identical bridge artifacts.
+- [ ] Temporary bridge diagnostic workflows are absent.
+- [ ] Full benchmark replay count remains zero.
+- [ ] `ADJUSTED_REPLAY_READY` follows the complete readiness contract.
+- [ ] `PRODUCTION_INFLUENCE=false`.
+
 ## Published boundaries
 
 - Repaired implementation boundary: `9db5ef7fe8de7743e5d6fe816d06dd9f7b008fd3`.

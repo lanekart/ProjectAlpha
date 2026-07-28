@@ -32,6 +32,9 @@ from alpha.historical_truth.factor_transformation_forensics import (
 from alpha.historical_truth.legacy_isin_reference_bridge import (
     LegacyIsinReferenceBridge,
 )
+from tests.historical_truth.legacy_bridge_test_support import (
+    write_bridge_fixture,
+)
 
 
 def _action(isin: str = "INE000A01010"):
@@ -228,61 +231,14 @@ def test_b1d2_accepts_only_reference_certified_rights_terms() -> None:
     assert provisional["factor_quality_confirmed"] is False
 
 
-def _bridge_output(path: Path) -> Path:
-    identity = "nse:isin:INE000A01010"
-    event_id = "nse-event:official-listing"
-    payloads = {
-        "htr009a2_membership_intervals.json": [
-            {
-                "identity_key": identity,
-                "valid_from": "2010-01-01",
-                "valid_to": "2015-12-31",
-                "source_event_ids": [event_id],
-            }
-        ],
-        "htr009a2_symbol_intervals.json": [
-            {
-                "identity_key": identity,
-                "symbol": "ALPHA",
-                "valid_from": "2010-01-01",
-                "valid_to": "2015-12-31",
-                "confidence_state": "HIGH",
-                "issue_codes": [],
-                "source_event_ids": [event_id],
-            }
-        ],
-        "htr009a2_security_events.json": [
-            {
-                "event_id": event_id,
-                "effective_date": "2010-01-01",
-                "old_symbol": None,
-                "new_symbol": "ALPHA",
-                "old_series": None,
-                "new_series": "EQ",
-                "old_isin": None,
-                "new_isin": "INE000A01010",
-                "predecessor_identity": None,
-                "successor_identity": identity,
-                "official_source_id": "nse-official-listing",
-                "admission_state": "ADMITTED",
-                "confidence_state": "HIGH",
-            }
-        ],
-    }
-    path.mkdir()
-    for name, records in payloads.items():
-        (path / name).write_text(
-            json.dumps({"records": records}, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-    return path
-
-
 def test_missing_candle_isin_can_use_dated_official_bridge(tmp_path: Path) -> None:
-    bridge = LegacyIsinReferenceBridge.from_output(
-        _bridge_output(tmp_path / "htr009a2")
+    htr009a2, htr010a3 = write_bridge_fixture(tmp_path / "bridge")
+    bridge = LegacyIsinReferenceBridge.from_fixture_output(
+        htr009a2,
+        htr010a3_output=htr010a3,
     )
 
+    database = tmp_path / "truth.duckdb"
     factor = _derive(tmp_path, candle_isin=None, reference_bridge=bridge)
 
     assert factor["factor_state"] == FactorState.FACTOR_CERTIFIED_REFERENCE_PRICE
@@ -297,11 +253,18 @@ def test_missing_candle_isin_can_use_dated_official_bridge(tmp_path: Path) -> No
     assert factor["reference_price_bridge_official_event_ids"] == [
         "nse-event:official-listing"
     ]
+    with duckdb.connect(str(database), read_only=True) as connection:
+        candle_isin = connection.execute("SELECT isin FROM daily_candle").fetchone()
+    assert candle_isin == (None,)
+    cumulative = cumulative_factors((factor,))
+    assert cumulative[0]["backward_cumulative_price_factor"] is not None
 
 
 def test_populated_isin_mismatch_is_never_overridden_by_bridge(tmp_path: Path) -> None:
-    bridge = LegacyIsinReferenceBridge.from_output(
-        _bridge_output(tmp_path / "htr009a2")
+    htr009a2, htr010a3 = write_bridge_fixture(tmp_path / "bridge")
+    bridge = LegacyIsinReferenceBridge.from_fixture_output(
+        htr009a2,
+        htr010a3_output=htr010a3,
     )
 
     factor = _derive(
@@ -314,3 +277,25 @@ def test_populated_isin_mismatch_is_never_overridden_by_bridge(tmp_path: Path) -
     assert factor["reference_price_provenance_state"] == "PRIOR_ISIN_MISMATCH"
     assert factor["reference_price_bridge_state"] == "NOT_APPLICABLE"
     assert factor["reference_price_certified"] is False
+
+
+def test_rejected_bridge_remains_provisional_and_outside_cumulative_factors(
+    tmp_path: Path,
+) -> None:
+    htr009a2, htr010a3 = write_bridge_fixture(
+        tmp_path / "bridge",
+        symbol_confidence="MEDIUM",
+    )
+    bridge = LegacyIsinReferenceBridge.from_fixture_output(
+        htr009a2,
+        htr010a3_output=htr010a3,
+    )
+
+    factor = _derive(tmp_path, candle_isin=None, reference_bridge=bridge)
+
+    assert factor["factor_state"] == FactorState.FACTOR_PROVISIONAL_REFERENCE_PRICE
+    assert factor["reference_price_certified"] is False
+    assert factor["reference_price_bridge_state"] == "INTERVAL_CONFIDENCE_NOT_HIGH"
+    assert factor["factor_state"] not in CERTIFIED_FACTOR_STATES
+    cumulative = cumulative_factors((factor,))
+    assert cumulative[0]["backward_cumulative_price_factor"] is None

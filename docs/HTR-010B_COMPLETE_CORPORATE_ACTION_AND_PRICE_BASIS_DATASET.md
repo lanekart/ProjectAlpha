@@ -119,6 +119,7 @@ poetry run python -m alpha historical-truth complete-corporate-action-dataset \
   --database alpha_data/warehouse/historical_truth.duckdb \
   --root alpha_data \
   --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+  --htr009a2-output artifacts/htr009a2_event_sourced_universe \
   --start 2016-01-01 \
   --end 2026-07-20 \
   --output artifacts/htr010b_complete_corporate_action_dataset \
@@ -140,3 +141,16 @@ economic terms remain unknown.
 
 No benchmark replay is run. No active replay table or production path reads the
 new sidecar.
+
+For pre-2016 rights factors, `--htr009a2-output` activates only the signed
+DSI-010B1 dated identity bridge. Exact same-ISIN certification remains the
+primary path. Missing candle ISINs may be bridged only with complete official
+interval, confidence, lineage, membership, symbol, series, conflict, and
+HTR-010A3 evidence. Explicit ISIN mismatches remain provisional. No candle row
+is modified.
+
+The DSI-010B1 signed rebuild admitted 18 dated identity bridges and rejected 21
+missing-interval cases. TATAPOWER remains an explicit mismatch control. The
+resulting rights factor states are 55 certified-reference, 22
+provisional-reference, and 28 missing-terms. This does not change the global
+`NOT_READY_FOR_ADJUSTED_REPLAY_INTEGRATION` state.

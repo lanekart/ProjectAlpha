@@ -66,7 +66,10 @@ class CompleteCorporateActionDatasetEngine:
             raise ValueError("refresh_sources and verify_only are mutually exclusive")
         joins, upstream_a3_readiness = _validated_a3_join_contract(htr010a3_output)
         reference_bridge = (
-            LegacyIsinReferenceBridge.from_output(htr009a2_output)
+            LegacyIsinReferenceBridge.from_output(
+                htr009a2_output,
+                htr010a3_output=htr010a3_output,
+            )
             if htr009a2_output is not None
             else None
         )
@@ -511,6 +514,7 @@ def derive_factors(
                 "reference_price_isin": None,
                 "reference_price_source_sha256": None,
                 "reference_price_provenance_state": "NOT_APPLICABLE",
+                "reference_price_original_provenance_state": "NOT_APPLICABLE",
                 "reference_price_certified": False,
                 **_empty_reference_bridge_provenance(),
             }
@@ -529,6 +533,11 @@ def derive_factors(
                         "reference_price_isin": None,
                         "reference_price_source_sha256": None,
                         "reference_price_provenance_state": (
+                            "LEGACY_UNCERTIFIED_REFERENCE_PRICE"
+                            if reference is not None
+                            else "PRIOR_CANDLE_MISSING"
+                        ),
+                        "reference_price_original_provenance_state": (
                             "LEGACY_UNCERTIFIED_REFERENCE_PRICE"
                             if reference is not None
                             else "PRIOR_CANDLE_MISSING"
@@ -625,6 +634,7 @@ def _rights_reference_context(
     else:
         state = "CERTIFIED_SAME_ISIN_CANONICAL_PRIOR_CLOSE"
 
+    original_state = state
     bridge_provenance = _empty_reference_bridge_provenance()
     if (
         state == "PRIOR_ISIN_MISSING"
@@ -652,6 +662,7 @@ def _rights_reference_context(
         "reference_price_isin": prior_isin or None,
         "reference_price_source_sha256": source_sha or None,
         "reference_price_provenance_state": state,
+        "reference_price_original_provenance_state": original_state,
         "reference_price_certified": certified,
         **bridge_provenance,
     }
@@ -661,14 +672,33 @@ def _empty_reference_bridge_provenance() -> dict[str, Any]:
     return {
         "reference_price_bridge_contract_version": None,
         "reference_price_bridge_state": "NOT_APPLICABLE",
+        "reference_price_bridge_rejection_reason": None,
         "reference_price_bridge_identity": None,
         "reference_price_bridge_symbol": None,
         "reference_price_bridge_series": None,
         "reference_price_bridge_isin": None,
+        "reference_price_bridge_reference_date": None,
+        "reference_price_bridge_candle_isin_remained_missing": False,
+        "reference_price_bridge_membership_interval_ids": [],
+        "reference_price_bridge_membership_states": [],
+        "reference_price_bridge_membership_confidence": None,
         "reference_price_bridge_membership_event_ids": [],
+        "reference_price_bridge_symbol_interval_ids": [],
+        "reference_price_bridge_symbol_confidence": None,
         "reference_price_bridge_symbol_event_ids": [],
+        "reference_price_bridge_tradability_interval_ids": [],
+        "reference_price_bridge_tradability_states": [],
+        "reference_price_bridge_tradability_certified": None,
         "reference_price_bridge_official_event_ids": [],
         "reference_price_bridge_official_source_ids": [],
+        "reference_price_bridge_evidence_sha256": {},
+        "reference_price_bridge_overlapping_identities": [],
+        "reference_price_bridge_symbol_reuse_conflict": False,
+        "reference_price_bridge_symbol_change_conflict": False,
+        "reference_price_bridge_series_transition_conflict": False,
+        "reference_price_bridge_source_contract_id": None,
+        "reference_price_bridge_source_report_sha256": None,
+        "reference_price_bridge_production_influence": False,
     }
 
 

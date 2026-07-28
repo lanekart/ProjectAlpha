@@ -187,3 +187,26 @@ PRODUCTION_INFLUENCE=false
 
 A ready DSI-010 certificate permits, at most, continued forward paper research.
 It does not activate any live or production mechanism.
+
+## DSI-010B1 Legacy Rights Reference Boundary
+
+Legacy rights factors whose canonical prior candle omits an ISIN may be
+certified only through the signed, effective-dated HTR-009A2 identity contract
+documented in `DSI-010B1_GOVERNED_LEGACY_ISIN_BRIDGE.md`.
+
+This is distinct from direct same-ISIN candle certification. The candle remains
+unchanged, and the factor records the official interval, source-event lineage,
+source SHA-256 values, and all conflict checks. An explicit different candle
+ISIN, including the governed TATAPOWER control, is never handled as a missing
+value.
+
+The bridge milestone runs no external-era benchmark. It cannot change the
+frozen challenger, entry, stop, gate, threshold, portfolio, execution,
+recommendation, learning, or production policy.
+
+The signed rebuild certified 18 of 39 complete-term missing-ISIN cases. The
+other 21 lack a matching official dated interval, and TATAPOWER remains a
+separate non-bridgeable ISIN mismatch. Rights factor states are now 55
+certified-reference, 22 provisional-reference, and 28 missing-terms. Adjusted
+replay remains not ready because independent insufficient-evidence cases
+remain.
