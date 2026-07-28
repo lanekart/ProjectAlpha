@@ -1,4 +1,4 @@
-name: DSI-010 Legacy ISIN Bridge Audit
+name: DSI-010 Legacy ISIN Bridge Eligibility
 
 on:
   pull_request:
@@ -29,13 +29,14 @@ jobs:
           run-id: 30355398752
           name: dsi010-rights-reference-certified-rebuild
           path: final
-      - name: Audit interval schemas and legacy rights cases
+      - name: Evaluate dated identity, symbol, series and ISIN bridges
         run: |
           python - <<'PY'
           from __future__ import annotations
 
           import json
-          from collections import Counter
+          from collections import Counter, defaultdict
+          from datetime import date
           from pathlib import Path
           from typing import Any
 
@@ -43,7 +44,7 @@ jobs:
               matches = sorted(root.rglob(name))
               if len(matches) != 1:
                   raise RuntimeError(
-                      f"expected exactly one {name} under {root}, found {len(matches)}: {matches[:10]}"
+                      f"expected exactly one {name} under {root}, found {len(matches)}"
                   )
               return matches[0]
 
@@ -51,101 +52,266 @@ jobs:
               payload = json.loads(path.read_text(encoding="utf-8"))
               if isinstance(payload, list):
                   return [dict(item) for item in payload]
-              for key in (
-                  "records",
-                  "rows",
-                  "items",
-                  "factors",
-                  "events",
-                  "intervals",
-                  "relationships",
-              ):
-                  value = payload.get(key) if isinstance(payload, dict) else None
-                  if isinstance(value, list):
-                      return [dict(item) for item in value]
               if isinstance(payload, dict):
+                  for key in (
+                      "records",
+                      "rows",
+                      "items",
+                      "factors",
+                      "events",
+                      "intervals",
+                      "relationships",
+                  ):
+                      value = payload.get(key)
+                      if isinstance(value, list):
+                          return [dict(item) for item in value]
                   return [dict(payload)]
               raise TypeError(f"unsupported JSON payload in {path}")
 
+          def contains(row: dict[str, Any], value: date) -> bool:
+              return date.fromisoformat(str(row["valid_from"])) <= value <= date.fromisoformat(
+                  str(row["valid_to"])
+              )
+
           foundation = Path("foundation")
           final = Path("final")
-          names = (
-              "htr009a2_membership_intervals.json",
-              "htr009a2_symbol_intervals.json",
-              "htr009a2_tradability_intervals.json",
-              "htr009a2_identity_relationships.json",
-              "htr009a2_security_events.json",
-          )
-          schemas: dict[str, Any] = {}
-          datasets: dict[str, list[dict[str, Any]]] = {}
-          for name in names:
-              path = locate(foundation, name)
-              rows = records(path)
-              datasets[name] = rows
-              schemas[name] = {
-                  "path": str(path),
-                  "row_count": len(rows),
-                  "keys": sorted({key for row in rows[:100] for key in row}),
-                  "samples": rows[:3],
-              }
-
-          factor_path = locate(final, "htr010b_adjustment_factors.json")
-          event_path = locate(final, "htr010b_canonical_events.json")
-          factors = records(factor_path)
-          events = records(event_path)
+          memberships = records(locate(foundation, "htr009a2_membership_intervals.json"))
+          symbols = records(locate(foundation, "htr009a2_symbol_intervals.json"))
+          security_events = records(locate(foundation, "htr009a2_security_events.json"))
+          factors = records(locate(final, "htr010b_adjustment_factors.json"))
+          events = records(locate(final, "htr010b_canonical_events.json"))
           event_by_id = {
-              str(row.get("canonical_event_id")): row
+              str(row["canonical_event_id"]): row
               for row in events
               if row.get("canonical_event_id")
           }
-          targets = []
+
+          membership_by_identity: dict[str, list[dict[str, Any]]] = defaultdict(list)
+          symbol_by_identity: dict[str, list[dict[str, Any]]] = defaultdict(list)
+          symbol_by_value: dict[str, list[dict[str, Any]]] = defaultdict(list)
+          observations_by_identity: dict[str, list[dict[str, Any]]] = defaultdict(list)
+          for row in memberships:
+              membership_by_identity[str(row.get("identity_key"))].append(row)
+          for row in symbols:
+              symbol_by_identity[str(row.get("identity_key"))].append(row)
+              symbol_by_value[str(row.get("symbol") or "").upper()].append(row)
+          for row in security_events:
+              if row.get("admission_state") != "ADMITTED":
+                  continue
+              if row.get("confidence_state") != "HIGH":
+                  continue
+              effective = row.get("effective_date")
+              if not effective or not row.get("event_id") or not row.get("official_source_id"):
+                  continue
+              successor = row.get("successor_identity")
+              if successor and row.get("new_symbol") and row.get("new_series") and row.get("new_isin"):
+                  observations_by_identity[str(successor)].append(
+                      {
+                          "effective_date": str(effective),
+                          "symbol": str(row["new_symbol"]).upper(),
+                          "series": str(row["new_series"]).upper(),
+                          "isin": str(row["new_isin"]).upper(),
+                          "event_id": str(row["event_id"]),
+                          "official_source_id": str(row["official_source_id"]),
+                          "event_type": str(row.get("event_type") or ""),
+                          "side": "SUCCESSOR",
+                      }
+                  )
+              predecessor = row.get("predecessor_identity")
+              if predecessor and row.get("old_symbol") and row.get("old_series") and row.get("old_isin"):
+                  observations_by_identity[str(predecessor)].append(
+                      {
+                          "effective_date": str(effective),
+                          "symbol": str(row["old_symbol"]).upper(),
+                          "series": str(row["old_series"]).upper(),
+                          "isin": str(row["old_isin"]).upper(),
+                          "event_id": str(row["event_id"]),
+                          "official_source_id": str(row["official_source_id"]),
+                          "event_type": str(row.get("event_type") or ""),
+                          "side": "PREDECESSOR",
+                      }
+                  )
+
+          cases: list[dict[str, Any]] = []
           for factor in factors:
-              state = str(factor.get("reference_price_provenance_state") or "")
-              if state not in {"PRIOR_ISIN_MISSING", "PRIOR_ISIN_MISMATCH"}:
+              if factor.get("factor_state") != "FACTOR_PROVISIONAL_REFERENCE_PRICE":
+                  continue
+              if factor.get("reference_price_provenance_state") not in {
+                  "PRIOR_ISIN_MISSING",
+                  "PRIOR_ISIN_MISMATCH",
+              }:
                   continue
               event = event_by_id.get(str(factor.get("canonical_event_id")), {})
-              targets.append(
+              identity = str(factor.get("identity_key") or "")
+              symbol = str(event.get("symbol") or "").upper()
+              event_isin = str(event.get("isin") or "").upper()
+              applicable = tuple(
+                  str(item).upper() for item in event.get("series_applicability", ())
+              )
+              reference_date = date.fromisoformat(str(factor["reference_price_date"]))
+
+              membership_rows = [
+                  row
+                  for row in membership_by_identity.get(identity, ())
+                  if contains(row, reference_date)
+              ]
+              symbol_rows = [
+                  row
+                  for row in symbol_by_identity.get(identity, ())
+                  if str(row.get("symbol") or "").upper() == symbol
+                  and contains(row, reference_date)
+              ]
+              conflicts = [
+                  row
+                  for row in symbol_by_value.get(symbol, ())
+                  if str(row.get("identity_key")) != identity and contains(row, reference_date)
+              ]
+              observations = [
+                  row
+                  for row in observations_by_identity.get(identity, ())
+                  if date.fromisoformat(str(row["effective_date"])) <= reference_date
+              ]
+              latest_date = max(
+                  (str(row["effective_date"]) for row in observations), default=None
+              )
+              latest = [
+                  row for row in observations if str(row["effective_date"]) == latest_date
+              ]
+              latest_states = {
+                  (row["symbol"], row["series"], row["isin"]) for row in latest
+              }
+
+              reason = "ELIGIBLE_DATED_OFFICIAL_ISIN_BRIDGE"
+              if factor.get("reference_price_provenance_state") == "PRIOR_ISIN_MISMATCH":
+                  reason = "PRIOR_ISIN_MISMATCH_FAIL_CLOSED"
+              elif len(applicable) != 1:
+                  reason = "EVENT_SERIES_NOT_UNIQUE"
+              elif len(membership_rows) != 1:
+                  reason = "MEMBERSHIP_INTERVAL_NOT_UNIQUE"
+              elif not tuple(membership_rows[0].get("source_event_ids") or ()):
+                  reason = "MEMBERSHIP_LINEAGE_MISSING"
+              elif len(symbol_rows) != 1:
+                  reason = "SYMBOL_INTERVAL_NOT_UNIQUE"
+              elif symbol_rows[0].get("confidence_state") != "HIGH":
+                  reason = "SYMBOL_INTERVAL_CONFIDENCE_NOT_HIGH"
+              elif tuple(symbol_rows[0].get("issue_codes") or ()):
+                  reason = "SYMBOL_INTERVAL_HAS_ISSUES"
+              elif not tuple(symbol_rows[0].get("source_event_ids") or ()):
+                  reason = "SYMBOL_INTERVAL_LINEAGE_MISSING"
+              elif conflicts:
+                  reason = "OVERLAPPING_SYMBOL_IDENTITY"
+              elif latest_date is None:
+                  reason = "OFFICIAL_SERIES_EVENT_MISSING"
+              elif len(latest_states) != 1:
+                  reason = "OFFICIAL_SERIES_EVENT_AMBIGUOUS"
+              else:
+                  observed_symbol, observed_series, observed_isin = next(iter(latest_states))
+                  if observed_symbol != symbol:
+                      reason = "OFFICIAL_EVENT_SYMBOL_MISMATCH"
+                  elif observed_series != applicable[0]:
+                      reason = "OFFICIAL_EVENT_SERIES_MISMATCH"
+                  elif observed_isin != event_isin:
+                      reason = "OFFICIAL_EVENT_ISIN_MISMATCH"
+
+              cases.append(
                   {
                       "canonical_event_id": factor.get("canonical_event_id"),
-                      "identity_key": factor.get("identity_key"),
-                      "effective_date": factor.get("effective_date"),
-                      "reference_price_date": factor.get("reference_price_date"),
-                      "reference_price_series": factor.get("reference_price_series"),
-                      "reference_price_isin": factor.get("reference_price_isin"),
-                      "reference_price_provenance_state": state,
-                      "symbol": event.get("symbol"),
-                      "event_isin": event.get("isin"),
-                      "series_applicability": event.get("series_applicability"),
-                      "raw_action_text": event.get("raw_action_text"),
+                      "identity_key": identity,
+                      "symbol": symbol,
+                      "event_isin": event_isin,
+                      "reference_date": reference_date.isoformat(),
+                      "reference_price": factor.get("reference_price"),
+                      "reference_price_source_sha256": factor.get(
+                          "reference_price_source_sha256"
+                      ),
+                      "original_provenance_state": factor.get(
+                          "reference_price_provenance_state"
+                      ),
+                      "event_series": list(applicable),
+                      "membership_interval_count": len(membership_rows),
+                      "membership_states": sorted(
+                          {str(row.get("state")) for row in membership_rows}
+                      ),
+                      "membership_source_event_ids": sorted(
+                          {
+                              str(item)
+                              for row in membership_rows
+                              for item in row.get("source_event_ids", ())
+                          }
+                      ),
+                      "symbol_interval_count": len(symbol_rows),
+                      "symbol_interval_confidence": sorted(
+                          {str(row.get("confidence_state")) for row in symbol_rows}
+                      ),
+                      "symbol_interval_issue_codes": sorted(
+                          {
+                              str(item)
+                              for row in symbol_rows
+                              for item in row.get("issue_codes", ())
+                          }
+                      ),
+                      "symbol_source_event_ids": sorted(
+                          {
+                              str(item)
+                              for row in symbol_rows
+                              for item in row.get("source_event_ids", ())
+                          }
+                      ),
+                      "overlapping_symbol_identities": sorted(
+                          {str(row.get("identity_key")) for row in conflicts}
+                      ),
+                      "latest_official_event_date": latest_date,
+                      "latest_official_states": [
+                          {"symbol": item[0], "series": item[1], "isin": item[2]}
+                          for item in sorted(latest_states)
+                      ],
+                      "latest_official_event_ids": sorted(
+                          {str(row["event_id"]) for row in latest}
+                      ),
+                      "latest_official_source_ids": sorted(
+                          {str(row["official_source_id"]) for row in latest}
+                      ),
+                      "bridge_eligibility": reason,
+                      "production_influence": False,
                   }
               )
 
           summary = {
-              "contract": "DSI-010-LEGACY-ISIN-BRIDGE-SCHEMA-AUDIT-v1",
-              "factor_path": str(factor_path),
-              "event_path": str(event_path),
-              "target_count": len(targets),
-              "target_state_counts": dict(
-                  sorted(Counter(row["reference_price_provenance_state"] for row in targets).items())
+              "contract": "DSI-010-LEGACY-ISIN-DATED-BRIDGE-ELIGIBILITY-v1",
+              "case_count": len(cases),
+              "eligibility_counts": dict(
+                  sorted(Counter(row["bridge_eligibility"] for row in cases).items())
               ),
-              "schemas": schemas,
-              "targets": targets,
-              "production_influence": False,
+              "eligible_count": sum(
+                  row["bridge_eligibility"] == "ELIGIBLE_DATED_OFFICIAL_ISIN_BRIDGE"
+                  for row in cases
+              ),
+              "original_provenance_counts": dict(
+                  sorted(
+                      Counter(row["original_provenance_state"] for row in cases).items()
+                  )
+              ),
+              "identity_bridge_admitted": False,
               "factor_mutated": False,
               "admission_policy_changed": False,
               "full_benchmark_replays": 0,
+              "production_influence": False,
           }
-          out = Path("artifacts/dsi010_legacy_isin_bridge_schema_audit")
+          out = Path("artifacts/dsi010_legacy_isin_bridge_eligibility")
           out.mkdir(parents=True, exist_ok=True)
-          (out / "legacy_isin_bridge_schema_audit.json").write_text(
+          (out / "legacy_isin_bridge_eligibility_summary.json").write_text(
               json.dumps(summary, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          (out / "legacy_isin_bridge_eligibility_cases.json").write_text(
+              json.dumps(cases, indent=2, sort_keys=True) + "\n",
               encoding="utf-8",
           )
           print(json.dumps(summary, indent=2, sort_keys=True))
           PY
-      - name: Upload audit
+      - name: Upload eligibility audit
         uses: actions/upload-artifact@v4
         with:
-          name: dsi010-legacy-isin-bridge-schema-audit
-          path: artifacts/dsi010_legacy_isin_bridge_schema_audit
+          name: dsi010-legacy-isin-bridge-eligibility
+          path: artifacts/dsi010_legacy_isin_bridge_eligibility
           if-no-files-found: error
