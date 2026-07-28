@@ -1,0 +1,210 @@
+name: DSI-010 A1 A2 A3 B Rebuild Chain
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-a1-a2-a3-b-chain.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+
+      - name: Download repaired HTR-010A state
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30333881015
+          name: dsi010-htr010a-repaired-rerun
+          path: inputs/htr010a
+
+      - name: Restore governed database and prerequisite artifacts
+        run: |
+          set -euo pipefail
+          ARCHIVE=$(find inputs/htr010a -type f -name alpha_data_after_htr010a.tar.gz | head -1)
+          CALENDAR=$(find inputs/htr010a -type f -name htr007_session_calendar.json | head -1)
+          test -n "$ARCHIVE" && test -f "$ARCHIVE"
+          test -n "$CALENDAR" && test -f "$CALENDAR"
+          mkdir -p work artifacts/dsi010_a1_a2_a3_b_chain
+          tar -xzf "$ARCHIVE" -C work
+          mkdir -p work/certified_calendar
+          cp "$CALENDAR" work/certified_calendar/htr007_session_calendar.json
+          for name in \
+            htr009a_point_in_time_universe \
+            htr009a2_event_sourced_universe \
+            htr009b_corporate_action_price_continuity \
+            htr010a_complete_security_dataset; do
+            source=$(find inputs/htr010a -type d -path "*/artifacts/${name}" | head -1)
+            test -n "$source" && test -d "$source"
+            cp -a "$source" "artifacts/${name}"
+          done
+          test -f work/alpha_data/warehouse/historical_truth.duckdb
+          test -d work/alpha_data/raw
+          test -d work/alpha_data/snapshots
+
+      - name: Run HTR-010A1 population and interval repair
+        id: a1
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          poetry run python -m alpha historical-truth security-population-repair \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --root work/alpha_data \
+            --htr010a-output artifacts/htr010a_complete_security_dataset \
+            --start 2005-01-01 \
+            --end 2015-12-31 \
+            --output artifacts/htr010a1_population_interval_repair \
+            --refresh-sources \
+            2>&1 | tee artifacts/dsi010_a1_a2_a3_b_chain/htr010a1.log
+
+      - name: Run HTR-010A2 lifecycle and session semantics
+        id: a2
+        if: steps.a1.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          poetry run python -m alpha historical-truth lifecycle-session-semantics-certify \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --root work/alpha_data \
+            --htr010a-output artifacts/htr010a_complete_security_dataset \
+            --htr010a1-output artifacts/htr010a1_population_interval_repair \
+            --start 2005-01-01 \
+            --end 2015-12-31 \
+            --output artifacts/htr010a2_lifecycle_session_semantics \
+            --refresh-sources \
+            2>&1 | tee artifacts/dsi010_a1_a2_a3_b_chain/htr010a2.log
+
+      - name: Run HTR-010A3 Tier A foundation readiness
+        id: a3
+        if: steps.a1.outcome == 'success' && steps.a2.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          poetry run python -m alpha historical-truth tier-a-foundation-readiness \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --root work/alpha_data \
+            --htr010a-output artifacts/htr010a_complete_security_dataset \
+            --htr010a1-output artifacts/htr010a1_population_interval_repair \
+            --htr010a2-output artifacts/htr010a2_lifecycle_session_semantics \
+            --start 2005-01-01 \
+            --end 2015-12-31 \
+            --output artifacts/htr010a3_tier_a_foundation_readiness \
+            --refresh-sources \
+            2>&1 | tee artifacts/dsi010_a1_a2_a3_b_chain/htr010a3.log
+
+      - name: Run HTR-010B complete corporate-action dataset
+        id: b
+        if: steps.a1.outcome == 'success' && steps.a2.outcome == 'success' && steps.a3.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          poetry run python -m alpha historical-truth complete-corporate-action-dataset \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --root work/alpha_data \
+            --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+            --start 2005-01-01 \
+            --end 2015-12-31 \
+            --output artifacts/htr010b_complete_corporate_action_dataset \
+            --refresh-sources \
+            2>&1 | tee artifacts/dsi010_a1_a2_a3_b_chain/htr010b.log
+
+      - name: Export governed chain state
+        if: always()
+        env:
+          A1_OUTCOME: ${{ steps.a1.outcome }}
+          A2_OUTCOME: ${{ steps.a2.outcome }}
+          A3_OUTCOME: ${{ steps.a3.outcome }}
+          B_OUTCOME: ${{ steps.b.outcome }}
+        run: |
+          poetry run python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import duckdb
+
+          database = Path("work/alpha_data/warehouse/historical_truth.duckdb")
+          names = []
+          counts = {}
+          if database.is_file():
+              with duckdb.connect(str(database), read_only=True) as connection:
+                  names = [str(row[0]) for row in connection.execute(
+                      "select table_name from information_schema.tables where table_schema='main' order by table_name"
+                  ).fetchall()]
+                  for table in (
+                      "daily_candle", "adjusted_daily_candle",
+                      "complete_security_identity", "security_dataset_certification",
+                      "corporate_action_event", "corporate_action_adjustment_factor",
+                  ):
+                      if table in names:
+                          row = connection.execute(f'SELECT count(*) FROM "{table}"').fetchone()
+                          counts[table] = int(row[0]) if row else 0
+          summary = {
+              "htr010a1_outcome": os.environ.get("A1_OUTCOME", "unknown"),
+              "htr010a2_outcome": os.environ.get("A2_OUTCOME", "unknown"),
+              "htr010a3_outcome": os.environ.get("A3_OUTCOME", "unknown"),
+              "htr010b_outcome": os.environ.get("B_OUTCOME", "unknown"),
+              "database_tables": names,
+              "table_counts": counts,
+              "production_influence": False,
+          }
+          output = Path("artifacts/dsi010_a1_a2_a3_b_chain")
+          output.mkdir(parents=True, exist_ok=True)
+          (output / "chain_summary.json").write_text(
+              json.dumps(summary, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          PY
+          tar -czf artifacts/dsi010_a1_a2_a3_b_chain/alpha_data_after_b.tar.gz \
+            -C work alpha_data
+
+      - name: Upload governed A1 A2 A3 B evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-a1-a2-a3-b-chain
+          path: |
+            artifacts/dsi010_a1_a2_a3_b_chain
+            artifacts/htr010a_complete_security_dataset
+            artifacts/htr010a1_population_interval_repair
+            artifacts/htr010a2_lifecycle_session_semantics
+            artifacts/htr010a3_tier_a_foundation_readiness
+            artifacts/htr010b_complete_corporate_action_dataset
+            artifacts/htr009a_point_in_time_universe
+            artifacts/htr009a2_event_sourced_universe
+            artifacts/htr009b_corporate_action_price_continuity
+            work/certified_calendar/htr007_session_calendar.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Enforce chain execution
+        if: always()
+        env:
+          A1_OUTCOME: ${{ steps.a1.outcome }}
+          A2_OUTCOME: ${{ steps.a2.outcome }}
+          A3_OUTCOME: ${{ steps.a3.outcome }}
+          B_OUTCOME: ${{ steps.b.outcome }}
+        run: |
+          echo "HTR010A1_OUTCOME=${A1_OUTCOME}"
+          echo "HTR010A2_OUTCOME=${A2_OUTCOME}"
+          echo "HTR010A3_OUTCOME=${A3_OUTCOME}"
+          echo "HTR010B_OUTCOME=${B_OUTCOME}"
+          test "${A1_OUTCOME}" = success
+          test "${A2_OUTCOME}" = success
+          test "${A3_OUTCOME}" = success
+          test "${B_OUTCOME}" = success
+          echo "PRODUCTION_INFLUENCE=false"
