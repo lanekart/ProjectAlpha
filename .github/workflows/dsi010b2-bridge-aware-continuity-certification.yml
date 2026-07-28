@@ -224,6 +224,89 @@ jobs:
             tests/historical_truth/test_bridge_aware_continuity_context.py \
             -q
 
+      - name: Rebuild and certify from second clean root
+        run: |
+          set -euo pipefail
+          clean=clean_acceptance
+          mkdir -p "$clean/work/alpha_data/warehouse" "$clean/artifacts"
+          cp work/alpha_data/warehouse/historical_truth.duckdb \
+            "$clean/work/alpha_data/warehouse/historical_truth.duckdb"
+          cp -a \
+            artifacts/htr009a2_event_sourced_universe \
+            artifacts/htr010a3_tier_a_foundation_readiness \
+            artifacts/htr010b_complete_corporate_action_dataset \
+            artifacts/dsi010b1_legacy_rights_reference_bridge \
+            "$clean/artifacts/"
+          bridge="--htr009a2-output $clean/artifacts/htr009a2_event_sourced_universe \
+            --dsi010b1-output $clean/artifacts/dsi010b1_legacy_rights_reference_bridge"
+          poetry run python -m alpha historical-truth \
+            adjustment-replay-admission-certify \
+            --database "$clean/work/alpha_data/warehouse/historical_truth.duckdb" \
+            --root "$clean/work/alpha_data" \
+            --htr010a3-output \
+              "$clean/artifacts/htr010a3_tier_a_foundation_readiness" \
+            --htr010b-output \
+              "$clean/artifacts/htr010b_complete_corporate_action_dataset" \
+            $bridge \
+            --session-calendar-report work/calendar/htr007_session_calendar.json \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output "$clean/artifacts/htr010b1c" \
+            --verify-only
+          poetry run python -m alpha historical-truth \
+            factor-transformation-forensics \
+            --database "$clean/work/alpha_data/warehouse/historical_truth.duckdb" \
+            --htr010b-output \
+              "$clean/artifacts/htr010b_complete_corporate_action_dataset" \
+            --htr010b1c-output "$clean/artifacts/htr010b1c" \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output "$clean/artifacts/htr010b1d"
+          poetry run python -m alpha historical-truth \
+            factor-transformation-bridge-forensics \
+            --database "$clean/work/alpha_data/warehouse/historical_truth.duckdb" \
+            --htr010b-output \
+              "$clean/artifacts/htr010b_complete_corporate_action_dataset" \
+            --htr010b1d-output "$clean/artifacts/htr010b1d" \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output "$clean/artifacts/htr010b1d1"
+          poetry run python -m alpha historical-truth \
+            bridge-aware-factor-validation-repair \
+            --htr010b1d1-output "$clean/artifacts/htr010b1d1" \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output "$clean/artifacts/htr010b1d2"
+          poetry run python -m alpha historical-truth \
+            bridge-aware-admission-reconcile \
+            --database "$clean/work/alpha_data/warehouse/historical_truth.duckdb" \
+            --htr010a3-output \
+              "$clean/artifacts/htr010a3_tier_a_foundation_readiness" \
+            --htr010b-output \
+              "$clean/artifacts/htr010b_complete_corporate_action_dataset" \
+            $bridge \
+            --htr010b1d2-output "$clean/artifacts/htr010b1d2" \
+            --session-calendar-report work/calendar/htr007_session_calendar.json \
+            --start 2005-01-01 --end 2015-12-31 \
+            --output "$clean/artifacts/htr010b1e2"
+          poetry run python -m alpha historical-truth \
+            bridge-aware-continuity-certify \
+            --database "$clean/work/alpha_data/warehouse/historical_truth.duckdb" \
+            --htr009a2-output \
+              "$clean/artifacts/htr009a2_event_sourced_universe" \
+            --htr010a3-output \
+              "$clean/artifacts/htr010a3_tier_a_foundation_readiness" \
+            --htr010b-output \
+              "$clean/artifacts/htr010b_complete_corporate_action_dataset" \
+            --htr010b1c-output "$clean/artifacts/htr010b1c" \
+            --htr010b1e2-output "$clean/artifacts/htr010b1e2" \
+            --dsi010b1-output \
+              "$clean/artifacts/dsi010b1_legacy_rights_reference_bridge" \
+            --output "$clean/artifacts/dsi010b2"
+          diff -ru \
+            artifacts/dsi010b2_bridge_aware_continuity \
+            "$clean/artifacts/dsi010b2"
+          (
+            cd artifacts/dsi010b2_bridge_aware_continuity
+            sha256sum *
+          ) > artifacts/dsi010b2_acceptance/clean_root_artifact_hashes.txt
+
       - name: Build acceptance summary
         run: |
           python - <<'PY'
@@ -264,6 +347,8 @@ jobs:
               "certificate_sha256": sha256(certificate.read_bytes()).hexdigest(),
               "report_sha256": sha256(report.read_bytes()).hexdigest(),
               "deterministic_reuse": True,
+              "second_clean_root_rebuild": True,
+              "clean_root_artifacts_byte_identical": True,
               "full_benchmark_replays": 0,
               "production_influence": False,
           }
@@ -300,6 +385,7 @@ jobs:
           path: |
             artifacts/dsi010b2_acceptance
             artifacts/dsi010b2_bridge_aware_continuity
+            clean_acceptance/artifacts/dsi010b2
             artifacts/dsi010b1_legacy_rights_reference_bridge
             artifacts/htr009b_corporate_action_price_continuity
             artifacts/htr010b_complete_corporate_action_dataset
