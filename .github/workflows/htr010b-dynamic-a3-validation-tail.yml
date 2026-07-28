@@ -1,0 +1,33 @@
+name: HTR-010B Dynamic A3 Validation Tail
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/htr010b-dynamic-a3-validation-tail.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print exact validation errors
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          JOB_ID: "90201723571"
+        run: |
+          curl --fail --location --silent --show-error \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${REPOSITORY}/actions/jobs/${JOB_ID}/logs" \
+            --output /tmp/job.log
+          echo "===== VALIDATION ERRORS ====="
+          grep -nE \
+            'error:|ERROR|FAILED|Failure|Traceback|AssertionError|TypeError|AttributeError|E[0-9]{3}|F[0-9]{3}|mypy|pytest|short test summary' \
+            /tmp/job.log | tail -240 || true
+          echo "===== FINAL 260 LINES ====="
+          tail -260 /tmp/job.log
