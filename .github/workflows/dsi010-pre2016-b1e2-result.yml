@@ -1,0 +1,31 @@
+name: DSI-010 Pre-2016 B1E2 Result
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-pre2016-b1e2-result.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print governed rebuild result
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          JOB_ID: '90243432169'
+        run: |
+          curl --fail --location --silent --show-error \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${REPOSITORY}/actions/jobs/${JOB_ID}/logs" \
+            -o /tmp/job.log
+          echo '=== EXECUTIVE RESULTS ==='
+          grep -nE 'HTR-009B Corporate|HTR-010B Complete|HTR-010B1|Factor validation cases|Cases audited|Classifications|Corrected dispositions|Proposed outcomes|Implementation defects remaining|Final unresolved admission intervals|Replay readiness|Readiness blockers|Report SHA|PRE2016_B1E2_REBUILD|ADJUSTED_REPLAY_READY|PRODUCTION_INFLUENCE' /tmp/job.log | tail -360 || true
+          echo '=== SIGNED SUMMARY ==='
+          grep -n -A100 -B5 '"implementation_defect_count"' /tmp/job.log | tail -180 || true
