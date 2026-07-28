@@ -1,0 +1,31 @@
+name: DSI-010 Original A3B Log Reader
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-original-a3b-log-reader.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract original governed commands
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          JOB_ID: '90199889987'
+        run: |
+          curl --fail --location --silent --show-error \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${REPOSITORY}/actions/jobs/${JOB_ID}/logs" \
+            -o /tmp/job.log
+          echo '=== COMMANDS ==='
+          grep -nE 'poetry run python -m alpha|historical-truth|complete-corporate|tier-a|htr010a3|htr010b-output|session-calendar|--database|--root|--start|--end|--output' /tmp/job.log | tail -320 || true
+          echo '=== RESULT SUMMARY ==='
+          grep -nE 'HTR-010A3|HTR-010B|Tier A|Canonical events|Adjustment factors|Replay readiness|Readiness blockers|Report SHA|PRODUCTION_INFLUENCE|A3_OUTCOME|B_OUTCOME' /tmp/job.log | tail -240 || true
