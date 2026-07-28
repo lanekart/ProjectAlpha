@@ -1,0 +1,27 @@
+name: DSI-010 HTR009A2 Identity Files
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dsi010-htr009a2-identity-files.yml
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30335669653
+          name: dsi010-a3-b-repaired-rerun
+          path: foundation
+      - name: List HTR009A2 identity files
+        run: |
+          base=$(find foundation -type d -name htr009a2_event_sourced_universe | head -1)
+          test -d "$base"
+          find "$base" -maxdepth 1 -type f -printf '%f\n' | sort | grep -Ei 'symbol|series|membership|tradab|identity|relationship|event' || true
