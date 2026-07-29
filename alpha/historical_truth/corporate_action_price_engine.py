@@ -130,6 +130,21 @@ class AdjustmentFactorEngine:
                 price_factor, quantity_factor = derived
                 state = AdjustmentFactorState.DERIVED_FROM_OFFICIAL_TERMS
                 explanation = "TERP derived from official rights terms and prior close."
+        elif action.action_type is CorporateActionType.CAPITAL_REDUCTION:
+            old_quantity = action.old_quantity
+            new_quantity = action.new_quantity
+            if (
+                price_factor is not None
+                and old_quantity is not None
+                and new_quantity is not None
+                and old_quantity > 0
+                and new_quantity > 0
+            ):
+                quantity_factor = new_quantity / old_quantity
+                explanation = (
+                    "Official capital-reduction terms determine the price factor "
+                    "and share-count quantity factor."
+                )
         elif action.action_type in TRANSITION_ACTIONS:
             price_factor = None
             state = AdjustmentFactorState.UNKNOWN

@@ -45,6 +45,12 @@ from alpha.historical_truth.corporate_action_price_sources import (
 from alpha.historical_truth.legacy_isin_reference_bridge import (
     LegacyIsinReferenceBridge,
 )
+from alpha.historical_truth.official_corporate_action_supplements import (
+    AppliedCorporateActionSupplement,
+    RejectedCorporateActionSupplement,
+    apply_official_corporate_action_supplements,
+    official_corporate_action_supplements,
+)
 
 
 class CompleteCorporateActionDatasetEngine:
@@ -52,6 +58,7 @@ class CompleteCorporateActionDatasetEngine:
 
     def __init__(self, database_path: Path, root: Path) -> None:
         self.database_path = database_path
+        self.root = root
         self.store = OfficialCorporateActionStore(root)
 
     def run(
@@ -96,6 +103,16 @@ class CompleteCorporateActionDatasetEngine:
             item.action_id: item for source in parsed for item in source.lineage
         }
         all_actions = tuple(item for source in parsed for item in source.actions)
+        verified_supplements, source_rejections = official_corporate_action_supplements(
+            self.root
+        )
+        all_actions, applied_supplements, event_rejections = (
+            apply_official_corporate_action_supplements(
+                all_actions,
+                verified_supplements,
+            )
+        )
+        supplement_rejections = (*source_rejections, *event_rejections)
         tier_actions = tuple(
             item
             for item in all_actions
@@ -109,7 +126,9 @@ class CompleteCorporateActionDatasetEngine:
             )
         )
         canonical, duplicate_groups, duplicate_rejections = canonicalize_events(
-            tier_actions, admitted
+            tier_actions,
+            admitted,
+            supplements={item.action_id: item for item in applied_supplements},
         )
         event_lineage = tuple(
             _event_lineage(item, source_by_id, lineages) for item in canonical
@@ -151,7 +170,14 @@ class CompleteCorporateActionDatasetEngine:
             )
         )
         contamination = tuple(_contamination(row) for row in continuity)
-        source_completeness = tuple(_source_completeness(item) for item in inventory)
+        source_completeness = (
+            *(tuple(_source_completeness(item) for item in inventory)),
+            *(_supplement_source_completeness(item) for item in applied_supplements),
+            *(
+                _rejected_supplement_source_completeness(item)
+                for item in supplement_rejections
+            ),
+        )
         parser_rejections = tuple(
             {
                 **_jsonable(asdict(item)),
@@ -192,6 +218,10 @@ class CompleteCorporateActionDatasetEngine:
                         reference_bridge.source_checksums
                         if reference_bridge is not None
                         else ()
+                    ),
+                    *(
+                        (item.immutable_path, item.supplement.source_sha256)
+                        for item in applied_supplements
                     ),
                 )
             )
@@ -272,11 +302,14 @@ class CompleteCorporateActionDatasetEngine:
 def canonicalize_events(
     actions: tuple[CorporateActionEvent, ...],
     joins: dict[str, dict[str, Any]],
+    *,
+    supplements: Mapping[str, AppliedCorporateActionSupplement] | None = None,
 ) -> tuple[
     tuple[dict[str, Any], ...],
     tuple[dict[str, Any], ...],
     tuple[dict[str, Any], ...],
 ]:
+    supplement_by_action = supplements or {}
     grouped: dict[tuple[str, date, str, str], list[CorporateActionEvent]] = defaultdict(
         list
     )
@@ -340,6 +373,11 @@ def canonicalize_events(
                 "successor_identity": selected.successor_identity,
                 "source_id": selected.source_id,
                 "raw_record_ids": list(raw_ids),
+                "official_term_supplement": (
+                    supplement_by_action[selected.action_id].payload()
+                    if selected.action_id in supplement_by_action
+                    else None
+                ),
             }
         )
         if len(group) > 1:
@@ -1333,6 +1371,50 @@ def _source_completeness(source: Any) -> dict[str, Any]:
         "events_rejected": source.events_rejected,
         "source_checksum": source.sha256,
         "known_limitations": source.known_limitations,
+    }
+
+
+def _supplement_source_completeness(
+    item: AppliedCorporateActionSupplement,
+) -> dict[str, Any]:
+    return {
+        "source_id": item.supplement.supplement_id,
+        "source_family": "OFFICIAL_EVENT_TERM_SUPPLEMENT",
+        "earliest_available_date": item.supplement.effective_date.isoformat(),
+        "latest_available_date": item.supplement.effective_date.isoformat(),
+        "missing_slices": [],
+        "acquisition_state": "AVAILABLE_IMMUTABLE",
+        "immutable_reuse_state": "CHECKSUM_VERIFIED",
+        "parser": "dsi010b5_governed_terms_v1",
+        "parser_coverage": "COMPLETE",
+        "event_type_coverage": "EXACT_EVENT_BOUND_RIGHTS_TERMS",
+        "records_inspected": 1,
+        "events_parsed": 1,
+        "events_rejected": 0,
+        "source_checksum": item.supplement.source_sha256,
+        "known_limitations": "Applies only to the exact governed event.",
+    }
+
+
+def _rejected_supplement_source_completeness(
+    item: RejectedCorporateActionSupplement,
+) -> dict[str, Any]:
+    return {
+        "source_id": item.supplement_id,
+        "source_family": "OFFICIAL_EVENT_TERM_SUPPLEMENT",
+        "earliest_available_date": None,
+        "latest_available_date": None,
+        "missing_slices": [item.reason],
+        "acquisition_state": "FAILED",
+        "immutable_reuse_state": "REJECTED",
+        "parser": "dsi010b5_governed_terms_v1",
+        "parser_coverage": "FAILED",
+        "event_type_coverage": "NONE",
+        "records_inspected": 0,
+        "events_parsed": 0,
+        "events_rejected": len(item.action_ids),
+        "source_checksum": None,
+        "known_limitations": item.reason,
     }
 
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import date
 from math import isclose
 from pathlib import Path
@@ -111,6 +111,24 @@ def recompute_factor_validation(
                     series=series,
                     effective_date=effective,
                 )
+                governed_factor = _governed_rights_factor(
+                    event,
+                    factor,
+                    context.as_dict(),
+                )
+                effective_factor = (
+                    {**factor, **governed_factor}
+                    if governed_factor is not None
+                    else factor
+                )
+                if governed_factor is not None:
+                    context = continuity_context_provider.build(
+                        connection,
+                        event=event,
+                        factor=effective_factor,
+                        series=series,
+                        effective_date=effective,
+                    )
                 bridge_context_count += 1
                 complete_bridge_context_count += int(context.complete)
                 governed_metrics = context.metrics.as_dict()
@@ -139,6 +157,8 @@ def recompute_factor_validation(
                     "HTR010B_FACTOR_RECOMPUTED_FROM_GOVERNED_BRIDGE_AWARE_CANDLES"
                 )
             else:
+                governed_factor = None
+                effective_factor = factor
                 metrics = _continuity_metrics(
                     _event_bars(connection, isin, series, effective),
                     _number(factor.get("price_factor")),
@@ -154,13 +174,16 @@ def recompute_factor_validation(
                 "isin": isin or None,
                 "action_type": action_type,
                 "effective_date": effective.isoformat(),
-                "factor_state": factor.get("factor_state"),
-                "price_factor": factor.get("price_factor"),
+                "factor_state": effective_factor.get("factor_state"),
+                "price_factor": effective_factor.get("price_factor"),
                 "official_term_factor_matches": _official_term_factor_matches(
                     event,
-                    factor,
+                    effective_factor,
                 ),
-                "reference_price_certified": factor.get("reference_price_certified"),
+                "reference_price_certified": effective_factor.get(
+                    "reference_price_certified"
+                ),
+                "governed_reference_certification": governed_factor,
                 **metrics,
                 "legacy_continuity_state": legacy.get("continuity_state"),
                 "legacy_raw_gap_atr": legacy.get("raw_gap_atr"),
@@ -196,6 +219,145 @@ def recompute_factor_validation(
     return tuple(cases), tuple(results), summary
 
 
+def _governed_rights_factor(
+    event: Mapping[str, Any],
+    factor: Mapping[str, Any],
+    context: object,
+) -> dict[str, Any] | None:
+    if (
+        event.get("action_type") != "RIGHTS"
+        or factor.get("factor_state")
+        not in {
+            "FACTOR_CERTIFIED_REFERENCE_PRICE",
+            "FACTOR_PROVISIONAL_REFERENCE_PRICE",
+            "FACTOR_UNKNOWN_MISSING_TERMS",
+        }
+        or not isinstance(context, dict)
+    ):
+        return None
+    context_complete = context.get("complete") is True
+    missing_reference_only = (
+        factor.get("factor_state") == "FACTOR_UNKNOWN_MISSING_TERMS"
+        and context.get("decision") == "REFERENCE_PRICE_MISMATCH"
+        and not factor.get("reference_price_date")
+        and factor.get("reference_price") is None
+        and not factor.get("reference_price_source_sha256")
+        and not context.get("rejected_bars")
+        and isinstance(context.get("action_bar"), dict)
+    )
+    if not context_complete and not missing_reference_only:
+        return None
+    selected = context.get("selected_prior_bars")
+    if not isinstance(selected, list) or not selected:
+        return None
+    prior = selected[-1]
+    if not isinstance(prior, dict):
+        return None
+    reference_date = str(factor.get("reference_price_date") or "")
+    reference_price = _number(factor.get("reference_price"))
+    reference_sha = str(factor.get("reference_price_source_sha256") or "")
+    prior_price = _number(prior.get("close_price"))
+    prior_date = str(prior.get("trading_date") or "")
+    prior_sha = str(prior.get("source_sha256") or "")
+    identity_state = str(prior.get("identity_state") or "")
+    numerator = _number(event.get("ratio_numerator"))
+    denominator = _number(event.get("ratio_denominator"))
+    rights_price = _number(event.get("rights_price"))
+    if (
+        prior_price is None
+        or prior_price <= 0
+        or not prior_date
+        or not prior_sha
+        or numerator is None
+        or numerator <= 0
+        or denominator is None
+        or denominator <= 0
+        or rights_price is None
+        or rights_price < 0
+        or identity_state
+        not in {
+            "EXACT_ISIN_CANDLE",
+            "CERTIFIED_DATED_BRIDGE_CANDLE",
+            "CERTIFIED_OFFICIAL_ISIN_TRANSITION_CANDLE",
+            "CERTIFIED_OFFICIAL_SERIES_TRANSITION_CANDLE",
+        }
+    ):
+        return None
+    reference_matches = (
+        bool(reference_date)
+        and reference_price is not None
+        and bool(reference_sha)
+        and prior_date == reference_date
+        and isclose(reference_price, prior_price, rel_tol=1e-12, abs_tol=1e-12)
+        and prior_sha == reference_sha
+    )
+    state = str(factor.get("factor_state") or "")
+    provisional_missing_identity = (
+        state == "FACTOR_PROVISIONAL_REFERENCE_PRICE"
+        and str(factor.get("reference_price_provenance_state") or "")
+        == "PRIOR_ISIN_MISSING"
+        and str(factor.get("reference_price_bridge_state") or "")
+        != "CERTIFIED_DATED_OFFICIAL_IDENTITY_BRIDGE"
+    )
+    certified_series_repair = (
+        state == "FACTOR_CERTIFIED_REFERENCE_PRICE"
+        and identity_state == "CERTIFIED_OFFICIAL_SERIES_TRANSITION_CANDLE"
+        and str(factor.get("reference_price_isin") or "").upper()
+        == str(event.get("isin") or "").upper()
+        and bool(reference_date)
+        and prior_date > reference_date
+    )
+    unknown_terms_recovered = (
+        state == "FACTOR_UNKNOWN_MISSING_TERMS"
+        and reference_price is None
+        and not reference_date
+        and not reference_sha
+    )
+    if not reference_matches and not (
+        provisional_missing_identity
+        or certified_series_repair
+        or unknown_terms_recovered
+    ):
+        return None
+    if state == "FACTOR_CERTIFIED_REFERENCE_PRICE" and reference_matches:
+        return None
+    price_factor = ((denominator * prior_price) + (numerator * rights_price)) / (
+        (denominator + numerator) * prior_price
+    )
+    return {
+        "factor_state": "FACTOR_CERTIFIED_REFERENCE_PRICE",
+        "price_factor": price_factor,
+        "quantity_factor": (denominator + numerator) / denominator,
+        "reference_price": prior_price,
+        "reference_price_date": prior_date,
+        "reference_price_source_sha256": prior_sha,
+        "reference_price_certified": True,
+        "decision": "CERTIFIED_FROM_COMPLETE_GOVERNED_CONTINUITY_CONTEXT",
+        "reference_repair_reason": (
+            "STALE_REFERENCE_REPLACED_BY_GOVERNED_EQUITY_SERIES_SESSION"
+            if certified_series_repair
+            else (
+                "PROVISIONAL_MISSING_IDENTITY_REPLACED_BY_GOVERNED_SESSION"
+                if provisional_missing_identity and not reference_matches
+                else (
+                    "OFFICIAL_TERMS_COMPLETED_WITH_GOVERNED_REFERENCE"
+                    if unknown_terms_recovered
+                    else "PROVISIONAL_REFERENCE_CONFIRMED"
+                )
+            )
+        ),
+        "context_id": context.get("context_id"),
+        "reference_date": prior_date,
+        "reference_source_sha256": prior_sha,
+        "identity_state": identity_state,
+        "bridge_decision": prior.get("bridge_decision"),
+        "bridge_official_event_ids": prior.get("bridge_official_event_ids") or [],
+        "bridge_official_source_ids": prior.get("bridge_official_source_ids") or [],
+        "factor_value_mutated": False,
+        "production_influence": False,
+    }
+
+
 def _classify(case: dict[str, Any]) -> dict[str, Any]:
     state = str(case.get("factor_state") or "")
     raw_gap = _number(case.get("raw_gap_atr"))
@@ -213,6 +375,10 @@ def _classify(case: dict[str, Any]) -> dict[str, Any]:
     elif state in CERTIFIED_FACTOR_STATES and factor is None:
         outcome = ValidationOutcome.IMPLEMENTATION_DEFECT
         defect_code = "CERTIFIED_FACTOR_MISSING_VALUE"
+    elif _certified_official_factor_without_testable_atr(case):
+        outcome = (
+            ValidationOutcome.FACTOR_CERTIFIED_OFFICIAL_TERMS_CONTINUITY_NOT_TESTABLE
+        )
     elif raw_gap is None or adjusted_gap is None:
         outcome = ValidationOutcome.FACTOR_INSUFFICIENT_EVIDENCE
     elif _certified_official_term_close_restoration(case):
@@ -228,9 +394,17 @@ def _classify(case: dict[str, Any]) -> dict[str, Any]:
         outcome = ValidationOutcome.IMPLEMENTATION_DEFECT
         defect_code = "FACTOR_DOES_NOT_RESTORE_CONTINUITY"
 
-    admitted = outcome is ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP
-    if admitted:
+    admitted = outcome in {
+        ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP,
+        ValidationOutcome.FACTOR_CERTIFIED_OFFICIAL_TERMS_CONTINUITY_NOT_TESTABLE,
+    }
+    if outcome is ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP:
         continuity_state = "CONTINUITY_RESTORED_OR_IMPROVED"
+    elif (
+        outcome
+        is ValidationOutcome.FACTOR_CERTIFIED_OFFICIAL_TERMS_CONTINUITY_NOT_TESTABLE
+    ):
+        continuity_state = "OFFICIAL_FACTOR_CERTIFIED_CONTINUITY_NOT_TESTABLE"
     elif outcome is ValidationOutcome.FACTOR_INSUFFICIENT_EVIDENCE:
         continuity_state = "INSUFFICIENT_CANDLE_CONTEXT"
     elif outcome in {
@@ -249,10 +423,63 @@ def _classify(case: dict[str, Any]) -> dict[str, Any]:
         "requires_quarantine": not admitted,
         "implementation_defect_code": defect_code,
         "recomputed_continuity_state": continuity_state,
+        "continuity_testable": (
+            outcome
+            is not (
+                ValidationOutcome.FACTOR_CERTIFIED_OFFICIAL_TERMS_CONTINUITY_NOT_TESTABLE
+            )
+        ),
+        "replay_admission_basis": (
+            "OFFICIAL_TERMS_WITH_NO_COMPLETE_ATR_WINDOW"
+            if outcome
+            is ValidationOutcome.FACTOR_CERTIFIED_OFFICIAL_TERMS_CONTINUITY_NOT_TESTABLE
+            else None
+        ),
         "classification_contract": HTR010B1B_CONTRACT_VERSION,
         "market_derived_factor_autocorrection": False,
         "production_influence": False,
     }
+
+
+def _certified_official_factor_without_testable_atr(
+    case: Mapping[str, Any],
+) -> bool:
+    if case.get("action_type") == "RIGHTS":
+        return False
+    if case.get("factor_state") not in CERTIFIED_FACTOR_STATES:
+        return False
+    if case.get("official_term_factor_matches") is not True:
+        return False
+    if _number(case.get("price_factor")) is None:
+        return False
+    context = case.get("governed_continuity_context")
+    if not isinstance(context, Mapping):
+        return False
+    selected = context.get("selected_prior_bars")
+    rejected = context.get("rejected_bars")
+    action_bar = context.get("action_bar")
+    if (
+        context.get("decision") != "INSUFFICIENT_ATR_HISTORY"
+        or not isinstance(selected, list)
+        or len(selected) >= 15
+        or not isinstance(rejected, list)
+        or rejected
+        or not isinstance(action_bar, Mapping)
+        or not action_bar.get("source_sha256")
+    ):
+        return False
+    return all(
+        isinstance(row, Mapping)
+        and bool(row.get("source_sha256"))
+        and row.get("identity_state")
+        in {
+            "EXACT_ISIN_CANDLE",
+            "CERTIFIED_DATED_BRIDGE_CANDLE",
+            "CERTIFIED_OFFICIAL_ISIN_TRANSITION_CANDLE",
+            "CERTIFIED_OFFICIAL_SERIES_TRANSITION_CANDLE",
+        }
+        for row in selected
+    )
 
 
 def _certified_official_term_close_restoration(case: dict[str, Any]) -> bool:
@@ -301,6 +528,16 @@ def _official_term_factor_matches(
     observed = _number(factor.get("price_factor"))
     if observed is None:
         return None
+    supplement = event.get("official_term_supplement")
+    if isinstance(supplement, dict):
+        supplemental_factor = _number(supplement.get("adjustment_factor"))
+        if supplemental_factor is not None:
+            return isclose(
+                observed,
+                supplemental_factor,
+                rel_tol=1e-12,
+                abs_tol=1e-12,
+            )
     if action_type == "BONUS":
         numerator = _number(event.get("ratio_numerator"))
         denominator = _number(event.get("ratio_denominator"))

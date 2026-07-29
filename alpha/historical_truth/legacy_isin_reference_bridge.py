@@ -865,6 +865,160 @@ class LegacyIsinReferenceBridge:
             )
         )
 
+    def official_symbol_transitions_bound_to_event(
+        self,
+        *,
+        identity_key: str,
+        event_symbol: str,
+        event_source_ids: tuple[str, ...],
+    ) -> tuple[CertifiedSymbolTransition, ...]:
+        """Bind source-backed symbol changes to an exact official event identity.
+
+        Historical symbol-change files frequently omit ISINs. An immutable
+        corporate-action row with an exact ISIN can bind that otherwise
+        identity-neutral path, provided the path is unambiguous and no
+        overlapping identity exists on the candle date.
+        """
+
+        if not event_source_ids or not identity_key.startswith("nse:isin:"):
+            return ()
+        normalized_event_symbol = event_symbol.upper()
+        transitions: list[CertifiedSymbolTransition] = []
+        for row in self._events_by_id.values():
+            if row.get("event_type") != "SYMBOL_CHANGED":
+                continue
+            old_symbol = str(row.get("old_symbol") or "").upper()
+            new_symbol = str(row.get("new_symbol") or "").upper()
+            if not old_symbol or not new_symbol or old_symbol == new_symbol:
+                continue
+            old_isin = str(row.get("old_isin") or "").upper()
+            new_isin = str(row.get("new_isin") or "").upper()
+            governed_isin = identity_key.removeprefix("nse:isin:")
+            if old_isin and old_isin != governed_isin:
+                continue
+            if new_isin and new_isin != governed_isin:
+                continue
+            source = self._sources.get(str(row.get("official_source_id") or ""))
+            if source is None or not source.sha256 or not source.official_host:
+                continue
+            transitions.append(
+                CertifiedSymbolTransition(
+                    identity_key=identity_key,
+                    old_symbol=old_symbol,
+                    new_symbol=new_symbol,
+                    effective_date=_date_value(
+                        row["effective_date"],
+                        "symbol transition effective date",
+                    ),
+                    source_event_ids=(str(row["event_id"]),),
+                    official_sources=(source,),
+                )
+            )
+        reachable = {normalized_event_symbol}
+        changed = True
+        while changed:
+            changed = False
+            for transition in transitions:
+                if (
+                    transition.new_symbol in reachable
+                    and transition.old_symbol not in reachable
+                ):
+                    reachable.add(transition.old_symbol)
+                    changed = True
+        return tuple(
+            sorted(
+                (
+                    transition
+                    for transition in transitions
+                    if transition.old_symbol in reachable
+                    and transition.new_symbol in reachable
+                ),
+                key=lambda item: (
+                    item.effective_date,
+                    item.old_symbol,
+                    item.new_symbol,
+                    item.source_event_ids,
+                ),
+            )
+        )
+
+    def resolve_symbol_alias_bound_to_official_event(
+        self,
+        *,
+        identity_key: str,
+        event_symbol: str,
+        candle_symbol: str,
+        series: str,
+        isin: str,
+        reference_date: date,
+        event_source_ids: tuple[str, ...],
+    ) -> LegacyIsinReferenceBridgeResult:
+        """Resolve an old symbol through an exact-identity official event."""
+
+        normalized_isin = isin.upper()
+        normalized_candle_symbol = candle_symbol.upper()
+        normalized_event_symbol = event_symbol.upper()
+        base = {
+            "identity_key": identity_key,
+            "symbol": normalized_candle_symbol,
+            "series": series.upper(),
+            "isin": normalized_isin,
+            "reference_date": reference_date,
+            "source_contract_id": self.source_contract.contract_id,
+            "source_report_sha256": self.source_report_sha256,
+        }
+        if identity_key != f"nse:isin:{normalized_isin}":
+            return self._result(LegacyBridgeDecision.IDENTITY_MISMATCH, base)
+        transitions = self.official_symbol_transitions_bound_to_event(
+            identity_key=identity_key,
+            event_symbol=normalized_event_symbol,
+            event_source_ids=event_source_ids,
+        )
+        path = _governed_symbol_path(
+            transitions,
+            from_symbol=normalized_candle_symbol,
+            to_symbol=normalized_event_symbol,
+            reference_date=reference_date,
+        )
+        if not path:
+            return self._result(LegacyBridgeDecision.SYMBOL_MISMATCH, base)
+        conflict = self._conflicts(
+            identity_key=identity_key,
+            symbol=normalized_candle_symbol,
+            series=series.upper(),
+            reference_date=reference_date,
+        )
+        unresolved_alias = f"nse:unresolved:{normalized_candle_symbol}:{series.upper()}"
+        unresolved_alias_only = (
+            bool(conflict.overlapping_identity_keys)
+            and set(conflict.overlapping_identity_keys) == {unresolved_alias}
+            and self._join_is_unique(identity_key)
+        )
+        if conflict.overlapping_identity_keys and not unresolved_alias_only:
+            return self._result(
+                LegacyBridgeDecision.OVERLAPPING_IDENTITY_CONFLICT,
+                base,
+                conflict=conflict,
+            )
+        return self._result(
+            LegacyBridgeDecision.CERTIFIED_DATED_OFFICIAL_IDENTITY_BRIDGE,
+            base,
+            official_event_ids=tuple(
+                sorted(
+                    {
+                        *(
+                            event_id
+                            for transition in path
+                            for event_id in transition.source_event_ids
+                        ),
+                    }
+                )
+            ),
+            sources=_merge_sources(
+                *(transition.official_sources for transition in path)
+            ),
+        )
+
     def _recovered_official_symbol_transitions(
         self,
         *,
@@ -945,6 +1099,70 @@ class LegacyIsinReferenceBridge:
         return any(
             row.get("final_status") == "SYMBOL_REUSE_CONFLICT"
             for row in self._symbol_reuse.get(symbol.upper(), ())
+        )
+
+    def certifies_event_bound_missing_isin(
+        self,
+        *,
+        identity_key: str,
+        symbol: str,
+        series: str,
+        isin: str,
+        reference_date: date,
+    ) -> bool:
+        """Accept an event-bound row when signed A3 proves a unique identity join."""
+
+        normalized_symbol = symbol.upper()
+        normalized_series = series.upper()
+        normalized_isin = isin.upper()
+        if identity_key != f"nse:isin:{normalized_isin}":
+            return False
+        join = self._admitted_joins.get(identity_key)
+        if (
+            join is None
+            or join.get("admitted_to_certified_join") is not True
+            or join.get("unique_identity") is not True
+            or str(join.get("symbol") or "").upper() != normalized_symbol
+            or str(join.get("isin") or "").upper() != normalized_isin
+            or join.get("quarantine_reason") is not None
+        ):
+            return False
+        conflict = self._conflicts(
+            identity_key=identity_key,
+            symbol=normalized_symbol,
+            series=normalized_series,
+            reference_date=reference_date,
+        )
+        stale_current_master_overlaps = (
+            bool(conflict.overlapping_identity_keys)
+            and self._join_is_unique(identity_key)
+            and all(
+                self._identity_is_current_master_only(item)
+                for item in conflict.overlapping_identity_keys
+            )
+        )
+        return not (
+            (conflict.overlapping_identity_keys and not stale_current_master_overlaps)
+            or (conflict.symbol_reuse_conflict and not stale_current_master_overlaps)
+            or conflict.symbol_change_boundary_unresolved
+            or conflict.series_transition_unresolved
+        )
+
+    def _join_is_unique(self, identity_key: str) -> bool:
+        join = self._admitted_joins.get(identity_key)
+        return bool(
+            join is not None
+            and join.get("admitted_to_certified_join") is True
+            and join.get("unique_identity") is True
+            and join.get("quarantine_reason") is None
+        )
+
+    def _identity_is_current_master_only(self, identity_key: str) -> bool:
+        rows = self._events_by_identity.get(identity_key, ())
+        return bool(rows) and all(
+            str(row.get("official_source_id") or "")
+            == "nse_current_equity_listing_events"
+            for row in rows
         )
 
     def resolve_symbol_alias(

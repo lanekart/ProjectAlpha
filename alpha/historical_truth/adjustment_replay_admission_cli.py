@@ -85,7 +85,7 @@ def adjustment_replay_admission_certify(
 ) -> None:
     """Audit governed sessions, continuity causes and replay admission."""
 
-    del root, only_tier_a
+    del only_tier_a
     if refresh_sources:
         raise typer.BadParameter(
             "This audit consumes pinned governed artifacts and cannot refresh sources",
@@ -109,6 +109,7 @@ def adjustment_replay_admission_certify(
                 htr010a3_output=htr010a3_output,
                 dsi010b1_output=dsi010b1_output,
                 htr010b_output=htr010b_output,
+                data_root=root,
                 all_material_actions=True,
             )
             if htr009a2_output is not None and dsi010b1_output is not None

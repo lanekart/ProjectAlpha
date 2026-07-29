@@ -239,3 +239,29 @@ therefore remain fail-closed and `ADJUSTED_REPLAY_READY=false`.
 The full contract, empirical counts, blocker categories, CLI and governance
 boundary are documented in
 `DSI-010B4_FINAL_PRE2016_ADJUSTED_HISTORY_CLOSURE.md`.
+
+## Final Official-Evidence Closure
+
+DSI-010B5 closes all 66 residual corporate-action event cases. The final
+705-case material population contains 695 confirmed market-gap factors, two
+officially certified factors whose continuity cannot be tested because fewer
+than 14 prior governed sessions exist, eight non-multiplicative actions, and
+zero unresolved validation outcomes.
+
+The full-history materialization increases governed adjusted rows from 99,106
+to 246,688. It also exposes a separate historical identity ceiling: 253,358
+required pre-action rows have no ISIN and no signed effective-dated official
+identity interval covering their candle date. These rows span 330 governed
+identities and 476 date/series segments. They remain preserved and fail-closed;
+Alpha does not join them by ticker.
+
+Accordingly, corporate-action evidence is closed but the complete adjusted
+replay is not certified:
+
+```text
+READINESS=BLOCKED_BY_UNCERTIFIED_PRE_EVENT_IDENTITY_HISTORY
+ADJUSTED_REPLAY_READY=false
+```
+
+The permanent contract and exact blocker ledger are documented in
+`DSI-010B5_FINAL_OFFICIAL_EVIDENCE_CLOSURE.md`.

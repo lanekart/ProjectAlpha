@@ -28,6 +28,7 @@ def bridge_aware_admission_reconcile(
         exists=True,
         dir_okay=False,
     ),
+    root: Path = typer.Option(Path("alpha_data"), "--root"),
     htr010a3_output: Path = typer.Option(
         Path("artifacts/htr010a3_tier_a_foundation_readiness"),
         "--htr010a3-output",
@@ -94,6 +95,7 @@ def bridge_aware_admission_reconcile(
                 htr010a3_output=htr010a3_output,
                 dsi010b1_output=dsi010b1_output,
                 htr010b_output=htr010b_output,
+                data_root=root,
                 all_material_actions=True,
             )
             if htr009a2_output is not None and dsi010b1_output is not None

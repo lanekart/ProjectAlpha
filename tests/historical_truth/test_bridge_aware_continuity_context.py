@@ -35,6 +35,10 @@ from alpha.historical_truth.factor_transformation_bridge_forensics import (
 from alpha.historical_truth.legacy_isin_reference_bridge import (
     LegacyIsinReferenceBridge,
 )
+from alpha.historical_truth.official_corporate_action_supplements import (
+    OfficialSecurityTransitionSupplement,
+    OfficialSupplementSource,
+)
 from tests.historical_truth.legacy_bridge_test_support import (
     IDENTITY,
     ISIN,
@@ -135,6 +139,9 @@ def _provider(
     bridge_changes: dict[str, object] | None = None,
     all_material_actions: bool = False,
     official_event_evidence: dict[str, OfficialEventDateIdentityEvidence] | None = None,
+    security_transition_supplements: tuple[
+        OfficialSecurityTransitionSupplement, ...
+    ] = (),
 ) -> BridgeAwareContinuityContextProvider:
     bridge = _bridge(tmp_path, **(bridge_changes or {}))
     cases = (_case(), *(_case(f"dummy-{index}") for index in range(17)))
@@ -143,6 +150,7 @@ def _provider(
         cases=cases,
         all_material_actions=all_material_actions,
         official_event_evidence=official_event_evidence,
+        security_transition_supplements=security_transition_supplements,
     )
 
 
@@ -796,7 +804,7 @@ def test_symbol_reuse_is_admitted_only_with_official_isin_transition(
     )
 
 
-def test_missing_isin_alias_is_admitted_only_on_exact_official_action_date(
+def test_official_event_binds_missing_isin_historical_symbol_path(
     tmp_path: Path,
 ) -> None:
     event_id = "split-event"
@@ -847,9 +855,71 @@ def test_missing_isin_alias_is_admitted_only_on_exact_official_action_date(
     assert action.bridge_evidence.decision == (
         "CERTIFIED_EXACT_ACTION_IDENTITY_AND_SYMBOL_TRANSITION"
     )
-    assert prior is None
-    assert prior_rejection is not None
-    assert prior_rejection.reason is GovernedCandleIdentityState.SYMBOL_CONFLICT
+    assert prior_rejection is None
+    assert prior is not None
+    assert prior.bridge_evidence is not None
+    assert prior.bridge_evidence.decision == (
+        "CERTIFIED_OFFICIAL_EVENT_BOUND_SYMBOL_TRANSITION"
+    )
+    assert prior.bridge_evidence.official_event_ids == (
+        "nse-event:provisional-symbol-change",
+        "split-event",
+    )
+    assert prior.bridge_evidence.official_source_ids == (
+        "nse-official-listing",
+        "official-split-source",
+    )
+
+
+def test_two_official_actions_bound_first_later_security_session(
+    tmp_path: Path,
+) -> None:
+    event_id = "split-event"
+    next_event_date = EFFECTIVE + timedelta(days=30)
+    evidence = OfficialEventDateIdentityEvidence(
+        event_id=event_id,
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series=("EQ",),
+        isin=ISIN,
+        effective_date=EFFECTIVE,
+        source_ids=("official-split-source", "official-next-action-source"),
+        source_sha256=("a" * 64, "b" * 64),
+        source_report_sha256="c" * 64,
+        interval_valid_to=next_event_date,
+        action_type="SPLIT",
+    )
+    provider = _provider(
+        tmp_path / "evidence",
+        all_material_actions=True,
+        official_event_evidence={event_id: evidence},
+    )
+
+    admitted, rejected = provider.govern_candle(
+        _raw(trading_date=EFFECTIVE + timedelta(days=5)),
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series="EQ",
+        isin=ISIN,
+        role="ACTION",
+        official_event_evidence=evidence,
+    )
+    outside = evidence.certifies(
+        _raw(trading_date=next_event_date),
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series="EQ",
+        isin=ISIN,
+        role="ACTION",
+    )
+
+    assert rejected is None
+    assert admitted is not None
+    assert admitted.bridge_evidence is not None
+    assert admitted.bridge_evidence.decision == (
+        "CERTIFIED_BOUNDED_OFFICIAL_ACTION_IDENTITY_INTERVAL"
+    )
+    assert outside is False
 
 
 def test_future_and_post_event_bars_never_enter_atr(tmp_path: Path) -> None:
@@ -1191,6 +1261,100 @@ def test_material_action_wires_official_action_session_isin_transition(
     assert context.action_bar.bridge_evidence.official_event_ids == (event_id,)
 
 
+def test_official_trading_transition_supports_successor_series(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, count=15, isin=ISIN)
+    successor_date = date(2015, 1, 20)
+    successor_isin = "INE999A01010"
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            "INSERT INTO daily_candle VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                successor_date,
+                "NSE",
+                "ALPHANEW",
+                "BE",
+                None,
+                100.0,
+                101.0,
+                99.0,
+                100.0,
+                1_000,
+                SOURCE_SHA,
+            ),
+        )
+    event_id = "capital-reduction-event"
+    evidence = OfficialEventDateIdentityEvidence(
+        event_id=event_id,
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series=("EQ",),
+        isin=ISIN,
+        effective_date=EFFECTIVE,
+        source_ids=("official-capital-reduction",),
+        source_sha256=("a" * 64,),
+        source_report_sha256="b" * 64,
+        interval_valid_from=date(2014, 1, 1),
+        action_type="CAPITAL_REDUCTION",
+    )
+    supplement = OfficialSecurityTransitionSupplement(
+        supplement_id="official-transition",
+        predecessor_symbol="ALPHA",
+        predecessor_series="EQ",
+        predecessor_isin=ISIN,
+        successor_symbol="ALPHANEW",
+        successor_series="BE",
+        successor_isin=successor_isin,
+        effective_date=successor_date,
+        sources=(
+            OfficialSupplementSource(
+                source_id="official-transition-source",
+                relative_path=Path("unused"),
+                source_url="https://example.invalid/official",
+                source_sha256="d" * 64,
+            ),
+        ),
+        official_raw_wording="Official successor trading transition.",
+    )
+    provider = _provider(
+        tmp_path / "evidence",
+        all_material_actions=True,
+        official_event_evidence={event_id: evidence},
+        security_transition_supplements=(supplement,),
+    )
+
+    with duckdb.connect(str(database), read_only=True) as connection:
+        context = provider.build(
+            connection,
+            event=_event(
+                canonical_event_id=event_id,
+                action_type="CAPITAL_REDUCTION",
+            ),
+            factor={
+                "factor_id": "capital-reduction-factor",
+                "canonical_event_id": event_id,
+                "identity_key": IDENTITY,
+                "factor_state": "FACTOR_DERIVED_OFFICIAL_TERMS",
+                "price_factor": 1.0,
+            },
+            series="EQ",
+            effective_date=EFFECTIVE,
+        )
+
+    assert context.action_bar is not None
+    assert context.action_bar.candle.trading_date == successor_date
+    assert context.action_bar.candle.symbol == "ALPHANEW"
+    assert context.action_bar.candle.series == "BE"
+    assert context.action_bar.candle.isin is None
+    assert (
+        context.action_bar.identity_state
+        is GovernedCandleIdentityState.CERTIFIED_OFFICIAL_ISIN_TRANSITION_CANDLE
+    )
+
+
 def test_rights_event_does_not_derive_isin_transition_from_candle(
     tmp_path: Path,
 ) -> None:
@@ -1434,6 +1598,90 @@ def test_uncertified_rights_factor_cannot_use_close_restoration(
 
     assert results[0]["validation_outcome"] == (
         ValidationOutcome.IMPLEMENTATION_DEFECT.value
+    )
+
+
+def test_complete_context_certifies_matching_provisional_rights_reference(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, action_open=80.0, action_close=50.0)
+    provider = _provider(tmp_path / "evidence")
+    event = _event(
+        ratio_numerator=1.0,
+        ratio_denominator=1.0,
+        rights_price=0.0,
+    )
+    factor = _factor(
+        provider,
+        factor_state="FACTOR_PROVISIONAL_REFERENCE_PRICE",
+        price_factor=0.5,
+        reference_price_certified=False,
+    )
+
+    _, results, _ = recompute_factor_validation(
+        database_path=database,
+        events=(event,),
+        factors=(factor,),
+        legacy_continuity=(),
+        start_date=date(2015, 1, 1),
+        end_date=date(2015, 1, 31),
+        continuity_context_provider=provider,
+    )
+
+    assert results[0]["factor_state"] == "FACTOR_CERTIFIED_REFERENCE_PRICE"
+    assert results[0]["reference_price_certified"] is True
+    assert results[0]["governed_reference_certification"]["decision"] == (
+        "CERTIFIED_FROM_COMPLETE_GOVERNED_CONTINUITY_CONTEXT"
+    )
+    assert results[0]["validation_outcome"] == (
+        ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP.value
+    )
+
+
+def test_complete_context_derives_rights_factor_only_from_official_terms(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, action_open=80.0, action_close=50.0)
+    provider = _provider(tmp_path / "evidence")
+
+    _, results, _ = recompute_factor_validation(
+        database_path=database,
+        events=(
+            _event(
+                ratio_numerator=1.0,
+                ratio_denominator=1.0,
+                rights_price=0.0,
+            ),
+        ),
+        factors=(
+            _factor(
+                provider,
+                factor_state="FACTOR_UNKNOWN_MISSING_TERMS",
+                price_factor=None,
+                reference_price=None,
+                reference_price_date=None,
+                reference_price_source_sha256=None,
+                reference_price_certified=False,
+            ),
+        ),
+        legacy_continuity=(),
+        start_date=date(2015, 1, 1),
+        end_date=date(2015, 1, 31),
+        continuity_context_provider=provider,
+    )
+
+    assert results[0]["price_factor"] == 0.5
+    assert results[0]["factor_state"] == "FACTOR_CERTIFIED_REFERENCE_PRICE"
+    assert results[0]["official_term_factor_matches"] is True
+    assert results[0]["governed_reference_certification"]["factor_value_mutated"] is (
+        False
+    )
+    assert results[0]["validation_outcome"] == (
+        ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP.value
     )
 
 

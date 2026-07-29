@@ -21,10 +21,16 @@ from alpha.historical_truth.legacy_isin_reference_bridge import (
     LegacyIsinReferenceBridge,
     LegacyIsinReferenceBridgeResult,
 )
+from alpha.historical_truth.official_corporate_action_supplements import (
+    SUPPLEMENT_CONTRACT_VERSION,
+    OfficialSecurityIdentitySupplement,
+    OfficialSecurityTransitionSupplement,
+    official_security_identity_supplements,
+    official_security_transition_supplements,
+)
 
 BRIDGE_AWARE_CONTINUITY_CONTRACT_VERSION = "DSI-010B3-GOVERNED-CONTINUITY-v1.0.0"
 PRODUCTION_INFLUENCE = False
-_CANDIDATE_SCAN_LIMIT = 64
 _MATERIAL_CONTINUITY_ACTION_TYPES = frozenset(
     {
         "BONUS",
@@ -35,6 +41,7 @@ _MATERIAL_CONTINUITY_ACTION_TYPES = frozenset(
         "SPLIT",
     }
 )
+_EQUITY_TRADING_SERIES = ("EQ", "BE", "BZ")
 
 
 class GovernedCandleIdentityState(StrEnum):
@@ -44,6 +51,9 @@ class GovernedCandleIdentityState(StrEnum):
     CERTIFIED_DATED_BRIDGE_CANDLE = "CERTIFIED_DATED_BRIDGE_CANDLE"
     CERTIFIED_OFFICIAL_ISIN_TRANSITION_CANDLE = (
         "CERTIFIED_OFFICIAL_ISIN_TRANSITION_CANDLE"
+    )
+    CERTIFIED_OFFICIAL_SERIES_TRANSITION_CANDLE = (
+        "CERTIFIED_OFFICIAL_SERIES_TRANSITION_CANDLE"
     )
     EXPLICIT_ISIN_MISMATCH = "EXPLICIT_ISIN_MISMATCH"
     MISSING_ISIN_NO_CERTIFIED_BRIDGE = "MISSING_ISIN_NO_CERTIFIED_BRIDGE"
@@ -154,6 +164,7 @@ class OfficialEventDateIdentityEvidence:
     source_sha256: tuple[str, ...]
     source_report_sha256: str
     interval_valid_from: date | None = None
+    interval_valid_to: date | None = None
     action_type: str = ""
 
     def certifies(
@@ -165,23 +176,37 @@ class OfficialEventDateIdentityEvidence:
         series: str,
         isin: str,
         role: str,
+        allow_equity_series_transition: bool = False,
     ) -> bool:
         exact_action_date = role == "ACTION" and (
             candle.trading_date == self.effective_date
+        )
+        bounded_action_date = (
+            role == "ACTION"
+            and self.interval_valid_to is not None
+            and self.effective_date <= candle.trading_date < self.interval_valid_to
         )
         bounded_prior_date = (
             role == "PRIOR"
             and self.interval_valid_from is not None
             and self.interval_valid_from <= candle.trading_date < self.effective_date
         )
+        candle_series = candle.series.upper()
+        series_matches = candle_series == series
+        series_transition = (
+            allow_equity_series_transition
+            and candle_series in _EQUITY_TRADING_SERIES
+            and series in _EQUITY_TRADING_SERIES
+            and any(item in _EQUITY_TRADING_SERIES for item in self.series)
+        )
         return (
-            (exact_action_date or bounded_prior_date)
+            (exact_action_date or bounded_action_date or bounded_prior_date)
             and self.identity == identity
             and self.symbol == symbol
-            and series in self.series
+            and (series in self.series or series_transition)
             and self.isin == isin
             and candle.symbol.upper() == symbol
-            and candle.series.upper() == series
+            and (series_matches or series_transition)
         )
 
 
@@ -401,6 +426,9 @@ class BridgeAwareContinuityContextProvider:
         official_event_evidence: Mapping[str, OfficialEventDateIdentityEvidence]
         | None = None,
         transition_evidence: Sequence[OfficialIsinTransitionEvidence] = (),
+        security_transition_supplements: Sequence[
+            OfficialSecurityTransitionSupplement
+        ] = (),
     ) -> None:
         eligible = tuple(row for row in cases if row.get("bridge_certified") is True)
         if len(eligible) != 18:
@@ -414,6 +442,7 @@ class BridgeAwareContinuityContextProvider:
         self.all_material_actions = all_material_actions
         self._official_event_evidence = dict(official_event_evidence or {})
         self._transition_evidence = tuple(transition_evidence)
+        self._security_transition_supplements = tuple(security_transition_supplements)
         self._cases = {
             str(row["event_id"]): dict(row) for row in eligible if row.get("event_id")
         }
@@ -428,6 +457,7 @@ class BridgeAwareContinuityContextProvider:
         htr010a3_output: Path,
         dsi010b1_output: Path,
         htr010b_output: Path | None = None,
+        data_root: Path | None = None,
         all_material_actions: bool = False,
         source_contract: SignedBridgeContinuitySourceContract = (
             SIGNED_DSI010B1_CONTINUITY_SOURCE_CONTRACT
@@ -445,13 +475,25 @@ class BridgeAwareContinuityContextProvider:
             source_contract=source_contract,
             all_material_actions=all_material_actions,
             official_event_evidence=(
-                _load_official_event_date_evidence(htr010b_output)
+                _load_official_event_date_evidence(
+                    htr010b_output,
+                    identity_supplements=(
+                        official_security_identity_supplements(data_root)
+                        if data_root is not None
+                        else ()
+                    ),
+                )
                 if htr010b_output is not None
                 else None
             ),
             transition_evidence=(
                 _load_official_isin_transition_evidence(htr010b_output)
                 if htr010b_output is not None
+                else ()
+            ),
+            security_transition_supplements=(
+                official_security_transition_supplements(data_root)
+                if data_root is not None
                 else ()
             ),
         )
@@ -466,6 +508,9 @@ class BridgeAwareContinuityContextProvider:
         official_event_evidence: Mapping[str, OfficialEventDateIdentityEvidence]
         | None = None,
         transition_evidence: Sequence[OfficialIsinTransitionEvidence] = (),
+        security_transition_supplements: Sequence[
+            OfficialSecurityTransitionSupplement
+        ] = (),
     ) -> BridgeAwareContinuityContextProvider:
         contract = SignedBridgeContinuitySourceContract(
             workflow_run_id=0,
@@ -482,6 +527,7 @@ class BridgeAwareContinuityContextProvider:
             all_material_actions=all_material_actions,
             official_event_evidence=official_event_evidence,
             transition_evidence=transition_evidence,
+            security_transition_supplements=security_transition_supplements,
         )
 
     @property
@@ -544,6 +590,15 @@ class BridgeAwareContinuityContextProvider:
             series=normalized_series,
             effective_date=effective_date,
         )
+        event_bound_symbol_transitions = (
+            self.bridge.official_symbol_transitions_bound_to_event(
+                identity_key=identity,
+                event_symbol=symbol,
+                event_source_ids=official_event_evidence.source_ids,
+            )
+            if official_event_evidence is not None
+            else ()
+        )
         candidate_symbols = tuple(
             sorted(
                 {
@@ -559,6 +614,14 @@ class BridgeAwareContinuityContextProvider:
                             transition.new_symbol,
                         )
                     ),
+                    *(
+                        transition_symbol
+                        for transition in event_bound_symbol_transitions
+                        for transition_symbol in (
+                            transition.old_symbol,
+                            transition.new_symbol,
+                        )
+                    ),
                 }
             )
         )
@@ -566,7 +629,11 @@ class BridgeAwareContinuityContextProvider:
         prior_candidates = _candidate_rows(
             connection,
             symbols=candidate_symbols,
-            series=normalized_series,
+            series=(
+                _EQUITY_TRADING_SERIES
+                if normalized_series in _EQUITY_TRADING_SERIES
+                else (normalized_series,)
+            ),
             isin=isin,
             effective_date=effective_date,
             prior=True,
@@ -574,7 +641,11 @@ class BridgeAwareContinuityContextProvider:
         action_candidates = _candidate_rows(
             connection,
             symbols=candidate_symbols,
-            series=normalized_series,
+            series=(
+                _EQUITY_TRADING_SERIES
+                if normalized_series in _EQUITY_TRADING_SERIES
+                else (normalized_series,)
+            ),
             isin=isin,
             effective_date=effective_date,
             prior=False,
@@ -597,6 +668,8 @@ class BridgeAwareContinuityContextProvider:
             official_event_evidence=official_event_evidence,
             transition_evidence=event_transition_evidence,
             event_effective_date=effective_date,
+            required_count=15,
+            allow_equity_series_transition=True,
         )
         admitted_action, rejected_action, duplicate_action = self._govern_candidates(
             action_candidates,
@@ -609,6 +682,34 @@ class BridgeAwareContinuityContextProvider:
             official_event_evidence=official_event_evidence,
             transition_evidence=event_transition_evidence,
             event_effective_date=effective_date,
+            allow_equity_series_transition=True,
+        )
+        (
+            supplemental_candidates,
+            supplemental_action,
+            rejected_supplemental_action,
+            duplicate_supplemental_action,
+        ) = self._govern_supplemental_action_candidates(
+            connection,
+            event_id=event_id,
+            symbol=symbol,
+            series=normalized_series,
+            isin=isin,
+            effective_date=effective_date,
+            end_exclusive=action_search_end,
+        )
+        admitted_action = tuple(
+            sorted(
+                (*admitted_action, *supplemental_action),
+                key=lambda item: item.candle.trading_date,
+            )
+        )
+        rejected_action = tuple((*rejected_action, *rejected_supplemental_action))
+        action_candidates = tuple(
+            sorted(
+                (*action_candidates, *supplemental_candidates),
+                key=lambda item: item.trading_date,
+            )
         )
         selected_prior = tuple(admitted_prior[-15:])
         action_bar = admitted_action[0] if admitted_action else None
@@ -632,7 +733,9 @@ class BridgeAwareContinuityContextProvider:
         decision = _context_decision(
             selected_prior=selected_prior,
             action_bar=action_bar,
-            duplicate=duplicate_prior or duplicate_action,
+            duplicate=(
+                duplicate_prior or duplicate_action or duplicate_supplemental_action
+            ),
             signed_case=signed_case,
             factor=factor,
             bridge=self.bridge,
@@ -695,6 +798,146 @@ class BridgeAwareContinuityContextProvider:
             pre_event_gap_market_sessions=pre_event_gap,
         )
 
+    def _govern_supplemental_action_candidates(
+        self,
+        connection: duckdb.DuckDBPyConnection,
+        *,
+        event_id: str,
+        symbol: str,
+        series: str,
+        isin: str,
+        effective_date: date,
+        end_exclusive: date | None,
+    ) -> tuple[
+        tuple[RawCanonicalCandle, ...],
+        tuple[GovernedCandleRecord, ...],
+        tuple[RejectedCandleRecord, ...],
+        bool,
+    ]:
+        supplements = tuple(
+            item
+            for item in self._security_transition_supplements
+            if item.predecessor_symbol == symbol
+            and item.predecessor_series == series
+            and item.predecessor_isin == isin
+            and item.effective_date >= effective_date
+            and (end_exclusive is None or item.effective_date < end_exclusive)
+        )
+        candidates: list[RawCanonicalCandle] = []
+        governed: list[GovernedCandleRecord] = []
+        rejected: list[RejectedCandleRecord] = []
+        duplicate = False
+        for supplement in supplements:
+            rows = _candidate_rows(
+                connection,
+                symbols=(supplement.successor_symbol,),
+                series=(supplement.successor_series,),
+                isin=supplement.successor_isin,
+                effective_date=supplement.effective_date,
+                prior=False,
+                end_exclusive=end_exclusive,
+            )
+            candidates.extend(rows)
+            first_date = min((item.trading_date for item in rows), default=None)
+            first_rows = tuple(item for item in rows if item.trading_date == first_date)
+            if len(first_rows) > 1:
+                duplicate = True
+                rejected.extend(
+                    _reject(
+                        item,
+                        GovernedCandleIdentityState.DUPLICATE_CANONICAL_CANDLE,
+                        "ACTION",
+                    )
+                    for item in first_rows
+                )
+                continue
+            if not first_rows:
+                continue
+            candle = first_rows[0]
+            if not candle.source_sha256:
+                rejected.append(
+                    _reject(
+                        candle,
+                        GovernedCandleIdentityState.SOURCE_HASH_MISSING,
+                        "ACTION",
+                    )
+                )
+                continue
+            if (
+                candle.symbol.upper() != supplement.successor_symbol
+                or candle.series.upper() != supplement.successor_series
+                or (
+                    str(candle.isin or "").upper()
+                    and str(candle.isin or "").upper() != supplement.successor_isin
+                )
+            ):
+                rejected.append(
+                    _reject(
+                        candle,
+                        GovernedCandleIdentityState.IDENTITY_CONFLICT,
+                        "ACTION",
+                    )
+                )
+                continue
+            if (
+                min(
+                    candle.open_price,
+                    candle.high_price,
+                    candle.low_price,
+                    candle.close_price,
+                )
+                <= 0
+            ):
+                rejected.append(
+                    _reject(
+                        candle,
+                        GovernedCandleIdentityState.NON_POSITIVE_PRICE,
+                        "ACTION",
+                    )
+                )
+                continue
+            source_ids = tuple(
+                sorted(source.source_id for source in supplement.sources)
+            )
+            source_hashes = tuple(
+                sorted(source.source_sha256 for source in supplement.sources)
+            )
+            governed.append(
+                GovernedCandleRecord(
+                    candle=candle,
+                    identity_state=(
+                        GovernedCandleIdentityState.CERTIFIED_OFFICIAL_ISIN_TRANSITION_CANDLE
+                    ),
+                    role="ACTION",
+                    bridge_evidence=BridgeEvidence(
+                        decision=("CERTIFIED_OFFICIAL_SECURITY_TRADING_TRANSITION"),
+                        interval_ids=(supplement.supplement_id,),
+                        official_event_ids=(event_id,),
+                        official_source_ids=source_ids,
+                        source_contract_id=SUPPLEMENT_CONTRACT_VERSION,
+                        source_report_sha256=_stable_id(
+                            supplement.supplement_id,
+                            supplement.effective_date.isoformat(),
+                            *source_hashes,
+                        ),
+                    ),
+                )
+            )
+        return (
+            tuple(sorted(candidates, key=lambda item: item.trading_date)),
+            tuple(sorted(governed, key=lambda item: item.candle.trading_date)),
+            tuple(
+                sorted(
+                    rejected,
+                    key=lambda item: (
+                        item.candle.trading_date,
+                        item.reason.value,
+                    ),
+                )
+            ),
+            duplicate,
+        )
+
     def _next_material_action_date(
         self,
         *,
@@ -752,7 +995,7 @@ class BridgeAwareContinuityContextProvider:
             prior = _candidate_rows(
                 connection,
                 symbols=candidate_symbols,
-                series=series,
+                series=(series,),
                 isin=evidence.isin,
                 effective_date=evidence.effective_date,
                 prior=True,
@@ -760,7 +1003,7 @@ class BridgeAwareContinuityContextProvider:
             action = _candidate_rows(
                 connection,
                 symbols=candidate_symbols,
-                series=series,
+                series=(series,),
                 isin=evidence.isin,
                 effective_date=evidence.effective_date,
                 prior=False,
@@ -801,6 +1044,8 @@ class BridgeAwareContinuityContextProvider:
         isin: str,
         role: str,
         stop_after_first: bool = False,
+        required_count: int | None = None,
+        allow_equity_series_transition: bool = False,
         official_event_evidence: OfficialEventDateIdentityEvidence | None = None,
         transition_evidence: Sequence[OfficialIsinTransitionEvidence] = (),
         event_effective_date: date | None = None,
@@ -815,8 +1060,15 @@ class BridgeAwareContinuityContextProvider:
         governed: list[GovernedCandleRecord] = []
         rejected: list[RejectedCandleRecord] = []
         duplicate = False
-        for trading_date in sorted(by_date):
+        trading_dates = sorted(by_date, reverse=role == "PRIOR")
+        quota_reached = False
+        for trading_date in trading_dates:
             candidates = by_date[trading_date]
+            exact_series = [
+                item for item in candidates if item.series.upper() == series
+            ]
+            if len(exact_series) == 1:
+                candidates = exact_series
             if len(candidates) != 1:
                 duplicate = True
                 rejected.extend(
@@ -828,6 +1080,10 @@ class BridgeAwareContinuityContextProvider:
                     for item in candidates
                 )
                 continue
+            if quota_reached:
+                observed_isin = str(candidates[0].isin or "").upper()
+                if not observed_isin or observed_isin == isin:
+                    continue
             accepted, rejection = self.govern_candle(
                 candidates[0],
                 identity=identity,
@@ -838,14 +1094,22 @@ class BridgeAwareContinuityContextProvider:
                 official_event_evidence=official_event_evidence,
                 transition_evidence=transition_evidence,
                 event_effective_date=event_effective_date,
+                allow_equity_series_transition=allow_equity_series_transition,
             )
             if accepted is not None:
                 governed.append(accepted)
                 if stop_after_first:
                     break
+                quota_reached = (
+                    required_count is not None and len(governed) >= required_count
+                )
             elif rejection is not None:
                 rejected.append(rejection)
-        return tuple(governed), tuple(rejected), duplicate
+        return (
+            tuple(sorted(governed, key=lambda item: item.candle.trading_date)),
+            tuple(rejected),
+            duplicate,
+        )
 
     def govern_candle(
         self,
@@ -859,8 +1123,16 @@ class BridgeAwareContinuityContextProvider:
         official_event_evidence: OfficialEventDateIdentityEvidence | None = None,
         transition_evidence: Sequence[OfficialIsinTransitionEvidence] = (),
         event_effective_date: date | None = None,
+        allow_equity_series_transition: bool = False,
     ) -> tuple[GovernedCandleRecord | None, RejectedCandleRecord | None]:
-        if candle.series.upper() != series:
+        candle_series = candle.series.upper()
+        series_transition = (
+            allow_equity_series_transition
+            and candle_series != series
+            and candle_series in _EQUITY_TRADING_SERIES
+            and series in _EQUITY_TRADING_SERIES
+        )
+        if candle_series != series and not series_transition:
             return None, _reject(
                 candle,
                 GovernedCandleIdentityState.SERIES_CONFLICT,
@@ -1009,12 +1281,38 @@ class BridgeAwareContinuityContextProvider:
                     GovernedCandleIdentityState.EXPLICIT_ISIN_MISMATCH,
                     role,
                 )
+            identity_state = (
+                GovernedCandleIdentityState.CERTIFIED_OFFICIAL_SERIES_TRANSITION_CANDLE
+                if series_transition
+                else GovernedCandleIdentityState.EXACT_ISIN_CANDLE
+            )
             return (
                 GovernedCandleRecord(
                     candle=candle,
-                    identity_state=GovernedCandleIdentityState.EXACT_ISIN_CANDLE,
+                    identity_state=identity_state,
                     role=role,
-                    bridge_evidence=None,
+                    bridge_evidence=(
+                        BridgeEvidence(
+                            decision=("CERTIFIED_EXACT_ISIN_EQUITY_SERIES_TRANSITION"),
+                            interval_ids=(),
+                            official_event_ids=(),
+                            official_source_ids=(),
+                            source_contract_id=(
+                                "DSI-010B5-EXACT-ISIN-SERIES-TRANSITION-v1.0.0"
+                            ),
+                            source_report_sha256=_stable_id(
+                                "exact-isin-equity-series-transition",
+                                identity,
+                                symbol,
+                                series,
+                                candle_series,
+                                candle.trading_date.isoformat(),
+                                candle.source_sha256 or "",
+                            ),
+                        )
+                        if series_transition
+                        else None
+                    ),
                 ),
                 None,
             )
@@ -1046,7 +1344,35 @@ class BridgeAwareContinuityContextProvider:
                     reference_date=candle.trading_date,
                     allow_isin_transition_resolved_reuse=True,
                 )
+            event_bound_alias = False
+            if not alias_result.certified and official_event_evidence is not None:
+                alias_result = self.bridge.resolve_symbol_alias_bound_to_official_event(
+                    identity_key=identity,
+                    event_symbol=symbol,
+                    candle_symbol=candle.symbol,
+                    series=series,
+                    isin=isin,
+                    reference_date=candle.trading_date,
+                    event_source_ids=official_event_evidence.source_ids,
+                )
+                event_bound_alias = alias_result.certified
             if alias_result.certified:
+                if event_bound_alias:
+                    assert official_event_evidence is not None
+                    return (
+                        GovernedCandleRecord(
+                            candle=candle,
+                            identity_state=(
+                                GovernedCandleIdentityState.CERTIFIED_DATED_BRIDGE_CANDLE
+                            ),
+                            role=role,
+                            bridge_evidence=_event_bound_bridge_evidence(
+                                alias_result,
+                                official_event_evidence,
+                            ),
+                        ),
+                        None,
+                    )
                 if not exact_official_action_alias:
                     return (
                         GovernedCandleRecord(
@@ -1104,11 +1430,16 @@ class BridgeAwareContinuityContextProvider:
             series=series,
             isin=isin,
             role=role,
+            allow_equity_series_transition=allow_equity_series_transition,
         ):
             evidence = BridgeEvidence(
                 decision=(
                     "CERTIFIED_OFFICIAL_EVENT_DATE_IDENTITY"
-                    if role == "ACTION"
+                    if (
+                        role == "ACTION"
+                        and candle.trading_date
+                        == official_event_evidence.effective_date
+                    )
                     else "CERTIFIED_BOUNDED_OFFICIAL_ACTION_IDENTITY_INTERVAL"
                 ),
                 interval_ids=(),
@@ -1121,10 +1452,69 @@ class BridgeAwareContinuityContextProvider:
                 GovernedCandleRecord(
                     candle=candle,
                     identity_state=(
-                        GovernedCandleIdentityState.CERTIFIED_DATED_BRIDGE_CANDLE
+                        GovernedCandleIdentityState.CERTIFIED_OFFICIAL_SERIES_TRANSITION_CANDLE
+                        if series_transition
+                        else GovernedCandleIdentityState.CERTIFIED_DATED_BRIDGE_CANDLE
                     ),
                     role=role,
                     bridge_evidence=evidence,
+                ),
+                None,
+            )
+        if (
+            role == "PRIOR"
+            and official_event_evidence is not None
+            and official_event_evidence.action_type in _MATERIAL_CONTINUITY_ACTION_TYPES
+            and candle.trading_date < official_event_evidence.effective_date
+            and official_event_evidence.identity == identity
+            and official_event_evidence.symbol == symbol
+            and (
+                series in official_event_evidence.series
+                or (
+                    series_transition
+                    and candle_series in _EQUITY_TRADING_SERIES
+                    and any(
+                        item in _EQUITY_TRADING_SERIES
+                        for item in official_event_evidence.series
+                    )
+                )
+            )
+            and official_event_evidence.isin == isin
+            and self.bridge.certifies_event_bound_missing_isin(
+                identity_key=identity,
+                symbol=symbol,
+                series=candle_series,
+                isin=isin,
+                reference_date=candle.trading_date,
+            )
+        ):
+            return (
+                GovernedCandleRecord(
+                    candle=candle,
+                    identity_state=(
+                        GovernedCandleIdentityState.CERTIFIED_DATED_BRIDGE_CANDLE
+                    ),
+                    role=role,
+                    bridge_evidence=BridgeEvidence(
+                        decision=("CERTIFIED_A3_UNIQUE_EVENT_BOUND_PREDECESSOR_CANDLE"),
+                        interval_ids=(),
+                        official_event_ids=(official_event_evidence.event_id,),
+                        official_source_ids=official_event_evidence.source_ids,
+                        source_contract_id=(
+                            "DSI-010B5-A3-EVENT-BOUND-PREDECESSOR-v1.0.0"
+                        ),
+                        source_report_sha256=_stable_id(
+                            "a3-event-bound-predecessor",
+                            self.bridge.source_report_sha256,
+                            official_event_evidence.source_report_sha256,
+                            identity,
+                            symbol,
+                            series,
+                            candle_series,
+                            isin,
+                            candle.trading_date.isoformat(),
+                        ),
+                    ),
                 ),
                 None,
             )
@@ -1385,6 +1775,8 @@ def _stable_transition_report_hash(
 
 def _load_official_event_date_evidence(
     output: Path,
+    *,
+    identity_supplements: Sequence[OfficialSecurityIdentitySupplement] = (),
 ) -> dict[str, OfficialEventDateIdentityEvidence]:
     event_path = _unique_file(output, "htr010b_canonical_events.json")
     source_path = _unique_file(output, "htr010b_source_completeness.json")
@@ -1446,6 +1838,7 @@ def _load_official_event_date_evidence(
     evidence: dict[str, OfficialEventDateIdentityEvidence] = {}
     for row in parsed:
         prior_rows: list[dict[str, Any]] = []
+        subsequent_rows: list[dict[str, Any]] = []
         competing = False
         for series_name in row["series"]:
             population = by_symbol_series[(str(row["symbol"]), series_name)]
@@ -1456,24 +1849,80 @@ def _load_official_event_date_evidence(
                 and item["effective_date"] < row["effective_date"]
             ]
             if not same_identity:
-                continue
-            prior = max(same_identity, key=lambda item: item["effective_date"])
-            if any(
-                item["identity"] != row["identity"]
-                and prior["effective_date"]
-                <= item["effective_date"]
-                <= row["effective_date"]
+                prior = None
+            else:
+                prior = min(same_identity, key=lambda item: item["effective_date"])
+                if any(
+                    item["identity"] != row["identity"]
+                    and prior["effective_date"]
+                    <= item["effective_date"]
+                    <= row["effective_date"]
+                    for item in population
+                ):
+                    competing = True
+                    break
+                prior_rows.append(prior)
+            subsequent = tuple(
+                item
                 for item in population
-            ):
-                competing = True
-                break
-            prior_rows.append(prior)
+                if item["identity"] == row["identity"]
+                and item["effective_date"] > row["effective_date"]
+            )
+            if subsequent:
+                next_row = min(
+                    subsequent,
+                    key=lambda item: (item["effective_date"], item["event_id"]),
+                )
+                if any(
+                    item["identity"] != row["identity"]
+                    and row["effective_date"]
+                    <= item["effective_date"]
+                    <= next_row["effective_date"]
+                    for item in population
+                ):
+                    competing = True
+                    break
+                subsequent_rows.append(next_row)
         interval_valid_from = (
-            max(item["effective_date"] for item in prior_rows)
+            min(item["effective_date"] for item in prior_rows)
             if prior_rows and not competing
             else None
         )
-        evidence_source_rows = [row, *prior_rows] if interval_valid_from else [row]
+        matching_identity_supplements = tuple(
+            item
+            for item in identity_supplements
+            if item.identity_key == row["identity"]
+            and item.symbol == row["symbol"]
+            and item.series in row["series"]
+            and item.isin == row["isin"]
+            and item.valid_from <= row["effective_date"]
+        )
+        if matching_identity_supplements and not competing:
+            supplement_start = min(
+                item.valid_from for item in matching_identity_supplements
+            )
+            interval_valid_from = (
+                min(interval_valid_from, supplement_start)
+                if interval_valid_from is not None
+                else supplement_start
+            )
+        interval_valid_to = (
+            min(item["effective_date"] for item in subsequent_rows)
+            if subsequent_rows and not competing
+            else None
+        )
+        evidence_source_rows = [
+            row,
+            *(prior_rows if interval_valid_from else ()),
+            *(subsequent_rows if interval_valid_to else ()),
+            *(
+                {
+                    "source_id": item.supplement_id,
+                    "source_sha256": item.source_sha256,
+                }
+                for item in matching_identity_supplements
+            ),
+        ]
         evidence[str(row["event_id"])] = OfficialEventDateIdentityEvidence(
             event_id=str(row["event_id"]),
             identity=str(row["identity"]),
@@ -1489,6 +1938,7 @@ def _load_official_event_date_evidence(
             ),
             source_report_sha256=report_sha,
             interval_valid_from=interval_valid_from,
+            interval_valid_to=interval_valid_to,
             action_type=str(row["action_type"]),
         )
     return evidence
@@ -1683,11 +2133,40 @@ def _bridge_evidence(
     )
 
 
+def _event_bound_bridge_evidence(
+    result: LegacyIsinReferenceBridgeResult,
+    event: OfficialEventDateIdentityEvidence,
+) -> BridgeEvidence:
+    event_ids = tuple(sorted({event.event_id, *result.official_event_ids}))
+    source_ids = tuple(
+        sorted(
+            {
+                *event.source_ids,
+                *(item.source_id for item in result.official_sources),
+            }
+        )
+    )
+    return BridgeEvidence(
+        decision="CERTIFIED_OFFICIAL_EVENT_BOUND_SYMBOL_TRANSITION",
+        interval_ids=(),
+        official_event_ids=event_ids,
+        official_source_ids=source_ids,
+        source_contract_id="DSI-010B5-OFFICIAL-EVENT-SYMBOL-BRIDGE-v1.0.0",
+        source_report_sha256=_stable_id(
+            "event-bound-symbol-transition",
+            result.source_report_sha256,
+            event.source_report_sha256,
+            *event_ids,
+            *source_ids,
+        ),
+    )
+
+
 def _candidate_rows(
     connection: duckdb.DuckDBPyConnection,
     *,
     symbols: Sequence[str],
-    series: str,
+    series: Sequence[str],
     isin: str,
     effective_date: date,
     prior: bool,
@@ -1699,13 +2178,18 @@ def _candidate_rows(
     if not normalized_symbols:
         return ()
     symbol_placeholders = ",".join("?" for _ in normalized_symbols)
+    normalized_series = tuple(
+        sorted({str(item).upper() for item in series if str(item).strip()})
+    )
+    if not normalized_series:
+        return ()
+    series_placeholders = ",".join("?" for _ in normalized_series)
     parameters: list[object]
     if prior:
         date_clause = "trading_date < ?"
         parameters = [effective_date]
         direction = "DESC"
-        limit_clause = " LIMIT ?"
-        parameters.extend((series, *normalized_symbols, isin, _CANDIDATE_SCAN_LIMIT))
+        parameters.extend((*normalized_series, *normalized_symbols, isin))
     else:
         date_clause = "trading_date >= ?"
         parameters = [effective_date]
@@ -1713,16 +2197,15 @@ def _candidate_rows(
             date_clause += " AND trading_date < ?"
             parameters.append(end_exclusive)
         direction = "ASC"
-        limit_clause = ""
-        parameters.extend((series, *normalized_symbols, isin))
+        parameters.extend((*normalized_series, *normalized_symbols, isin))
     rows = connection.execute(
         "SELECT * FROM (SELECT trading_date, upper(symbol), upper(series), "
         "upper(isin), open_price, high_price, low_price, close_price, volume, "
         "source_sha256 FROM daily_candle WHERE "
         + date_clause
-        + " AND upper(series)=? AND "
+        + f" AND upper(series) IN ({series_placeholders}) AND "
         f"((upper(symbol) IN ({symbol_placeholders})) OR (upper(isin)=?)) "
-        "ORDER BY trading_date " + direction + limit_clause + ") ORDER BY trading_date",
+        "ORDER BY trading_date " + direction + ") ORDER BY trading_date " + direction,
         parameters,
     ).fetchall()
     return tuple(

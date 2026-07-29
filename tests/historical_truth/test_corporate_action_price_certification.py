@@ -411,6 +411,20 @@ def test_rights_terp_requires_complete_inputs() -> None:
     assert unavailable.price_factor is None
 
 
+def test_capital_reduction_uses_official_share_count_for_quantity_factor() -> None:
+    action = replace(
+        _action("Capital Reduction"),
+        adjustment_factor=1.0,
+        old_quantity=1.0,
+        new_quantity=1.0,
+    )
+
+    factor = AdjustmentFactorEngine().derive(action)
+
+    assert factor.price_factor == pytest.approx(1.0)
+    assert factor.quantity_factor == pytest.approx(1.0)
+
+
 def test_invalid_and_ambiguous_ratios_do_not_create_factors() -> None:
     bonus = _action("Bonus 1:1")
     invalid = replace(bonus, adjustment_factor=-1.0)
