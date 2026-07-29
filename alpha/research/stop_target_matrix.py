@@ -1,4 +1,4 @@
-"""Governed exhaustive stop-target matrix for the frozen DSI-011A entry population."""
+"""Governed exhaustive stop-target matrix for the frozen DSI-011A entry set."""
 
 from __future__ import annotations
 
@@ -8,9 +8,9 @@ import hashlib
 import json
 import subprocess
 from dataclasses import dataclass, replace
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
 
 from alpha.backtest.research_runner import ResearchBacktestResult, ResearchTrade
 from alpha.research.lab_data_contract import ResearchDataContractAuditor
@@ -35,10 +35,17 @@ PRODUCTION_INFLUENCE = False
 
 
 @dataclass(frozen=True, slots=True)
-class PolicyChoice:
+class StopChoice:
     policy_id: str
     label: str
-    policy: StopPolicy | TargetPolicy
+    policy: StopPolicy
+
+
+@dataclass(frozen=True, slots=True)
+class TargetChoice:
+    policy_id: str
+    label: str
+    policy: TargetPolicy
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,29 +72,29 @@ class ExecutionLevelAudit:
         }
 
 
-def stop_choices() -> tuple[PolicyChoice, ...]:
+def stop_choices() -> tuple[StopChoice, ...]:
     return (
-        PolicyChoice(
+        StopChoice(
             "STOP_FIXED_5",
             "5% fixed stop",
             StopPolicy(rules=(StopRule("FIXED_PERCENT", Decimal("5")),)),
         ),
-        PolicyChoice(
+        StopChoice(
             "STOP_FIXED_8",
             "8% fixed stop",
             StopPolicy(rules=(StopRule("FIXED_PERCENT", Decimal("8")),)),
         ),
-        PolicyChoice(
+        StopChoice(
             "STOP_FIXED_10",
             "10% fixed stop",
             StopPolicy(rules=(StopRule("FIXED_PERCENT", Decimal("10")),)),
         ),
-        PolicyChoice(
+        StopChoice(
             "STOP_ATR_2",
             "2 ATR stop",
             StopPolicy(rules=(StopRule("ATR", Decimal("2")),)),
         ),
-        PolicyChoice(
+        StopChoice(
             "STOP_STRUCTURAL_10D",
             "STOP-STRUCTURAL-10D",
             StopPolicy(rules=(StopRule("STOP-STRUCTURAL-10D"),)),
@@ -95,33 +102,29 @@ def stop_choices() -> tuple[PolicyChoice, ...]:
     )
 
 
-def target_choices() -> tuple[PolicyChoice, ...]:
+def target_choices() -> tuple[TargetChoice, ...]:
     return (
-        PolicyChoice(
+        TargetChoice(
             "TARGET_FIXED_10",
             "10% fixed target",
-            TargetPolicy(
-                rules=(TargetRule("FIXED_PERCENT", Decimal("10")),)
-            ),
+            TargetPolicy(rules=(TargetRule("FIXED_PERCENT", Decimal("10")),)),
         ),
-        PolicyChoice(
+        TargetChoice(
             "TARGET_FIXED_20",
             "20% fixed target",
-            TargetPolicy(
-                rules=(TargetRule("FIXED_PERCENT", Decimal("20")),)
-            ),
+            TargetPolicy(rules=(TargetRule("FIXED_PERCENT", Decimal("20")),)),
         ),
-        PolicyChoice(
+        TargetChoice(
             "TARGET_R_2",
             "2R target",
             TargetPolicy(rules=(TargetRule("R_MULTIPLE", Decimal("2")),)),
         ),
-        PolicyChoice(
+        TargetChoice(
             "TARGET_R_3",
             "3R target",
             TargetPolicy(rules=(TargetRule("R_MULTIPLE", Decimal("3")),)),
         ),
-        PolicyChoice("TARGET_NONE", "No fixed target", TargetPolicy()),
+        TargetChoice("TARGET_NONE", "No fixed target", TargetPolicy()),
     )
 
 
@@ -131,8 +134,8 @@ def matrix_size() -> int:
 
 def build_frozen_parent(
     *,
-    start_date: Any,
-    end_date: Any,
+    start_date: date,
+    end_date: date,
 ) -> ResearchExperimentSpec:
     """Reproduce the fixed entry population used by DSI-011A experiments E/F."""
 
@@ -192,6 +195,8 @@ def audit_execution_levels(
     result: ResearchBacktestResult,
     spec: ResearchExperimentSpec,
 ) -> ExecutionLevelAudit:
+    """Fail closed when requested execution levels are absent or nonsensical."""
+
     requires_stop = bool(spec.stop_policy.rules)
     requires_target = bool(spec.target_policy.rules)
     missing_stop = 0
@@ -255,6 +260,8 @@ def _level_sample(
 
 
 def run_matrix(*, database: Path, output: Path) -> dict[str, object]:
+    """Execute and persist the exact governed 5-by-5 policy cross-product."""
+
     if not database.is_file():
         raise FileNotFoundError(f"Historical Truth database not found: {database}")
     output.mkdir(parents=True, exist_ok=True)
@@ -310,11 +317,15 @@ def run_matrix(*, database: Path, output: Path) -> dict[str, object]:
             combo_root.mkdir(parents=True, exist_ok=True)
             _write_json(combo_root / "spec.json", spec.as_dict())
             _write_json(combo_root / "summary.json", row)
-            _write_json(combo_root / "execution_level_audit.json", level_audit.as_dict())
+            _write_json(
+                combo_root / "execution_level_audit.json",
+                level_audit.as_dict(),
+            )
             print(
                 f"{experiment_id} {stop.label} × {target.label}: "
                 f"{level_audit.status}; CAGR={summary.get('gross_cagr_percent')}; "
-                f"MDD={summary.get('maximum_drawdown_percent')}"
+                f"MDD={summary.get('maximum_drawdown_percent')}",
+                flush=True,
             )
 
     ranked_valid = sorted(
@@ -326,6 +337,7 @@ def run_matrix(*, database: Path, output: Path) -> dict[str, object]:
     result_payload: dict[str, object] = {
         "matrix_version": MATRIX_VERSION,
         "source_commit": source_commit,
+        "parent_specification_sha256": parent.specification_sha256,
         "data_start": contract.actual_start.isoformat(),
         "data_end": contract.actual_end.isoformat(),
         "matrix_size": matrix_size(),
@@ -360,23 +372,25 @@ def run_matrix(*, database: Path, output: Path) -> dict[str, object]:
         {
             "matrix_version": MATRIX_VERSION,
             "source_commit": source_commit,
+            "parent_specification_sha256": parent.specification_sha256,
             "artifact_logical_sha256": logical_hash,
             "matrix_size": matrix_size(),
             "production_influence": False,
         },
     )
-    print(f"Matrix complete: {matrix_size()} combinations")
-    print(f"Valid combinations: {len(ranked_valid)}")
-    print(f"Invalid combinations: {len(invalid)}")
-    print(f"Artifact logical SHA-256: {logical_hash}")
-    print(f"Results: {output / 'stop_target_matrix.csv'}")
+    print(f"Matrix complete: {matrix_size()} combinations", flush=True)
+    print(f"Valid combinations: {len(ranked_valid)}", flush=True)
+    print(f"Invalid combinations: {len(invalid)}", flush=True)
+    print(f"Artifact logical SHA-256: {logical_hash}", flush=True)
+    print(f"Results: {output / 'stop_target_matrix.csv'}", flush=True)
     return result_payload
 
 
 def _ranking_key(row: dict[str, object]) -> tuple[Decimal, Decimal, str]:
     cagr = _decimal_or(row.get("gross_cagr_percent"), Decimal("-Infinity"))
     drawdown = _decimal_or(
-        row.get("maximum_drawdown_percent"), Decimal("-Infinity")
+        row.get("maximum_drawdown_percent"),
+        Decimal("-Infinity"),
     )
     return (-cagr, -drawdown, str(row["experiment_id"]))
 
@@ -417,7 +431,10 @@ def _write_markdown(path: Path, payload: dict[str, object]) -> None:
         "",
         "## Ranked valid combinations",
         "",
-        "| Rank | Stop | Target | CAGR % | Max drawdown % | Trades | Win rate % | Expectancy % |",
+        (
+            "| Rank | Stop | Target | CAGR % | Max drawdown % | Trades | "
+            "Win rate % | Expectancy % |"
+        ),
         "|---:|---|---|---:|---:|---:|---:|---:|",
     ]
     for rank, row in enumerate(ranked, start=1):
@@ -489,7 +506,8 @@ if __name__ == "__main__":
 __all__ = [
     "ExecutionLevelAudit",
     "MATRIX_VERSION",
-    "PolicyChoice",
+    "StopChoice",
+    "TargetChoice",
     "audit_execution_levels",
     "build_frozen_parent",
     "matrix_size",
