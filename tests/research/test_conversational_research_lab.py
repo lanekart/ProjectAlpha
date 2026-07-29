@@ -199,6 +199,30 @@ def test_stop_comparison_creates_one_child_per_registered_stop(
     assert children[-1].stop_policy.rules[0].rule_id == "STOP-STRUCTURAL-10D"
 
 
+def test_target_comparison_takes_precedence_over_parent_stop(
+    tmp_path: Path,
+) -> None:
+    compiled = _compiler().compile(
+        "Using the 8% stop version, compare 10% target, 20% target, "
+        "2R target, 3R target and no fixed target.",
+        experiment_id="ARL-000001",
+        session_id="ARS-000001",
+        certified_start=_START,
+        certified_end=_END,
+    )
+    assert compiled.specification is not None
+    lab = ConversationalResearchLab(
+        database=tmp_path / "unused.duckdb",
+        root=tmp_path / "research",
+    )
+
+    children = lab.expand_sweep(compiled.specification)
+
+    assert len(children) == 5
+    assert children[0].target_policy.rules[0].value == Decimal("10")
+    assert children[-1].target_policy.rules == ()
+
+
 def test_feature_signal_is_close_derived_and_entry_occurs_next_session() -> None:
     frame = _price_frame()
     spec = _spec(

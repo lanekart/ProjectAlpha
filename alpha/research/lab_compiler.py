@@ -560,19 +560,19 @@ def _apply_sweeps(
             "portfolio sizes": "MAXIMUM_CONCURRENT_POSITIONS",
         }[match.group(1)]
         return replace(spec, parameter_sweeps=(ParameterSweep(field, values),))
-    if "compare" in request and "stop" in request:
-        values = _stop_sweep_values(request)
-        if values:
-            return replace(
-                spec,
-                parameter_sweeps=(ParameterSweep("STOP_POLICY", values),),
-            )
     if "compare" in request and "target" in request:
         values = _target_sweep_values(request)
         if values:
             return replace(
                 spec,
                 parameter_sweeps=(ParameterSweep("TARGET_POLICY", values),),
+            )
+    if "compare" in request and "stop" in request:
+        values = _stop_sweep_values(request)
+        if values:
+            return replace(
+                spec,
+                parameter_sweeps=(ParameterSweep("STOP_POLICY", values),),
             )
     if "compare" in request and any(
         item in request
