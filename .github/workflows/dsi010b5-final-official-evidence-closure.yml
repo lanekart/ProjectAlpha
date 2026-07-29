@@ -1,4 +1,4 @@
-name: DSI-010B4 Final Pre-2016 Adjusted-History Closure
+name: DSI-010B5 Final Official-Evidence Closure
 
 on:
   workflow_dispatch:
@@ -190,6 +190,17 @@ jobs:
               --final-htr010b-output "$out/htr010b" \
               --dsi010b1-output signed/dsi010b1_legacy_rights_reference_bridge \
               --output "$out/b4"
+            poetry run python -m alpha historical-truth \
+              final-official-evidence-closure-certify \
+              --database work/alpha_data/warehouse/historical_truth.duckdb \
+              --htr009a2-output signed/htr009a2_event_sourced_universe \
+              --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
+              --htr010b-output "$out/htr010b" \
+              --final-b1c-output "$out/b1c" \
+              --final-b1e2-output "$out/b1e2" \
+              --baseline-b4-output "$out/b4" \
+              --start 2005-01-01 --end 2015-12-31 \
+              --output "$out/b5"
           }
 
           run_chain acceptance-a
@@ -220,49 +231,88 @@ jobs:
           }
           assert first_files == second_files
 
-          connection = duckdb.connect()
-          quote = "'"
-          first_db = str(first / "htr010b/htr010b_corporate_action.duckdb")
-          second_db = str(second / "htr010b/htr010b_corporate_action.duckdb")
-          connection.execute(f"ATTACH {quote}{first_db}{quote} AS first (READ_ONLY)")
-          connection.execute(f"ATTACH {quote}{second_db}{quote} AS second (READ_ONLY)")
-          tables = [
-              row[0]
-              for row in connection.execute(
-                  "SELECT table_name FROM information_schema.tables "
-                  "WHERE table_catalog='first' ORDER BY table_name"
-              ).fetchall()
-          ]
-          table_rows = {}
-          for table in tables:
-              left = connection.execute(
-                  f"SELECT COUNT(*) FROM (SELECT * FROM first.{table} "
-                  f"EXCEPT ALL SELECT * FROM second.{table})"
-              ).fetchone()[0]
-              right = connection.execute(
-                  f"SELECT COUNT(*) FROM (SELECT * FROM second.{table} "
-                  f"EXCEPT ALL SELECT * FROM first.{table})"
-              ).fetchone()[0]
-              assert left == right == 0
-              table_rows[table] = connection.execute(
-                  f"SELECT COUNT(*) FROM first.{table}"
-              ).fetchone()[0]
+          def compare_databases(first_db, second_db):
+              connection = duckdb.connect()
+              quote = "'"
+              connection.execute(
+                  f"ATTACH {quote}{first_db}{quote} AS first (READ_ONLY)"
+              )
+              connection.execute(
+                  f"ATTACH {quote}{second_db}{quote} AS second (READ_ONLY)"
+              )
+              tables = [
+                  row[0]
+                  for row in connection.execute(
+                      "SELECT table_name FROM information_schema.tables "
+                      "WHERE table_catalog='first' ORDER BY table_name"
+                  ).fetchall()
+              ]
+              table_rows = {}
+              for table in tables:
+                  left = connection.execute(
+                      f"SELECT COUNT(*) FROM (SELECT * FROM first.{table} "
+                      f"EXCEPT ALL SELECT * FROM second.{table})"
+                  ).fetchone()[0]
+                  right = connection.execute(
+                      f"SELECT COUNT(*) FROM (SELECT * FROM second.{table} "
+                      f"EXCEPT ALL SELECT * FROM first.{table})"
+                  ).fetchone()[0]
+                  assert left == right == 0
+                  table_rows[table] = connection.execute(
+                      f"SELECT COUNT(*) FROM first.{table}"
+                  ).fetchone()[0]
+              connection.close()
+              return table_rows
 
-          root = first / "b4"
-          summary_path = root / "dsi010b4_closure_summary.json"
-          certificate_path = (
-              root / "dsi010b4_adjusted_replay_readiness_certificate.json"
+          htr010b_table_rows = compare_databases(
+              first / "htr010b/htr010b_corporate_action.duckdb",
+              second / "htr010b/htr010b_corporate_action.duckdb",
           )
-          report_path = root / "dsi010b4_executive_report.md"
+          adjusted_table_rows = compare_databases(
+              first / "b5/dsi010b5_adjusted_history.duckdb",
+              second / "b5/dsi010b5_adjusted_history.duckdb",
+          )
+
+          root = first / "b5"
+          summary_path = root / "dsi010b5_closure_summary.json"
+          certificate_path = root / "dsi010b5_adjusted_replay_certificate.json"
+          report_path = root / "dsi010b5_executive_report.md"
           summary = json.loads(summary_path.read_text())
-          assert summary["starting_case_count"] == 172
-          assert summary["resolved_case_count"] == 106
-          assert summary["remaining_case_count"] == 66
-          assert summary["unresolved_admission_intervals"] == 0
+          assert summary["starting_residual_case_count"] == 66
+          assert summary["material_validation_case_count"] == 705
+          assert summary["unresolved_validation_case_count"] == 0
+          assert summary["accepted_multiplicative_factor_count"] == 697
+          assert summary["non_multiplicative_event_count"] == 8
+          assert summary["event_resolution_counts"] == {
+              "AUTHORITATIVE_SUPERSEDING_OFFICIAL_TERMS": 1,
+              "COMPLETE_OFFICIAL_EQUITY_RIGHTS_TERMS": 11,
+              "FIRST_GOVERNED_ACTION_SESSION_CANDLE": 10,
+              "FOURTEEN_GOVERNED_PRE_EVENT_BARS": 31,
+              "GOVERNED_REFERENCE_PRICE_IDENTITY": 12,
+              "OFFICIAL_EFFECTIVE_DATED_ISIN_TRANSITION": 1,
+              "TOTAL_REMAINING_EVENT_CASES": 0,
+              "TOTAL_RESOLVED_CASES": 66,
+              "TOTAL_STARTING_CASES": 66,
+          }
+          assert summary["validation_outcome_counts"] == {
+              "FACTOR_CERTIFIED_OFFICIAL_TERMS_CONTINUITY_NOT_TESTABLE": 2,
+              "FACTOR_CONFIRMED_CORRECT_MARKET_GAP": 695,
+              "FACTOR_NON_MULTIPLICATIVE": 8,
+          }
+          assert summary["required_adjustment_row_count"] == 500046
+          assert summary["adjusted_row_count_after"] == 246688
+          assert summary["unresolved_identity_adjustment_row_count"] == 253358
+          assert summary["unresolved_identity_segment_count"] == 476
+          assert summary["raw_candles_unchanged"] is True
+          assert summary["security_periods_excluded"] is False
           assert summary["adjusted_replay_ready"] is False
+          assert (
+              summary["readiness"]
+              == "BLOCKED_BY_UNCERTIFIED_PRE_EVENT_IDENTITY_HISTORY"
+          )
           assert summary["production_influence"] is False
           acceptance = {
-              "contract": "DSI-010B4-ACCEPTANCE-v1",
+              "contract": "DSI-010B5-ACCEPTANCE-v1",
               "source_commit": check_output(
                   ["git", "rev-parse", "HEAD"], text=True
               ).strip(),
@@ -270,7 +320,8 @@ jobs:
               "governed_non_database_artifact_count": len(first_files),
               "governed_non_database_artifacts_byte_identical": True,
               "duckdb_tables_logically_identical": True,
-              "duckdb_table_rows": table_rows,
+              "htr010b_duckdb_table_rows": htr010b_table_rows,
+              "adjusted_duckdb_table_rows": adjusted_table_rows,
               "summary_file_sha256": sha256(summary_path.read_bytes()).hexdigest(),
               "certificate_file_sha256": sha256(
                   certificate_path.read_bytes()
@@ -302,7 +353,7 @@ jobs:
       - name: Upload signed acceptance evidence
         uses: actions/upload-artifact@v4
         with:
-          name: dsi010b4-final-pre2016-adjusted-history-closure
+          name: dsi010b5-final-official-evidence-closure
           retention-days: 14
           compression-level: 6
           if-no-files-found: error
