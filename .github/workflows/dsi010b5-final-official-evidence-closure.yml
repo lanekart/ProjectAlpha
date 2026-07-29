@@ -130,6 +130,7 @@ jobs:
               --user-agent "ProjectAlpha/1.0 HistoricalTruthResearch" \
               --output "$destination.tmp" \
               "$url"
+            sha256sum "$destination.tmp"
             echo "$expected_sha  $destination.tmp" | sha256sum -c -
             mv "$destination.tmp" "$destination"
           }
