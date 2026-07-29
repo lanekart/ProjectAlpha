@@ -1,0 +1,6 @@
+{
+  "intent": "MODIFY",
+  "issues": [],
+  "normalized_request": "using experiment b, compare no candle confirmation, bullish engulfing, hammer, inside-bar breakout and close in the top 20% of the candle range.",
+  "status": "COMPILED"
+}

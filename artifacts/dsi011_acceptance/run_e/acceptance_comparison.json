@@ -1,0 +1,70 @@
+{
+  "attribution_dimensions": [
+    "added_or_removed_trades",
+    "changed_entries",
+    "changed_exits",
+    "stop_triggers",
+    "target_triggers",
+    "holding_period",
+    "capital_utilisation"
+  ],
+  "experiments": [
+    {
+      "blockers": [
+        "EXPECTED_TRADING_SESSIONS_DO_NOT_EQUAL_ADJUSTED_SESSIONS:2606!=2469",
+        "UNRESOLVED_SECURITY_IDENTITIES:115",
+        "UNRESOLVED_CORPORATE_ACTION_FACTORS:379",
+        "MIXED_PRICE_BASIS_INTERVALS:297",
+        "INVALID_ADJUSTED_OHLC_ROWS:7",
+        "MISSING_ADJUSTED_SECURITY_SESSION_ROWS:5336154"
+      ],
+      "disclosure": "Results exclude brokerage, securities transaction tax, exchange charges, GST, stamp duty, bid-ask spread, slippage and market impact.",
+      "experiment_id": "ARL-000001",
+      "production_influence": false,
+      "status": "BLOCKED_BY_DATA_CONTRACT"
+    },
+    {
+      "blockers": [
+        "EXPECTED_TRADING_SESSIONS_DO_NOT_EQUAL_ADJUSTED_SESSIONS:2606!=2469",
+        "UNRESOLVED_SECURITY_IDENTITIES:115",
+        "UNRESOLVED_CORPORATE_ACTION_FACTORS:379",
+        "MIXED_PRICE_BASIS_INTERVALS:297",
+        "INVALID_ADJUSTED_OHLC_ROWS:7",
+        "MISSING_ADJUSTED_SECURITY_SESSION_ROWS:5336154"
+      ],
+      "disclosure": "Results exclude brokerage, securities transaction tax, exchange charges, GST, stamp duty, bid-ask spread, slippage and market impact.",
+      "experiment_id": "ARL-000002",
+      "production_influence": false,
+      "status": "BLOCKED_BY_DATA_CONTRACT"
+    },
+    {
+      "blockers": [
+        "EXPECTED_TRADING_SESSIONS_DO_NOT_EQUAL_ADJUSTED_SESSIONS:2606!=2469",
+        "UNRESOLVED_SECURITY_IDENTITIES:115",
+        "UNRESOLVED_CORPORATE_ACTION_FACTORS:379",
+        "MIXED_PRICE_BASIS_INTERVALS:297",
+        "INVALID_ADJUSTED_OHLC_ROWS:7",
+        "MISSING_ADJUSTED_SECURITY_SESSION_ROWS:5336154"
+      ],
+      "disclosure": "Results exclude brokerage, securities transaction tax, exchange charges, GST, stamp duty, bid-ask spread, slippage and market impact.",
+      "experiment_id": "ARL-000003",
+      "production_influence": false,
+      "status": "BLOCKED_BY_DATA_CONTRACT"
+    },
+    {
+      "blockers": [
+        "EXPECTED_TRADING_SESSIONS_DO_NOT_EQUAL_ADJUSTED_SESSIONS:2606!=2469",
+        "UNRESOLVED_SECURITY_IDENTITIES:115",
+        "UNRESOLVED_CORPORATE_ACTION_FACTORS:379",
+        "MIXED_PRICE_BASIS_INTERVALS:297",
+        "INVALID_ADJUSTED_OHLC_ROWS:7",
+        "MISSING_ADJUSTED_SECURITY_SESSION_ROWS:5336154"
+      ],
+      "disclosure": "Results exclude brokerage, securities transaction tax, exchange charges, GST, stamp duty, bid-ask spread, slippage and market impact.",
+      "experiment_id": "ARL-000008",
+      "production_influence": false,
+      "status": "BLOCKED_BY_DATA_CONTRACT"
+    }
+  ],
+  "trade_contributors": []
+}

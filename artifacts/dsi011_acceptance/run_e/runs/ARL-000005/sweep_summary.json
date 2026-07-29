@@ -1,0 +1,30 @@
+{
+  "children": [
+    {
+      "completed": false,
+      "experiment_id": "ARL-000005-S001",
+      "output": "runs/ARL-000005-S001"
+    },
+    {
+      "completed": false,
+      "experiment_id": "ARL-000005-S002",
+      "output": "runs/ARL-000005-S002"
+    },
+    {
+      "completed": false,
+      "experiment_id": "ARL-000005-S003",
+      "output": "runs/ARL-000005-S003"
+    },
+    {
+      "completed": false,
+      "experiment_id": "ARL-000005-S004",
+      "output": "runs/ARL-000005-S004"
+    },
+    {
+      "completed": false,
+      "experiment_id": "ARL-000005-S005",
+      "output": "runs/ARL-000005-S005"
+    }
+  ],
+  "parent_experiment_id": "ARL-000005"
+}

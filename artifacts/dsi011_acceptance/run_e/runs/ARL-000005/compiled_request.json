@@ -1,0 +1,6 @@
+{
+  "intent": "MODIFY",
+  "issues": [],
+  "normalized_request": "using this experiment, compare 5% stop, 8% stop, 10% stop, 2 atr stop and stop-structural-10d. use the same 20-session maximum holding period.",
+  "status": "COMPILED"
+}

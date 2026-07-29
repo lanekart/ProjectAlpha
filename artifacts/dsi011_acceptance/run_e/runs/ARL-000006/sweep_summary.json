@@ -1,0 +1,10 @@
+{
+  "children": [
+    {
+      "completed": false,
+      "experiment_id": "ARL-000006-S001",
+      "output": "runs/ARL-000006-S001"
+    }
+  ],
+  "parent_experiment_id": "ARL-000006"
+}

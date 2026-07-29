@@ -1,0 +1,9 @@
+{
+  "changes": [
+    {
+      "after": "[{'field': 'STOP_POLICY', 'values': ['FIXED_PERCENT:8']}]",
+      "before": "[]",
+      "field": "parameter_sweeps"
+    }
+  ]
+}

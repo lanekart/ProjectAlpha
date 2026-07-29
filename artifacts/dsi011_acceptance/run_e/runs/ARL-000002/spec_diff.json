@@ -1,0 +1,14 @@
+{
+  "changes": [
+    {
+      "after": "{'conditions': [{'condition_id': 'RSI_14_ABOVE_50', 'kind': 'INDICATOR', 'name': 'RSI', 'operator': 'ABOVE', 'parameters': [], 'period': 14, 'reference': None, 'value': '50'}, {'condition_id': 'CLOSE_ABOVE_SMA_200', 'kind': 'INDICATOR', 'name': 'SMA', 'operator': 'ABOVE', 'parameters': [], 'period': 200, 'reference': 'CLOSE', 'value': None}, {'condition_id': 'VOLUME_RATIO_1.5_20', 'kind': 'INDICATOR', 'name': 'VOLUME_RATIO', 'operator': 'AT_LEAST', 'parameters': [], 'period': 20, 'reference': None, 'value': '1.5'}], 'groups': [], 'operator': 'ALL', 'required_count': None}",
+      "before": "{'conditions': [], 'groups': [], 'operator': 'ALL', 'required_count': None}",
+      "field": "entry_conditions"
+    },
+    {
+      "after": "HYBRID",
+      "before": "ALPHA_SIGNAL",
+      "field": "strategy_mode"
+    }
+  ]
+}
