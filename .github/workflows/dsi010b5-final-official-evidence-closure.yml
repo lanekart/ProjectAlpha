@@ -104,7 +104,9 @@ jobs:
         run: |
           set -euo pipefail
           root=work/alpha_data/raw/official/company_identity
+          supplements=work/alpha_data/raw/official/corporate_action_supplements/dsi010b5
           mkdir -p "$root/TATAPOWER" "$root/HINDMOTOR"
+          mkdir -p "$supplements"
           signed_root=signed_b3/work/alpha_data/raw/official/company_identity
           cp \
             "$signed_root/TATAPOWER/tatapower_corporate_governance_2011_12_95fd08f775bee1069ba350b2478d93366a4035ef87fc7d887776aa03a2519734.pdf" \
@@ -116,6 +118,82 @@ jobs:
           echo "95fd08f775bee1069ba350b2478d93366a4035ef87fc7d887776aa03a2519734  $root/TATAPOWER/tatapower_corporate_governance_2011_12_95fd08f775bee1069ba350b2478d93366a4035ef87fc7d887776aa03a2519734.pdf" | sha256sum -c -
           echo "9c1a79a78b1b77adca7e6b6c9429dbadc944132b9964f03bfd250ac1a9faf5e1  $root/TATAPOWER/tatapower_rights_2014_bse.pdf" | sha256sum -c -
           echo "a874ce997f384fedc21e74506775da58d1017b402e4c6aa2add87b1aa869d52f  $root/HINDMOTOR/nse_press_20110217.htm" | sha256sum -c -
+
+          fetch_official() {
+            local filename="$1"
+            local expected_sha="$2"
+            local url="$3"
+            local destination="$supplements/$filename"
+            curl \
+              --fail --location --silent --show-error \
+              --retry 5 --retry-all-errors --retry-delay 3 --max-time 240 \
+              --user-agent "ProjectAlpha/1.0 HistoricalTruthResearch" \
+              --output "$destination.tmp" \
+              "$url"
+            echo "$expected_sha  $destination.tmp" | sha256sum -c -
+            mv "$destination.tmp" "$destination"
+          }
+
+          fetch_official \
+            tatasteel_2007_official_press.html \
+            27f83c81ff900588c6bbcceab2ae4269ae9a6fa414b75d8fd7e402656650ff6d \
+            "https://www.tatasteel.com/media/newsroom/press-releases/india/2007/funding-of-corus-transaction/"
+          fetch_official \
+            tmpv_2008_tatamotors_20f.pdf \
+            1c8ff28023f9b59e9baa6d9a93e7ae3a57762e01984d47940b06119abcfb8ed5 \
+            "https://www.tatamotors.com/wp-content/uploads/2023/12/20F-2008.pdf"
+          fetch_official \
+            lakshmivilas_2014_bse_lof.pdf \
+            a73148f4bef9016aaaf79c5ba2958489c4f8a55f8b3c1545f8a22865e35a05fb \
+            "https://www.bseindia.com/downloads/ipo/Lakshmi%20Vilas%20Bank%20-%20LOF_070820141241.pdf"
+          fetch_official \
+            ocl_2006_sebi_lof.pdf \
+            f00439f3c803e1273c29d0435c4838e9a5ec95bd7498587100871b30d9d6a949 \
+            "https://www.sebi.gov.in/sebi_data/attachdocs/1292478628241.pdf"
+          fetch_official \
+            uniwestbnk_2006_sebi_caf.pdf \
+            413df458096f73e906170b2bfc311e5f74ef4cef7a3def4c6d98c74e1ab14d40 \
+            "https://www.sebi.gov.in/sebi_data/attachdocs/1292399175191.pdf"
+          fetch_official \
+            bajajfinance_2006_annual_report.pdf \
+            816892c7dcedc65ad773e1aff54091400474627278ee9a18e6e7184f980b970e \
+            "https://cms-assets.bajajfinserv.in/is/content/bajajfinance/bajaj-finserv-limited-2008pdf?fmt=pdf&scl=1"
+          fetch_official \
+            cholafin_2007_sebi_lof.pdf \
+            461becd4db41c860b5694c817649029b205a3374af0d874a3ea72158ff56fa4a \
+            "https://www.sebi.gov.in/sebi_data/attachdocs/1291892791087.pdf"
+          fetch_official \
+            andhrapaper_2010_sebi_lof.pdf \
+            5b21cb8a5b78cd6f322aa43957099c75fd03496064e9f879c6e437c5a79a7620 \
+            "https://www.sebi.gov.in/sebi_data/attachdocs/1288348223615.pdf"
+          fetch_official \
+            orientpaper_2007_lof.pdf \
+            53e0c174c161ab044cce7382a5d387c900a12086333cbb72006e03cbeed585b4 \
+            "https://orientpaper.in/wp-content/assets/investors/other-disclosures/right-issue-LOF-June_8_2007.pdf"
+          fetch_official \
+            hindmotor_2010_11_bse_annual_report.pdf \
+            56c07a82b95e72049fc22111de2763f9ad9c5438fb4fa07f86d57b7604f1aa92 \
+            "https://www.bseindia.com/bseplus/AnnualReport/500500/5005000311.pdf"
+          fetch_official \
+            kwality_2009_10_bse_annual_report.pdf \
+            2ea760fc23053236b96be8d4e55d22811ac4b80aaaf4a7df10fea521338e69ca \
+            "https://www.bseindia.com/bseplus/AnnualReport/531882/5318820310.pdf"
+          fetch_official \
+            gppetrol_2012_13_bse_annual_report.pdf \
+            502c7ae71bec6da2c100cb9cbc329b9b3ece6a1ec31a69ffcd4bdf5cb4c2db90 \
+            "https://www.bseindia.com/bseplus/AnnualReport/532543/5325430313.pdf"
+          fetch_official \
+            centext_2010_sebi_history.pdf \
+            50867f099c5cee599f5575fd262b527f4fc163fe9b260c45764a0c08e28e1cd6 \
+            "https://www.sebi.gov.in/sebi_data/attachdocs/1293086179664.pdf"
+          fetch_official \
+            lakshmivilas_2006_sebi_history.pdf \
+            7ebcb2afd3660fbb64e883071ac5b5b69c050ffa578d616ee8e631cdb73efd61 \
+            "https://www.sebi.gov.in/sebi_data/attachdocs/1292475470704.pdf"
+          fetch_official \
+            nse_press_20100106.htm \
+            314ceb8b5f2bb753039fe376e1101d4d5e26bdefbe3664b31474aec296a6aa58 \
+            "https://nsearchives.nseindia.com/content/press/06012010.htm"
 
       - name: Rebuild governed chain twice
         run: |
