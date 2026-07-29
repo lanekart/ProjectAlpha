@@ -75,6 +75,15 @@ jobs:
           name: dsi010b3-residual-corporate-action-closure
           path: signed_b3
 
+      - name: Download signed DSI-010B4 boundary
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30410409866
+          name: dsi010b4-final-pre2016-adjusted-history-closure
+          path: signed_b4
+
       - name: Restore immutable governed source state
         run: |
           set -euo pipefail
@@ -274,7 +283,7 @@ jobs:
               --htr010b-output "$out/htr010b" \
               --final-b1c-output "$out/b1c" \
               --final-b1e2-output "$out/b1e2" \
-              --baseline-b4-output "$out/b4" \
+              --baseline-b4-output signed_b4/acceptance-a/b4 \
               --start 2005-01-01 --end 2015-12-31 \
               --output "$out/b5"
           }
