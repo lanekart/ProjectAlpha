@@ -459,7 +459,7 @@ _IDENTITY_SUPPLEMENTS = (
         date(2010, 1, 8),
         "nse_press_20100106.htm",
         "https://nsearchives.nseindia.com/content/press/06012010.htm",
-        "314ceb8b5f2bb753039fe376e1101d4d5e26bdefbe3664b31474aec296a6aa58",
+        "ca522747d2a180da57c25be8b1aa7e89f974f78ef26b4b012d55d58fa12da185",
         (
             "MMTC Limited, symbol MMTC, ISIN INE123F01011, admitted to "
             "dealings from January 8, 2010."
@@ -473,7 +473,7 @@ _IDENTITY_SUPPLEMENTS = (
         date(2010, 1, 8),
         "nse_press_20100106.htm",
         "https://nsearchives.nseindia.com/content/press/06012010.htm",
-        "314ceb8b5f2bb753039fe376e1101d4d5e26bdefbe3664b31474aec296a6aa58",
+        "ca522747d2a180da57c25be8b1aa7e89f974f78ef26b4b012d55d58fa12da185",
         (
             "Kwality Dairy (India) Limited, symbol KWALITY, ISIN "
             "INE775B01025, admitted to dealings from January 8, 2010."
@@ -487,7 +487,7 @@ _IDENTITY_SUPPLEMENTS = (
         date(2010, 1, 8),
         "nse_press_20100106.htm",
         "https://nsearchives.nseindia.com/content/press/06012010.htm",
-        "314ceb8b5f2bb753039fe376e1101d4d5e26bdefbe3664b31474aec296a6aa58",
+        "ca522747d2a180da57c25be8b1aa7e89f974f78ef26b4b012d55d58fa12da185",
         (
             "Vipul Limited, symbol VIPUL, ISIN INE946H01029, admitted to "
             "dealings from January 8, 2010."

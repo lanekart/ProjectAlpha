@@ -189,7 +189,7 @@ jobs:
             "https://www.centuryextrusions.com/financials/annual-report/images/ar032005.pdf"
           fetch_official \
             nse_press_20100106.htm \
-            314ceb8b5f2bb753039fe376e1101d4d5e26bdefbe3664b31474aec296a6aa58 \
+            ca522747d2a180da57c25be8b1aa7e89f974f78ef26b4b012d55d58fa12da185 \
             "https://nsearchives.nseindia.com/content/press/06012010.htm"
 
       - name: Rebuild governed chain twice

@@ -165,7 +165,7 @@ def test_identity_supplement_requires_exact_official_source_hash(
 
     class _Digest:
         def hexdigest(self) -> str:
-            return "314ceb8b5f2bb753039fe376e1101d4d5e26bdefbe3664b31474aec296a6aa58"
+            return "ca522747d2a180da57c25be8b1aa7e89f974f78ef26b4b012d55d58fa12da185"
 
     monkeypatch.setattr(
         "alpha.historical_truth.official_corporate_action_supplements.sha256",
