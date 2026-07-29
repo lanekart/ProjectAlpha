@@ -62,7 +62,8 @@ jobs:
           def validate(root: Path) -> tuple[dict[str, str], dict[str, object]]:
               manifest_path = root / "acceptance_artifact_manifest.json"
               summary_path = root / "acceptance_summary.json"
-              if not manifest_path.is_file() or not summary_path.is_file():
+              comparison_path = root / "acceptance_comparison.json"
+              if not manifest_path.is_file() or not summary_path.is_file() or not comparison_path.is_file():
                   raise AssertionError(f"incomplete acceptance root: {root}")
 
               manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -139,13 +140,21 @@ jobs:
               if summary["production_influence"] is not False:
                   raise AssertionError(f"invalid summary: {root}")
               experiments = summary["experiments"]
-              if set(experiments) != set("ABCDEFGHI") | {
+              expected_experiments = set("ABCDEFGH") | {
                   "PURE_TECHNICAL",
                   "RETROSPECTIVE_ALPHA",
-              }:
-                  raise AssertionError(f"acceptance population mismatch: {root}")
+              }
+              if set(experiments) != expected_experiments:
+                  raise AssertionError(
+                      f"acceptance population mismatch: {root}: "
+                      f"{sorted(experiments)}"
+                  )
               if not all(item["completed"] for item in experiments.values()):
                   raise AssertionError(f"incomplete experiment: {root}")
+
+              comparison = json.loads(comparison_path.read_text(encoding="utf-8"))
+              if not comparison:
+                  raise AssertionError(f"empty comparison artifact: {root}")
               return recorded, manifest
 
           first_files, first_manifest = validate(roots[0])
@@ -165,6 +174,8 @@ jobs:
               "archive_sha256": os.environ["EXPECTED_ARCHIVE_SHA256"],
               "acceptance_roots_byte_identical": True,
               "artifact_count_per_root": len(first_files),
+              "top_level_run_count": 10,
+              "comparison_artifact_present": True,
               "production_influence": False,
           }
           Path("acceptance/ci_acceptance_envelope.json").write_text(
