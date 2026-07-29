@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from decimal import Decimal
@@ -29,6 +30,8 @@ from alpha.research.diagnostic_registry import (
 from alpha.research.institutional_research_director import (
     InstitutionalResearchDirector,
 )
+from alpha.research.lab_data_contract import ResearchDataContractAuditor
+from alpha.research.lab_service import ConversationalResearchLab, LabExecution
 from alpha.research.metric_truth_audit import (
     MetricTruthAuditEngine,
     MetricTruthAuditReport,
@@ -178,10 +181,30 @@ def research_session() -> None:
 
 
 @research_app.command("compare")
-def research_compare() -> None:
-    """Show a deterministic demo strategy comparison."""
+def research_compare(
+    experiment_ids: Annotated[
+        list[str] | None,
+        typer.Argument(help="Two or more ARL experiment IDs."),
+    ] = None,
+    database: Annotated[
+        Path,
+        typer.Option("--database", help="Historical Truth DuckDB path."),
+    ] = Path("alpha_data/warehouse/historical_truth.duckdb"),
+    root: Annotated[
+        Path,
+        typer.Option("--root", help="Research session and run root."),
+    ] = Path(".alpha/research"),
+) -> None:
+    """Compare lab experiments, or show the legacy demo with no IDs."""
 
-    typer.echo(ResearchCLIService().demo_comparison(), nl=False)
+    if not experiment_ids:
+        typer.echo(ResearchCLIService().demo_comparison(), nl=False)
+        return
+    result = ConversationalResearchLab(
+        database=database,
+        root=root,
+    ).compare(tuple(experiment_ids))
+    typer.echo(json.dumps(result, sort_keys=True, indent=2))
 
 
 @research_app.command("report")
@@ -356,6 +379,256 @@ def research_metric_truth_summary(
         output_format=output_format,
         output=output,
     )
+
+
+@research_app.command("data-contract")
+def research_data_contract(
+    database: Annotated[
+        Path,
+        typer.Option("--database", help="Historical Truth DuckDB path."),
+    ] = Path("alpha_data/warehouse/historical_truth.duckdb"),
+) -> None:
+    """Audit the complete post-2016 adjusted research boundary."""
+
+    contract = ResearchDataContractAuditor().audit(database)
+    typer.echo(json.dumps(contract.as_dict(), sort_keys=True, indent=2))
+
+
+@research_app.command("ask")
+def research_ask(
+    request: Annotated[str, typer.Argument(help="Conversational strategy request.")],
+    parent: Annotated[
+        str | None,
+        typer.Option("--parent", help="Parent ARL experiment ID."),
+    ] = None,
+    database: Annotated[
+        Path,
+        typer.Option("--database", help="Historical Truth DuckDB path."),
+    ] = Path("alpha_data/warehouse/historical_truth.duckdb"),
+    root: Annotated[
+        Path,
+        typer.Option("--root", help="Research session and run root."),
+    ] = Path(".alpha/research"),
+    compile_only: Annotated[
+        bool,
+        typer.Option("--compile-only", help="Compile and persist without execution."),
+    ] = False,
+) -> None:
+    """Compile and, when certified, execute one conversational experiment."""
+
+    execution = ConversationalResearchLab(database=database, root=root).ask(
+        request,
+        parent_experiment_id=parent,
+        execute=not compile_only,
+    )
+    typer.echo(_render_lab_execution(execution), nl=False)
+
+
+@research_app.command("chat")
+def research_chat(
+    database: Annotated[
+        Path,
+        typer.Option("--database", help="Historical Truth DuckDB path."),
+    ] = Path("alpha_data/warehouse/historical_truth.duckdb"),
+    root: Annotated[
+        Path,
+        typer.Option("--root", help="Research session and run root."),
+    ] = Path(".alpha/research"),
+) -> None:
+    """Start a stateful conversational research session."""
+
+    lab = ConversationalResearchLab(database=database, root=root)
+    contract = lab.auditor.audit(database)
+    typer.echo("Alpha Research Lab")
+    typer.echo(
+        "Certified data: "
+        f"{contract.actual_start or 'UNAVAILABLE'} to "
+        f"{contract.actual_end or 'UNAVAILABLE'}"
+    )
+    typer.echo(f"Execution status: {'READY' if contract.ready else 'FAIL_CLOSED'}")
+    parent: str | None = None
+    session_id: str | None = None
+    while True:
+        try:
+            request = input("alpha> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            typer.echo("")
+            break
+        if request.lower() in {"exit", "quit"}:
+            break
+        if not request:
+            continue
+        execution = lab.ask(
+            request,
+            parent_experiment_id=parent,
+            session_id=session_id,
+        )
+        typer.echo(_render_lab_execution(execution), nl=False)
+        specification = execution.compilation.specification
+        if specification is not None:
+            parent = specification.experiment_id
+            session_id = specification.research_session_id
+
+
+@research_app.command("show")
+def research_show(
+    experiment_id: Annotated[str, typer.Argument(help="ARL experiment ID.")],
+    root: Annotated[
+        Path,
+        typer.Option("--root", help="Research session and run root."),
+    ] = Path(".alpha/research"),
+) -> None:
+    """Show the complete typed experiment specification."""
+
+    spec = ConversationalResearchLab(
+        database=Path("alpha_data/warehouse/historical_truth.duckdb"),
+        root=root,
+    ).show(experiment_id)
+    typer.echo(json.dumps(spec.as_dict(), sort_keys=True, indent=2))
+
+
+@research_app.command("strategy")
+def research_strategy(
+    experiment_id: Annotated[str, typer.Argument(help="ARL experiment ID.")],
+    root: Annotated[
+        Path,
+        typer.Option("--root", help="Research session and run root."),
+    ] = Path(".alpha/research"),
+) -> None:
+    """Render the readable strategy and its typed specification."""
+
+    spec = ConversationalResearchLab(
+        database=Path("alpha_data/warehouse/historical_truth.duckdb"),
+        root=root,
+    ).show(experiment_id)
+    typer.echo(f"Experiment: {spec.experiment_id}")
+    typer.echo(f"Mode: {spec.strategy_mode.value}")
+    typer.echo(f"Signals: {', '.join(spec.base_signal_source) or 'technical only'}")
+    typer.echo(f"Entry: {spec.entry_rule.rule_id}")
+    typer.echo(
+        "Stops: "
+        + (", ".join(item.rule_id for item in spec.stop_policy.rules) or "none")
+    )
+    typer.echo(
+        "Targets: "
+        + (", ".join(item.rule_id for item in spec.target_policy.rules) or "none")
+    )
+    typer.echo(json.dumps(spec.as_dict(), sort_keys=True, indent=2))
+
+
+@research_app.command("trades")
+def research_trades(
+    experiment_id: Annotated[str, typer.Argument(help="ARL experiment ID.")],
+    root: Annotated[
+        Path,
+        typer.Option("--root", help="Research session and run root."),
+    ] = Path(".alpha/research"),
+) -> None:
+    """Show an experiment's immutable trade ledger."""
+
+    path = root / "runs" / experiment_id / "trades.json"
+    if not path.is_file():
+        raise typer.BadParameter(
+            f"Experiment {experiment_id} has no completed trade ledger."
+        )
+    typer.echo(path.read_text(), nl=False)
+
+
+@research_app.command("explain")
+def research_explain(
+    experiment_id: Annotated[str, typer.Argument(help="ARL experiment ID.")],
+    root: Annotated[
+        Path,
+        typer.Option("--root", help="Research session and run root."),
+    ] = Path(".alpha/research"),
+) -> None:
+    """Show the experiment summary and compilation diff."""
+
+    run = root / "runs" / experiment_id
+    output = {
+        "summary": _load_optional_json(run / "summary.json"),
+        "specification_diff": _load_optional_json(run / "spec_diff.json"),
+        "compiled_request": _load_optional_json(run / "compiled_request.json"),
+    }
+    typer.echo(json.dumps(output, sort_keys=True, indent=2))
+
+
+@research_app.command("rerun")
+def research_rerun(
+    experiment_id: Annotated[str, typer.Argument(help="ARL experiment ID.")],
+    database: Annotated[
+        Path,
+        typer.Option("--database", help="Historical Truth DuckDB path."),
+    ] = Path("alpha_data/warehouse/historical_truth.duckdb"),
+    root: Annotated[
+        Path,
+        typer.Option("--root", help="Research session and run root."),
+    ] = Path(".alpha/research"),
+) -> None:
+    """Create an immutable child and rerun a prior experiment."""
+
+    execution = ConversationalResearchLab(
+        database=database,
+        root=root,
+    ).rerun(experiment_id)
+    typer.echo(_render_lab_execution(execution), nl=False)
+
+
+@research_app.command("sessions")
+def research_sessions(
+    root: Annotated[
+        Path,
+        typer.Option("--root", help="Research session and run root."),
+    ] = Path(".alpha/research"),
+) -> None:
+    """List immutable conversational experiment registry entries."""
+
+    lab = ConversationalResearchLab(
+        database=Path("alpha_data/warehouse/historical_truth.duckdb"),
+        root=root,
+    )
+    typer.echo(json.dumps(lab.store.entries(), sort_keys=True, indent=2))
+
+
+def _render_lab_execution(execution: LabExecution) -> str:
+    compilation = execution.compilation
+    lines = [
+        "Alpha Research Lab",
+        f"Compilation: {compilation.status.value}",
+    ]
+    spec = compilation.specification
+    if spec is not None:
+        lines.extend(
+            (
+                f"Experiment: {spec.experiment_id}",
+                f"Parent: {spec.parent_experiment_id or 'NONE'}",
+                f"Mode: {spec.strategy_mode.value}",
+                f"Data: {spec.data_start} to {spec.data_end}",
+                f"Specification SHA-256: {spec.specification_sha256}",
+            )
+        )
+    if compilation.changes:
+        lines.append("Changed:")
+        lines.extend(
+            f"- {item.field}: {item.before} -> {item.after}"
+            for item in compilation.changes
+        )
+    if compilation.issues:
+        lines.append("Compilation blocked.")
+        lines.append("Unresolved fields:")
+        lines.extend(f"- {item.message}" for item in compilation.issues)
+    if not execution.contract.ready:
+        lines.append("Execution: BLOCKED_BY_DATA_CONTRACT")
+        lines.extend(f"- {item}" for item in execution.contract.blockers)
+    elif execution.result is not None:
+        lines.append("Execution: COMPLETED")
+        lines.append(json.dumps(execution.result.summary(), sort_keys=True))
+    lines.append(f"Artifacts: {execution.output}")
+    return "\n".join(lines) + "\n"
+
+
+def _load_optional_json(path: Path) -> object:
+    return json.loads(path.read_text()) if path.is_file() else None
 
 
 def _emit_metric_truth(
