@@ -407,14 +407,17 @@ _SUPPLEMENTS = (
         "CENTEXT",
         "EQ",
         date(2005, 8, 17),
-        "centext_2010_sebi_history.pdf",
-        "https://www.sebi.gov.in/sebi_data/attachdocs/1293086179664.pdf",
-        "50867f099c5cee599f5575fd262b527f4fc163fe9b260c45764a0c08e28e1cd6",
+        "centext_2005_annual_report.pdf",
         (
-            "The later SEBI-hosted letter of offer records the November 11, "
-            "2005 allotment of 35,000,000 equity shares for cash at par in the "
-            "2005 rights issue. The shares had Re.1 face value, proving the "
-            "35:12 entitlement carried a Re.1 issue price."
+            "https://www.centuryextrusions.com/financials/annual-report/"
+            "images/ar032005.pdf"
+        ),
+        "f0ad855e924c15c54a54570d6321f2d5b37b5cfcd1753ebdb98027fcb1fe4fbe",
+        (
+            "The company-hosted 2004-05 annual report states that the record "
+            "book closure also determined eligibility for a 35:12 equity "
+            "rights issue for cash at par. The equity share face value was "
+            "Re.1, proving the issue price was Re.1."
         ),
         35.0,
         12.0,
@@ -427,11 +430,14 @@ _SUPPLEMENTS = (
         "LAKSHVILAS",
         "EQ",
         date(2006, 11, 17),
-        "lakshmivilas_2006_sebi_history.pdf",
-        "https://www.sebi.gov.in/sebi_data/attachdocs/1292475470704.pdf",
-        "7ebcb2afd3660fbb64e883071ac5b5b69c050ffa578d616ee8e631cdb73efd61",
+        "lakshmivilas_2014_bse_lof.pdf",
         (
-            "The SEBI-hosted bank capital history records a 1:2 bonus allotted "
+            "https://www.bseindia.com/downloads/ipo/"
+            "Lakshmi%20Vilas%20Bank%20-%20LOF_070820141241.pdf"
+        ),
+        "a73148f4bef9016aaaf79c5ba2958489c4f8a55f8b3c1545f8a22865e35a05fb",
+        (
+            "The BSE-hosted 2014 letter of offer records a 1:2 bonus allotted "
             "November 25, 2006 followed by a 1:1 rights issue at Rs.50 per "
             "share, with rights shares allotted February 10, 2007."
         ),
