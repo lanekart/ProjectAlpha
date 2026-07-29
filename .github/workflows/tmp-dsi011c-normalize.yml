@@ -27,10 +27,13 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install 'ruff==0.15.20'
+          ruff format \
+            alpha/research/reclaim_portfolio_challenger.py \
+            tests/research/test_reclaim_portfolio_challenger.py
           ruff check --fix \
             alpha/research/reclaim_portfolio_challenger.py \
             tests/research/test_reclaim_portfolio_challenger.py
-          ruff format \
+          ruff format --check \
             alpha/research/reclaim_portfolio_challenger.py \
             tests/research/test_reclaim_portfolio_challenger.py
           git diff --check
