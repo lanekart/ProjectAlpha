@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import subprocess
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -135,6 +136,7 @@ def _certificate(
     }
     return {
         "experiment_id": spec.experiment_id,
+        "source_commit": _source_commit(),
         "specification_sha256": spec.specification_sha256,
         "data_contract_sha256": contract.contract_sha256,
         "artifact_hashes": hashes,
@@ -263,6 +265,16 @@ def _jsonable(value: Any) -> Any:
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _source_commit() -> str:
+    completed = subprocess.run(
+        ("git", "rev-parse", "HEAD"),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return completed.stdout.strip()
 
 
 __all__ = ["ResearchArtifactExporter"]
