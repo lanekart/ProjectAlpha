@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 30
     env:
       GH_TOKEN: ${{ github.token }}
-      RELEASE_TAG: dsi011a-acceptance-45385bbc
+      RELEASE_ASSET_ID: 494512277
       ASSET_NAME: dsi011a-acceptance-45385bbc.tar.gz
       EXPECTED_ARCHIVE_SHA256: 3459c4b1a38da1eeaf8938d32e3f36d86a798f9fd7ec2feb7100748d7503a8c4
       EXPECTED_LOGICAL_SHA256: f51fe32e402ecd738c173c8a25628ac3c9bbd8af26777a940ed7243a1f6e1f65
@@ -28,11 +28,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p incoming acceptance
-          gh release download "$RELEASE_TAG" \
-            --repo "${{ github.repository }}" \
-            --pattern "$ASSET_NAME" \
-            --dir incoming
           archive="incoming/$ASSET_NAME"
+          gh api \
+            -H "Accept: application/octet-stream" \
+            "/repos/${{ github.repository }}/releases/assets/$RELEASE_ASSET_ID" \
+            > "$archive"
           echo "$EXPECTED_ARCHIVE_SHA256  $archive" | sha256sum --check
           tar -xzf "$archive" -C acceptance
 
