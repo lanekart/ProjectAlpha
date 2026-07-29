@@ -26,6 +26,20 @@ jobs:
       - name: Apply locked Ruff normalization
         run: |
           set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('alpha/research/reclaim_portfolio_challenger.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              '        "final_exit": "remaining quantity at earliest of 3R or prior-session SMA(20) trail",\n',
+              '        "final_exit": (\n'
+              '            "remaining quantity at earliest of 3R or prior-session "\n'
+              '            "SMA(20) trail"\n'
+              '        ),\n',
+          )
+          path.write_text(text, encoding='utf-8')
+          PY
           python -m pip install 'ruff==0.15.20'
           ruff format \
             alpha/research/reclaim_portfolio_challenger.py \
