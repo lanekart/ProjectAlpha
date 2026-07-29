@@ -106,7 +106,7 @@ conflicting capital-reduction terms supersede the other.
 The governed warehouse contains:
 
 - 383,176 raw candle rows;
-- 99,774 adjusted rows; and
+- 99,106 adjusted rows; and
 - 349 mixed-price-basis intervals.
 
 The raw-candle fingerprint remains:
