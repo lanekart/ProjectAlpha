@@ -964,7 +964,12 @@ def _validate_b1e2(
         for row in final_rows
     }
     if actual != expected:
-        raise ValueError("B1C and B1E2 factor validation populations differ")
+        missing = sorted(expected - actual)
+        unexpected = sorted(actual - expected)
+        raise ValueError(
+            "B1C and B1E2 factor validation populations differ; "
+            f"missing_from_b1e2={missing}; unexpected_in_b1e2={unexpected}"
+        )
 
 
 def _baseline_b4(output: Path) -> dict[str, Any]:
