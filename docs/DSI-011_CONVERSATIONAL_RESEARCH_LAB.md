@@ -43,6 +43,11 @@ Alpha-signal and hybrid strategies also require frozen historical
 recommendations. The lab never regenerates a past recommendation using current
 code and presents it as contemporaneous evidence.
 
+DSI-011A separates recorded historical signals, retrospective frozen replays,
+and walk-forward replays. Each experiment records the selected source, and a
+short partial replay cannot satisfy a full-range source contract. See
+`DSI-011A_POST2016_EXECUTION.md` for the executable data and signal boundary.
+
 ## Canonical Engine
 
 The runner extends `alpha/backtest` and sends every entry and exit fill through

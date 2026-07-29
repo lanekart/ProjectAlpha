@@ -71,11 +71,18 @@ class ResearchBacktestResult:
         gains = sum((item.gross_profit_loss for item in wins), _ZERO)
         lost = abs(sum((item.gross_profit_loss for item in losses), _ZERO))
         returns = tuple(item.gross_return_percent for item in self.trades)
+        average_winner = _average_return_decimal(wins)
+        average_loser = _average_return_decimal(losses)
         return {
             "initial_capital": str(self.starting_capital),
             "final_equity": str(self.ending_equity),
             "gross_total_return_percent": str(
                 _percent(self.ending_equity / self.starting_capital - 1)
+            ),
+            "gross_cagr_percent": _cagr(
+                self.starting_capital,
+                self.ending_equity,
+                self.equity_curve,
             ),
             "trade_count": len(self.trades),
             "win_rate_percent": (
@@ -83,8 +90,13 @@ class ResearchBacktestResult:
                 if not self.trades
                 else str(_percent(Decimal(len(wins)) / Decimal(len(self.trades))))
             ),
-            "average_winner_percent": _average_return(wins),
-            "average_loser_percent": _average_return(losses),
+            "average_winner_percent": _string_or_none(average_winner),
+            "average_loser_percent": _string_or_none(average_loser),
+            "payoff_ratio": (
+                None
+                if average_winner is None or average_loser is None or average_loser == 0
+                else str(average_winner / abs(average_loser))
+            ),
             "expectancy_percent": (
                 None
                 if not returns
@@ -96,6 +108,11 @@ class ResearchBacktestResult:
                 if not self.equity_curve
                 else str(min(item.drawdown_percent for item in self.equity_curve))
             ),
+            "maximum_drawdown_duration_sessions": _maximum_drawdown_duration(
+                self.equity_curve
+            ),
+            "average_exposure_percent": _average_exposure(self.equity_curve),
+            "turnover_percent": _turnover(self.trades, self.starting_capital),
             "average_holding_period": (
                 None
                 if not self.trades
@@ -128,6 +145,7 @@ class _Position:
     holding_sessions: int
     highest_price: Decimal
     signal_evidence: dict[str, object]
+    target_partial_completed: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -262,6 +280,7 @@ class CanonicalResearchBacktestRunner:
                         )
                         position.quantity -= partial_quantity
                         position.target_price = None
+                        position.target_partial_completed = True
                         continue
                     cash += _sell(
                         self._broker,
@@ -346,12 +365,20 @@ class CanonicalResearchBacktestRunner:
                     holding_sessions=0,
                     highest_price=entry_price,
                     signal_evidence=item.evidence,
+                    target_partial_completed=False,
                 )
 
             for row in daily_records:
                 security_id = str(row["security_id"])
                 latest_close[security_id] = _decimal(row["close"])
                 if bool(row["research_signal"]) and security_id not in positions:
+                    evidence = condition_evidence(
+                        pd.Series(row),
+                        spec.entry_conditions,
+                    )
+                    swing_low = _optional_decimal(row.get("swing_low"))
+                    if swing_low is not None:
+                        evidence["swing_low"] = str(swing_low)
                     pending[security_id] = _Pending(
                         security_id=security_id,
                         symbol=str(row["symbol"]),
@@ -359,10 +386,7 @@ class CanonicalResearchBacktestRunner:
                         signal_close=_decimal(row["close"]),
                         signal_low=_decimal(row["low"]),
                         atr=_optional_decimal(row.get("atr")),
-                        evidence=condition_evidence(
-                            pd.Series(row),
-                            spec.entry_conditions,
-                        ),
+                        evidence=evidence,
                     )
             market_value = sum(
                 (
@@ -481,7 +505,10 @@ def _active_stop(
             levels.append(
                 position.highest_price * (Decimal("1") - (rule.value or _ZERO) / 100)
             )
-    if spec.target_policy.trailing_rule is not None:
+    if (
+        position.target_partial_completed
+        and spec.target_policy.trailing_rule is not None
+    ):
         rule = spec.target_policy.trailing_rule
         if rule.value is not None:
             levels.append(position.highest_price * (Decimal("1") - rule.value / 100))
@@ -566,13 +593,73 @@ def _closed_trade(
     )
 
 
-def _average_return(trades: tuple[ResearchTrade, ...]) -> str | None:
+def _average_return_decimal(
+    trades: tuple[ResearchTrade, ...],
+) -> Decimal | None:
     if not trades:
         return None
-    return str(
-        sum((item.gross_return_percent for item in trades), _ZERO)
-        / Decimal(len(trades))
+    return sum(
+        (item.gross_return_percent for item in trades),
+        _ZERO,
+    ) / Decimal(len(trades))
+
+
+def _string_or_none(value: Decimal | None) -> str | None:
+    return None if value is None else str(value)
+
+
+def _cagr(
+    starting_capital: Decimal,
+    ending_equity: Decimal,
+    curve: tuple[ResearchEquityPoint, ...],
+) -> str | None:
+    if len(curve) < 2 or ending_equity <= 0:
+        return None
+    elapsed_days = (curve[-1].trading_date - curve[0].trading_date).days
+    if elapsed_days < 1:
+        return None
+    annual_exponent = Decimal("365.2425") / Decimal(elapsed_days)
+    annual_return = (ending_equity / starting_capital) ** annual_exponent - 1
+    return str(_percent(annual_return))
+
+
+def _maximum_drawdown_duration(
+    curve: tuple[ResearchEquityPoint, ...],
+) -> int:
+    longest = 0
+    current = 0
+    for point in curve:
+        if point.drawdown_percent < 0:
+            current += 1
+            longest = max(longest, current)
+        else:
+            current = 0
+    return longest
+
+
+def _average_exposure(
+    curve: tuple[ResearchEquityPoint, ...],
+) -> str | None:
+    values = tuple(
+        point.market_value / point.equity for point in curve if point.equity > 0
     )
+    if not values:
+        return None
+    return str(_percent(sum(values, _ZERO) / Decimal(len(values))))
+
+
+def _turnover(
+    trades: tuple[ResearchTrade, ...],
+    starting_capital: Decimal,
+) -> str:
+    gross_notional = sum(
+        (
+            (item.entry_price + item.exit_price) * Decimal(item.quantity)
+            for item in trades
+        ),
+        _ZERO,
+    )
+    return str(_percent(gross_notional / starting_capital))
 
 
 def _decimal(value: object) -> Decimal:

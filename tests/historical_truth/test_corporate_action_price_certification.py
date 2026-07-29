@@ -411,6 +411,35 @@ def test_rights_terp_requires_complete_inputs() -> None:
     assert unavailable.price_factor is None
 
 
+def test_historical_prm_rights_wording_is_parsed() -> None:
+    action = _action("Rights 7:10 @ Prm Rs 102/-")
+
+    assert action.rights_price == pytest.approx(107.0)
+
+
+@pytest.mark.parametrize(
+    "purpose",
+    [
+        "Bonus NCRPS 1:116",
+        "Rights:14 Compulsory Convertible Debentures For Every 15 Equity Shares",
+    ],
+)
+def test_separate_security_distributions_do_not_adjust_equity(
+    purpose: str,
+) -> None:
+    action = _action(purpose)
+
+    assert action.adjustment_factor_state is AdjustmentFactorState.NOT_REQUIRED
+
+
+def test_reorganisation_is_a_non_multiplicative_transition() -> None:
+    action = _action("Scheme Of Arrangement")
+    factor = AdjustmentFactorEngine().derive(action)
+
+    assert factor.state is AdjustmentFactorState.NOT_REQUIRED
+    assert factor.price_factor is None
+
+
 def test_capital_reduction_uses_official_share_count_for_quantity_factor() -> None:
     action = replace(
         _action("Capital Reduction"),

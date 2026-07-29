@@ -551,7 +551,7 @@ def _event_from_row(
         CorporateActionType.FACE_VALUE_CHANGE,
         CorporateActionType.CAPITAL_REDUCTION,
     }
-    factor_state, factor = _initial_factor(action_type, terms)
+    factor_state, factor = _initial_factor(action_type, terms, purpose)
     admission = ActionAdmissionState.ADMITTED
     confidence = EvidenceConfidence.HIGH
     if action_type is CorporateActionType.UNKNOWN_ACTION:
@@ -677,6 +677,7 @@ def _parse_terms(
 def _initial_factor(
     action_type: CorporateActionType,
     terms: Mapping[str, float | None],
+    purpose: str = "",
 ) -> tuple[AdjustmentFactorState, float | None]:
     numerator = terms["ratio_numerator"]
     denominator = terms["ratio_denominator"]
@@ -692,6 +693,8 @@ def _initial_factor(
             return AdjustmentFactorState.INVALID, None
         return AdjustmentFactorState.DERIVED_FROM_OFFICIAL_TERMS, new_face / old_face
     if action_type is CorporateActionType.BONUS:
+        if _is_separate_security_distribution(purpose):
+            return AdjustmentFactorState.NOT_REQUIRED, None
         if numerator is None or denominator is None:
             return AdjustmentFactorState.AMBIGUOUS, None
         if numerator <= 0 or denominator <= 0:
@@ -705,13 +708,22 @@ def _initial_factor(
             factor *= new_face / old_face
         return AdjustmentFactorState.DERIVED_FROM_OFFICIAL_TERMS, factor
     if action_type is CorporateActionType.RIGHTS:
+        if _is_separate_security_distribution(purpose):
+            return (
+                AdjustmentFactorState.NOT_REQUIRED
+                if not _is_mixed_separate_security_distribution(purpose)
+                else AdjustmentFactorState.UNKNOWN,
+                None,
+            )
         if numerator is None or denominator is None or terms["rights_price"] is None:
             return AdjustmentFactorState.UNKNOWN, None
         return AdjustmentFactorState.UNKNOWN, None
     if action_type is CorporateActionType.DIVIDEND:
         return AdjustmentFactorState.NOT_REQUIRED, None
     if action_type in _TRANSITION_ACTIONS:
-        return AdjustmentFactorState.UNKNOWN, None
+        return AdjustmentFactorState.NOT_REQUIRED, None
+    if action_type is CorporateActionType.CAPITAL_REDUCTION:
+        return AdjustmentFactorState.NOT_REQUIRED, None
     if action_type is CorporateActionType.UNKNOWN_ACTION:
         return AdjustmentFactorState.UNKNOWN, None
     return AdjustmentFactorState.AMBIGUOUS, None
@@ -802,7 +814,7 @@ def _rights_price(value: str, face_value: float | None) -> float | None:
         return face_value if face_value is not None and face_value > 0 else None
 
     premium_matches = re.findall(
-        r"(?:AT\s+A\s+)?(?:PREMIUM|PREM)(?:\s+OF)?\s*@?\s*"
+        r"(?:AT\s+A\s+)?(?:PREMIUM|PREM|PRM)(?:\s+OF)?\s*@?\s*"
         r"(?:RS\.?|RE\.?|₹)?\s*"
         r"([0-9]+(?:\.[0-9]+)?)",
         normalized,
@@ -821,6 +833,41 @@ def _rights_price(value: str, face_value: float | None) -> float | None:
         flags=re.IGNORECASE,
     )
     return float(matches[-1]) if matches else None
+
+
+def _is_separate_security_distribution(value: str) -> bool:
+    normalized = f" {value.upper()} "
+    return any(
+        marker in normalized
+        for marker in (
+            " NCRPS ",
+            " DEBENTURE ",
+            " DEBENTURES ",
+            " WARRANT ",
+            " WARRANTS ",
+            " PREFERENCE SHARE ",
+            " PREFERENCE SHARES ",
+        )
+    )
+
+
+def _is_mixed_separate_security_distribution(value: str) -> bool:
+    normalized = f" {value.upper()} "
+    families = (
+        any(
+            marker in normalized for marker in (" NCD ", " DEBENTURE ", " DEBENTURES ")
+        ),
+        any(marker in normalized for marker in (" WARRANT ", " WARRANTS ")),
+        any(
+            marker in normalized
+            for marker in (
+                " NCRPS ",
+                " PREFERENCE SHARE ",
+                " PREFERENCE SHARES ",
+            )
+        ),
+    )
+    return sum(families) > 1
 
 
 def _parse_date(value: object) -> date | None:

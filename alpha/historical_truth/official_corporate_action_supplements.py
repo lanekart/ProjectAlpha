@@ -42,6 +42,7 @@ class OfficialCorporateActionSupplement:
     new_quantity: float | None = None
     adjustment_factor: float | None = None
     price_adjustment_required: bool | None = None
+    source_milestone: str = "dsi010b5"
 
     @property
     def relative_path(self) -> Path:
@@ -49,7 +50,7 @@ class OfficialCorporateActionSupplement:
             Path("raw")
             / "official"
             / "corporate_action_supplements"
-            / "dsi010b5"
+            / self.source_milestone
             / self.source_filename
         )
 
@@ -447,6 +448,121 @@ _SUPPLEMENTS = (
         10.0,
         record_date=date(2006, 11, 24),
         amendment_state="AUTHORITATIVE_HISTORICAL_CAPITAL_RECORD",
+    ),
+    OfficialCorporateActionSupplement(
+        "dsi011a-terms-jmcproject-2016",
+        "JMCPROJECT",
+        "EQ",
+        date(2016, 1, 11),
+        "jmcprojects_2016_sebi_bulletin.pdf",
+        "https://www.sebi.gov.in/sebi_data/attachdocs/1458208231171.pdf",
+        "b7e3429dbc019bf426b7a2d82823b131e31f03b9005f861fb3449161db336442",
+        (
+            "Two equity shares for every seven equity shares held at an issue "
+            "price of Rs.201, comprising Rs.10 face value and Rs.191 premium."
+        ),
+        2.0,
+        7.0,
+        201.0,
+        10.0,
+        source_milestone="dsi011a",
+    ),
+    OfficialCorporateActionSupplement(
+        "dsi011a-terms-sintex-2016",
+        "SINTEX",
+        "EQ",
+        date(2016, 8, 8),
+        "sintex_2016_sebi_bulletin.pdf",
+        "https://www.sebi.gov.in/sebi_data/attachdocs/1477545851614.pdf",
+        "8ef992c5b7bf7fc0966fb1c01a6cdd8b322677b180ed0a52f9d4ef2a2334102e",
+        (
+            "Twenty-six equity shares for every 151 equity shares held at an "
+            "issue price of Rs.65, comprising Re.1 face value and Rs.64 premium."
+        ),
+        26.0,
+        151.0,
+        65.0,
+        1.0,
+        source_milestone="dsi011a",
+    ),
+    OfficialCorporateActionSupplement(
+        "dsi011a-terms-patintlog-feb-2021",
+        "PATINTLOG",
+        "EQ",
+        date(2021, 2, 17),
+        "patintlog_2021_bse_letter_of_offer.pdf",
+        (
+            "https://www.bseindia.com/downloads/ipo/"
+            "LOO%20-%20Patel%20Integrated_240220211635.pdf"
+        ),
+        "c96d5dc371c890f6ab5092f9ce3411fb2b7819004e88d65bba5a2ce905ce4555",
+        (
+            "Twenty-seven equity shares for every 47 equity shares held at "
+            "Rs.10 per equity share."
+        ),
+        27.0,
+        47.0,
+        10.0,
+        10.0,
+        source_milestone="dsi011a",
+    ),
+    OfficialCorporateActionSupplement(
+        "dsi011a-terms-sigmaadv-2021",
+        "SIGMAADV",
+        "EQ",
+        date(2021, 7, 12),
+        "sigmaadv_2021_company_letter_of_offer.pdf",
+        ("https://sigmaadvsys.com/investors/rightsissue/Letter%20of%20Offer.pdf"),
+        "3157263f1dac8817b3db4c77f8000ea634b4805ca3392e91502a9a5e10ebbd14",
+        (
+            "Two equity shares for every three fully paid equity shares held "
+            "at Rs.10 per equity share at par."
+        ),
+        2.0,
+        3.0,
+        10.0,
+        10.0,
+        record_date=date(2021, 7, 13),
+        source_milestone="dsi011a",
+    ),
+    OfficialCorporateActionSupplement(
+        "dsi011a-terms-patintlog-oct-2021",
+        "PATINTLOG",
+        "EQ",
+        date(2021, 10, 28),
+        "patintlog_2021_nse_basis_allotment.pdf",
+        (
+            "https://nsearchives.nseindia.com/corporate/"
+            "PATINTLOG_08122021143739_BasisofAllotmentAd.pdf"
+        ),
+        "16b36503e15ef232e6358845e31a4fe173dad9ea1df87bc7673ec083d78eb316",
+        (
+            "Six hundred thirteen equity shares for every 399 equity shares "
+            "held at Rs.10 per equity share at par."
+        ),
+        613.0,
+        399.0,
+        10.0,
+        10.0,
+        source_milestone="dsi011a",
+    ),
+    OfficialCorporateActionSupplement(
+        "dsi011a-terms-tfl-2022",
+        "TFL",
+        "EQ",
+        date(2022, 11, 4),
+        "tfl_2022_nse_outcome.pdf",
+        ("https://nsearchives.nseindia.com/corporate/TFL_08122022122615_Outcome.pdf"),
+        "7f11d5d4831c5bb88ec1d9c66e5db7b609258e6223278164ab18b317503e1531",
+        (
+            "One partly paid rights equity share for every one equity share "
+            "held at a total issue price of Rs.10 per equity share."
+        ),
+        1.0,
+        1.0,
+        10.0,
+        10.0,
+        source_milestone="dsi011a",
     ),
 )
 

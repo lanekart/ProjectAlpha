@@ -24,6 +24,7 @@ from alpha.research.lab_data_contract import (
 )
 from alpha.research.lab_features import ResearchFeatureEngine
 from alpha.research.lab_models import (
+    AlphaSignalSource,
     CompilationResult,
     Condition,
     ExperimentStatus,
@@ -58,9 +59,13 @@ class ConversationalResearchLab:
         database: Path,
         root: Path = Path(".alpha/research"),
         maximum_sweep_children: int = 100,
+        governed_created_at: str | None = None,
     ) -> None:
         self.database = database
-        self.store = ResearchLabStore(root)
+        self.store = ResearchLabStore(
+            root,
+            governed_created_at=governed_created_at,
+        )
         self.maximum_sweep_children = maximum_sweep_children
         self.compiler = NaturalLanguageResearchCompiler()
         self.auditor = ResearchDataContractAuditor()
@@ -183,7 +188,7 @@ class ConversationalResearchLab:
             return None
         if (
             spec.strategy_mode is not StrategyMode.PURE_TECHNICAL
-            and not contract.alpha_signal_ready
+            and not contract.signal_source_ready(spec.alpha_signal_source)
         ):
             contract = replace(
                 contract,
@@ -278,30 +283,85 @@ class ConversationalResearchLab:
     def _load_frame(self, spec: ResearchExperimentSpec) -> pd.DataFrame:
         connection = duckdb.connect(str(self.database), read_only=True)
         try:
+            if spec.strategy_mode is not StrategyMode.PURE_TECHNICAL:
+                return self._load_alpha_frame(connection, spec)
             frame = connection.execute(
                 """
                 SELECT trading_date, isin AS security_id, symbol, series,
                        adjusted_open AS open, adjusted_high AS high,
                        adjusted_low AS low, adjusted_close AS close,
                        adjusted_volume AS volume
-                FROM adjusted_daily_candle
+                FROM research_daily_candle
                 WHERE UPPER(exchange) = 'NSE'
                   AND trading_date BETWEEN ? AND ?
-                  AND series = 'EQ'
+                  AND research_eligibility_state = 'ELIGIBLE_EQUITY'
                 ORDER BY trading_date, isin
                 """,
                 (spec.data_start, spec.data_end),
             ).fetchdf()
-            if spec.strategy_mode is not StrategyMode.PURE_TECHNICAL:
-                frame = self._attach_signals(connection, frame)
             return frame
         finally:
             connection.close()
 
-    def _attach_signals(
+    def _load_alpha_frame(
         self,
         connection: duckdb.DuckDBPyConnection,
-        frame: pd.DataFrame,
+        spec: ResearchExperimentSpec,
+    ) -> pd.DataFrame:
+        signals = self._load_signals(
+            connection,
+            spec.alpha_signal_source,
+            spec.data_start,
+            spec.data_end,
+        )
+        if signals.empty:
+            return pd.DataFrame(
+                columns=(
+                    "trading_date",
+                    "security_id",
+                    "symbol",
+                    "series",
+                    "open",
+                    "high",
+                    "low",
+                    "close",
+                    "volume",
+                    "final_signal",
+                )
+            )
+        connection.register("_research_signals", signals)
+        try:
+            return connection.execute(
+                """
+                WITH identities AS (
+                    SELECT DISTINCT security_id FROM _research_signals
+                )
+                SELECT c.trading_date, c.isin AS security_id,
+                       c.symbol, c.series,
+                       c.adjusted_open AS open, c.adjusted_high AS high,
+                       c.adjusted_low AS low, c.adjusted_close AS close,
+                       c.adjusted_volume AS volume, s.final_signal
+                FROM research_daily_candle c
+                JOIN identities i ON i.security_id = c.isin
+                LEFT JOIN _research_signals s
+                  ON s.trading_date = c.trading_date
+                 AND s.security_id = c.isin
+                WHERE UPPER(c.exchange) = 'NSE'
+                  AND c.trading_date BETWEEN ? AND ?
+                  AND c.research_eligibility_state = 'ELIGIBLE_EQUITY'
+                ORDER BY c.trading_date, c.isin
+                """,
+                [spec.data_start, spec.data_end],
+            ).fetchdf()
+        finally:
+            connection.unregister("_research_signals")
+
+    def _load_signals(
+        self,
+        connection: duckdb.DuckDBPyConnection,
+        source: AlphaSignalSource,
+        start: date,
+        end: date,
     ) -> pd.DataFrame:
         tables = {
             row[0]
@@ -312,19 +372,47 @@ class ConversationalResearchLab:
         }
         if "frozen_recommendation" not in tables:
             raise ValueError("frozen Alpha recommendation source is unavailable")
-        signals = connection.execute(
-            """
-            SELECT generated_at::DATE AS trading_date, isin AS security_id,
-                   final_verdict AS final_signal
-            FROM frozen_recommendation
-            """
-        ).fetchdf()
-        return frame.merge(
-            signals,
-            on=["trading_date", "security_id"],
-            how="left",
-            validate="one_to_one",
-        )
+        if source is AlphaSignalSource.RETROSPECTIVE_FROZEN_ALPHA_REPLAY:
+            run = connection.execute(
+                """
+                SELECT run_id
+                FROM frozen_recommendation_replay_run
+                WHERE start_date <= ? AND end_date >= ?
+                  AND readiness_state = 'RETROSPECTIVE_ALPHA_REPLAY_READY'
+                ORDER BY start_date DESC, end_date ASC, run_id
+                LIMIT 1
+                """,
+                [start, end],
+            ).fetchone()
+            if run is None:
+                raise ValueError(
+                    "no certified retrospective Alpha run covers the experiment"
+                )
+            signals = connection.execute(
+                """
+                SELECT generated_at::DATE AS trading_date, isin AS security_id,
+                       final_verdict AS final_signal
+                FROM frozen_recommendation
+                WHERE run_id = ?
+                  AND generated_at::DATE BETWEEN ? AND ?
+                """,
+                [run[0], start, end],
+            ).fetchdf()
+        else:
+            signals = connection.execute(
+                """
+                SELECT generated_at::DATE AS trading_date, isin AS security_id,
+                       final_verdict AS final_signal
+                FROM frozen_recommendation
+                WHERE signal_source_state = ?
+                  AND generated_at::DATE BETWEEN ? AND ?
+                QUALIFY ROW_NUMBER() OVER (
+                    PARTITION BY generated_at, isin ORDER BY run_id
+                ) = 1
+                """,
+                [source.value, start, end],
+            ).fetchdf()
+        return signals
 
 
 def _apply_sweep_value(

@@ -27,9 +27,11 @@ from alpha.research.diagnostic_registry import (
     ExistingReplayEvidence,
     default_diagnostic_registry,
 )
+from alpha.research.frozen_alpha_replay_cli import frozen_alpha_replay
 from alpha.research.institutional_research_director import (
     InstitutionalResearchDirector,
 )
+from alpha.research.lab_acceptance_cli import research_acceptance
 from alpha.research.lab_data_contract import ResearchDataContractAuditor
 from alpha.research.lab_service import ConversationalResearchLab, LabExecution
 from alpha.research.metric_truth_audit import (
@@ -58,6 +60,8 @@ ResearchOutputFormat = Literal["text", "markdown"]
 MetricTruthOutputFormat = Literal["text", "json", "csv"]
 
 research_app = typer.Typer(help="Research workflow commands.")
+research_app.command("replay-frozen-alpha")(frozen_alpha_replay)
+research_app.command("acceptance")(research_acceptance)
 
 
 @dataclass(frozen=True, slots=True)
