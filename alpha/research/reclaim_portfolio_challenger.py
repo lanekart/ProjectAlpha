@@ -11,7 +11,6 @@ import argparse
 import csv
 import hashlib
 import json
-import math
 import subprocess
 from dataclasses import asdict, dataclass, field
 from datetime import date
@@ -62,7 +61,9 @@ class ChallengerConfig:
         if not (Decimal("0") < self.full_risk_fraction <= Decimal("1")):
             raise ValueError("full risk fraction must be in (0, 1]")
         if not (Decimal("0") < self.throttled_risk_fraction <= self.full_risk_fraction):
-            raise ValueError("throttled risk must be positive and no greater than full risk")
+            raise ValueError(
+                "throttled risk must be positive and no greater than full risk"
+            )
         if self.maximum_positions < 1:
             raise ValueError("maximum positions must be positive")
         if not (Decimal("0") < self.fixed_stop_percent < Decimal("100")):
@@ -212,12 +213,16 @@ class ChallengerResult:
         elapsed_days = (
             0
             if len(self.equity_curve) < 2
-            else (self.equity_curve[-1].trading_date - self.equity_curve[0].trading_date).days
+            else (
+                self.equity_curve[-1].trading_date - self.equity_curve[0].trading_date
+            ).days
         )
         cagr = None
         if elapsed_days > 0 and self.ending_equity > 0:
             exponent = Decimal("365.2425") / Decimal(elapsed_days)
-            cagr = _percent((self.ending_equity / self.starting_capital) ** exponent - 1)
+            cagr = _percent(
+                (self.ending_equity / self.starting_capital) ** exponent - 1
+            )
         return {
             "initial_capital": str(self.starting_capital),
             "final_equity": str(self.ending_equity),
@@ -242,7 +247,9 @@ class ChallengerResult:
                 if not self.trades
                 else str(_percent(Decimal(len(wins)) / Decimal(len(self.trades))))
             ),
-            "expectancy_percent": None if average_return is None else str(average_return),
+            "expectancy_percent": None
+            if average_return is None
+            else str(average_return),
             "profit_factor": (
                 None if gross_losses == 0 else str(gross_gains / gross_losses)
             ),
@@ -297,7 +304,9 @@ def load_research_frame(database: Path) -> tuple[pd.DataFrame, str, date, date]:
             [start, end],
         ).fetchone()
         if run is None:
-            raise RuntimeError("no certified retrospective Alpha replay covers the window")
+            raise RuntimeError(
+                "no certified retrospective Alpha replay covers the window"
+            )
         run_id = str(run[0])
         frame = connection.execute(
             """
@@ -378,16 +387,24 @@ def engineer_signals(frame: pd.DataFrame, config: ChallengerConfig) -> pd.DataFr
     result["close_previous"] = grouped["close"].shift(1)
     result["rsi14"] = grouped["close"].transform(_rsi14)
     result["volume_prior_contraction"] = grouped["volume"].transform(
-        lambda values: values.rolling(
-            config.volume_contraction_sessions,
-            min_periods=config.volume_contraction_sessions,
-        ).mean().shift(1)
+        lambda values: (
+            values.rolling(
+                config.volume_contraction_sessions,
+                min_periods=config.volume_contraction_sessions,
+            )
+            .mean()
+            .shift(1)
+        )
     )
     result["volume_prior_baseline"] = grouped["volume"].transform(
-        lambda values: values.rolling(
-            config.volume_baseline_sessions,
-            min_periods=config.volume_baseline_sessions,
-        ).mean().shift(1)
+        lambda values: (
+            values.rolling(
+                config.volume_baseline_sessions,
+                min_periods=config.volume_baseline_sessions,
+            )
+            .mean()
+            .shift(1)
+        )
     )
 
     alpha_signal = result["final_signal"].isin(("BUY", "STRONG_BUY"))
@@ -398,9 +415,7 @@ def engineer_signals(frame: pd.DataFrame, config: ChallengerConfig) -> pd.DataFr
         result["close_previous"] <= result["sma20_previous"]
     )
     momentum = result["rsi14"] >= 50
-    contraction = (
-        result["volume_prior_contraction"] <= result["volume_prior_baseline"]
-    )
+    contraction = result["volume_prior_contraction"] <= result["volume_prior_baseline"]
     expansion = result["volume"] >= (
         result["volume_prior_baseline"] * float(config.volume_expansion_multiple)
     )
@@ -438,7 +453,9 @@ def risk_sized_quantity(
     if equity <= 0 or cash <= 0 or entry_price <= 0 or risk_per_share <= 0:
         return 0
     risk_budget = equity * risk_fraction
-    risk_quantity = int((risk_budget / risk_per_share).to_integral_value(rounding="ROUND_FLOOR"))
+    risk_quantity = int(
+        (risk_budget / risk_per_share).to_integral_value(rounding="ROUND_FLOOR")
+    )
     cash_quantity = int((cash / entry_price).to_integral_value(rounding="ROUND_FLOOR"))
     return max(0, min(risk_quantity, cash_quantity))
 
@@ -463,7 +480,9 @@ def simulate_challenger(
     }
     missing = required - set(featured.columns)
     if missing:
-        raise ValueError(f"featured challenger frame missing columns: {sorted(missing)}")
+        raise ValueError(
+            f"featured challenger frame missing columns: {sorted(missing)}"
+        )
 
     rows = featured.copy()
     rows["trading_date"] = pd.to_datetime(rows["trading_date"]).dt.date
@@ -519,7 +538,8 @@ def simulate_challenger(
                     if ambiguous
                     else (
                         "TRAIL_20DMA"
-                        if position.partial_completed and active_stop > position.initial_stop
+                        if position.partial_completed
+                        and active_stop > position.initial_stop
                         else "INITIAL_STOP"
                     )
                 )
@@ -541,7 +561,9 @@ def simulate_challenger(
                     * resolved.partial_exit_percent
                     / _HUNDRED
                 )
-                partial_quantity = min(partial_quantity, position.remaining_quantity - 1)
+                partial_quantity = min(
+                    partial_quantity, position.remaining_quantity - 1
+                )
                 if partial_quantity > 0:
                     fill = max(open_price, position.first_target)
                     cash += _exit_position(
@@ -640,9 +662,7 @@ def simulate_challenger(
                 for key, item in positions.items()
             )
             opening_equity = cash + opening_market_value
-            stop_price = entry_price * (
-                _ONE - resolved.fixed_stop_percent / _HUNDRED
-            )
+            stop_price = entry_price * (_ONE - resolved.fixed_stop_percent / _HUNDRED)
             quantity = risk_sized_quantity(
                 equity=opening_equity,
                 cash=cash,
@@ -768,7 +788,9 @@ def simulate_challenger(
             equity=cash,
             drawdown_percent=final_drawdown,
             open_positions=0,
-            new_entry_risk_fraction=_ZERO if terminated else resolved.full_risk_fraction,
+            new_entry_risk_fraction=_ZERO
+            if terminated
+            else resolved.full_risk_fraction,
             hard_stop_active=terminated,
         )
 
@@ -907,7 +929,9 @@ def _strategy_specification(config: ChallengerConfig) -> dict[str, object]:
         "maximum_positions": config.maximum_positions,
         "initial_stop": "5% below entry; adverse open gaps fill at the open",
         "first_exit": "50% at 2R when quantity permits",
-        "final_exit": "remaining quantity at earliest of 3R or prior-session SMA(20) trail",
+        "final_exit": (
+            "remaining quantity at earliest of 3R or prior-session SMA(20) trail"
+        ),
         "same_session_ambiguity": "stop-first",
         "maximum_holding_sessions": config.maximum_holding_sessions,
         "portfolio_hard_stop": (
@@ -977,11 +1001,15 @@ def _complete_position(position: OpenPosition, reason: str) -> CompletedTrade:
 def _rsi14(values: pd.Series) -> pd.Series:
     delta = values.diff()
     gain = delta.clip(lower=0).ewm(alpha=1 / 14, adjust=False, min_periods=14).mean()
-    loss = (-delta.clip(upper=0)).ewm(
-        alpha=1 / 14,
-        adjust=False,
-        min_periods=14,
-    ).mean()
+    loss = (
+        (-delta.clip(upper=0))
+        .ewm(
+            alpha=1 / 14,
+            adjust=False,
+            min_periods=14,
+        )
+        .mean()
+    )
     strength = gain / loss.replace(0, np.nan)
     result = 100 - 100 / (1 + strength)
     return result.where(loss.ne(0), 100.0)
