@@ -55,26 +55,62 @@ jobs:
           def file_hash(path: Path) -> str:
               return sha256(path.read_bytes()).hexdigest()
 
+          def is_allowed_archive_metadata(relative: str) -> bool:
+              parts = Path(relative).parts
+              return any(part.startswith("._") for part in parts) or Path(relative).name == ".DS_Store"
+
           def validate(root: Path) -> tuple[dict[str, str], dict[str, object]]:
               manifest_path = root / "acceptance_artifact_manifest.json"
               summary_path = root / "acceptance_summary.json"
               if not manifest_path.is_file() or not summary_path.is_file():
                   raise AssertionError(f"incomplete acceptance root: {root}")
+
               manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
               if manifest["artifact_logical_sha256"] != expected_logical:
                   raise AssertionError(f"logical hash mismatch: {root}")
+
               recorded = {
                   item["path"]: item["sha256"]
                   for item in manifest["artifacts"]
               }
-              actual = {
-                  path.relative_to(root).as_posix(): file_hash(path)
-                  for path in sorted(root.rglob("*"))
-                  if path.is_file()
-                  and path.name != "acceptance_artifact_manifest.json"
-              }
-              if recorded != actual:
-                  raise AssertionError(f"artifact manifest mismatch: {root}")
+              missing: list[str] = []
+              mismatched: list[dict[str, str]] = []
+              for relative, expected_hash in sorted(recorded.items()):
+                  path = root / relative
+                  if not path.is_file():
+                      missing.append(relative)
+                      continue
+                  observed_hash = file_hash(path)
+                  if observed_hash != expected_hash:
+                      mismatched.append(
+                          {
+                              "path": relative,
+                              "expected": expected_hash,
+                              "observed": observed_hash,
+                          }
+                      )
+
+              extras = []
+              for path in sorted(root.rglob("*")):
+                  if not path.is_file() or path == manifest_path:
+                      continue
+                  relative = path.relative_to(root).as_posix()
+                  if relative not in recorded and not is_allowed_archive_metadata(relative):
+                      extras.append(relative)
+
+              if missing or mismatched or extras:
+                  raise AssertionError(
+                      json.dumps(
+                          {
+                              "root": str(root),
+                              "missing": missing[:20],
+                              "mismatched": mismatched[:20],
+                              "unexpected_extras": extras[:20],
+                          },
+                          sort_keys=True,
+                      )
+                  )
+
               certificates = sorted((root / "runs").glob("*/certificate.json"))
               if not certificates:
                   raise AssertionError(f"no completed runs: {root}")
@@ -98,6 +134,7 @@ jobs:
                       raise AssertionError(
                           f"automatic promotion: {certificate_path}"
                       )
+
               summary = json.loads(summary_path.read_text(encoding="utf-8"))
               if summary["production_influence"] is not False:
                   raise AssertionError(f"invalid summary: {root}")
@@ -109,17 +146,18 @@ jobs:
                   raise AssertionError(f"acceptance population mismatch: {root}")
               if not all(item["completed"] for item in experiments.values()):
                   raise AssertionError(f"incomplete experiment: {root}")
-              return actual, manifest
+              return recorded, manifest
 
           first_files, first_manifest = validate(roots[0])
           second_files, second_manifest = validate(roots[1])
           if first_files != second_files:
-              raise AssertionError("clean-root artifacts are not byte-identical")
+              raise AssertionError("clean-root governed manifests are not identical")
           if (
               first_manifest["artifact_logical_sha256"]
               != second_manifest["artifact_logical_sha256"]
           ):
               raise AssertionError("logical acceptance hashes differ")
+
           envelope = {
               "source_head_sha": expected_source,
               "publisher_commit_sha": os.environ["GITHUB_SHA"],
