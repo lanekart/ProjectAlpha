@@ -1,0 +1,223 @@
+name: DSI-010B6 Pre-2016 Identity Reconstruction
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/dsi-010-pre2016-external-era-validation
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      _TYPER_FORCE_DISABLE_TERMINAL: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install project
+        run: |
+          pip install poetry
+          poetry install --no-interaction
+
+      - name: Download signed pre-2016 source
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30352312594
+          name: dsi010-pre2016-rights-rebuild
+          path: inputs
+
+      - name: Download signed identity boundary
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30335669653
+          name: dsi010-a3-b-repaired-rerun
+          path: identity
+
+      - name: Download signed DSI-010B5 boundary
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 30447849010
+          name: dsi010b5-final-official-evidence-closure
+          path: signed_b5
+
+      - name: Restore immutable governed inputs
+        run: |
+          set -euo pipefail
+          archive=$(find inputs -type f \
+            -name alpha_data_after_rights_rebuild.tar.gz | head -1)
+          a2=$(find identity -type d \
+            -name htr009a2_event_sourced_universe | head -1)
+          a3=$(find identity -type d \
+            -name htr010a3_tier_a_foundation_readiness | head -1)
+          b5=$(find signed_b5 -type d -path '*/acceptance-a/b5' | head -1)
+          htr010b=$(find signed_b5 -type d \
+            -path '*/acceptance-a/htr010b' | head -1)
+          b1c=$(find signed_b5 -type d \
+            -path '*/acceptance-a/b1c' | head -1)
+          b1e2=$(find signed_b5 -type d \
+            -path '*/acceptance-a/b1e2' | head -1)
+          test -f "$archive"
+          test -d "$a2"
+          test -d "$a3"
+          test -d "$b5"
+          test -d "$htr010b"
+          test -d "$b1c"
+          test -d "$b1e2"
+          mkdir -p work signed
+          tar -xzf "$archive" -C work
+          cp -a "$a2" signed/htr009a2
+          cp -a "$a3" signed/htr010a3
+          cp -a "$b5" signed/b5
+          cp -a "$htr010b" signed/htr010b
+          cp -a "$b1c" signed/b1c
+          cp -a "$b1e2" signed/b1e2
+          test -f work/alpha_data/warehouse/historical_truth.duckdb
+
+      - name: Run governed B6 reconstruction twice
+        run: |
+          set -euo pipefail
+          run_b6() {
+            local output="$1"
+            local source_mode="$2"
+            poetry run python -m alpha historical-truth \
+              complete-pre2016-identity-reconstruction-certify \
+              --database \
+                work/alpha_data/warehouse/historical_truth.duckdb \
+              --root work/alpha_data \
+              --htr009a2-output signed/htr009a2 \
+              --htr010a3-output signed/htr010a3 \
+              --htr010b-output signed/htr010b \
+              --final-b1c-output signed/b1c \
+              --final-b1e2-output signed/b1e2 \
+              --signed-b5-output signed/b5 \
+              --start 2005-01-01 \
+              --end 2015-12-31 \
+              --output "$output" \
+              "$source_mode"
+          }
+          run_b6 artifacts/acceptance-a --refresh-sources
+          run_b6 artifacts/acceptance-b --verify-only
+
+      - name: Verify deterministic artifacts and governed invariants
+        run: |
+          set -euo pipefail
+          poetry run python - <<'PY'
+          from hashlib import sha256
+          import json
+          from pathlib import Path
+
+          import duckdb
+
+          from alpha.historical_truth.final_official_evidence_closure import (
+              _adjusted_logical_digest,
+          )
+
+          root = Path("artifacts")
+          first = root / "acceptance-a"
+          second = root / "acceptance-b"
+          first_files = {
+              path.name: sha256(path.read_bytes()).hexdigest()
+              for path in first.iterdir()
+              if path.suffix != ".duckdb"
+          }
+          second_files = {
+              path.name: sha256(path.read_bytes()).hexdigest()
+              for path in second.iterdir()
+              if path.suffix != ".duckdb"
+          }
+          assert first_files == second_files
+          with duckdb.connect(
+              str(first / "dsi010b6_adjusted_history.duckdb"),
+              read_only=True,
+          ) as connection:
+              first_digest = _adjusted_logical_digest(connection)
+          with duckdb.connect(
+              str(second / "dsi010b6_adjusted_history.duckdb"),
+              read_only=True,
+          ) as connection:
+              second_digest = _adjusted_logical_digest(connection)
+          assert first_digest == second_digest
+          summary = json.loads(
+              (first / "dsi010b6_summary.json").read_text()
+          )
+          assert summary["starting_segment_count"] == 476
+          assert summary["starting_affected_row_count"] == 253358
+          assert summary["full_benchmark_replays"] == 0
+          assert summary["production_influence"] is False
+          assert summary["policy_or_production_behaviour_changed"] is False
+          assert summary["adjusted_replay_ready"] is (
+              summary["remaining_segment_count"] == 0
+              and summary["full_canonical_row_reconciliation"][
+                  "unresolved_identity_row_count"
+              ] == 0
+          )
+          acceptance = {
+              "source_head_sha": "${{ github.sha }}",
+              "artifact_hashes": first_files,
+              "adjusted_history_logical_sha256": first_digest,
+              "report_sha256": summary["report_sha256"],
+              "certificate_sha256": summary["certificate_sha256"],
+              "deterministic_rerun": True,
+              "full_benchmark_replays": 0,
+              "production_influence": False,
+          }
+          (root / "acceptance_summary.json").write_text(
+              json.dumps(acceptance, indent=2, sort_keys=True) + "\n"
+          )
+          PY
+
+      - name: Run permanent focused validation
+        run: |
+          poetry run ruff check \
+            alpha/historical_truth/pre2016_identity_sources.py \
+            alpha/historical_truth/pre2016_identity_reconstruction.py \
+            alpha/historical_truth/pre2016_identity_reconstruction_cli.py \
+            tests/historical_truth/test_pre2016_identity_reconstruction.py
+          poetry run ruff format --check \
+            alpha/historical_truth/pre2016_identity_sources.py \
+            alpha/historical_truth/pre2016_identity_reconstruction.py \
+            alpha/historical_truth/pre2016_identity_reconstruction_cli.py \
+            tests/historical_truth/test_pre2016_identity_reconstruction.py
+          poetry run mypy alpha
+          poetry run pytest \
+            tests/historical_truth/test_pre2016_identity_reconstruction.py \
+            tests/historical_truth/test_final_official_evidence_closure.py \
+            -q
+
+      - name: Upload governed B6 acceptance
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsi010b6-pre2016-identity-reconstruction
+          path: |
+            artifacts/acceptance-a
+            artifacts/acceptance_summary.json
+            work/alpha_data/raw/nse/identity_master/historical
+            work/alpha_data/raw/nse/corporate_actions/historical/1995
+            work/alpha_data/raw/nse/corporate_actions/historical/1996
+            work/alpha_data/raw/nse/corporate_actions/historical/1997
+            work/alpha_data/raw/nse/corporate_actions/historical/1998
+            work/alpha_data/raw/nse/corporate_actions/historical/1999
+            work/alpha_data/raw/nse/corporate_actions/historical/2000
+            work/alpha_data/raw/nse/corporate_actions/historical/2001
+            work/alpha_data/raw/nse/corporate_actions/historical/2002
+            work/alpha_data/raw/nse/corporate_actions/historical/2003
+            work/alpha_data/raw/nse/corporate_actions/historical/2004
+          if-no-files-found: error
+          retention-days: 90

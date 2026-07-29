@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import date
 from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol, TypeVar
 
 import duckdb
 
@@ -62,6 +62,40 @@ class AcceptedFactor:
     price_factor: float
     quantity_factor: float
     validation_outcome: str
+
+
+class _BridgeResult(Protocol):
+    @property
+    def decision(self) -> Any: ...
+
+    @property
+    def certified(self) -> bool: ...
+
+    @property
+    def source_contract_id(self) -> str: ...
+
+    @property
+    def source_report_sha256(self) -> str: ...
+
+
+_BridgeResultT_co = TypeVar(
+    "_BridgeResultT_co",
+    bound=_BridgeResult,
+    covariant=True,
+)
+
+
+class MissingIsinIdentityBridge(Protocol[_BridgeResultT_co]):
+    def resolve(
+        self,
+        *,
+        identity_key: str,
+        symbol: str,
+        series: str,
+        isin: str,
+        reference_date: date,
+        prior_isin_mismatch: bool = False,
+    ) -> _BridgeResultT_co: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -397,7 +431,7 @@ def _materialize_governed_adjustments(
     *,
     database_path: Path,
     output_database: Path,
-    bridge: LegacyIsinReferenceBridge,
+    bridge: MissingIsinIdentityBridge[_BridgeResult],
     events: Mapping[str, dict[str, Any]],
     accepted: Sequence[AcceptedFactor],
     start_date: date,

@@ -265,3 +265,30 @@ ADJUSTED_REPLAY_READY=false
 
 The permanent contract and exact blocker ledger are documented in
 `DSI-010B5_FINAL_OFFICIAL_EVIDENCE_CLOSURE.md`.
+
+## Complete Pre-2016 Identity Reconstruction
+
+DSI-010B6 consumes the signed B5 population and certifies missing-ISIN candle
+segments only when dated official checkpoints bound the complete segment with
+the same identity, symbol, and series. It does not treat price continuity,
+symbol similarity, or a current security master as historical identity proof.
+
+The governed run certifies 33 of 476 action-exposed segments and 18,573
+additional adjusted rows. The remaining 443 segments require an earlier
+official checkpoint. Across the full canonical 2005-2015 population, 1,875,064
+of 3,584,908 rows have governed identity evidence and 1,709,844 remain
+unresolved.
+
+NSE documents the required monthly historical Masters fields, but the
+2005-2015 snapshots are a subscription product and were not available to this
+run. Public current master files are not projected backward. The resulting
+state is therefore:
+
+```text
+READINESS=BLOCKED_BY_UNAVAILABLE_OFFICIAL_HISTORICAL_SECURITY_MASTERS
+ADJUSTED_REPLAY_READY=false
+```
+
+The evidence hierarchy, source ceiling, CLI, artifacts, and certification
+criteria are documented in
+`DSI-010B6_PRE2016_IDENTITY_RECONSTRUCTION.md`.
