@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - automation/dsi011a-acceptance-publisher-45385bbc
+  pull_request:
+    branches:
+      - feature/dsi-011a-post2016-execution-unblock
 
 permissions:
   actions: read
