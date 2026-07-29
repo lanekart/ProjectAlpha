@@ -180,9 +180,7 @@ def build_frozen_parent(
                 ),
             ),
         ),
-        stop_policy=StopPolicy(
-            rules=(StopRule("FIXED_PERCENT", Decimal("8")),)
-        ),
+        stop_policy=StopPolicy(rules=(StopRule("FIXED_PERCENT", Decimal("8")),)),
         target_policy=TargetPolicy(),
         maximum_holding_sessions=20,
         maximum_concurrent_positions=10,
