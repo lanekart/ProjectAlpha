@@ -90,12 +90,29 @@ jobs:
           cp -a "$b1e2" signed/b1e2
           test -f work/alpha_data/warehouse/historical_truth.duckdb
 
-      - name: Run governed B6 reconstruction twice
+      - name: Acquire bounded official sources
+        run: |
+          set -euo pipefail
+          poetry run python -m alpha historical-truth \
+            complete-pre2016-identity-reconstruction-certify \
+            --database work/alpha_data/warehouse/historical_truth.duckdb \
+            --root work/alpha_data \
+            --htr009a2-output signed/htr009a2 \
+            --htr010a3-output signed/htr010a3 \
+            --htr010b-output signed/htr010b \
+            --final-b1c-output signed/b1c \
+            --final-b1e2-output signed/b1e2 \
+            --signed-b5-output signed/b5 \
+            --start 2005-01-01 \
+            --end 2015-12-31 \
+            --output artifacts/acquisition \
+            --refresh-sources
+
+      - name: Run governed immutable reconstruction twice
         run: |
           set -euo pipefail
           run_b6() {
             local output="$1"
-            local source_mode="$2"
             poetry run python -m alpha historical-truth \
               complete-pre2016-identity-reconstruction-certify \
               --database \
@@ -110,10 +127,10 @@ jobs:
               --start 2005-01-01 \
               --end 2015-12-31 \
               --output "$output" \
-              "$source_mode"
+              --verify-only
           }
-          run_b6 artifacts/acceptance-a --refresh-sources
-          run_b6 artifacts/acceptance-b --verify-only
+          run_b6 artifacts/acceptance-a
+          run_b6 artifacts/acceptance-b
 
       - name: Verify deterministic artifacts and governed invariants
         run: |
