@@ -1,0 +1,41 @@
+name: Temporary DSI-011B Formatter
+
+on:
+  push:
+    branches:
+      - feature/dsi-011b-stop-target-matrix
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-011b-stop-target-matrix
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Apply locked Ruff formatter
+        run: |
+          set -euo pipefail
+          python -m pip install 'ruff==0.15.20'
+          ruff format \
+            alpha/research/stop_target_matrix.py \
+            tests/research/test_stop_target_matrix.py
+          git diff --check
+          if git diff --quiet; then
+            echo 'No formatting changes required.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            alpha/research/stop_target_matrix.py \
+            tests/research/test_stop_target_matrix.py
+          git commit -m 'style(dsi-011b): apply locked Ruff formatter'
+          git push origin HEAD:feature/dsi-011b-stop-target-matrix
