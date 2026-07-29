@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feature/dsi-011c-20dma-reclaim-portfolio
+  pull_request:
+    branches:
+      - feature/dsi-011b-stop-target-matrix
 
 permissions:
   contents: write
