@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 
@@ -101,20 +102,17 @@ def test_frozen_parent_matches_dsi011a_filtered_entry_population() -> None:
 
 
 def test_execution_level_audit_accepts_valid_stop_and_target() -> None:
-    spec = build_frozen_parent(
-        start_date=date(2016, 1, 1),
-        end_date=date(2026, 7, 28),
-    )
-    spec = spec.__class__(
-        **{
-            **spec.__dict__,
-            "stop_policy": StopPolicy(
-                rules=(StopRule("FIXED_PERCENT", Decimal("8")),)
-            ),
-            "target_policy": TargetPolicy(
-                rules=(TargetRule("R_MULTIPLE", Decimal("2")),)
-            ),
-        }
+    spec = replace(
+        build_frozen_parent(
+            start_date=date(2016, 1, 1),
+            end_date=date(2026, 7, 28),
+        ),
+        stop_policy=StopPolicy(
+            rules=(StopRule("FIXED_PERCENT", Decimal("8")),)
+        ),
+        target_policy=TargetPolicy(
+            rules=(TargetRule("R_MULTIPLE", Decimal("2")),)
+        ),
     )
 
     audit = audit_execution_levels(
@@ -127,20 +125,17 @@ def test_execution_level_audit_accepts_valid_stop_and_target() -> None:
 
 
 def test_execution_level_audit_fails_closed_for_wrong_side_levels() -> None:
-    spec = build_frozen_parent(
-        start_date=date(2016, 1, 1),
-        end_date=date(2026, 7, 28),
-    )
-    spec = spec.__class__(
-        **{
-            **spec.__dict__,
-            "stop_policy": StopPolicy(
-                rules=(StopRule("STOP-STRUCTURAL-10D"),)
-            ),
-            "target_policy": TargetPolicy(
-                rules=(TargetRule("R_MULTIPLE", Decimal("2")),)
-            ),
-        }
+    spec = replace(
+        build_frozen_parent(
+            start_date=date(2016, 1, 1),
+            end_date=date(2026, 7, 28),
+        ),
+        stop_policy=StopPolicy(
+            rules=(StopRule("STOP-STRUCTURAL-10D"),)
+        ),
+        target_policy=TargetPolicy(
+            rules=(TargetRule("R_MULTIPLE", Decimal("2")),)
+        ),
     )
 
     audit = audit_execution_levels(
@@ -156,18 +151,15 @@ def test_execution_level_audit_fails_closed_for_wrong_side_levels() -> None:
 
 
 def test_execution_level_audit_fails_closed_for_missing_requested_levels() -> None:
-    spec = build_frozen_parent(
-        start_date=date(2016, 1, 1),
-        end_date=date(2026, 7, 28),
-    )
-    spec = spec.__class__(
-        **{
-            **spec.__dict__,
-            "stop_policy": StopPolicy(rules=(StopRule("ATR", Decimal("2")),)),
-            "target_policy": TargetPolicy(
-                rules=(TargetRule("R_MULTIPLE", Decimal("3")),)
-            ),
-        }
+    spec = replace(
+        build_frozen_parent(
+            start_date=date(2016, 1, 1),
+            end_date=date(2026, 7, 28),
+        ),
+        stop_policy=StopPolicy(rules=(StopRule("ATR", Decimal("2")),)),
+        target_policy=TargetPolicy(
+            rules=(TargetRule("R_MULTIPLE", Decimal("3")),)
+        ),
     )
 
     audit = audit_execution_levels(
