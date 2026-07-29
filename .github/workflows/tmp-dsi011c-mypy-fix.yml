@@ -1,0 +1,60 @@
+name: Temporary DSI-011C MyPy Fix
+
+on:
+  push:
+    branches:
+      - feature/dsi-011c-20dma-reclaim-portfolio
+  pull_request:
+    branches:
+      - feature/dsi-011b-stop-target-matrix
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-011c-20dma-reclaim-portfolio
+          fetch-depth: 0
+      - name: Apply typed JSON and Decimal boundaries
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('alpha/research/reclaim_portfolio_challenger.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              '        return _jsonable(asdict(self))\n',
+              '        return cast(dict[str, object], _jsonable(asdict(self)))\n',
+          )
+          text = text.replace(
+              '        payload = _jsonable(asdict(self))\n',
+              '        payload = cast(dict[str, object], _jsonable(asdict(self)))\n',
+          )
+          text = text.replace(
+              '        market_value = sum(\n'
+              '            latest_close.get(key, item.entry_price) * Decimal(item.remaining_quantity)\n'
+              '            for key, item in positions.items()\n'
+              '        )\n',
+              '        market_value = sum(\n'
+              '            (\n'
+              '                latest_close.get(key, item.entry_price)\n'
+              '                * Decimal(item.remaining_quantity)\n'
+              '                for key, item in positions.items()\n'
+              '            ),\n'
+              '            _ZERO,\n'
+              '        )\n',
+          )
+          path.write_text(text, encoding='utf-8')
+          PY
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add alpha/research/reclaim_portfolio_challenger.py
+          git commit -m 'fix(dsi-011c): type JSON and Decimal boundaries'
+          git push origin HEAD:feature/dsi-011c-20dma-reclaim-portfolio
