@@ -241,6 +241,7 @@ jobs:
               --output "$out/b1d2"
             poetry run python -m alpha historical-truth bridge-aware-admission-reconcile \
               --database work/alpha_data/warehouse/historical_truth.duckdb \
+              --root work/alpha_data \
               --htr010a3-output artifacts/htr010a3_tier_a_foundation_readiness \
               --htr010b-output "$out/htr010b" \
               --htr009a2-output signed/htr009a2_event_sourced_universe \
