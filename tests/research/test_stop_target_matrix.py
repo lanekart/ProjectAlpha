@@ -89,7 +89,10 @@ def test_frozen_parent_matches_dsi011a_filtered_entry_population() -> None:
     )
 
     assert parent.strategy_mode is StrategyMode.HYBRID
-    assert parent.alpha_signal_source is AlphaSignalSource.RETROSPECTIVE_FROZEN_ALPHA_REPLAY
+    assert (
+        parent.alpha_signal_source
+        is AlphaSignalSource.RETROSPECTIVE_FROZEN_ALPHA_REPLAY
+    )
     assert parent.base_signal_source == ("BUY", "STRONG_BUY")
     assert tuple(item.condition_id for item in parent.entry_conditions.conditions) == (
         "RSI_14_ABOVE_50",
