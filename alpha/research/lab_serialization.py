@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import Any, cast
 
 from alpha.research.lab_models import (
+    AlphaSignalSource,
     ComparisonOperator,
     Condition,
     ConditionGroup,
@@ -36,6 +37,14 @@ def specification_from_dict(payload: dict[str, Any]) -> ResearchExperimentSpec:
         universe_definition=str(payload["universe_definition"]),
         base_signal_source=tuple(
             str(item) for item in cast(list[object], payload["base_signal_source"])
+        ),
+        alpha_signal_source=AlphaSignalSource(
+            str(
+                payload.get(
+                    "alpha_signal_source",
+                    AlphaSignalSource.RETROSPECTIVE_FROZEN_ALPHA_REPLAY.value,
+                )
+            )
         ),
         entry_conditions=_group(cast(dict[str, Any], payload["entry_conditions"])),
         entry_rule=_entry(cast(dict[str, Any], payload["entry_rule"])),

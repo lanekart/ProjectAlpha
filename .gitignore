@@ -46,6 +46,11 @@ node_modules/
 # Generated reports and exports
 reports/
 exports/
+.alpha/research/
+artifacts/dsi011_acceptance/**/runs/
+artifacts/dsi011_acceptance/**/sessions/
+artifacts/dsi011_acceptance/**/registry.jsonl
+artifacts/dsi011a_post2016_execution/
 artifacts/htr007_*/
 artifacts/htr007a_*/
 artifacts/htr007b_*/

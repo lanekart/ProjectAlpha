@@ -13,6 +13,7 @@ from alpha.research.lab_compiler import NaturalLanguageResearchCompiler
 from alpha.research.lab_data_contract import ResearchDataContract
 from alpha.research.lab_features import ResearchFeatureEngine
 from alpha.research.lab_models import (
+    AlphaSignalSource,
     ComparisonOperator,
     Condition,
     ConditionGroup,
@@ -136,6 +137,39 @@ def test_pre2016_request_is_rejected() -> None:
     assert "precedes certified boundary" in result.issues[0].message
 
 
+@pytest.mark.parametrize(
+    ("prompt", "source"),
+    (
+        (
+            "Use only Alpha recommendations actually recorded historically.",
+            AlphaSignalSource.RECORDED_HISTORICAL_ALPHA_SIGNAL,
+        ),
+        (
+            "Backtest the retrospective frozen Alpha model.",
+            AlphaSignalSource.RETROSPECTIVE_FROZEN_ALPHA_REPLAY,
+        ),
+        (
+            "Backtest Alpha using walk-forward recalibration.",
+            AlphaSignalSource.WALK_FORWARD_ALPHA_REPLAY,
+        ),
+    ),
+)
+def test_compiler_preserves_explicit_alpha_signal_source(
+    prompt: str,
+    source: AlphaSignalSource,
+) -> None:
+    result = _compiler().compile(
+        prompt,
+        experiment_id="ARL-000001",
+        session_id="ARS-000001",
+        certified_start=_START,
+        certified_end=_END,
+    )
+
+    assert result.specification is not None
+    assert result.specification.alpha_signal_source is source
+
+
 def test_unimplemented_registered_indicator_fails_closed() -> None:
     result = _compiler().compile(
         "Backtest a MACD bullish crossover.",
@@ -250,6 +284,74 @@ def test_feature_signal_is_close_derived_and_entry_occurs_next_session() -> None
     assert result.trades[0].entry_date == date(2020, 1, 3)
 
 
+def test_rsi_respects_registered_warmup_period() -> None:
+    frame = pd.DataFrame(
+        {
+            "trading_date": pd.date_range("2020-01-01", periods=16),
+            "security_id": ["INE0001"] * 16,
+            "symbol": ["TEST"] * 16,
+            "open": range(100, 116),
+            "high": range(101, 117),
+            "low": range(99, 115),
+            "close": range(100, 116),
+            "volume": [1000] * 16,
+        }
+    )
+    spec = _spec(
+        entry_conditions=ConditionGroup(
+            conditions=(
+                Condition(
+                    condition_id="RSI_14_ABOVE_50",
+                    kind=RuleKind.INDICATOR,
+                    name="RSI",
+                    operator=ComparisonOperator.ABOVE,
+                    value=Decimal("50"),
+                    period=14,
+                ),
+            )
+        )
+    )
+
+    featured = ResearchFeatureEngine().build(frame, spec)
+
+    assert not featured.iloc[:14]["research_signal"].any()
+    assert featured.iloc[14:]["research_signal"].all()
+
+
+@pytest.mark.parametrize(
+    "stop_rule",
+    (
+        StopRule("ATR", Decimal("2"), atr_period=14),
+        StopRule("STOP-STRUCTURAL-10D"),
+    ),
+)
+def test_stop_rules_materialize_required_execution_features(
+    stop_rule: StopRule,
+) -> None:
+    frame = pd.DataFrame(
+        {
+            "trading_date": pd.date_range("2020-01-01", periods=18),
+            "security_id": ["INE0001"] * 18,
+            "symbol": ["TEST"] * 18,
+            "open": range(100, 118),
+            "high": range(101, 119),
+            "low": range(99, 117),
+            "close": range(100, 118),
+            "volume": [1000] * 18,
+        }
+    )
+    spec = _spec(
+        stop_policy=StopPolicy(rules=(stop_rule,)),
+        maximum_holding_sessions=2,
+    )
+
+    featured = ResearchFeatureEngine().build(frame, spec)
+    result = CanonicalResearchBacktestRunner().run(featured, spec)
+
+    assert result.trades
+    assert any(item.stop_price is not None for item in result.trades)
+
+
 def test_same_session_stop_target_ambiguity_uses_stop_first() -> None:
     frame = _price_frame()
     spec = _spec(
@@ -265,6 +367,11 @@ def test_same_session_stop_target_ambiguity_uses_stop_first() -> None:
     assert result.ambiguous_sessions >= 1
     assert result.trades[0].exit_reason == "INTRADAY_PATH_AMBIGUOUS_STOP_FIRST"
     assert result.trades[0].exit_price == Decimal("95.00")
+    summary = result.summary()
+    assert summary["gross_cagr_percent"] is not None
+    assert summary["maximum_drawdown_duration_sessions"] >= 0
+    assert summary["average_exposure_percent"] is not None
+    assert summary["turnover_percent"] is not None
 
 
 def test_partial_target_leaves_runner_for_trailing_exit() -> None:
@@ -292,6 +399,26 @@ def test_partial_target_leaves_runner_for_trailing_exit() -> None:
     assert len(result.trades) == 2
     assert result.trades[0].quantity > 0
     assert result.trades[-1].exit_reason == "FORCED_BOUNDARY_EXIT"
+
+
+def test_trail_the_balance_is_not_active_before_partial_target() -> None:
+    compiled = _compiler().compile(
+        "Backtest Alpha BUY recommendations. Use an 8% stop. "
+        "Take half at 2R and trail the balance with a 10% trailing stop.",
+        experiment_id="ARL-000001",
+        session_id="ARS-000001",
+        certified_start=_START,
+        certified_end=_END,
+    )
+
+    assert compiled.specification is not None
+    assert [item.rule_id for item in compiled.specification.stop_policy.rules] == [
+        "FIXED_PERCENT"
+    ]
+    assert compiled.specification.target_policy.rules[0].exit_percent == Decimal("50")
+    assert compiled.specification.target_policy.trailing_rule == StopRule(
+        "TRAILING_PERCENT", Decimal("10")
+    )
 
 
 def test_store_never_overwrites_an_existing_experiment(tmp_path: Path) -> None:

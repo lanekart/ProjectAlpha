@@ -1,6 +1,0 @@
-{
-  "intent": "CREATE",
-  "issues": [],
-  "normalized_request": "backtest alpha buy and strong buy recommendations from 2016 to the latest certified session. enter at the next valid session open. hold for 20 sessions. use equal weights. allow a maximum of 10 positions. use \u20b91 crore initial capital. ignore transaction costs.",
-  "status": "COMPILED"
-}

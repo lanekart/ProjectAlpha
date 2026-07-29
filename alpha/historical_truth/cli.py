@@ -42,6 +42,7 @@ from alpha.historical_truth.population import HistoricalPopulationEngine
 from alpha.historical_truth.replay_eligibility_integrity_cli import (
     replay_eligibility_integrity_audit,
 )
+from alpha.historical_truth.research_price_cli import research_price_certify
 from alpha.historical_truth.resumable import HistoricalTruthWarehouse
 from alpha.historical_truth.security_population_repair_cli import (
     security_population_repair,
@@ -82,6 +83,7 @@ historical_truth_app.command("legacy-rights-reference-bridge-certify")(
 historical_truth_app.command("bridge-aware-continuity-certify")(
     bridge_aware_continuity_certify
 )
+historical_truth_app.command("research-price-certify")(research_price_certify)
 
 
 def _parse_date(value: str, option_name: str) -> date:

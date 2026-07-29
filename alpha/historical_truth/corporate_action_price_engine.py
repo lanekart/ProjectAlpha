@@ -56,6 +56,10 @@ from alpha.historical_truth.corporate_action_price_sources import (
     default_corporate_action_sources,
     reject_conflicting_actions,
 )
+from alpha.historical_truth.official_corporate_action_supplements import (
+    apply_official_corporate_action_supplements,
+    official_corporate_action_supplements,
+)
 
 CALCULATION_VERSION = "htr009b-adjustment-v1"
 MATERIAL_ACTIONS = frozenset(
@@ -103,7 +107,16 @@ class AdjustmentFactorEngine:
         state = action.adjustment_factor_state
         explanation = "Official action does not require price-only adjustment."
         quantity_factor: float | None = None
-        if action.action_type in {
+        if state is AdjustmentFactorState.NOT_REQUIRED and not (
+            action.action_type is CorporateActionType.CAPITAL_REDUCTION
+            and price_factor is not None
+        ):
+            price_factor = None
+            explanation = (
+                "Official event is governed as a non-multiplicative equity-price "
+                "transition."
+            )
+        elif action.action_type in {
             CorporateActionType.SPLIT,
             CorporateActionType.FACE_VALUE_CHANGE,
         }:
@@ -145,10 +158,19 @@ class AdjustmentFactorEngine:
                     "Official capital-reduction terms determine the price factor "
                     "and share-count quantity factor."
                 )
+            else:
+                state = AdjustmentFactorState.NOT_REQUIRED
+                explanation = (
+                    "Capital reduction is retained as a governed "
+                    "non-multiplicative transition."
+                )
         elif action.action_type in TRANSITION_ACTIONS:
             price_factor = None
-            state = AdjustmentFactorState.UNKNOWN
-            explanation = "Reorganisation terms do not support a simple factor."
+            quantity_factor = None
+            state = AdjustmentFactorState.NOT_REQUIRED
+            explanation = (
+                "Reorganisation is a governed non-multiplicative identity transition."
+            )
         elif action.action_type is CorporateActionType.DIVIDEND:
             price_factor = None
             quantity_factor = None
@@ -270,6 +292,11 @@ class CorporateActionPriceCertificationEngine:
             if start_date <= action.ex_date <= source_end
         )
         actions, conflict_rejections = reject_conflicting_actions(actions)
+        verified_supplements, _ = official_corporate_action_supplements(self.root)
+        actions, _, _ = apply_official_corporate_action_supplements(
+            actions,
+            verified_supplements,
+        )
         rejected = tuple(
             sorted(
                 (
@@ -555,23 +582,93 @@ class CorporateActionPriceCertificationEngine:
         return tuple(results)
 
     def _prior_close(self, action: CorporateActionEvent) -> float | None:
+        if not action.isin:
+            return None
         with duckdb.connect(str(self.database_path), read_only=True) as connection:
-            row = connection.execute(
+            rows = connection.execute(
                 """
-                SELECT close_price FROM daily_candle
-                WHERE trading_date < ? AND UPPER(symbol) = ? AND UPPER(series) = ?
-                  AND (? IS NULL OR UPPER(isin) = ?)
-                ORDER BY trading_date DESC LIMIT 1
+                WITH latest AS (
+                    SELECT MAX(trading_date) AS trading_date
+                    FROM daily_candle
+                    WHERE trading_date < ?
+                      AND UPPER(TRIM(isin)) = UPPER(TRIM(?))
+                )
+                SELECT c.close_price
+                FROM daily_candle c
+                JOIN latest l USING (trading_date)
+                WHERE UPPER(TRIM(c.isin)) = UPPER(TRIM(?))
+                  AND c.close_price > 0
+                ORDER BY c.exchange, c.symbol, c.series, c.source_sha256
+                """,
+                [
+                    action.ex_date,
+                    action.isin,
+                    action.isin,
+                ],
+            ).fetchall()
+            if len(rows) == 1:
+                return float(rows[0][0])
+            security_events_available = connection.execute(
+                """
+                SELECT COUNT(*) FROM information_schema.tables
+                WHERE table_schema = 'main' AND table_name = 'security_event'
+                """
+            ).fetchone()
+            if not security_events_available or not security_events_available[0]:
+                return None
+            rows = connection.execute(
+                """
+                WITH candidate_date AS (
+                    SELECT MAX(trading_date) AS trading_date
+                    FROM daily_candle
+                    WHERE trading_date < ?
+                      AND UPPER(TRIM(symbol)) = UPPER(TRIM(?))
+                      AND UPPER(TRIM(series)) = UPPER(TRIM(?))
+                ),
+                candidate AS (
+                    SELECT c.trading_date, c.isin, c.close_price, c.source_sha256
+                    FROM daily_candle c
+                    JOIN candidate_date d USING (trading_date)
+                    WHERE UPPER(TRIM(c.symbol)) = UPPER(TRIM(?))
+                      AND UPPER(TRIM(c.series)) = UPPER(TRIM(?))
+                      AND c.isin IS NOT NULL AND TRIM(c.isin) <> ''
+                      AND c.close_price > 0
+                      AND c.source_sha256 IS NOT NULL
+                      AND TRIM(c.source_sha256) <> ''
+                ),
+                governed AS (
+                    SELECT c.close_price, c.isin
+                    FROM candidate c
+                    WHERE EXISTS (
+                        SELECT 1
+                        FROM security_event e
+                        WHERE e.admission_state = 'ADMITTED'
+                          AND e.confidence_state = 'HIGH'
+                          AND e.effective_date <= c.trading_date
+                          AND UPPER(TRIM(e.new_symbol)) = UPPER(TRIM(?))
+                          AND UPPER(TRIM(e.new_series)) = UPPER(TRIM(?))
+                          AND UPPER(TRIM(e.new_isin)) = UPPER(TRIM(c.isin))
+                    )
+                )
+                SELECT close_price
+                FROM governed
+                WHERE (
+                    SELECT COUNT(DISTINCT UPPER(TRIM(isin))) FROM governed
+                ) = 1
                 """,
                 [
                     action.ex_date,
                     action.symbol,
                     action.series,
-                    action.isin,
-                    action.isin,
+                    action.symbol,
+                    action.series,
+                    action.symbol,
+                    action.series,
                 ],
-            ).fetchone()
-        return float(row[0]) if row else None
+            ).fetchall()
+        if len(rows) != 1:
+            return None
+        return float(rows[0][0])
 
     def _factors(
         self,

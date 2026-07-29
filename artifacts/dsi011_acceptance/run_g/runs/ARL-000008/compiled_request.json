@@ -1,6 +1,0 @@
-{
-  "intent": "CREATE",
-  "issues": [],
-  "normalized_request": "take buy and strong buy recommendations only when price is above the 200-dma, rsi is above 50, volume is at least 1.5 times its 20-session average, and the candle closes in the top 20% of its range. enter next session open. use an 8% stop. take half at 2r. trail the balance with a 10% trailing stop. exit any remaining position after 40 sessions. maximum 10 positions. equal weight. no transaction costs.",
-  "status": "COMPILED"
-}

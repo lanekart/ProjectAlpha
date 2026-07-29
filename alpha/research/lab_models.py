@@ -20,6 +20,12 @@ class StrategyMode(StrEnum):
     HYBRID = "HYBRID"
 
 
+class AlphaSignalSource(StrEnum):
+    RECORDED_HISTORICAL_ALPHA_SIGNAL = "RECORDED_HISTORICAL_ALPHA_SIGNAL"
+    RETROSPECTIVE_FROZEN_ALPHA_REPLAY = "RETROSPECTIVE_FROZEN_ALPHA_REPLAY"
+    WALK_FORWARD_ALPHA_REPLAY = "WALK_FORWARD_ALPHA_REPLAY"
+
+
 class LogicOperator(StrEnum):
     ALL = "ALL"
     ANY = "ANY"
@@ -207,6 +213,9 @@ class ResearchExperimentSpec:
     same_session_policy: SameSessionPolicy = SameSessionPolicy.ASSUME_STOP_FIRST
     parameter_sweeps: tuple[ParameterSweep, ...] = ()
     output_requirements: tuple[str, ...] = ("STANDARD",)
+    alpha_signal_source: AlphaSignalSource = (
+        AlphaSignalSource.RETROSPECTIVE_FROZEN_ALPHA_REPLAY
+    )
     compiler_version: str = LAB_VERSION
     production_influence: bool = PRODUCTION_INFLUENCE
 
@@ -323,6 +332,7 @@ def _jsonable(value: Any) -> Any:
 __all__ = [
     "LAB_VERSION",
     "PRODUCTION_INFLUENCE",
+    "AlphaSignalSource",
     "CompilationIssue",
     "CompilationResult",
     "ComparisonOperator",

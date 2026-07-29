@@ -8,6 +8,7 @@ from datetime import date
 from decimal import Decimal
 
 from alpha.research.lab_models import (
+    AlphaSignalSource,
     ComparisonOperator,
     CompilationIssue,
     CompilationResult,
@@ -32,8 +33,13 @@ _SPACE = re.compile(r"\s+")
 _RSI = re.compile(
     r"rsi(?:\s+over)?\s*(\d+)?(?:\s*sessions?)?\s+(above|below)\s+(\d+(?:\.\d+)?)"
 )
+_RSI_CROSS = re.compile(
+    r"rsi(?:\((\d+)\)|(?:\s+over)?\s*(\d+)?(?:\s*sessions?)?)"
+    r"\s+cross(?:es)?\s+(above|below)\s+(\d+(?:\.\d+)?)"
+)
 _MA = re.compile(
-    r"(?:price|close)\s+(above|below)\s+(?:its\s+|the\s+)?(\d+)[-\s]?(?:dma|sma|ema)"
+    r"(?:price|close)\s+(?:is\s+)?(above|below)\s+"
+    r"(?:its\s+|the\s+)?(\d+)[-\s]?(?:dma|sma|ema)"
 )
 _VOLUME = re.compile(
     r"volume\s+(?:is\s+)?(?:at least|above|more than)\s+"
@@ -226,17 +232,26 @@ def _apply_mode(
         item in request
         for item in ("rsi", "dma", "sma", "ema", "volume", "adx", "macd")
     )
+    signal_source = spec.alpha_signal_source
+    if "actually recorded" in request or "recorded historically" in request:
+        signal_source = AlphaSignalSource.RECORDED_HISTORICAL_ALPHA_SIGNAL
+    elif "walk-forward" in request or "walk forward" in request:
+        signal_source = AlphaSignalSource.WALK_FORWARD_ALPHA_REPLAY
+    elif "retrospective" in request or "frozen current alpha" in request:
+        signal_source = AlphaSignalSource.RETROSPECTIVE_FROZEN_ALPHA_REPLAY
     if has_alpha and has_technical:
         return replace(
             spec,
             strategy_mode=StrategyMode.HYBRID,
             base_signal_source=("BUY", "STRONG_BUY"),
+            alpha_signal_source=signal_source,
         )
     if has_alpha:
         return replace(
             spec,
             strategy_mode=StrategyMode.ALPHA_SIGNAL,
             base_signal_source=("BUY", "STRONG_BUY"),
+            alpha_signal_source=signal_source,
         )
     if spec.base_signal_source and has_technical:
         return replace(spec, strategy_mode=StrategyMode.HYBRID)
@@ -295,8 +310,28 @@ def _apply_conditions(
     request: str,
 ) -> ResearchExperimentSpec:
     conditions = list(spec.entry_conditions.conditions)
-    rsi = _RSI.search(request)
-    if rsi:
+    rsi_cross = _RSI_CROSS.search(request)
+    rsi = _RSI.search(request) if rsi_cross is None else None
+    if rsi_cross:
+        period = int(rsi_cross.group(1) or rsi_cross.group(2) or 14)
+        operator = (
+            ComparisonOperator.CROSSES_ABOVE
+            if rsi_cross.group(3) == "above"
+            else ComparisonOperator.CROSSES_BELOW
+        )
+        value = rsi_cross.group(4)
+        conditions = [item for item in conditions if item.name != "RSI"]
+        conditions.append(
+            Condition(
+                condition_id=f"RSI_{period}_{operator.value}_{value}",
+                kind=RuleKind.INDICATOR,
+                name="RSI",
+                operator=operator,
+                value=Decimal(value),
+                period=period,
+            )
+        )
+    elif rsi:
         period = int(rsi.group(1) or 14)
         operator = (
             ComparisonOperator.ABOVE
@@ -462,7 +497,9 @@ def _apply_stops(
         r"(\d+(?:\.\d+)?)%)?",
         request,
     )
-    if trailing:
+    if trailing and not any(
+        phrase in request for phrase in ("trail the balance", "trail the rest")
+    ):
         rules = tuple(item for item in stop.rules if item.rule_id != "TRAILING_PERCENT")
         stop = StopPolicy(
             rules=(

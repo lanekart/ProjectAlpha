@@ -28,11 +28,17 @@ class ExperimentRegistryEntry:
 
 
 class ResearchLabStore:
-    def __init__(self, root: Path = Path(".alpha/research")) -> None:
+    def __init__(
+        self,
+        root: Path = Path(".alpha/research"),
+        *,
+        governed_created_at: str | None = None,
+    ) -> None:
         self.root = root
         self.sessions_root = root / "sessions"
         self.runs_root = root / "runs"
         self.registry_path = root / "registry.jsonl"
+        self.governed_created_at = governed_created_at
 
     def allocate_experiment_id(self) -> str:
         largest = max(
@@ -96,7 +102,10 @@ class ResearchLabStore:
                 else result.specification.specification_sha256
             ),
             user_command=user_command,
-            created_at=datetime.now(UTC).replace(microsecond=0).isoformat(),
+            created_at=(
+                self.governed_created_at
+                or datetime.now(UTC).replace(microsecond=0).isoformat()
+            ),
         )
         self.root.mkdir(parents=True, exist_ok=True)
         with self.registry_path.open("a", encoding="utf-8") as handle:

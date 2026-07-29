@@ -1,6 +1,0 @@
-{
-  "intent": "MODIFY",
-  "issues": [],
-  "normalized_request": "add price above the 200-dma, rsi above 50 and volume at least 1.5 times its 20-session average. keep every other setting unchanged.",
-  "status": "COMPILED"
-}

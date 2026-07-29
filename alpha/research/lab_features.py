@@ -46,6 +46,7 @@ class ResearchFeatureEngine:
         result = frame.copy()
         result["trading_date"] = pd.to_datetime(result["trading_date"])
         result = result.sort_values([_IDENTITY, "trading_date"], kind="stable")
+        result = self._add_execution_features(result, spec)
         for condition in _conditions(spec.entry_conditions):
             result = self._add_condition(result, condition)
         result["entry_condition"] = _evaluate_group(result, spec.entry_conditions)
@@ -58,6 +59,38 @@ class ResearchFeatureEngine:
             signal &= result["final_signal"].isin(spec.base_signal_source)
         result["research_signal"] = signal.astype(bool)
         return result.sort_values(["trading_date", _IDENTITY], kind="stable")
+
+    def _add_execution_features(
+        self,
+        frame: pd.DataFrame,
+        spec: ResearchExperimentSpec,
+    ) -> pd.DataFrame:
+        result = frame
+        atr_periods = {
+            rule.atr_period or 14
+            for rule in spec.stop_policy.rules
+            if rule.rule_id == "ATR"
+        }
+        atr_periods.update(
+            14 for rule in spec.target_policy.rules if rule.rule_id == "ATR_MULTIPLE"
+        )
+        if atr_periods:
+            if len(atr_periods) != 1:
+                raise ValueError("execution rules require one governed ATR period")
+            period = next(iter(atr_periods))
+            result["atr"] = _by_identity(
+                result,
+                lambda values: _atr(values, period),
+            )
+        if any(
+            rule.rule_id in {"SWING_LOW", "STOP-STRUCTURAL-10D"}
+            for rule in spec.stop_policy.rules
+        ):
+            result["swing_low"] = result.groupby(
+                _IDENTITY,
+                sort=False,
+            )["low"].transform(lambda values: values.rolling(10, min_periods=10).min())
+        return result
 
     def _add_condition(
         self,
@@ -149,9 +182,11 @@ def _evaluate_condition(
     if operator in {ComparisonOperator.BELOW, ComparisonOperator.AT_MOST}:
         return left <= comparison_target
     if operator is ComparisonOperator.CROSSES_ABOVE:
-        return (left > comparison_target) & (left.shift(1) <= comparison_target)
+        prior = left.groupby(frame[_IDENTITY], sort=False).shift(1)
+        return (left > comparison_target) & (prior <= comparison_target)
     if operator is ComparisonOperator.CROSSES_BELOW:
-        return (left < comparison_target) & (left.shift(1) >= comparison_target)
+        prior = left.groupby(frame[_IDENTITY], sort=False).shift(1)
+        return (left < comparison_target) & (prior >= comparison_target)
     return left.fillna(False).astype(bool)
 
 
@@ -167,8 +202,16 @@ def _column_name(condition: Condition) -> str:
 
 def _rsi(values: pd.Series, period: int) -> pd.Series:
     delta = values.diff()
-    gain = delta.clip(lower=0).ewm(alpha=1 / period, adjust=False).mean()
-    loss = -delta.clip(upper=0).ewm(alpha=1 / period, adjust=False).mean()
+    gain = (
+        delta.clip(lower=0)
+        .ewm(alpha=1 / period, adjust=False, min_periods=period)
+        .mean()
+    )
+    loss = (
+        -delta.clip(upper=0)
+        .ewm(alpha=1 / period, adjust=False, min_periods=period)
+        .mean()
+    )
     strength = gain / loss.replace(0, np.nan)
     result = 100 - 100 / (1 + strength)
     return result.where(loss.ne(0), 100.0)
@@ -187,7 +230,11 @@ def _true_range(values: pd.DataFrame) -> pd.Series:
 
 
 def _atr(values: pd.DataFrame, period: int) -> pd.Series:
-    return _true_range(values).ewm(alpha=1 / period, adjust=False).mean()
+    return (
+        _true_range(values)
+        .ewm(alpha=1 / period, adjust=False, min_periods=period)
+        .mean()
+    )
 
 
 def _adx(values: pd.DataFrame, period: int) -> pd.Series:
@@ -196,10 +243,30 @@ def _adx(values: pd.DataFrame, period: int) -> pd.Series:
     plus_dm = high_change.where((high_change > low_change) & (high_change > 0), 0.0)
     minus_dm = low_change.where((low_change > high_change) & (low_change > 0), 0.0)
     atr = _atr(values, period).replace(0, np.nan)
-    plus_di = 100 * plus_dm.ewm(alpha=1 / period, adjust=False).mean() / atr
-    minus_di = 100 * minus_dm.ewm(alpha=1 / period, adjust=False).mean() / atr
+    plus_di = (
+        100
+        * plus_dm.ewm(
+            alpha=1 / period,
+            adjust=False,
+            min_periods=period,
+        ).mean()
+        / atr
+    )
+    minus_di = (
+        100
+        * minus_dm.ewm(
+            alpha=1 / period,
+            adjust=False,
+            min_periods=period,
+        ).mean()
+        / atr
+    )
     dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
-    return dx.ewm(alpha=1 / period, adjust=False).mean()
+    return dx.ewm(
+        alpha=1 / period,
+        adjust=False,
+        min_periods=period,
+    ).mean()
 
 
 def _candle(frame: pd.DataFrame, name: str) -> pd.Series:
