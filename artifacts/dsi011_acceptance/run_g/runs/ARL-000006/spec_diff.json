@@ -1,0 +1,9 @@
+{
+  "changes": [
+    {
+      "after": "[{'field': 'TARGET_POLICY', 'values': ['FIXED_PERCENT:10', 'FIXED_PERCENT:20', 'R_MULTIPLE:2', 'R_MULTIPLE:3', 'NONE']}]",
+      "before": "[]",
+      "field": "parameter_sweeps"
+    }
+  ]
+}

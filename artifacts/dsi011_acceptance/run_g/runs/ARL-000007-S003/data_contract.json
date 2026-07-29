@@ -1,0 +1,33 @@
+{
+  "actual_end": "2025-12-24",
+  "actual_start": "2016-01-01",
+  "adjusted_security_session_rows": 512761,
+  "alpha_signal_ready": false,
+  "alpha_signal_records": 0,
+  "blockers": [
+    "EXPECTED_TRADING_SESSIONS_DO_NOT_EQUAL_ADJUSTED_SESSIONS:2606!=2469",
+    "UNRESOLVED_SECURITY_IDENTITIES:115",
+    "UNRESOLVED_CORPORATE_ACTION_FACTORS:379",
+    "MIXED_PRICE_BASIS_INTERVALS:297",
+    "INVALID_ADJUSTED_OHLC_ROWS:7",
+    "MISSING_ADJUSTED_SECURITY_SESSION_ROWS:5336154"
+  ],
+  "certified_securities": 487,
+  "contract_version": "DSI-011-data-contract-v1.0.0",
+  "database_sha256": "09f6c1f8873609236096810db6699b1fa0bbdb2bd4cab70cc06c0ccee0651735",
+  "duplicate_security_session_rows": 0,
+  "expected_trading_sessions": 2606,
+  "free_official_data_only": true,
+  "invalid_adjusted_ohlc_rows": 7,
+  "missing_adjusted_rows": 5336154,
+  "mixed_price_basis_intervals": 297,
+  "observed_trading_sessions": 2469,
+  "pre2016_data_used": false,
+  "production_influence": false,
+  "raw_security_session_rows": 5848915,
+  "ready": false,
+  "requested_start": "2016-01-01",
+  "unresolved_corporate_action_factors": 379,
+  "unresolved_security_identities": 115,
+  "unresolved_series_intervals": 0
+}
