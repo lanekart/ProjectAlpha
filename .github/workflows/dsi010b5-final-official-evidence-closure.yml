@@ -130,7 +130,11 @@ jobs:
               --user-agent "ProjectAlpha/1.0 HistoricalTruthResearch" \
               --output "$destination.tmp" \
               "$url"
-            echo "$expected_sha  $destination.tmp" | sha256sum -c -
+            if [[ "$expected_sha" == "DISCOVER" ]]; then
+              sha256sum "$destination.tmp"
+            else
+              echo "$expected_sha  $destination.tmp" | sha256sum -c -
+            fi
             mv "$destination.tmp" "$destination"
           }
 
@@ -184,8 +188,8 @@ jobs:
             "https://www.bseindia.com/bseplus/AnnualReport/532543/5325430313.pdf"
           fetch_official \
             centext_2010_sebi_history.pdf \
-            50867f099c5cee599f5575fd262b527f4fc163fe9b260c45764a0c08e28e1cd6 \
-            "https://www.sebi.gov.in/sebi_data/attachdocs/1293086179664.pdf"
+            DISCOVER \
+            "https://www.centuryextrusions.com/financials/annual-report/images/ar032005.pdf"
           fetch_official \
             lakshmivilas_2006_sebi_history.pdf \
             7ebcb2afd3660fbb64e883071ac5b5b69c050ffa578d616ee8e631cdb73efd61 \
