@@ -1,0 +1,17 @@
+{
+  "artifact_hashes": {
+    "compiled_request.json": "098e446640e8761501b906febcbca5b798867459f5ea13fde3dc6eb7c0eacd96",
+    "data_contract.json": "2cde2d4574382a0b78388d5fa4292d6afa340aab1dc883e1dd86d878700888a2",
+    "spec.json": "139cf3eabd507ba5534bc5bd901afbad964237de91714bcc45d149eb18251735",
+    "spec_diff.json": "7104436211d3e256d0fd8216269af13723b1a2c1314bb924f069ae7f84c61f0d",
+    "summary.json": "7dfdd3a6113d144b27ea90fa7262309cd07ed7ec44d8e7a87daa029af497d32c",
+    "summary.md": "ded4cdae887b5995f4305be081c64955781368d68aa7a8e373fbb4a739a60403"
+  },
+  "automatic_strategy_promotion": false,
+  "data_contract_sha256": "e41693e8abc27ad65c69507e782f14610f0a184a4eb57fb68e9b839b256c0370",
+  "experiment_id": "ARL-000005-S004",
+  "production_influence": false,
+  "ready": false,
+  "source_commit": "7f2941ecb3190f15f0062d3e3a1ca13b211ab6b9",
+  "specification_sha256": "7ba8324a63c0376ec26da381f661b80dce1e3b8c74ffa86db7a4b05fc39e2e80"
+}

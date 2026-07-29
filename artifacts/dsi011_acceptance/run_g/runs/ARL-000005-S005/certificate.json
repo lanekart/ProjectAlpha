@@ -1,0 +1,17 @@
+{
+  "artifact_hashes": {
+    "compiled_request.json": "098e446640e8761501b906febcbca5b798867459f5ea13fde3dc6eb7c0eacd96",
+    "data_contract.json": "2cde2d4574382a0b78388d5fa4292d6afa340aab1dc883e1dd86d878700888a2",
+    "spec.json": "bf16f8e8604e736daed814d6fb04e4275247a0597378b32775156ba5be1aadef",
+    "spec_diff.json": "7104436211d3e256d0fd8216269af13723b1a2c1314bb924f069ae7f84c61f0d",
+    "summary.json": "00fa2e6b3498aaa14cca837789d485eb8d6b12f759786a0f09c71a510370767e",
+    "summary.md": "ead1c47739c8c1686990420881a2738f7dfe142aea7c3643dc58128c98818658"
+  },
+  "automatic_strategy_promotion": false,
+  "data_contract_sha256": "e41693e8abc27ad65c69507e782f14610f0a184a4eb57fb68e9b839b256c0370",
+  "experiment_id": "ARL-000005-S005",
+  "production_influence": false,
+  "ready": false,
+  "source_commit": "7f2941ecb3190f15f0062d3e3a1ca13b211ab6b9",
+  "specification_sha256": "a31613057b0c934b96aa3712f6e450b21ed7d712be72d9e4e159376991a052a4"
+}
