@@ -92,7 +92,7 @@ class ChallengerConfig:
             raise ValueError("research challenger cannot influence production")
 
     def as_dict(self) -> dict[str, object]:
-        return _jsonable(asdict(self))
+        return cast(dict[str, object], _jsonable(asdict(self)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,7 +113,7 @@ class ExitLeg:
     ambiguous_session: bool
 
     def as_dict(self) -> dict[str, object]:
-        return _jsonable(asdict(self))
+        return cast(dict[str, object], _jsonable(asdict(self)))
 
 
 @dataclass(slots=True)
@@ -155,7 +155,7 @@ class CompletedTrade:
     exit_legs: tuple[ExitLeg, ...]
 
     def as_dict(self) -> dict[str, object]:
-        payload = _jsonable(asdict(self))
+        payload = cast(dict[str, object], _jsonable(asdict(self)))
         payload["exit_legs"] = [item.as_dict() for item in self.exit_legs]
         return payload
 
@@ -169,7 +169,7 @@ class RejectedEntry:
     reason: str
 
     def as_dict(self) -> dict[str, object]:
-        return _jsonable(asdict(self))
+        return cast(dict[str, object], _jsonable(asdict(self)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,7 +184,7 @@ class EquityPoint:
     hard_stop_active: bool
 
     def as_dict(self) -> dict[str, object]:
-        return _jsonable(asdict(self))
+        return cast(dict[str, object], _jsonable(asdict(self)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -718,8 +718,12 @@ def simulate_challenger(
         for row in records:
             latest_close[str(row["security_id"])] = _decimal(row["close"])
         market_value = sum(
-            latest_close.get(key, item.entry_price) * Decimal(item.remaining_quantity)
-            for key, item in positions.items()
+            (
+                latest_close.get(key, item.entry_price)
+                * Decimal(item.remaining_quantity)
+                for key, item in positions.items()
+            ),
+            _ZERO,
         )
         equity = cash + market_value
         peak_equity = max(peak_equity, equity)
