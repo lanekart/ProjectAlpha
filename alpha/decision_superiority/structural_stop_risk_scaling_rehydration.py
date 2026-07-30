@@ -6,6 +6,7 @@ import hashlib
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import date
+from numbers import Real
 from pathlib import Path
 from typing import Any, cast
 
@@ -284,9 +285,10 @@ def _portable_path(path: Path) -> str:
 
 
 def _optional_float(value: object) -> float | None:
-    if value is None or pd.isna(value):
+    if not isinstance(value, Real):
         return None
-    return float(value)
+    number = float(value)
+    return None if math.isnan(number) else number
 
 
 def _round(value: float) -> float:

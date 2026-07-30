@@ -120,11 +120,22 @@ def decision_superiority_structural_stop_risk_scaling_verify(
 
 
 def _percent(value: object) -> str:
-    return "UNKNOWN" if value is None else f"{float(value) * 100:.2f}%"
+    number = _numeric(value)
+    return "UNKNOWN" if number is None else f"{number * 100:.2f}%"
 
 
 def _number(value: object) -> str:
-    return "UNKNOWN" if value is None else f"{float(value):.2f}"
+    number = _numeric(value)
+    return "UNKNOWN" if number is None else f"{number:.2f}"
+
+
+def _numeric(value: object) -> float | None:
+    if not isinstance(value, (str, int, float)):
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
 
 
 __all__ = [
