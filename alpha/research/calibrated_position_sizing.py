@@ -21,7 +21,6 @@ from pathlib import Path
 from typing import Any, cast
 
 import duckdb
-import pandas as pd
 
 AUDIT_VERSION = "DSI-011D-CALIBRATED-SIZING-v1.0.0"
 PRODUCTION_INFLUENCE = False
@@ -247,8 +246,7 @@ class PolicyResult:
             0
             if len(self.equity_curve) < 2
             else (
-                self.equity_curve[-1].trading_date
-                - self.equity_curve[0].trading_date
+                self.equity_curve[-1].trading_date - self.equity_curve[0].trading_date
             ).days
         )
         cagr: Decimal | None = None
@@ -287,7 +285,9 @@ class PolicyResult:
                 if not self.trades
                 else str(_percent(Decimal(len(wins)) / Decimal(len(self.trades))))
             ),
-            "expectancy_percent": None if average_return is None else str(average_return),
+            "expectancy_percent": None
+            if average_return is None
+            else str(average_return),
             "expectancy_r": None if average_r is None else str(average_r),
             "profit_factor": None if loss_value == 0 else str(gains / loss_value),
             "average_exposure_percent": _average_exposure(self.equity_curve),
@@ -354,7 +354,9 @@ def calibration_estimate(
         sample = eligible
         source = "GLOBAL_FALLBACK"
     if not sample:
-        return CalibrationEstimate(0, len(bucket), None, None, None, None, None, None, source)
+        return CalibrationEstimate(
+            0, len(bucket), None, None, None, None, None, None, source
+        )
     values = tuple(item.realized_r for item in sample)
     wins = tuple(value for value in values if value > 0)
     losses = tuple(abs(value) for value in values if value < 0)
@@ -478,8 +480,10 @@ def simulate_policy(
             if position is None:
                 continue
             is_final = leg_index == len(template.exit_legs) - 1
-            quantity = position.remaining_quantity if is_final else _scaled_leg_quantity(
-                position, leg
+            quantity = (
+                position.remaining_quantity
+                if is_final
+                else _scaled_leg_quantity(position, leg)
             )
             if quantity <= 0:
                 continue
@@ -497,7 +501,9 @@ def simulate_policy(
                 }
             )
             if position.remaining_quantity == 0:
-                completed.append(_complete_position(policy, position, leg.reason, trading_date))
+                completed.append(
+                    _complete_position(policy, position, leg.reason, trading_date)
+                )
                 del positions[template.trade_id]
 
         prior_drawdown = _percent(last_equity / peak_equity - _ONE)
@@ -510,11 +516,15 @@ def simulate_policy(
             ),
         ):
             if terminated:
-                rejected.append(_rejection(policy, template, trading_date, "HARD_STOP_ACTIVE"))
+                rejected.append(
+                    _rejection(policy, template, trading_date, "HARD_STOP_ACTIVE")
+                )
                 continue
             if len(positions) >= config.maximum_positions:
                 rejected.append(
-                    _rejection(policy, template, trading_date, "MAXIMUM_POSITIONS_REACHED")
+                    _rejection(
+                        policy, template, trading_date, "MAXIMUM_POSITIONS_REACHED"
+                    )
                 )
                 continue
             opening_market = sum(
@@ -553,7 +563,11 @@ def simulate_policy(
                 )
                 effective = min(effective, available / opening_equity)
             if effective <= 0:
-                rejected.append(_rejection(policy, template, trading_date, "RISK_CAPACITY_EXHAUSTED"))
+                rejected.append(
+                    _rejection(
+                        policy, template, trading_date, "RISK_CAPACITY_EXHAUSTED"
+                    )
+                )
                 continue
             quantity = _risk_sized_quantity(
                 equity=opening_equity,
@@ -564,7 +578,9 @@ def simulate_policy(
             )
             if quantity < 1:
                 rejected.append(
-                    _rejection(policy, template, trading_date, "INSUFFICIENT_CASH_OR_RISK")
+                    _rejection(
+                        policy, template, trading_date, "INSUFFICIENT_CASH_OR_RISK"
+                    )
                 )
                 continue
             positions[template.trade_id] = OpenSizingPosition(
@@ -841,8 +857,12 @@ def load_audit_inputs(
         raise FileNotFoundError(f"Historical Truth database not found: {database}")
     if not result_path.is_file() or not trades_path.is_file():
         raise FileNotFoundError("DSI-011C challenger artifacts are incomplete")
-    baseline = cast(dict[str, object], json.loads(result_path.read_text(encoding="utf-8")))
-    raw_trades = cast(list[dict[str, Any]], json.loads(trades_path.read_text(encoding="utf-8")))
+    baseline = cast(
+        dict[str, object], json.loads(result_path.read_text(encoding="utf-8"))
+    )
+    raw_trades = cast(
+        list[dict[str, Any]], json.loads(trades_path.read_text(encoding="utf-8"))
+    )
     replay_run_id = str(baseline["retrospective_alpha_replay_run_id"])
     data_start = date.fromisoformat(str(baseline["data_start"]))
     data_end = date.fromisoformat(str(baseline["data_end"]))
@@ -1045,9 +1065,7 @@ def _risk_sized_quantity(
             rounding=ROUND_FLOOR
         )
     )
-    cash_quantity = int(
-        (cash / entry_price).to_integral_value(rounding=ROUND_FLOOR)
-    )
+    cash_quantity = int((cash / entry_price).to_integral_value(rounding=ROUND_FLOOR))
     return max(0, min(risk_quantity, cash_quantity))
 
 
@@ -1162,9 +1180,7 @@ def _average(values: tuple[Decimal, ...]) -> Decimal | None:
 
 
 def _average_exposure(curve: tuple[SizingEquityPoint, ...]) -> str | None:
-    values = tuple(
-        item.market_value / item.equity for item in curve if item.equity > 0
-    )
+    values = tuple(item.market_value / item.equity for item in curve if item.equity > 0)
     average = _average(values)
     return None if average is None else str(_percent(average))
 
@@ -1246,11 +1262,12 @@ def _write_csv(path: Path, rows: list[dict[str, object]]) -> None:
 
 def _write_markdown(path: Path, payload: dict[str, object]) -> None:
     comparison = cast(list[dict[str, object]], payload["policy_comparison"])
+    parity = cast(dict[str, object], payload["reference_parity"])
     lines = [
         "# DSI-011D Calibrated Edge and Position-Sizing Audit",
         "",
         f"- Fixed trade paths: {payload['fixed_trade_path_count']}",
-        f"- Reference parity: {cast(dict[str, object], payload['reference_parity'])['passed']}",
+        f"- Reference parity: {parity['passed']}",
         f"- Production influence: {payload['production_influence']}",
         "",
         "| Rank | Policy | CAGR % | MDD % | Profit factor | Trades | Hurdles |",
@@ -1258,7 +1275,9 @@ def _write_markdown(path: Path, payload: dict[str, object]) -> None:
     ]
     for row in comparison:
         lines.append(
-            "| {rank} | {policy} | {cagr} | {mdd} | {pf} | {trades} | {hurdles} |".format(
+            (
+                "| {rank} | {policy} | {cagr} | {mdd} | {pf} | {trades} | {hurdles} |"
+            ).format(
                 rank=row.get("descriptive_rank"),
                 policy=row.get("policy"),
                 cagr=row.get("gross_cagr_percent"),

@@ -178,11 +178,15 @@ def test_walk_forward_edge_raises_and_reduces_risk() -> None:
     )
     entry = date(2024, 3, 10)
     high_history = tuple(
-        _completed(index, realized_r=Decimal("2"), exit_date=entry - timedelta(days=index))
+        _completed(
+            index, realized_r=Decimal("2"), exit_date=entry - timedelta(days=index)
+        )
         for index in range(1, 5)
     )
     low_history = tuple(
-        _completed(index, realized_r=Decimal("-1"), exit_date=entry - timedelta(days=index))
+        _completed(
+            index, realized_r=Decimal("-1"), exit_date=entry - timedelta(days=index)
+        )
         for index in range(1, 5)
     )
     template = _template(10, entry_date=entry, score_tier="MID")
