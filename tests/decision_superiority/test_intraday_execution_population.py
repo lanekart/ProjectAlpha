@@ -85,8 +85,7 @@ def test_multiple_candidates_share_one_identity_session_request() -> None:
     assert len(result.requests) == 1
     assert result.requests[0].signal_ids == ("SIG-1", "SIG-2")
     counts = {
-        str(row["population"]): int(row["count"])
-        for row in result.reconciliation
+        str(row["population"]): int(row["count"]) for row in result.reconciliation
     }
     assert counts["all_input_rows"] == 2
     assert counts["control_mechanism_rows"] == 2
@@ -132,9 +131,7 @@ def test_missing_control_mechanism_population_fails_closed() -> None:
         IntradayExecutionError,
         match="DSI013_CONTROL_MECHANISM_POPULATION_EMPTY",
     ):
-        plan_intraday_population(
-            (_row("SIG-1", mechanism_id="ENTRY-VWAP-RECLAIM"),)
-        )
+        plan_intraday_population((_row("SIG-1", mechanism_id="ENTRY-VWAP-RECLAIM"),))
 
 
 def test_missing_required_candidate_field_fails_closed() -> None:

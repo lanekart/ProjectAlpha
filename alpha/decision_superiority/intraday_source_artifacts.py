@@ -102,9 +102,7 @@ def validate_intraday_source_certificate(
             raise IntradayExecutionError(f"DSI013_SOURCE_ARTIFACT_TAMPERED:{name}")
         content = path.read_bytes()
         if b"Bearer " in content or b"Authorization" in content:
-            raise IntradayExecutionError(
-                f"DSI013_SOURCE_CREDENTIAL_LEAK:{name}"
-            )
+            raise IntradayExecutionError(f"DSI013_SOURCE_CREDENTIAL_LEAK:{name}")
         if b"/Users/" in content:
             raise IntradayExecutionError(
                 f"DSI013_SOURCE_MACHINE_LOCAL_PATH_LEAK:{name}"
@@ -135,10 +133,7 @@ def _report(result: IntradaySourceCertificationResult) -> str:
         f"- Identity failures: {summary['identity_failure_count']}",
         f"- Source-unavailable requests: {summary['source_unavailable_count']}",
         f"- Session-integrity failures: {summary['session_failure_count']}",
-        (
-            "- Daily reconciliation failures: "
-            f"{summary['reconciliation_failure_count']}"
-        ),
+        (f"- Daily reconciliation failures: {summary['reconciliation_failure_count']}"),
         f"- Blockers: {summary['blocker_count']}",
         "",
         "## Interpretation",
@@ -214,9 +209,7 @@ def _normalise(value: Any) -> Any:
 
 def _canonical_payload_sha256(payload: Mapping[str, Any]) -> str:
     normalized = {
-        key: value
-        for key, value in payload.items()
-        if key != "report_sha256"
+        key: value for key, value in payload.items() if key != "report_sha256"
     }
     encoded = json.dumps(
         _normalise(normalized),

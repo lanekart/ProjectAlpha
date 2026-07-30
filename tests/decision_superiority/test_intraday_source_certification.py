@@ -146,15 +146,9 @@ def _evidence(
     return IntradaySourceEvidence(
         source_commit="source-commit",
         population=_population(),
-        identity_resolutions=(
-            {} if resolution is None else {IDENTITY: resolution}
-        ),
-        bars_by_request=(
-            {} if bars is None else {(IDENTITY, SESSION_DATE): bars}
-        ),
-        daily_by_request=(
-            {} if daily is None else {(IDENTITY, SESSION_DATE): daily}
-        ),
+        identity_resolutions=({} if resolution is None else {IDENTITY: resolution}),
+        bars_by_request=({} if bars is None else {(IDENTITY, SESSION_DATE): bars}),
+        daily_by_request=({} if daily is None else {(IDENTITY, SESSION_DATE): daily}),
     )
 
 
@@ -180,9 +174,7 @@ def test_ready_source_certification_has_complete_evidence() -> None:
 def test_identity_failure_has_highest_readiness_precedence() -> None:
     result = GovernedIntradaySourceCertificationEngine().run(
         _evidence(
-            resolution=_resolution(
-                state=IdentityResolutionState.SOURCE_RECORD_MISSING
-            ),
+            resolution=_resolution(state=IdentityResolutionState.SOURCE_RECORD_MISSING),
             bars=_bars(),
             daily=_daily(),
         )
