@@ -22,6 +22,7 @@ from alpha.decision_superiority.entry_stop_improvement import (
     _readiness,
     _stop_level,
     _structural_probes,
+    _validate_trade_path_count,
     default_entry_registry,
     default_stop_registry,
     governance_flags,
@@ -260,6 +261,21 @@ def test_liquidity_rejection_is_explicit() -> None:
         policy=EntryStopPolicy(),
     )
     assert fill["fill_state"] == FillState.LIQUIDITY_REJECTED.value
+
+
+def test_trade_path_count_reconciles_to_current_incumbent_population() -> None:
+    _validate_trade_path_count(
+        paths=[{"id": "P-1"}, {"id": "P-2"}],
+        incumbent_trades=[{"id": "T-1"}, {"id": "T-2"}],
+    )
+    with pytest.raises(
+        EntryStopImprovementError,
+        match="UNRECONCILED_INCUMBENT_TRADE_COUNT:1:2",
+    ):
+        _validate_trade_path_count(
+            paths=[{"id": "P-1"}],
+            incumbent_trades=[{"id": "T-1"}, {"id": "T-2"}],
+        )
 
 
 def test_attribution_separates_entry_recovery_and_tail_protection() -> None:

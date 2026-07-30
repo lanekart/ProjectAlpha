@@ -960,11 +960,22 @@ def _trade_paths(
                 )
             }
         )
-    if len(paths) != 56:
-        raise EntryStopImprovementError(
-            f"UNRECONCILED_INCUMBENT_TRADE_COUNT:{len(paths)}"
-        )
+    _validate_trade_path_count(
+        paths=paths,
+        incumbent_trades=incumbent_trades,
+    )
     return paths, excursions
+
+
+def _validate_trade_path_count(
+    *,
+    paths: Sequence[Mapping[str, Any]],
+    incumbent_trades: Sequence[Mapping[str, Any]],
+) -> None:
+    if len(paths) != len(incumbent_trades):
+        raise EntryStopImprovementError(
+            f"UNRECONCILED_INCUMBENT_TRADE_COUNT:{len(paths)}:{len(incumbent_trades)}"
+        )
 
 
 def _entry_stop_attribution(
