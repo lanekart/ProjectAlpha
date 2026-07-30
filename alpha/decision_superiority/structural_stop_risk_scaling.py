@@ -97,7 +97,7 @@ class GovernedStructuralStopRiskScalingEngine:
         )
         parity_rows, parity_ok = _parity_rows(
             base_metrics=base_metrics,
-            dsi009=dsi009,
+            dsi009_certificate=sources.dsi009_certificate,
         )
         if not parity_ok:
             raise StructuralStopRiskScalingError(
