@@ -51,6 +51,24 @@ The source cache stores:
 A partial cache, request mismatch, hash mismatch, or suspected secret leakage
 fails closed.
 
+## Identity contract
+
+Instrument resolution requires an exact governed identity in the form
+`nse:isin:<12-character ISIN>`. The source record must independently report:
+
+- exchange `NSE`;
+- segment `NSE_EQ`;
+- instrument type `EQ`;
+- the exact same ISIN;
+- canonical instrument key `NSE_EQ|<ISIN>`.
+
+BSE records, symbol-only matches, fuzzy names, alternate ISINs, derivatives,
+and non-canonical instrument keys are not admissible. Multiple distinct
+canonical keys for one ISIN are an identity blocker. A current instrument record
+establishes exact source identity only; historical availability must also be
+proved by non-empty, date-aligned candles that reconcile to the governed daily
+source.
+
 ## Source certification before strategy research
 
 No entry mechanism may be evaluated until the intraday source layer certifies:
@@ -69,6 +87,14 @@ No entry mechanism may be evaluated until the intraday source layer certifies:
 Missing bars are not forward-filled. Symbol-only identity assumptions are not
 permitted. Special sessions require separately governed session evidence rather
 than being forced into the regular-session contract.
+
+Source reconciliation is performed against the governed `RAW` daily candle,
+not the adjusted strategy candle. All 75 regular-session five-minute bars must
+be present. Open, high, low, and close must match within `₹0.011`; volume must
+match exactly. The governed corporate-action factor path will be applied later
+to admitted intraday bars so strategy replay and daily Alpha signals share one
+price basis. A mismatch is retained as a source blocker rather than repaired by
+vendor assumptions or inferred factors.
 
 ## Pre-registered mechanisms
 
@@ -121,7 +147,7 @@ Even then:
 
 ## Current implementation boundary
 
-The first implementation slice provides:
+The implemented source slices provide:
 
 - typed source, policy, mechanism, bar, readiness, and result contracts;
 - stable candidate-window request identities;
@@ -131,15 +157,21 @@ The first implementation slice provides:
 - response parsing with IST and request-window enforcement;
 - bar-level OHLCV validation;
 - regular-session count and boundary validation;
-- deterministic unit tests for URL identity, parsing, cache reuse, secret
-  exclusion, complete-session admission, and fail-closed defects.
+- exact governed-ISIN resolution to canonical Upstox NSE equity keys;
+- identity- and instrument-isolated session aggregation;
+- governed raw-daily OHLCV reconciliation;
+- deterministic tests covering cache integrity, secret exclusion, source parsing,
+  identity resolution, ambiguity, session isolation, complete reconciliation,
+  OHLC mismatch, volume mismatch, session incompleteness, and price-basis
+  rejection.
 
-The daily/intraday reconciliation layer, point-in-time instrument resolver,
-entry mechanisms, paired attribution, portfolio replay, artifact certificate,
-CLI runner, and real-data acceptance remain to be implemented. Until the source
-certificate is ready, no intraday performance conclusion is permitted.
+The signed source-readiness certificate, candidate population planner, governed
+corporate-action transformation, entry mechanisms, paired attribution,
+portfolio replay, artifact certificate, CLI runner, and real-data acceptance
+remain to be implemented. Until the source certificate is ready, no intraday
+performance conclusion is permitted.
 
-The source slice must pass locked Ruff, Ruff format, strict MyPy, focused unit
-tests, and the complete repository CI shards before work advances to identity
-resolution or strategy execution. The clean source-only validation boundary is
-exactly the two DSI-013 modules, this document, and the focused source test file.
+Every implementation slice must pass locked Ruff, Ruff format, strict MyPy,
+focused unit tests, and all repository CI shards before work advances. The clean
+source-only validation boundary currently contains three DSI-013 modules, this
+document, and two focused test files.
