@@ -358,8 +358,8 @@ def test_missing_atr_is_mechanism_specific_not_population_fatal() -> None:
     stops = {item.mechanism_id: item for item in default_stop_registry()}
     assert _stop_level(row, stops["STOP-STRUCTURAL-10D"], support=94.0) == 94.0
     assert _stop_level(row, stops["STOP-MAX-RISK-080"], support=None) == 92.0
-    assert _stop_level(row, stops["STOP-ATR-125"], support=None) is None
-    assert _stop_level(row, stops["STOP-VOL-STRUCTURAL-10D"], support=94.0) is None
+    assert pd.isna(_stop_level(row, stops["STOP-ATR-125"], support=None))
+    assert pd.isna(_stop_level(row, stops["STOP-VOL-STRUCTURAL-10D"], support=94.0))
 
 
 def test_stop_candidates_are_bounded_below_entry() -> None:
