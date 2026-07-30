@@ -30,7 +30,9 @@ def export_intraday_population_plan(
     """Export exact candidate/session acquisition scope without source credentials."""
 
     output.mkdir(parents=True, exist_ok=True)
-    candidate_rows = tuple(_normalise(asdict(candidate)) for candidate in plan.candidates)
+    candidate_rows = tuple(
+        _normalise(asdict(candidate)) for candidate in plan.candidates
+    )
     request_rows = tuple(
         {
             "identity_key": request.identity_key,
