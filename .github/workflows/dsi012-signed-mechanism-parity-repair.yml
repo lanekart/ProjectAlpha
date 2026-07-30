@@ -197,8 +197,8 @@ jobs:
               )
               assert passed is True
               assert all(row["passed"] for row in rows)
-          
-          
+
+
           def test_scaled_trade_ledger_replaces_accounting_fields() -> None:
           '''
           if test_anchor not in tests:
@@ -232,3 +232,5 @@ jobs:
           git diff --cached --quiet && exit 1
           git commit -m "fix(dsi-012): bind parity to signed structural-stop row"
           git push origin HEAD:feature/dsi-012-governed-structural-stop-risk-scaling
+
+# Trigger repair after workflow registration.
