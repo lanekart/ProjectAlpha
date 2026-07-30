@@ -234,3 +234,4 @@ jobs:
           git push origin HEAD:feature/dsi-012-governed-structural-stop-risk-scaling
 
 # Trigger repair after workflow registration.
+# Trigger retry after registration propagation.
