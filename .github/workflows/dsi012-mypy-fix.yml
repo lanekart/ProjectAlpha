@@ -1,0 +1,116 @@
+name: DSI-012 MyPy Fix
+
+on:
+  push:
+    branches:
+      - feature/dsi-012-governed-structural-stop-risk-scaling
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-012-governed-structural-stop-risk-scaling
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Apply narrow MyPy fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("alpha/decision_superiority/structural_stop_risk_scaling_rehydration.py")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace(
+              "from pathlib import Path\nfrom typing import Any, cast\n",
+              "from numbers import Real\nfrom pathlib import Path\nfrom typing import Any, cast\n",
+          )
+          text = text.replace(
+              "def _optional_float(value: object) -> float | None:\n"
+              "    if value is None or pd.isna(value):\n"
+              "        return None\n"
+              "    return float(value)\n",
+              "def _optional_float(value: object) -> float | None:\n"
+              "    if not isinstance(value, Real):\n"
+              "        return None\n"
+              "    number = float(value)\n"
+              "    return None if math.isnan(number) else number\n",
+          )
+          path.write_text(text, encoding="utf-8")
+
+          path = Path("alpha/decision_superiority/structural_stop_risk_scaling_artifacts.py")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace(
+              "def _percent(value: object) -> str:\n"
+              "    return \"UNKNOWN\" if value is None else f\"{float(value) * 100:.2f}%\"\n\n\n"
+              "def _number(value: object) -> str:\n"
+              "    return \"UNKNOWN\" if value is None else f\"{float(value):.2f}\"\n\n\n"
+              "def _currency(value: object) -> str:\n"
+              "    return \"UNKNOWN\" if value is None else f\"{float(value):,.2f}\"\n",
+              "def _percent(value: object) -> str:\n"
+              "    number = _numeric(value)\n"
+              "    return \"UNKNOWN\" if number is None else f\"{number * 100:.2f}%\"\n\n\n"
+              "def _number(value: object) -> str:\n"
+              "    number = _numeric(value)\n"
+              "    return \"UNKNOWN\" if number is None else f\"{number:.2f}\"\n\n\n"
+              "def _currency(value: object) -> str:\n"
+              "    number = _numeric(value)\n"
+              "    return \"UNKNOWN\" if number is None else f\"{number:,.2f}\"\n\n\n"
+              "def _numeric(value: object) -> float | None:\n"
+              "    if not isinstance(value, (str, int, float)):\n"
+              "        return None\n"
+              "    try:\n"
+              "        return float(value)\n"
+              "    except ValueError:\n"
+              "        return None\n",
+          )
+          path.write_text(text, encoding="utf-8")
+
+          path = Path("alpha/application/decision_superiority_structural_stop_risk_scaling_cli.py")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace(
+              "def _percent(value: object) -> str:\n"
+              "    return \"UNKNOWN\" if value is None else f\"{float(value) * 100:.2f}%\"\n\n\n"
+              "def _number(value: object) -> str:\n"
+              "    return \"UNKNOWN\" if value is None else f\"{float(value):.2f}\"\n",
+              "def _percent(value: object) -> str:\n"
+              "    number = _numeric(value)\n"
+              "    return \"UNKNOWN\" if number is None else f\"{number * 100:.2f}%\"\n\n\n"
+              "def _number(value: object) -> str:\n"
+              "    number = _numeric(value)\n"
+              "    return \"UNKNOWN\" if number is None else f\"{number:.2f}\"\n\n\n"
+              "def _numeric(value: object) -> float | None:\n"
+              "    if not isinstance(value, (str, int, float)):\n"
+              "        return None\n"
+              "    try:\n"
+              "        return float(value)\n"
+              "    except ValueError:\n"
+              "        return None\n",
+          )
+          path.write_text(text, encoding="utf-8")
+          PY
+      - name: Install locked Ruff
+        run: pip install ruff==0.15.20
+      - name: Format changed files
+        run: |
+          ruff format \
+            alpha/application/decision_superiority_structural_stop_risk_scaling_cli.py \
+            alpha/decision_superiority/structural_stop_risk_scaling_artifacts.py \
+            alpha/decision_superiority/structural_stop_risk_scaling_rehydration.py
+      - name: Commit fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            alpha/application/decision_superiority_structural_stop_risk_scaling_cli.py \
+            alpha/decision_superiority/structural_stop_risk_scaling_artifacts.py \
+            alpha/decision_superiority/structural_stop_risk_scaling_rehydration.py
+          git diff --cached --quiet && exit 1
+          git commit -m "fix(dsi-012): make numeric boundaries type-safe"
+          git push origin HEAD:feature/dsi-012-governed-structural-stop-risk-scaling
