@@ -37,6 +37,7 @@ from alpha.decision_superiority.structural_stop_risk_scaling_rehydration import 
     _parity_rows,
     _rehydrate_structural_stop,
     _source_contract_rows,
+    _validate_market_slice,
     _validate_source_chain,
 )
 
@@ -80,16 +81,19 @@ class GovernedStructuralStopRiskScalingEngine:
             sources.dsi008_certificate,
             require_ready=True,
         )
-        validate_regime_strategy_tournament_certificate(
+        dsi007 = validate_regime_strategy_tournament_certificate(
             sources.dsi007_certificate,
             require_ready=False,
-            database=sources.database,
         )
         _validate_source_chain(sources=sources, dsi009=dsi009)
 
-        selected, simulation, base_metrics = _rehydrate_structural_stop(
+        selected, simulation, base_metrics, market_hash = _rehydrate_structural_stop(
             sources=sources,
             dsi008=dsi008,
+        )
+        _validate_market_slice(
+            actual_market_hash=market_hash,
+            dsi009=dsi009,
         )
         parity_rows, parity_ok = _parity_rows(
             base_metrics=base_metrics,
@@ -154,7 +158,12 @@ class GovernedStructuralStopRiskScalingEngine:
             if passed
             else "READY_WITH_STRUCTURAL_STOP_RISK_SCALING_REJECTED"
         )
-        source_rows = _source_contract_rows(sources=sources, dsi009=dsi009)
+        source_rows = _source_contract_rows(
+            sources=sources,
+            dsi009=dsi009,
+            dsi007=dsi007,
+            market_hash=market_hash,
+        )
         summary = {
             "mechanism_id": DSI012_MECHANISM_ID,
             "risk_multiplier": policy.risk_multiplier,
