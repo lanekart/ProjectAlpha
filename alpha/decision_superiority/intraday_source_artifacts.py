@@ -213,7 +213,11 @@ def _normalise(value: Any) -> Any:
 
 
 def _canonical_payload_sha256(payload: Mapping[str, Any]) -> str:
-    normalized = {key: value for key, value in payload.items() if key != "report_sha256"}
+    normalized = {
+        key: value
+        for key, value in payload.items()
+        if key != "report_sha256"
+    }
     encoded = json.dumps(
         _normalise(normalized),
         separators=(",", ":"),
