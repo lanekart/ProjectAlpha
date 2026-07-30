@@ -25,6 +25,9 @@ from alpha.decision_superiority.entry_stop_improvement import (
     default_entry_registry,
     default_stop_registry,
 )
+from alpha.decision_superiority.entry_stop_improvement_artifacts import (
+    DSI009_ARTIFACTS,
+)
 from alpha.decision_superiority.entry_stop_improvement_models import (
     EntryStopPolicy,
     FillState,
@@ -168,11 +171,26 @@ def _validate_market_slice(
 def _parity_rows(
     *,
     base_metrics: Mapping[str, Any],
-    dsi009: Mapping[str, Any],
+    dsi009_certificate: Path,
 ) -> tuple[list[dict[str, Any]], bool]:
-    expected = cast(Mapping[str, Any], dsi009["best_descriptive_result"])
-    if str(expected.get("mechanism_id")) != DSI012_MECHANISM_ID:
-        raise StructuralStopRiskScalingError("DSI012_FROZEN_MECHANISM_MISMATCH")
+    stop_results_path = (
+        dsi009_certificate.resolve().parent / DSI009_ARTIFACTS["stop_results"]
+    )
+    if not stop_results_path.is_file():
+        raise StructuralStopRiskScalingError("DSI012_SIGNED_STOP_RESULTS_UNAVAILABLE")
+    stop_results = pd.read_csv(stop_results_path, low_memory=False)
+    if "mechanism_id" not in stop_results.columns:
+        raise StructuralStopRiskScalingError(
+            "DSI012_SIGNED_STOP_RESULTS_SCHEMA_INVALID"
+        )
+    expected_rows = stop_results.loc[
+        stop_results["mechanism_id"].astype(str).eq(DSI012_MECHANISM_ID)
+    ]
+    if len(expected_rows) != 1:
+        raise StructuralStopRiskScalingError(
+            f"DSI012_SIGNED_STRUCTURAL_STOP_RESULT_INVALID:{len(expected_rows)}"
+        )
+    expected = cast(Mapping[str, Any], expected_rows.iloc[0].to_dict())
     tolerances = {
         "net_cagr": 2e-8,
         "maximum_drawdown": 2e-8,
