@@ -58,22 +58,24 @@ Instrument resolution requires an exact governed identity in the form
 
 - exchange `NSE`;
 - segment `NSE_EQ`;
-- instrument type `EQ`;
 - the exact same ISIN;
-- canonical instrument key `NSE_EQ|<ISIN>`.
+- canonical instrument key `NSE_EQ|<ISIN>`;
+- the source-reported cash-series type, such as `EQ` or `BE`.
 
 BSE records, symbol-only matches, fuzzy names, alternate ISINs, derivatives,
 and non-canonical instrument keys are not admissible. Multiple distinct
-canonical keys for one ISIN are an identity blocker. A current instrument record
-establishes exact source identity only; historical availability must also be
-proved by non-empty, date-aligned candles that reconcile to the governed daily
-source.
+canonical keys for one ISIN are an identity blocker. Multiple NSE cash-series
+records may share one canonical key; all observed source types are retained in
+the identity ledger, and `EQ` is preferred only as the deterministic
+representative row when it exists. A `BE`-only exact canonical record remains
+admissible. Historical availability must still be proved by non-empty,
+date-aligned candles that reconcile to the governed daily source.
 
 ## Source certification before strategy research
 
 No entry mechanism may be evaluated until the intraday source layer certifies:
 
-1. point-in-time identity-to-instrument-key resolution;
+1. exact identity-to-instrument-key resolution;
 2. five-minute timestamp alignment;
 3. timezone and regular-session boundaries;
 4. unique instrument/timestamp rows;
@@ -95,6 +97,20 @@ match exactly. The governed corporate-action factor path will be applied later
 to admitted intraday bars so strategy replay and daily Alpha signals share one
 price basis. A mismatch is retained as a source blocker rather than repaired by
 vendor assumptions or inferred factors.
+
+## Frozen candidate population
+
+The acquisition planner reads only the hash-validated DSI-009 entry-fill
+artifact. It admits successful `ENTRY-INCUMBENT-NEXT-OPEN` rows whose exact
+entry session falls inside the 2022–2025 overlap and whose identity is an exact
+NSE ISIN.
+
+All control prices, stops, targets, folds, regimes, holding periods, signal
+strengths, and liquidity evidence remain frozen. Identical identity/session
+requests are downloaded once while every contributing signal remains separately
+represented. Conflicting duplicate signals, missing required fields,
+non-forward entry dates, non-ISIN identities, and out-of-window rows fail closed
+or remain explicit exclusions.
 
 ## Pre-registered mechanisms
 
@@ -147,7 +163,7 @@ Even then:
 
 ## Current implementation boundary
 
-The implemented source slices provide:
+The implemented source boundary now provides:
 
 - typed source, policy, mechanism, bar, readiness, and result contracts;
 - stable candidate-window request identities;
@@ -157,21 +173,26 @@ The implemented source slices provide:
 - response parsing with IST and request-window enforcement;
 - bar-level OHLCV validation;
 - regular-session count and boundary validation;
-- exact governed-ISIN resolution to canonical Upstox NSE equity keys;
+- exact governed-ISIN resolution to canonical Upstox NSE cash-market keys;
+- source cash-series retention;
 - identity- and instrument-isolated session aggregation;
 - governed raw-daily OHLCV reconciliation;
-- deterministic tests covering cache integrity, secret exclusion, source parsing,
-  identity resolution, ambiguity, session isolation, complete reconciliation,
-  OHLC mismatch, volume mismatch, session incompleteness, and price-basis
-  rejection.
+- signed DSI-009 candidate population and bounded request planning;
+- fail-closed source-readiness certification with explicit precedence;
+- nine deterministic support CSVs, an executive report, certificate payload
+  digest, SHA-256 manifest, tamper detection, secret-leak checks, local-path
+  checks, and optional ready-state enforcement;
+- deterministic tests covering source parsing, cache integrity, identity and
+  cash-series resolution, request planning, source readiness, blocked readiness,
+  artifact round trips, and tamper detection.
 
-The signed source-readiness certificate, candidate population planner, governed
+The credential-safe local runner, governed raw-daily warehouse loader,
 corporate-action transformation, entry mechanisms, paired attribution,
-portfolio replay, artifact certificate, CLI runner, and real-data acceptance
-remain to be implemented. Until the source certificate is ready, no intraday
-performance conclusion is permitted.
+portfolio replay, final strategy certificate, and real-data acceptance remain
+to be implemented. Until the source certificate is ready against genuine local
+evidence, no intraday performance conclusion is permitted.
 
 Every implementation slice must pass locked Ruff, Ruff format, strict MyPy,
 focused unit tests, and all repository CI shards before work advances. The clean
-source-only validation boundary currently contains three DSI-013 modules, this
-document, and two focused test files.
+source-validation boundary currently contains six DSI-013 modules, this
+document, and four focused test files.
