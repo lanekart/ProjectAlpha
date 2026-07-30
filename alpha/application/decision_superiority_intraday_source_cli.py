@@ -82,12 +82,10 @@ def decision_superiority_intraday_source_certify(
     typer.echo(f"Admitted Requests: {result.summaries['admitted_request_count']}")
     typer.echo(f"Identity Failures: {result.summaries['identity_failure_count']}")
     typer.echo(
-        "Source-Unavailable Requests: "
-        f"{result.summaries['source_unavailable_count']}"
+        f"Source-Unavailable Requests: {result.summaries['source_unavailable_count']}"
     )
     typer.echo(
-        "Session-Integrity Failures: "
-        f"{result.summaries['session_failure_count']}"
+        f"Session-Integrity Failures: {result.summaries['session_failure_count']}"
     )
     typer.echo(
         "Daily-Reconciliation Failures: "
