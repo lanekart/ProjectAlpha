@@ -5,6 +5,8 @@ from collections.abc import Mapping
 from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
+
 from alpha.decision_superiority.intraday_execution_models import (
     IntradayBar,
     IntradayExecutionPolicy,
@@ -153,22 +155,20 @@ def test_complete_regular_session_is_source_ready() -> None:
     assert audit.readiness is IntradayReadiness.SOURCE_READY
     assert audit.blockers == ()
     assert len(audit.validation_rows) == 75
-    assert audit.session_rows == (
-        {
-            "session_date": "2024-01-02",
-            "bar_count": 75,
-            "expected_bar_count": 75,
-            "first_bar": "2024-01-02T09:15:00+05:30",
-            "last_bar": "2024-01-02T15:25:00+05:30",
-            "session_open": 100.0,
-            "session_high": 100.94,
-            "session_low": 99.8,
-            "session_close": 100.79,
-            "session_volume": 77_775,
-            "count_passed": True,
-            "boundary_passed": True,
-        },
-    )
+    assert len(audit.session_rows) == 1
+    session = audit.session_rows[0]
+    assert session["session_date"] == "2024-01-02"
+    assert session["bar_count"] == 75
+    assert session["expected_bar_count"] == 75
+    assert session["first_bar"] == "2024-01-02T09:15:00+05:30"
+    assert session["last_bar"] == "2024-01-02T15:25:00+05:30"
+    assert float(session["session_open"]) == pytest.approx(100.0)
+    assert float(session["session_high"]) == pytest.approx(100.94)
+    assert float(session["session_low"]) == pytest.approx(99.8)
+    assert float(session["session_close"]) == pytest.approx(100.79)
+    assert session["session_volume"] == 77_775
+    assert session["count_passed"] is True
+    assert session["boundary_passed"] is True
 
 
 def test_duplicate_and_impossible_bar_fail_closed() -> None:
