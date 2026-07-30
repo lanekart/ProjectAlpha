@@ -131,7 +131,37 @@ def test_parse_search_payload_and_resolve_exact_nse_isin() -> None:
     assert resolution.instrument is not None
     assert resolution.instrument.instrument_key == INSTRUMENT_KEY
     assert resolution.governed_isin == "INE000A01000"
+    assert resolution.source_instrument_types == ("EQ",)
     assert resolution.blocker is None
+
+
+def test_resolver_accepts_be_only_cash_series() -> None:
+    resolution = resolve_upstox_nse_equity(
+        IDENTITY,
+        (_instrument(instrument_type="BE"),),
+        source_sha256=SOURCE_HASH,
+    )
+
+    assert resolution.state is IdentityResolutionState.RESOLVED
+    assert resolution.instrument is not None
+    assert resolution.instrument.instrument_type == "BE"
+    assert resolution.source_instrument_types == ("BE",)
+
+
+def test_resolver_prefers_eq_when_same_key_has_multiple_cash_series() -> None:
+    resolution = resolve_upstox_nse_equity(
+        IDENTITY,
+        (
+            _instrument(instrument_type="BE", symbol="ALPHA-BE"),
+            _instrument(instrument_type="EQ", symbol="ALPHA"),
+        ),
+        source_sha256=SOURCE_HASH,
+    )
+
+    assert resolution.state is IdentityResolutionState.RESOLVED
+    assert resolution.instrument is not None
+    assert resolution.instrument.instrument_type == "EQ"
+    assert resolution.source_instrument_types == ("BE", "EQ")
 
 
 def test_resolver_rejects_noncanonical_or_ambiguous_keys() -> None:
