@@ -1,0 +1,234 @@
+name: DSI-012 Signed Mechanism Parity Repair
+
+on:
+  push:
+    branches:
+      - feature/dsi-012-governed-structural-stop-risk-scaling
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-012-governed-structural-stop-risk-scaling
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Bind parity to signed structural-stop row
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          rehydration_path = Path(
+              "alpha/decision_superiority/structural_stop_risk_scaling_rehydration.py"
+          )
+          source = rehydration_path.read_text(encoding="utf-8")
+
+          import_anchor = '''from alpha.decision_superiority.entry_stop_improvement_models import (
+              EntryStopPolicy,
+              FillState,
+          )
+          '''
+          import_replacement = '''from alpha.decision_superiority.entry_stop_improvement_artifacts import (
+              DSI009_ARTIFACTS,
+          )
+          from alpha.decision_superiority.entry_stop_improvement_models import (
+              EntryStopPolicy,
+              FillState,
+          )
+          '''
+          if import_anchor not in source:
+              raise SystemExit("rehydration import anchor not found")
+          source = source.replace(import_anchor, import_replacement, 1)
+
+          parity_old = '''def _parity_rows(
+              *,
+              base_metrics: Mapping[str, Any],
+              dsi009: Mapping[str, Any],
+          ) -> tuple[list[dict[str, Any]], bool]:
+              expected = cast(Mapping[str, Any], dsi009["best_descriptive_result"])
+              if str(expected.get("mechanism_id")) != DSI012_MECHANISM_ID:
+                  raise StructuralStopRiskScalingError("DSI012_FROZEN_MECHANISM_MISMATCH")
+          '''
+          parity_new = '''def _parity_rows(
+              *,
+              base_metrics: Mapping[str, Any],
+              dsi009_certificate: Path,
+          ) -> tuple[list[dict[str, Any]], bool]:
+              stop_results_path = (
+                  dsi009_certificate.resolve().parent / DSI009_ARTIFACTS["stop_results"]
+              )
+              if not stop_results_path.is_file():
+                  raise StructuralStopRiskScalingError(
+                      "DSI012_SIGNED_STOP_RESULTS_UNAVAILABLE"
+                  )
+              stop_results = pd.read_csv(stop_results_path, low_memory=False)
+              if "mechanism_id" not in stop_results.columns:
+                  raise StructuralStopRiskScalingError(
+                      "DSI012_SIGNED_STOP_RESULTS_SCHEMA_INVALID"
+                  )
+              expected_rows = stop_results.loc[
+                  stop_results["mechanism_id"].astype(str).eq(DSI012_MECHANISM_ID)
+              ]
+              if len(expected_rows) != 1:
+                  raise StructuralStopRiskScalingError(
+                      "DSI012_SIGNED_STRUCTURAL_STOP_RESULT_INVALID:"
+                      f"{len(expected_rows)}"
+                  )
+              expected = cast(Mapping[str, Any], expected_rows.iloc[0].to_dict())
+          '''
+          if parity_old not in source:
+              raise SystemExit("parity replacement anchor not found")
+          rehydration_path.write_text(
+              source.replace(parity_old, parity_new, 1),
+              encoding="utf-8",
+          )
+
+          engine_path = Path(
+              "alpha/decision_superiority/structural_stop_risk_scaling.py"
+          )
+          engine = engine_path.read_text(encoding="utf-8")
+          engine_old = '''        parity_rows, parity_ok = _parity_rows(
+              base_metrics=base_metrics,
+              dsi009=dsi009,
+          )
+          '''
+          engine_new = '''        parity_rows, parity_ok = _parity_rows(
+              base_metrics=base_metrics,
+              dsi009_certificate=sources.dsi009_certificate,
+          )
+          '''
+          if engine_old not in engine:
+              raise SystemExit("engine parity call anchor not found")
+          engine_path.write_text(
+              engine.replace(engine_old, engine_new, 1),
+              encoding="utf-8",
+          )
+
+          test_path = Path(
+              "tests/decision_superiority/test_structural_stop_risk_scaling.py"
+          )
+          tests = test_path.read_text(encoding="utf-8")
+          artifact_import_anchor = '''from alpha.decision_superiority.entry_stop_improvement import _stable_id
+          '''
+          artifact_import_replacement = '''from alpha.decision_superiority.entry_stop_improvement import _stable_id
+          from alpha.decision_superiority.entry_stop_improvement_artifacts import (
+              DSI009_ARTIFACTS,
+          )
+          '''
+          if artifact_import_anchor not in tests:
+              raise SystemExit("test DSI009 artifact import anchor not found")
+          tests = tests.replace(
+              artifact_import_anchor,
+              artifact_import_replacement,
+              1,
+          )
+
+          rehydration_import_anchor = '''from alpha.decision_superiority.structural_stop_risk_scaling_models import (
+              StructuralStopRiskScalingError,
+              StructuralStopRiskScalingPolicy,
+              StructuralStopRiskScalingResult,
+          )
+          '''
+          rehydration_import_replacement = '''from alpha.decision_superiority.structural_stop_risk_scaling_models import (
+              StructuralStopRiskScalingError,
+              StructuralStopRiskScalingPolicy,
+              StructuralStopRiskScalingResult,
+          )
+          from alpha.decision_superiority.structural_stop_risk_scaling_rehydration import (
+              _parity_rows,
+          )
+          '''
+          if rehydration_import_anchor not in tests:
+              raise SystemExit("test parity import anchor not found")
+          tests = tests.replace(
+              rehydration_import_anchor,
+              rehydration_import_replacement,
+              1,
+          )
+
+          test_anchor = '''def test_scaled_trade_ledger_replaces_accounting_fields() -> None:
+          '''
+          test_insert = '''def test_parity_uses_frozen_signed_mechanism_not_current_winner(
+              tmp_path: Path,
+          ) -> None:
+              stop_results = pd.DataFrame(
+                  [
+                      {
+                          "mechanism_id": "STOP-ATR-225",
+                          "net_cagr": 0.30,
+                          "maximum_drawdown": -0.08,
+                          "calmar": 3.75,
+                          "win_rate": 0.70,
+                          "expectancy": 0.05,
+                          "trade_count": 60,
+                      },
+                      {
+                          "mechanism_id": "STOP-STRUCTURAL-10D",
+                          "net_cagr": 0.12,
+                          "maximum_drawdown": -0.10,
+                          "calmar": 1.20,
+                          "win_rate": 0.55,
+                          "expectancy": 0.02,
+                          "trade_count": 50,
+                      },
+                  ]
+              )
+              stop_results.to_csv(
+                  tmp_path / DSI009_ARTIFACTS["stop_results"],
+                  index=False,
+              )
+              rows, passed = _parity_rows(
+                  base_metrics={
+                      "net_cagr": 0.12,
+                      "maximum_drawdown": -0.10,
+                      "calmar": 1.20,
+                      "win_rate": 0.55,
+                      "expectancy": 0.02,
+                      "trade_count": 50,
+                  },
+                  dsi009_certificate=tmp_path / "dsi009_entry_stop_certificate.json",
+              )
+              assert passed is True
+              assert all(row["passed"] for row in rows)
+          
+          
+          def test_scaled_trade_ledger_replaces_accounting_fields() -> None:
+          '''
+          if test_anchor not in tests:
+              raise SystemExit("parity regression test anchor not found")
+          test_path.write_text(
+              tests.replace(test_anchor, test_insert, 1),
+              encoding="utf-8",
+          )
+          PY
+      - name: Format and lint repair
+        run: |
+          pip install ruff==0.15.20
+          ruff format \
+            alpha/decision_superiority/structural_stop_risk_scaling.py \
+            alpha/decision_superiority/structural_stop_risk_scaling_rehydration.py \
+            tests/decision_superiority/test_structural_stop_risk_scaling.py
+          ruff check \
+            alpha/decision_superiority/structural_stop_risk_scaling.py \
+            alpha/decision_superiority/structural_stop_risk_scaling_rehydration.py \
+            tests/decision_superiority/test_structural_stop_risk_scaling.py
+      - name: Commit repair and remove helper
+        run: |
+          rm .github/workflows/dsi012-signed-mechanism-parity-repair.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            alpha/decision_superiority/structural_stop_risk_scaling.py \
+            alpha/decision_superiority/structural_stop_risk_scaling_rehydration.py \
+            tests/decision_superiority/test_structural_stop_risk_scaling.py \
+            .github/workflows/dsi012-signed-mechanism-parity-repair.yml
+          git diff --cached --quiet && exit 1
+          git commit -m "fix(dsi-012): bind parity to signed structural-stop row"
+          git push origin HEAD:feature/dsi-012-governed-structural-stop-risk-scaling
