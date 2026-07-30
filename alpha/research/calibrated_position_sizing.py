@@ -1215,7 +1215,9 @@ def _percent(value: Decimal) -> Decimal:
 def _optional_number(value: object) -> float:
     if value is None:
         return float("-inf")
-    return float(value)
+    if isinstance(value, (str, int, float, Decimal)):
+        return float(value)
+    raise TypeError(f"unsupported numeric value: {type(value).__name__}")
 
 
 def _jsonable(value: object) -> object:
