@@ -89,6 +89,14 @@ Terminal states are:
 No same-bar fill, repeated trigger attempt, averaging down, or same-day re-entry
 is permitted.
 
+## Validation boundary
+
+The mechanism layer must pass locked Ruff, Ruff format, strict MyPy, synthetic
+rule-specific tests, and every repository pytest shard. Passing this boundary
+certifies deterministic mechanics only. It does not establish positive
+expectancy or permit portfolio integration before the genuine source package is
+ready.
+
 ## Governance
 
 - `VALIDATED_STRATEGY=false`;
