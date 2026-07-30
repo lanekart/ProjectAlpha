@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -44,7 +45,7 @@ def test_daily_reference_loader_accepts_governed_raw_aliases(tmp_path: Path) -> 
 
     references = load_daily_references(path)
 
-    reference = references[("nse:isin:INE000A01000", reference_date())]
+    reference = references[("nse:isin:INE000A01000", date(2024, 1, 3))]
     assert reference.open == 100.0
     assert reference.high == 101.0
     assert reference.low == 99.0
@@ -104,9 +105,3 @@ def test_source_certify_help_exposes_no_token_option() -> None:
     assert "--output" in result.stdout
     assert "access-token" not in result.stdout.lower()
     assert "upstox-access-token" not in result.stdout.lower()
-
-
-def reference_date():
-    from datetime import date
-
-    return date(2024, 1, 3)
