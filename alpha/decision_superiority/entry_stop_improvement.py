@@ -592,9 +592,17 @@ def _outer_signals(
     start = date.fromisoformat(policy.comparison_start)
     end = date.fromisoformat(policy.comparison_end)
     frame = signals.copy()
-    frame = frame.loc[
-        frame["walk_forward_fold_id"].notna() & frame["signal_date"].between(start, end)
-    ].copy()
+    if "entry_eligibility_date" not in frame.columns:
+        raise EntryStopImprovementError("DSI008_ENTRY_ELIGIBILITY_DATE_MISSING")
+    in_signal_window = frame["walk_forward_fold_id"].notna() & frame[
+        "signal_date"
+    ].between(start, end)
+    missing_entry_date = in_signal_window & frame["entry_eligibility_date"].isna()
+    if bool(missing_entry_date.any()):
+        raise EntryStopImprovementError(
+            f"DSI008_ENTRY_ELIGIBILITY_DATE_MISSING:{int(missing_entry_date.sum())}"
+        )
+    frame = frame.loc[in_signal_window & frame["entry_eligibility_date"].le(end)].copy()
     if frame.empty:
         raise EntryStopImprovementError("UNRECONCILED_SIGNAL_POPULATION")
     if frame["signal_id"].duplicated().any():

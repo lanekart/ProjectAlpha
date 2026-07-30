@@ -118,6 +118,28 @@ def test_outer_signal_population_uses_frozen_fold_regime_selection() -> None:
     assert selected["signal_id"].tolist() == ["S-1"]
 
 
+def test_outer_signal_population_excludes_right_censored_entries() -> None:
+    eligible = _signal_row("S-1", "A", "TRANSITION", "WF-2021")
+    right_censored = _signal_row("S-2", "A", "TRANSITION", "WF-2021")
+    right_censored["signal_date"] = date(2025, 12, 24)
+    right_censored["entry_eligibility_date"] = date(2025, 12, 26)
+    selections = pd.DataFrame(
+        [
+            {
+                "walk_forward_fold_id": "WF-2021",
+                "selection_scope": "REGIME:TRANSITION",
+                "selected_strategy_variant_id": "A",
+            }
+        ]
+    )
+    selected = _outer_signals(
+        pd.DataFrame([eligible, right_censored]),
+        selections=selections,
+        policy=EntryStopPolicy(),
+    )
+    assert selected["signal_id"].tolist() == ["S-1"]
+
+
 def test_missing_fold_regime_selection_fails_closed() -> None:
     signals = pd.DataFrame([_signal_row("S-1", "A", "TRANSITION", "WF-2021")])
     selections = pd.DataFrame(
@@ -506,6 +528,7 @@ def _signal_row(
     return {
         "signal_id": signal_id,
         "signal_date": date(2024, 1, 2),
+        "entry_eligibility_date": date(2024, 1, 3),
         "walk_forward_fold_id": fold,
         "strategy_variant_id": strategy,
         "regime_state": regime,
