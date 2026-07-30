@@ -159,9 +159,7 @@ class GovernedStructuralStopRiskScalingEngine:
             "mechanism_id": DSI012_MECHANISM_ID,
             "risk_multiplier": policy.risk_multiplier,
             "base_structural_stop": dict(base_metrics),
-            "base_financing": dict(
-                cast(Mapping[str, Any], base_overlay["metrics"])
-            ),
+            "base_financing": dict(cast(Mapping[str, Any], base_overlay["metrics"])),
             "stress_financing": dict(
                 cast(Mapping[str, Any], stress_overlay["metrics"])
             ),
@@ -187,12 +185,8 @@ class GovernedStructuralStopRiskScalingEngine:
                 "concentration gates."
             ),
         }
-        base_financing = cast(
-            Sequence[dict[str, Any]], base_overlay["financing"]
-        )
-        stress_financing = cast(
-            Sequence[dict[str, Any]], stress_overlay["financing"]
-        )
+        base_financing = cast(Sequence[dict[str, Any]], base_overlay["financing"])
+        stress_financing = cast(Sequence[dict[str, Any]], stress_overlay["financing"])
         rows: dict[str, tuple[dict[str, Any], ...]] = {
             "source_contract": tuple(source_rows),
             "rehydration_parity": tuple(parity_rows),

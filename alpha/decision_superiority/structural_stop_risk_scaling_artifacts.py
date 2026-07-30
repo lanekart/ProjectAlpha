@@ -52,8 +52,7 @@ def export_structural_stop_risk_scaling(
     report = _write_text(output / DSI012_REPORT, _executive_report(result))
     support.append(report)
     manifest = {
-        path.name: _sha256(path)
-        for path in sorted(support, key=lambda item: item.name)
+        path.name: _sha256(path) for path in sorted(support, key=lambda item: item.name)
     }
     payload: dict[str, Any] = {
         "contract_version": DSI012_CONTRACT_VERSION,
@@ -73,9 +72,7 @@ def export_structural_stop_risk_scaling(
         "benchmark_cagr": result.summaries["benchmark_cagr"],
         "capacity_failure_count": result.summaries["capacity_failure_count"],
         "acceptance_passed": result.summaries["acceptance_passed"],
-        "retrospective_target_match": result.summaries[
-            "retrospective_target_match"
-        ],
+        "retrospective_target_match": result.summaries["retrospective_target_match"],
         "validated_strategy": result.summaries["validated_strategy"],
         "fresh_unused_holdout_available": result.summaries[
             "fresh_unused_holdout_available"
@@ -184,10 +181,7 @@ def _executive_report(result: StructuralStopRiskScalingResult) -> str:
         "",
         "## Capacity and Acceptance",
         "",
-        (
-            "- Capacity failures: "
-            f"{result.summaries['capacity_failure_count']}"
-        ),
+        (f"- Capacity failures: {result.summaries['capacity_failure_count']}"),
     ]
     lines.extend(
         f"- {row['gate']}: `{'PASS' if row['passed'] else 'FAIL'}` "

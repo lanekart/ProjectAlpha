@@ -177,8 +177,9 @@ def test_capacity_ledger_fails_closed_when_scaled_notional_exceeds_adv_cap() -> 
     assert rows[0]["capacity_passed"] is False
 
 
-def test_acceptance_uses_exact_preregistered_thresholds_and_zero_is_not_missing(
-) -> None:
+def test_acceptance_uses_exact_preregistered_thresholds_and_zero_is_not_missing() -> (
+    None
+):
     policy = StructuralStopRiskScalingPolicy()
     passing = {
         "net_cagr": 0.26,

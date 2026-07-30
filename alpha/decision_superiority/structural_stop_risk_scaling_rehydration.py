@@ -172,9 +172,7 @@ def _parity_rows(
         actual = base_metrics.get(metric)
         target = expected.get(metric)
         delta = (
-            None
-            if actual is None or target is None
-            else float(actual) - float(target)
+            None if actual is None or target is None else float(actual) - float(target)
         )
         metric_passed = (
             actual is not None
@@ -203,9 +201,9 @@ def _capacity_ledger(
     tournament_policy: TournamentPolicy,
 ) -> list[dict[str, Any]]:
     average_value_by_trade = {
-        _stable_id(
-            "PORTFOLIO_TRADE", DSI012_MECHANISM_ID, row.trade_plan_id
-        ): float(row.average_traded_value20)
+        _stable_id("PORTFOLIO_TRADE", DSI012_MECHANISM_ID, row.trade_plan_id): float(
+            row.average_traded_value20
+        )
         for row in cast(Iterable[Any], selected.itertuples(index=False))
     }
     rows: list[dict[str, Any]] = []
@@ -239,9 +237,7 @@ def _capacity_ledger(
                 "base_entry_notional": _round(base_notional),
                 "scaled_entry_notional": _round(scaled_notional),
                 "capacity_utilization": _round(utilization),
-                "capacity_passed": (
-                    math.isfinite(utilization) and utilization <= 1.0
-                ),
+                "capacity_passed": (math.isfinite(utilization) and utilization <= 1.0),
             }
         )
     return rows

@@ -20,9 +20,7 @@ from alpha.decision_superiority.structural_stop_risk_scaling_models import (
     StructuralStopRiskScalingSourcePaths,
 )
 
-DEFAULT_DSI012_OUTPUT = Path(
-    ".alpha/benchmark/dsi012_structural_stop_risk_scaling"
-)
+DEFAULT_DSI012_OUTPUT = Path(".alpha/benchmark/dsi012_structural_stop_risk_scaling")
 
 
 def register_decision_superiority_structural_stop_risk_scaling_command(
@@ -80,8 +78,7 @@ def decision_superiority_structural_stop_risk_scaling(
     typer.echo("Risk Multiplier: 1.50x")
     typer.echo(f"Base-Financing CAGR: {_percent(scaled.get('net_cagr'))}")
     typer.echo(
-        "Base-Financing Maximum Drawdown: "
-        f"{_percent(scaled.get('maximum_drawdown'))}"
+        f"Base-Financing Maximum Drawdown: {_percent(scaled.get('maximum_drawdown'))}"
     )
     typer.echo(f"Base-Financing Calmar: {_number(scaled.get('calmar'))}")
     typer.echo(
@@ -117,9 +114,7 @@ def decision_superiority_structural_stop_risk_scaling_verify(
         raise typer.Exit(1) from exc
     typer.echo(f"Contract: {payload['contract_version']}")
     typer.echo(f"Readiness: {payload['readiness_decision']}")
-    typer.echo(
-        f"Acceptance Passed: {str(payload['acceptance_passed']).lower()}"
-    )
+    typer.echo(f"Acceptance Passed: {str(payload['acceptance_passed']).lower()}")
     typer.echo("Validated Strategy: false")
     typer.echo("Certificate: VALID")
 

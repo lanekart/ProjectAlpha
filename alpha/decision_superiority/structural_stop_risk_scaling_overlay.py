@@ -169,9 +169,7 @@ def _scaled_position_ledger(
                 **dict(raw),
                 "base_quantity": raw["quantity"],
                 "base_market_value": raw["market_value"],
-                "scaled_notional_quantity": _round(
-                    float(raw["quantity"]) * multiplier
-                ),
+                "scaled_notional_quantity": _round(float(raw["quantity"]) * multiplier),
                 "scaled_market_value": _round(scaled_market_value),
                 "scaled_portfolio_fraction": _round(fraction),
                 "overlay_is_daily_notional_not_whole_share_execution": True,
@@ -204,9 +202,7 @@ def _scaled_trade_ledger(
                 "costs": _round(base_costs * multiplier),
                 "scaled_notional_quantity": _round(base_quantity * multiplier),
                 "scaled_gross_pnl": _round(base_gross_pnl * multiplier),
-                "scaled_net_pnl_before_financing": _round(
-                    base_net_pnl * multiplier
-                ),
+                "scaled_net_pnl_before_financing": _round(base_net_pnl * multiplier),
                 "scaled_transaction_costs": _round(base_costs * multiplier),
                 "risk_multiplier": multiplier,
                 "financing_allocated_at_portfolio_day_level": True,
@@ -245,9 +241,7 @@ def _acceptance(
         (float(row["scaled_portfolio_fraction"]) for row in position_rows),
         default=0.0,
     )
-    capacity_failures = sum(
-        not bool(row["capacity_passed"]) for row in capacity_rows
-    )
+    capacity_failures = sum(not bool(row["capacity_passed"]) for row in capacity_rows)
     checks = (
         ("REHYDRATION_PARITY", parity_ok, True, parity_ok),
         (
@@ -323,9 +317,7 @@ def _acceptance(
         }
         for name, actual, threshold, passed in checks
     ]
-    blockers = [
-        f"{row['gate']}_FAILED" for row in rows if not bool(row["passed"])
-    ]
+    blockers = [f"{row['gate']}_FAILED" for row in rows if not bool(row["passed"])]
     return rows, blockers
 
 
