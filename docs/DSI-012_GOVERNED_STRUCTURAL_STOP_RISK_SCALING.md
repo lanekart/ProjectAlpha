@@ -24,6 +24,12 @@ The rehydrated base portfolio must reproduce the signed DSI-009 structural-stop
 CAGR, drawdown, Calmar, win rate, expectancy, and trade count within fixed
 tolerances before the overlay is evaluated.
 
+ATR warm-up availability is governed by mechanism rather than by whole-row
+admission. Missing ATR leaves incumbent, gap, retest, regime, structural-support,
+and maximum-risk mechanisms eligible when their own required evidence is
+complete. ATR-dependent entry and stop challengers remain explicitly unavailable
+for those rows and cannot receive an imputed ATR value.
+
 ## Overlay definition
 
 For each governed portfolio session:
