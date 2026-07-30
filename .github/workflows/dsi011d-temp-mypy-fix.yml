@@ -31,22 +31,16 @@ jobs:
 
           path = Path('alpha/research/calibrated_position_sizing.py')
           text = path.read_text(encoding='utf-8')
-          old = '''def _optional_number(value: object) -> float:
-              if value is None:
-                  return float("-inf")
-              return float(value)
-          '''
-          new = '''def _optional_number(value: object) -> float:
-              if value is None:
-                  return float("-inf")
-              if isinstance(value, (str, int, float, Decimal)):
-                  return float(value)
-              raise TypeError(
-                  f"unsupported numeric value: {type(value).__name__}"
-              )
-          '''
-          if old not in text:
-              raise SystemExit('optional-number function did not match expected source')
+          old = '    return float(value)\n\n\ndef _jsonable'
+          new = (
+              '    if isinstance(value, (str, int, float, Decimal)):\n'
+              '        return float(value)\n'
+              '    raise TypeError(\n'
+              '        f"unsupported numeric value: {type(value).__name__}"\n'
+              '    )\n\n\ndef _jsonable'
+          )
+          if text.count(old) != 1:
+              raise SystemExit('optional-number anchor was not unique')
           path.write_text(text.replace(old, new), encoding='utf-8')
           PY
           python -m pip install 'ruff==0.15.20'
