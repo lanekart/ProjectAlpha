@@ -1,0 +1,51 @@
+name: Temporary DSI-011D Entry Count Fix
+
+on:
+  push:
+    branches:
+      - feature/dsi-011d-calibrated-position-sizing-main
+  pull_request:
+    branches:
+      - feature/dsi-011c-20dma-reclaim-portfolio
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-011d-calibrated-position-sizing-main
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Add parity entry count
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('alpha/research/calibrated_position_sizing.py')
+          text = path.read_text(encoding='utf-8')
+          old = '            "completed_trade_count": len(self.trades),\n'
+          new = (
+              '            "entry_count": len(self.trades),\n'
+              '            "completed_trade_count": len(self.trades),\n'
+          )
+          if text.count(old) != 1:
+              raise SystemExit('completed-trade summary anchor was not unique')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+          python -m pip install 'ruff==0.15.20'
+          ruff check alpha/research/calibrated_position_sizing.py
+          ruff format alpha/research/calibrated_position_sizing.py
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add alpha/research/calibrated_position_sizing.py
+          git commit -m 'fix(dsi-011d): expose entry count for parity'
+          git push origin HEAD:feature/dsi-011d-calibrated-position-sizing-main
