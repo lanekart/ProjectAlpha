@@ -12,6 +12,12 @@ import typer
 from alpha.decision_superiority.intraday_execution_models import (
     IntradayExecutionError,
 )
+from alpha.decision_superiority.intraday_execution_population import (
+    load_signed_intraday_population,
+)
+from alpha.decision_superiority.intraday_plan_artifacts import (
+    export_intraday_population_plan,
+)
 from alpha.decision_superiority.intraday_source_artifacts import (
     validate_intraday_source_certificate,
 )
@@ -20,6 +26,7 @@ from alpha.decision_superiority.intraday_source_runner import (
 )
 
 DEFAULT_DSI013_CACHE = Path(".alpha/intraday/dsi013_source_cache")
+DEFAULT_DSI013_PLAN_OUTPUT = Path(".alpha/benchmark/dsi013_intraday_source_plan")
 DEFAULT_DSI013_SOURCE_OUTPUT = Path(
     ".alpha/benchmark/dsi013_intraday_source_certification"
 )
@@ -28,14 +35,45 @@ DEFAULT_DSI013_SOURCE_OUTPUT = Path(
 def register_decision_superiority_intraday_source_command(
     app: typer.Typer,
 ) -> None:
-    """Register the DSI-013 source-certification runner and verifier."""
+    """Register DSI-013 source planning, certification, and verification."""
 
+    app.command("decision-superiority-intraday-source-plan")(
+        decision_superiority_intraday_source_plan
+    )
     app.command("decision-superiority-intraday-source-certify")(
         decision_superiority_intraday_source_certify
     )
     app.command("decision-superiority-intraday-source-verify")(
         decision_superiority_intraday_source_verify
     )
+
+
+def decision_superiority_intraday_source_plan(
+    dsi009_certificate: Annotated[
+        Path,
+        typer.Option("--dsi009-certificate"),
+    ],
+    output: Annotated[
+        Path,
+        typer.Option("--output"),
+    ] = DEFAULT_DSI013_PLAN_OUTPUT,
+) -> None:
+    """Export the exact DSI-009 identity/session acquisition plan."""
+
+    try:
+        plan = load_signed_intraday_population(dsi009_certificate)
+        paths = export_intraday_population_plan(plan, output)
+    except (OSError, IntradayExecutionError, ValueError) as exc:
+        typer.echo(f"GOVERNED_INTRADAY_SOURCE_PLAN_FAILED: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"Candidates: {len(plan.candidates)}")
+    typer.echo(f"Unique Requests: {len(plan.requests)}")
+    typer.echo(f"Excluded Rows: {len(plan.exclusions)}")
+    typer.echo("CANDIDATE_BOUNDED=true")
+    typer.echo("FULL_UNIVERSE_INTRADAY_SWEEP_ENABLED=false")
+    typer.echo("ONE_MINUTE_STRATEGY_MINING_ENABLED=false")
+    typer.echo("PRODUCTION_INFLUENCE=false")
+    typer.echo(f"Artifacts: {output} ({len(paths)} files)")
 
 
 def decision_superiority_intraday_source_certify(
