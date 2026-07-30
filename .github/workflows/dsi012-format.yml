@@ -1,0 +1,49 @@
+name: DSI-012 Format
+
+on:
+  push:
+    branches:
+      - feature/dsi-012-governed-structural-stop-risk-scaling
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-012-governed-structural-stop-risk-scaling
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install locked Ruff
+        run: pip install ruff==0.15.20
+      - name: Format DSI-012 files
+        run: |
+          ruff format \
+            alpha/application/decision_superiority_structural_stop_risk_scaling_cli.py \
+            alpha/decision_superiority/structural_stop_risk_scaling.py \
+            alpha/decision_superiority/structural_stop_risk_scaling_artifacts.py \
+            alpha/decision_superiority/structural_stop_risk_scaling_overlay.py \
+            alpha/decision_superiority/structural_stop_risk_scaling_rehydration.py \
+            tests/decision_superiority/test_structural_stop_risk_scaling.py
+      - name: Commit formatting
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            alpha/application/decision_superiority_structural_stop_risk_scaling_cli.py \
+            alpha/decision_superiority/structural_stop_risk_scaling.py \
+            alpha/decision_superiority/structural_stop_risk_scaling_artifacts.py \
+            alpha/decision_superiority/structural_stop_risk_scaling_overlay.py \
+            alpha/decision_superiority/structural_stop_risk_scaling_rehydration.py \
+            tests/decision_superiority/test_structural_stop_risk_scaling.py
+          git commit -m "style(dsi-012): apply locked Ruff formatting"
+          git push origin HEAD:feature/dsi-012-governed-structural-stop-risk-scaling
