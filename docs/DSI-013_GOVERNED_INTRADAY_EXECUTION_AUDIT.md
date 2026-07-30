@@ -138,3 +138,7 @@ The daily/intraday reconciliation layer, point-in-time instrument resolver,
 entry mechanisms, paired attribution, portfolio replay, artifact certificate,
 CLI runner, and real-data acceptance remain to be implemented. Until the source
 certificate is ready, no intraday performance conclusion is permitted.
+
+The source slice must pass locked Ruff, Ruff format, strict MyPy, focused unit
+tests, and the complete repository CI shards before work advances to identity
+resolution or strategy execution.
