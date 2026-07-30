@@ -453,6 +453,7 @@ class GovernedEntryStopImprovementEngine:
             trade_paths=trade_paths,
             entry_fill_rows=entry_fill_rows,
             incumbent_result=incumbent_result,
+            expected_incumbent_trade_count=int(incumbent_metrics["trade_count"]),
         )
         probe_rows = _structural_probes()
         readiness, blockers, grade = _readiness(
@@ -465,6 +466,7 @@ class GovernedEntryStopImprovementEngine:
             multiple_rows=multiple_rows,
             entry_champion=entry_champion,
             stop_champion=stop_champion,
+            expected_incumbent_trade_count=int(incumbent_metrics["trade_count"]),
         )
         source_rows = _source_contract_rows(
             sources=sources,
@@ -2223,6 +2225,7 @@ def _population_reconciliation(
     trade_paths: Sequence[Mapping[str, Any]],
     entry_fill_rows: Sequence[Mapping[str, Any]],
     incumbent_result: Mapping[str, Any],
+    expected_incumbent_trade_count: int,
 ) -> list[dict[str, Any]]:
     fill_frame = pd.DataFrame(entry_fill_rows)
     return [
@@ -2235,17 +2238,21 @@ def _population_reconciliation(
         },
         {
             "population": "DSI008_INCUMBENT_TRADES",
-            "expected_count": 56,
+            "expected_count": expected_incumbent_trade_count,
             "observed_count": len(trade_paths),
-            "difference": len(trade_paths) - 56,
-            "reconciled": len(trade_paths) == 56,
+            "difference": len(trade_paths) - expected_incumbent_trade_count,
+            "reconciled": len(trade_paths) == expected_incumbent_trade_count,
         },
         {
             "population": "INCUMBENT_REPLAY_TRADES",
-            "expected_count": 56,
+            "expected_count": expected_incumbent_trade_count,
             "observed_count": len(incumbent_result["trades"]),
-            "difference": len(incumbent_result["trades"]) - 56,
-            "reconciled": len(incumbent_result["trades"]) == 56,
+            "difference": (
+                len(incumbent_result["trades"]) - expected_incumbent_trade_count
+            ),
+            "reconciled": (
+                len(incumbent_result["trades"]) == expected_incumbent_trade_count
+            ),
         },
         {
             "population": "ENTRY_FILL_EVALUATIONS",
@@ -2310,8 +2317,9 @@ def _readiness(
     multiple_rows: Sequence[Mapping[str, Any]],
     entry_champion: str | None,
     stop_champion: str | None,
+    expected_incumbent_trade_count: int,
 ) -> tuple[dict[str, str], list[str], str]:
-    if len(trade_paths) != 56:
+    if len(trade_paths) != expected_incumbent_trade_count:
         raise EntryStopImprovementError("BLOCKED_BY_INCOMPLETE_TRADE_PATH")
     if len(attribution_rows) != len(trade_paths):
         raise EntryStopImprovementError("BLOCKED_BY_UNATTRIBUTED_LOSS_POPULATION")

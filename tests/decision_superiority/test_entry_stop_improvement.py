@@ -413,6 +413,7 @@ def test_benchmark_outperformance_does_not_create_alpha_readiness() -> None:
     readiness, blockers, grade = _readiness(
         trade_paths=[{"id": index} for index in range(56)],
         attribution_rows=[{"id": index} for index in range(56)],
+        expected_incumbent_trade_count=56,
         entry_result_rows=[],
         stop_result_rows=[],
         portfolio_rows=[
@@ -446,6 +447,7 @@ def test_descriptive_alpha_improvement_is_reported_without_promotion() -> None:
     readiness, _, _ = _readiness(
         trade_paths=[{"id": index} for index in range(56)],
         attribution_rows=[{"id": index} for index in range(56)],
+        expected_incumbent_trade_count=56,
         entry_result_rows=[],
         stop_result_rows=[
             {
