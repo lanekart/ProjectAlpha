@@ -141,4 +141,5 @@ certificate is ready, no intraday performance conclusion is permitted.
 
 The source slice must pass locked Ruff, Ruff format, strict MyPy, focused unit
 tests, and the complete repository CI shards before work advances to identity
-resolution or strategy execution.
+resolution or strategy execution. The clean source-only validation boundary is
+exactly the two DSI-013 modules, this document, and the focused source test file.
