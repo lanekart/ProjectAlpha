@@ -1,0 +1,171 @@
+name: DSI-009 Signed Population Count Repair
+
+on:
+  push:
+    branches:
+      - feature/dsi-012-governed-structural-stop-risk-scaling
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-012-governed-structural-stop-risk-scaling
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Bind reconciliation to signed incumbent count
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source_path = Path("alpha/decision_superiority/entry_stop_improvement.py")
+          source = source_path.read_text(encoding="utf-8")
+
+          replacements = [
+              (
+                  '''        population_rows = _population_reconciliation(
+                      signals=signals,
+                      candidates=candidates,
+                      trade_paths=trade_paths,
+                      entry_fill_rows=entry_fill_rows,
+                      incumbent_result=incumbent_result,
+                  )
+          ''',
+                  '''        population_rows = _population_reconciliation(
+                      signals=signals,
+                      candidates=candidates,
+                      trade_paths=trade_paths,
+                      entry_fill_rows=entry_fill_rows,
+                      incumbent_result=incumbent_result,
+                      expected_incumbent_trade_count=int(incumbent_metrics["trade_count"]),
+                  )
+          ''',
+              ),
+              (
+                  '''            entry_champion=entry_champion,
+                      stop_champion=stop_champion,
+                  )
+                  source_rows = _source_contract_rows(
+          ''',
+                  '''            entry_champion=entry_champion,
+                      stop_champion=stop_champion,
+                      expected_incumbent_trade_count=int(incumbent_metrics["trade_count"]),
+                  )
+                  source_rows = _source_contract_rows(
+          ''',
+              ),
+              (
+                  '''    entry_fill_rows: Sequence[Mapping[str, Any]],
+              incumbent_result: Mapping[str, Any],
+          ) -> list[dict[str, Any]]:
+          ''',
+                  '''    entry_fill_rows: Sequence[Mapping[str, Any]],
+              incumbent_result: Mapping[str, Any],
+              expected_incumbent_trade_count: int,
+          ) -> list[dict[str, Any]]:
+          ''',
+              ),
+              (
+                  '''        {
+                      "population": "DSI008_INCUMBENT_TRADES",
+                      "expected_count": 56,
+                      "observed_count": len(trade_paths),
+                      "difference": len(trade_paths) - 56,
+                      "reconciled": len(trade_paths) == 56,
+                  },
+                  {
+                      "population": "INCUMBENT_REPLAY_TRADES",
+                      "expected_count": 56,
+                      "observed_count": len(incumbent_result["trades"]),
+                      "difference": len(incumbent_result["trades"]) - 56,
+                      "reconciled": len(incumbent_result["trades"]) == 56,
+                  },
+          ''',
+                  '''        {
+                      "population": "DSI008_INCUMBENT_TRADES",
+                      "expected_count": expected_incumbent_trade_count,
+                      "observed_count": len(trade_paths),
+                      "difference": len(trade_paths) - expected_incumbent_trade_count,
+                      "reconciled": len(trade_paths) == expected_incumbent_trade_count,
+                  },
+                  {
+                      "population": "INCUMBENT_REPLAY_TRADES",
+                      "expected_count": expected_incumbent_trade_count,
+                      "observed_count": len(incumbent_result["trades"]),
+                      "difference": (
+                          len(incumbent_result["trades"])
+                          - expected_incumbent_trade_count
+                      ),
+                      "reconciled": (
+                          len(incumbent_result["trades"])
+                          == expected_incumbent_trade_count
+                      ),
+                  },
+          ''',
+              ),
+              (
+                  '''    entry_champion: str | None,
+              stop_champion: str | None,
+          ) -> tuple[dict[str, str], list[str], str]:
+              if len(trade_paths) != 56:
+                  raise EntryStopImprovementError("BLOCKED_BY_INCOMPLETE_TRADE_PATH")
+          ''',
+                  '''    entry_champion: str | None,
+              stop_champion: str | None,
+              expected_incumbent_trade_count: int,
+          ) -> tuple[dict[str, str], list[str], str]:
+              if len(trade_paths) != expected_incumbent_trade_count:
+                  raise EntryStopImprovementError("BLOCKED_BY_INCOMPLETE_TRADE_PATH")
+          ''',
+              ),
+          ]
+
+          for old, new in replacements:
+              if old not in source:
+                  raise SystemExit(f"source replacement anchor not found:\n{old}")
+              source = source.replace(old, new, 1)
+          source_path.write_text(source, encoding="utf-8")
+
+          test_path = Path("tests/decision_superiority/test_entry_stop_improvement.py")
+          tests = test_path.read_text(encoding="utf-8")
+          anchor = '''        attribution_rows=[{"id": index} for index in range(56)],
+                  entry_result_rows=[],
+          '''
+          replacement = '''        attribution_rows=[{"id": index} for index in range(56)],
+                  expected_incumbent_trade_count=56,
+                  entry_result_rows=[],
+          '''
+          if tests.count(anchor) != 2:
+              raise SystemExit(
+                  f"expected two readiness test anchors, found {tests.count(anchor)}"
+              )
+          test_path.write_text(tests.replace(anchor, replacement), encoding="utf-8")
+          PY
+      - name: Format and lint repair
+        run: |
+          pip install ruff==0.15.20
+          ruff format \
+            alpha/decision_superiority/entry_stop_improvement.py \
+            tests/decision_superiority/test_entry_stop_improvement.py
+          ruff check \
+            alpha/decision_superiority/entry_stop_improvement.py \
+            tests/decision_superiority/test_entry_stop_improvement.py
+      - name: Commit repair and remove helper
+        run: |
+          rm .github/workflows/dsi009-signed-population-count-repair.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            alpha/decision_superiority/entry_stop_improvement.py \
+            tests/decision_superiority/test_entry_stop_improvement.py \
+            .github/workflows/dsi009-signed-population-count-repair.yml
+          git diff --cached --quiet && exit 1
+          git commit -m "fix(dsi-009): bind population counts to signed incumbent"
+          git push origin HEAD:feature/dsi-012-governed-structural-stop-risk-scaling
