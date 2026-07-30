@@ -1,0 +1,99 @@
+name: Temporary DSI-011E Type Fix
+
+on:
+  push:
+    branches:
+      - feature/dsi-011e-alpha-eligibility-window-sweep
+  pull_request:
+    branches:
+      - feature/dsi-011d-calibrated-position-sizing-main
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-011e-alpha-eligibility-window-sweep
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Patch typed boundaries and structured audit
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('alpha/research/eligibility_window_sweep.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              'import json\nimport subprocess\n',
+              'import json\nimport math\nimport subprocess\n',
+          )
+          text = text.replace(
+              '        _write_json(cell_directory / "eligibility_audit.json", eligibility_audit)\n',
+              '        _write_json(\n'
+              '            cell_directory / "eligibility_audit.json",\n'
+              '            eligibility_audit.as_dict(),\n'
+              '        )\n',
+          )
+          text = text.replace(
+              '            int(row["window_sessions"]),\n',
+              '            int(cast(Any, row["window_sessions"])),\n',
+          )
+          text = text.replace(
+              '        expected = int(cast(Any, reference_summary[key]))\n'
+              '        actual = int(cast(Any, observed[key]))\n'
+              '        match = expected == actual\n'
+              '        passed &= match\n'
+              '        differences[key] = {\n'
+              '            "expected": expected,\n'
+              '            "observed": actual,\n',
+              '        expected_count = int(cast(Any, reference_summary[key]))\n'
+              '        actual_count = int(cast(Any, observed[key]))\n'
+              '        match = expected_count == actual_count\n'
+              '        passed &= match\n'
+              '        differences[key] = {\n'
+              '            "expected": expected_count,\n'
+              '            "observed": actual_count,\n',
+          )
+          text = text.replace(
+              '        expected = _decimal(reference_summary[key])\n'
+              '        actual = _decimal(observed[key])\n'
+              '        delta = abs(actual - expected)\n',
+              '        expected_value = _decimal(reference_summary[key])\n'
+              '        actual_value = _decimal(observed[key])\n'
+              '        delta = abs(actual_value - expected_value)\n',
+          )
+          text = text.replace(
+              '            "expected": str(expected),\n'
+              '            "observed": str(actual),\n',
+              '            "expected": str(expected_value),\n'
+              '            "observed": str(actual_value),\n',
+          )
+          text = text.replace(
+              'def _normalise_regime(value: object) -> str:\n'
+              '    if value is None or pd.isna(value):\n'
+              '        return "UNKNOWN"\n',
+              'def _normalise_regime(value: object) -> str:\n'
+              '    if value is None:\n'
+              '        return "UNKNOWN"\n'
+              '    if isinstance(value, float) and math.isnan(value):\n'
+              '        return "UNKNOWN"\n',
+          )
+          path.write_text(text, encoding='utf-8')
+          PY
+          python -m pip install 'ruff==0.15.20'
+          ruff format alpha/research/eligibility_window_sweep.py
+          ruff check alpha/research/eligibility_window_sweep.py
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add alpha/research/eligibility_window_sweep.py
+          git commit -m 'fix(dsi-011e): harden typed and artifact boundaries'
+          git push origin HEAD:feature/dsi-011e-alpha-eligibility-window-sweep
