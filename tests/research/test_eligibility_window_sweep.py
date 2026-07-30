@@ -50,9 +50,7 @@ def test_exact_sweep_contract_is_five_windows_by_two_risk_policies() -> None:
     )
     assert len(contract) == 10
     assert {(window, policy.policy_id) for window, policy in contract} == {
-        (window, policy.policy_id)
-        for window in WINDOWS
-        for policy in RISK_POLICIES
+        (window, policy.policy_id) for window in WINDOWS for policy in RISK_POLICIES
     }
 
 
@@ -154,9 +152,7 @@ def test_reference_parity_requires_exact_counts_and_tight_metrics() -> None:
 
     passed = _reference_parity(reference, dict(summary))
     failed_summary = dict(summary)
-    failed_summary["gross_cagr_percent"] = str(
-        Decimal("5.7140") + Decimal("0.0002")
-    )
+    failed_summary["gross_cagr_percent"] = str(Decimal("5.7140") + Decimal("0.0002"))
     failed = _reference_parity(reference, failed_summary)
 
     assert passed["passed"] is True
