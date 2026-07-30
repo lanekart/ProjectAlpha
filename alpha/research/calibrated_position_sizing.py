@@ -278,6 +278,7 @@ class PolicyResult:
                 if not self.equity_curve
                 else str(min(item.drawdown_percent for item in self.equity_curve))
             ),
+            "entry_count": len(self.trades),
             "completed_trade_count": len(self.trades),
             "rejected_entry_count": len(self.rejected_entries),
             "win_rate_percent": (
