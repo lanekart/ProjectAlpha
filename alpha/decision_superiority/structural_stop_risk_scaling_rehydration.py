@@ -18,6 +18,7 @@ from alpha.decision_superiority.entry_stop_improvement import (
     _governed_market,
     _load_dsi007_selections,
     _load_dsi008_ledgers,
+    _market_sha256,
     _outer_signals,
     _stable_id,
     _stop_level,
@@ -62,7 +63,7 @@ def _rehydrate_structural_stop(
     *,
     sources: StructuralStopRiskScalingSourcePaths,
     dsi008: Mapping[str, Any],
-) -> tuple[pd.DataFrame, dict[str, Any], dict[str, Any]]:
+) -> tuple[pd.DataFrame, dict[str, Any], dict[str, Any], str]:
     research_policy = EntryStopPolicy()
     tournament_policy = TournamentPolicy()
     ledgers = _load_dsi008_ledgers(sources.dsi008_certificate.parent)
@@ -78,6 +79,7 @@ def _rehydrate_structural_stop(
         start=date.fromisoformat(research_policy.comparison_start),
         end=date.fromisoformat(research_policy.comparison_end),
     )
+    market_hash = _market_sha256(market)
     candidates = _candidate_frame(signals, market)
     entry_fill_rows, _ = _entry_tournament(
         candidates=candidates,
@@ -148,7 +150,21 @@ def _rehydrate_structural_stop(
         != tournament_policy.starting_capital
     ):
         raise StructuralStopRiskScalingError("DSI012_STARTING_CAPITAL_MISMATCH")
-    return selected, simulation, metrics
+    return selected, simulation, metrics, market_hash
+
+
+def _validate_market_slice(
+    *,
+    actual_market_hash: str,
+    dsi009: Mapping[str, Any],
+) -> None:
+    expected = str(
+        cast(Mapping[str, Any], dsi009["source_chain_hashes"])[
+            "GOVERNED_MARKET_SLICE"
+        ]
+    )
+    if actual_market_hash != expected:
+        raise StructuralStopRiskScalingError("DSI012_GOVERNED_MARKET_SLICE_DRIFT")
 
 
 def _parity_rows(
@@ -248,7 +264,10 @@ def _source_contract_rows(
     *,
     sources: StructuralStopRiskScalingSourcePaths,
     dsi009: Mapping[str, Any],
+    dsi007: Mapping[str, Any],
+    market_hash: str,
 ) -> list[dict[str, Any]]:
+    dsi007_hashes = cast(Mapping[str, Any], dsi007["source_chain_hashes"])
     return [
         {
             "source_role": "DSI009_CERTIFICATE",
@@ -267,12 +286,18 @@ def _source_contract_rows(
         },
         {
             "source_role": "GOVERNED_MARKET_SLICE",
-            "path": "REHYDRATED_FROM_GOVERNED_DATABASE",
-            "sha256": str(
-                cast(Mapping[str, Any], dsi009["source_chain_hashes"])[
-                    "GOVERNED_MARKET_SLICE"
-                ]
-            ),
+            "path": "REHYDRATED_FROM_CURRENT_GOVERNED_DATABASE",
+            "sha256": market_hash,
+        },
+        {
+            "source_role": "CURRENT_DATABASE_CONTAINER",
+            "path": _portable_path(sources.database),
+            "sha256": _sha256(sources.database),
+        },
+        {
+            "source_role": "DSI007_CERTIFIED_DATABASE_LINEAGE",
+            "path": "SIGNED_DSI007_CERTIFICATE_FIELD",
+            "sha256": str(dsi007_hashes["HISTORICAL_TRUTH_DATABASE"]),
         },
     ]
 
@@ -308,5 +333,6 @@ __all__ = [
     "_parity_rows",
     "_rehydrate_structural_stop",
     "_source_contract_rows",
+    "_validate_market_slice",
     "_validate_source_chain",
 ]
