@@ -7,7 +7,7 @@ import json
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Protocol, cast
@@ -171,7 +171,7 @@ def fetch_upstox_v3_bars(
             f"DSI013_UPSTOX_HTTP_STATUS_INVALID:{response.status_code}"
         )
     payload = _decode_payload(response.body)
-    timestamp = retrieved_at or datetime.now(timezone.utc)
+    timestamp = retrieved_at or datetime.now(UTC)
     _write_source_cache(
         raw_path=raw_path,
         manifest_path=manifest_path,
@@ -192,7 +192,7 @@ def parse_upstox_v3_payload(
 ) -> tuple[IntradayBar, ...]:
     """Parse a V3 response without repairing or forward-filling missing evidence."""
 
-    active_policy = policy or IntradayExecutionPolicy()
+    del policy
     if payload.get("status") != "success":
         raise IntradayExecutionError("DSI013_UPSTOX_RESPONSE_NOT_SUCCESS")
     data = payload.get("data")
@@ -288,6 +288,10 @@ def audit_intraday_bars(
         )
         first_time = ordered[0].timestamp.timetz().replace(tzinfo=None)
         last_time = ordered[-1].timestamp.timetz().replace(tzinfo=None)
+        expected_last_time = _last_bar_start(
+            active_policy.session_end,
+            active_policy.interval_minutes,
+        )
         count_ok = (
             not expected_regular
             or len(ordered) == active_policy.expected_regular_bar_count
@@ -296,8 +300,7 @@ def audit_intraday_bars(
             not expected_regular
             or (
                 first_time == active_policy.session_start
-                and last_time
-                == _last_bar_start(active_policy.session_end, active_policy.interval_minutes)
+                and last_time == expected_last_time
             )
         )
         if not count_ok:
@@ -394,7 +397,7 @@ def _write_source_cache(
         "request": source_request_payload(request, policy=policy),
         "request_id": source_request_id(request, policy=policy),
         "request_url": upstox_v3_request_url(request, policy=policy),
-        "retrieved_at": retrieved_at.astimezone(timezone.utc).isoformat(),
+        "retrieved_at": retrieved_at.astimezone(UTC).isoformat(),
         "content_type": content_type,
         "raw_sha256": digest,
         "credential_fields_persisted": False,
