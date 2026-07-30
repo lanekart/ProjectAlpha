@@ -189,34 +189,68 @@ def _case_diagnostics(
         result.get("action_type") or event.get("action_type") or "UNKNOWN"
     )
 
-    term_factor, term_formula = _official_term_factor(event, action_type)
+    reference_price = _number(factor.get("reference_price"))
+    reference_price_certified = factor.get("reference_price_certified") is True
+    term_factor, term_formula = _official_term_factor(
+        event, action_type, reference_price=reference_price
+    )
     term_match = _nearly_equal(official_factor, term_factor)
-    series_metrics = _series_metrics(connection, isin, effective, official_factor)
-    selected_metrics = _selected_series_metrics(series_metrics, selected_series)
-    best_series = _best_metric(series_metrics, "open_adjusted_gap_atr")
-    close_basis = _best_metric(series_metrics, "close_adjusted_gap_atr")
     inverse_factor = (
         1.0 / official_factor if official_factor and official_factor > 0 else None
     )
-    best_inverse = _best_metric(
-        _series_metrics(connection, isin, effective, inverse_factor),
-        "open_adjusted_gap_atr",
-    )
-    date_candidates = _date_candidates(
-        connection,
-        isin,
-        selected_series,
-        event,
-        official_factor,
-    )
-    best_date = _best_metric(date_candidates, "open_adjusted_gap_atr")
     same_day_factor = _product(
         tuple(_number(row.get("price_factor")) for row in same_day_factors)
     )
-    best_same_day = _best_metric(
-        _series_metrics(connection, isin, effective, same_day_factor),
-        "open_adjusted_gap_atr",
-    )
+    governed_context = result.get("governed_continuity_context")
+    series_metrics: list[dict[str, Any]]
+    selected_metrics: dict[str, Any] | None
+    best_series: dict[str, Any] | None
+    close_basis: dict[str, Any] | None
+    best_inverse: dict[str, Any] | None
+    date_candidates: list[dict[str, Any]]
+    best_date: dict[str, Any] | None
+    best_same_day: dict[str, Any] | None
+    if isinstance(governed_context, dict) and governed_context:
+        selected_metrics = _governed_context_metrics(
+            result,
+            selected_series,
+            official_factor,
+        )
+        series_metrics = [selected_metrics]
+        best_series = selected_metrics
+        close_basis = selected_metrics
+        best_inverse = {
+            **selected_metrics,
+            "open_adjusted_gap_atr": result.get("inverse_adjusted_gap_atr"),
+        }
+        date_candidates = [selected_metrics]
+        best_date = selected_metrics
+        best_same_day = (
+            _governed_context_metrics(result, selected_series, same_day_factor)
+            if same_day_factor is not None
+            else None
+        )
+    else:
+        series_metrics = _series_metrics(connection, isin, effective, official_factor)
+        selected_metrics = _selected_series_metrics(series_metrics, selected_series)
+        best_series = _best_metric(series_metrics, "open_adjusted_gap_atr")
+        close_basis = _best_metric(series_metrics, "close_adjusted_gap_atr")
+        best_inverse = _best_metric(
+            _series_metrics(connection, isin, effective, inverse_factor),
+            "open_adjusted_gap_atr",
+        )
+        date_candidates = _date_candidates(
+            connection,
+            isin,
+            selected_series,
+            event,
+            official_factor,
+        )
+        best_date = _best_metric(date_candidates, "open_adjusted_gap_atr")
+        best_same_day = _best_metric(
+            _series_metrics(connection, isin, effective, same_day_factor),
+            "open_adjusted_gap_atr",
+        )
 
     classification, recommendation, evidence = _classify(
         result=result,
@@ -233,6 +267,7 @@ def _case_diagnostics(
         effective=effective,
         best_same_day=best_same_day,
         same_day_factor_count=len(same_day_factors),
+        reference_price_certified=reference_price_certified,
     )
     return {
         "case_id": f"htr010b1d:{sha256(event_id.encode()).hexdigest()}",
@@ -252,6 +287,14 @@ def _case_diagnostics(
         "official_term_factor": term_factor,
         "official_term_formula": term_formula,
         "official_term_factor_matches": term_match,
+        "reference_price": reference_price,
+        "reference_price_date": factor.get("reference_price_date"),
+        "reference_price_isin": factor.get("reference_price_isin"),
+        "reference_price_source_sha256": factor.get("reference_price_source_sha256"),
+        "reference_price_provenance_state": factor.get(
+            "reference_price_provenance_state"
+        ),
+        "reference_price_certified": reference_price_certified,
         "inverse_factor_diagnostic": inverse_factor,
         "same_day_cumulative_factor_diagnostic": same_day_factor,
         "same_day_factor_count": len(same_day_factors),
@@ -261,6 +304,9 @@ def _case_diagnostics(
         "reported_adjusted_gap_atr": result.get("adjusted_gap_atr"),
         "reported_raw_gap_atr": result.get("raw_gap_atr"),
         "reported_residual_attribution": result.get("residual_attribution"),
+        "governed_continuity_context_id": result.get("governed_continuity_context_id"),
+        "governed_continuity_context": result.get("governed_continuity_context"),
+        "governed_continuity_validation_outcome": result.get("validation_outcome"),
         "selected_series_metrics": selected_metrics or {},
         "best_series_metrics": best_series or {},
         "best_close_basis_metrics": close_basis or {},
@@ -279,6 +325,66 @@ def _case_diagnostics(
     }
 
 
+def _governed_context_metrics(
+    result: dict[str, Any],
+    series: str | None,
+    factor: float | None,
+) -> dict[str, Any]:
+    context = result.get("governed_continuity_context")
+    payload = context if isinstance(context, dict) else {}
+    metrics = payload.get("metrics")
+    values = metrics if isinstance(metrics, dict) else {}
+    previous_close = _number(values.get("previous_close"))
+    action_open = _number(values.get("action_open"))
+    action_close = _number(values.get("action_close"))
+    atr = _number(values.get("atr_before"))
+    return {
+        "series": series,
+        "candidate_date": result.get("effective_date"),
+        "previous_session": values.get("previous_session"),
+        "action_session": values.get("action_session"),
+        "previous_close": previous_close,
+        "action_open": action_open,
+        "action_close": action_close,
+        "atr_before": atr,
+        "median_prior_volume": values.get("median_prior_volume"),
+        "open_raw_gap_atr": _optional_gap(action_open, previous_close, atr, 1.0),
+        "open_adjusted_gap_atr": _optional_gap(
+            action_open,
+            previous_close,
+            atr,
+            factor,
+        ),
+        "close_raw_gap_atr": _optional_gap(
+            action_close,
+            previous_close,
+            atr,
+            1.0,
+        ),
+        "close_adjusted_gap_atr": _optional_gap(
+            action_close,
+            previous_close,
+            atr,
+            factor,
+        ),
+        "candle_context": (
+            "AVAILABLE" if payload.get("complete") is True else "INSUFFICIENT"
+        ),
+        "governed_continuity_context_id": result.get("governed_continuity_context_id"),
+    }
+
+
+def _optional_gap(
+    price: float | None,
+    previous_close: float | None,
+    atr: float | None,
+    factor: float | None,
+) -> float | None:
+    if price is None or previous_close is None:
+        return None
+    return _gap(price, previous_close, atr, factor)
+
+
 def _classify(
     *,
     result: dict[str, Any],
@@ -295,6 +401,7 @@ def _classify(
     effective: date | None,
     best_same_day: dict[str, Any] | None,
     same_day_factor_count: int,
+    reference_price_certified: bool = False,
 ) -> tuple[str, str, dict[str, Any]]:
     official_gap = _metric(selected_metrics, "open_adjusted_gap_atr")
     raw_gap = _metric(selected_metrics, "open_raw_gap_atr")
@@ -361,6 +468,12 @@ def _classify(
             "COMPOSE_SAME_SESSION_FACTORS_IN_GOVERNED_ORDER",
             evidence,
         )
+    if action_type == "RIGHTS" and reference_price_certified and term_match is True:
+        return (
+            "RESIDUAL_MARKET_GAP_NOT_FACTOR_ERROR",
+            "RETAIN_CERTIFIED_TERP_CLASSIFY_RESIDUAL_AS_MARKET_GAP",
+            evidence,
+        )
     if action_type == "RIGHTS":
         return (
             "RIGHTS_REFERENCE_PRICE_BASIS_UNCERTAIN",
@@ -389,7 +502,10 @@ def _classify(
 
 
 def _official_term_factor(
-    event: dict[str, Any], action_type: str
+    event: dict[str, Any],
+    action_type: str,
+    *,
+    reference_price: float | None = None,
 ) -> tuple[float | None, str | None]:
     numerator = _number(event.get("ratio_numerator"))
     denominator = _number(event.get("ratio_denominator"))
@@ -402,8 +518,31 @@ def _official_term_factor(
             return denominator / numerator, "ratio_denominator / ratio_numerator"
     if action_type == "BONUS" and numerator and denominator:
         if numerator > 0 and denominator > 0:
-            return denominator / (numerator + denominator), (
-                "ratio_denominator / (ratio_numerator + ratio_denominator)"
+            factor = denominator / (numerator + denominator)
+            formula = "ratio_denominator / (ratio_numerator + ratio_denominator)"
+            if old_face is not None:
+                if not new_face or old_face <= 0 or new_face <= 0:
+                    return None, None
+                factor *= new_face / old_face
+                formula += " * new_face_value / old_face_value"
+            return factor, formula
+    if action_type == "RIGHTS" and numerator and denominator:
+        rights_price = _number(event.get("rights_price"))
+        if (
+            numerator > 0
+            and denominator > 0
+            and rights_price is not None
+            and rights_price >= 0
+            and reference_price is not None
+            and reference_price > 0
+        ):
+            terp = (denominator * reference_price + numerator * rights_price) / (
+                denominator + numerator
+            )
+            return terp / reference_price, (
+                "((ratio_denominator * reference_price) + "
+                "(ratio_numerator * rights_price)) / "
+                "(ratio_denominator + ratio_numerator) / reference_price"
             )
     return None, None
 

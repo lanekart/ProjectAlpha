@@ -1,0 +1,1877 @@
+from __future__ import annotations
+
+import os
+from dataclasses import replace
+from datetime import date, timedelta
+from pathlib import Path
+
+import duckdb
+import pytest
+
+from alpha.historical_truth.adjustment_replay_admission_continuity import (
+    recompute_factor_validation,
+)
+from alpha.historical_truth.adjustment_replay_admission_models import (
+    ValidationOutcome,
+)
+from alpha.historical_truth.bridge_aware_continuity_artifacts import (
+    BridgeAwareContinuityCertificationEngine,
+)
+from alpha.historical_truth.bridge_aware_continuity_context import (
+    PRODUCTION_INFLUENCE,
+    BridgeAwareContinuityContextProvider,
+    ContinuityContextDecision,
+    GovernedCandleIdentityState,
+    OfficialEventDateIdentityEvidence,
+    OfficialIsinTransitionEvidence,
+    RawCanonicalCandle,
+)
+from alpha.historical_truth.bridge_aware_factor_validation_repair import (
+    _repair_case,
+)
+from alpha.historical_truth.factor_transformation_bridge_forensics import (
+    _governed_selected_bridge,
+)
+from alpha.historical_truth.legacy_isin_reference_bridge import (
+    LegacyIsinReferenceBridge,
+)
+from alpha.historical_truth.official_corporate_action_supplements import (
+    OfficialSecurityTransitionSupplement,
+    OfficialSupplementSource,
+)
+from tests.historical_truth.legacy_bridge_test_support import (
+    IDENTITY,
+    ISIN,
+    write_bridge_fixture,
+)
+
+EVENT_ID = "event-1"
+FACTOR_ID = "factor-1"
+SOURCE_SHA = "c" * 64
+EFFECTIVE = date(2015, 1, 16)
+
+
+def _database(path: Path) -> None:
+    with duckdb.connect(str(path)) as connection:
+        connection.execute(
+            "CREATE TABLE daily_candle("
+            "trading_date DATE, exchange VARCHAR, symbol VARCHAR, series VARCHAR, "
+            "isin VARCHAR, open_price DOUBLE, high_price DOUBLE, low_price DOUBLE, "
+            "close_price DOUBLE, volume BIGINT, source_sha256 VARCHAR)"
+        )
+
+
+def _insert(
+    path: Path,
+    *,
+    count: int = 16,
+    isin: str | None = None,
+    symbol: str = "ALPHA",
+    series: str = "EQ",
+    source_sha256: str | None = SOURCE_SHA,
+    action_open: float = 50.0,
+    action_close: float | None = None,
+) -> None:
+    rows = []
+    start = date(2015, 1, 1)
+    for offset in range(count):
+        session = start + timedelta(days=offset)
+        open_price = action_open if session == EFFECTIVE else 100.0
+        close_price = (
+            action_close
+            if session == EFFECTIVE and action_close is not None
+            else open_price
+            if session == EFFECTIVE
+            else 100.0
+        )
+        rows.append(
+            (
+                session,
+                "NSE",
+                symbol,
+                series,
+                isin,
+                open_price,
+                max(open_price, close_price, 100.0) + 1.0,
+                min(open_price, close_price, 100.0) - 1.0,
+                close_price,
+                1_000,
+                source_sha256,
+            )
+        )
+    with duckdb.connect(str(path)) as connection:
+        connection.executemany(
+            "INSERT INTO daily_candle VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            rows,
+        )
+
+
+def _bridge(tmp_path: Path, **changes: object) -> LegacyIsinReferenceBridge:
+    htr009a2, htr010a3 = write_bridge_fixture(tmp_path, **changes)
+    return LegacyIsinReferenceBridge.from_fixture_output(
+        htr009a2,
+        htr010a3_output=htr010a3,
+    )
+
+
+def _case(event_id: str = EVENT_ID) -> dict[str, object]:
+    return {
+        "event_id": event_id,
+        "factor_id": FACTOR_ID if event_id == EVENT_ID else f"factor-{event_id}",
+        "identity_key": IDENTITY,
+        "symbol": "ALPHA",
+        "series": "EQ",
+        "event_isin": ISIN,
+        "effective_date": EFFECTIVE.isoformat(),
+        "prior_candle_date": "2015-01-15",
+        "prior_close": 100.0,
+        "prior_candle_source_sha256": SOURCE_SHA,
+        "bridge_decision": "CERTIFIED_DATED_OFFICIAL_IDENTITY_BRIDGE",
+        "bridge_certified": True,
+        "original_candle_isin_remained_missing": True,
+        "final_validation_outcomes": ["FACTOR_INSUFFICIENT_EVIDENCE"],
+    }
+
+
+def _provider(
+    tmp_path: Path,
+    *,
+    bridge_changes: dict[str, object] | None = None,
+    all_material_actions: bool = False,
+    official_event_evidence: dict[str, OfficialEventDateIdentityEvidence] | None = None,
+    security_transition_supplements: tuple[
+        OfficialSecurityTransitionSupplement, ...
+    ] = (),
+) -> BridgeAwareContinuityContextProvider:
+    bridge = _bridge(tmp_path, **(bridge_changes or {}))
+    cases = (_case(), *(_case(f"dummy-{index}") for index in range(17)))
+    return BridgeAwareContinuityContextProvider.from_fixture(
+        bridge=bridge,
+        cases=cases,
+        all_material_actions=all_material_actions,
+        official_event_evidence=official_event_evidence,
+        security_transition_supplements=security_transition_supplements,
+    )
+
+
+def _event(**changes: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "canonical_event_id": EVENT_ID,
+        "governed_identity_id": IDENTITY,
+        "symbol": "ALPHA",
+        "series_applicability": ["EQ"],
+        "isin": ISIN,
+        "action_type": "RIGHTS",
+        "effective_date": EFFECTIVE.isoformat(),
+    }
+    payload.update(changes)
+    return payload
+
+
+def _factor(
+    provider: BridgeAwareContinuityContextProvider,
+    **changes: object,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "factor_id": FACTOR_ID,
+        "canonical_event_id": EVENT_ID,
+        "identity_key": IDENTITY,
+        "factor_state": "FACTOR_CERTIFIED_REFERENCE_PRICE",
+        "price_factor": 0.5,
+        "reference_price": 100.0,
+        "reference_price_date": "2015-01-15",
+        "reference_price_source_sha256": SOURCE_SHA,
+        "reference_price_bridge_contract_version": (
+            "HTR-010B1-LEGACY-ISIN-REFERENCE-BRIDGE-v1.0.0"
+        ),
+        "reference_price_bridge_source_contract_id": (
+            provider.bridge.source_contract.contract_id
+        ),
+        "reference_price_bridge_source_report_sha256": (
+            provider.bridge.source_report_sha256
+        ),
+    }
+    payload.update(changes)
+    return payload
+
+
+def _context(
+    path: Path,
+    provider: BridgeAwareContinuityContextProvider,
+    factor: dict[str, object] | None = None,
+):
+    with duckdb.connect(str(path), read_only=True) as connection:
+        return provider.build(
+            connection,
+            event=_event(),
+            factor=factor or _factor(provider),
+            series="EQ",
+            effective_date=EFFECTIVE,
+        )
+
+
+def _raw(
+    *,
+    isin: str | None = None,
+    symbol: str = "ALPHA",
+    series: str = "EQ",
+    source_sha256: str | None = SOURCE_SHA,
+    trading_date: date = date(2015, 1, 15),
+) -> RawCanonicalCandle:
+    return RawCanonicalCandle(
+        trading_date=trading_date,
+        symbol=symbol,
+        series=series,
+        isin=isin,
+        open_price=100.0,
+        high_price=101.0,
+        low_price=99.0,
+        close_price=100.0,
+        volume=1_000,
+        source_sha256=source_sha256,
+    )
+
+
+def test_existing_exact_isin_continuity_is_unchanged_without_provider(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, isin=ISIN)
+    factor = {
+        "canonical_event_id": EVENT_ID,
+        "identity_key": IDENTITY,
+        "factor_state": "FACTOR_DERIVED_OFFICIAL_TERMS",
+        "price_factor": 0.5,
+    }
+
+    _, baseline, _ = recompute_factor_validation(
+        database_path=database,
+        events=(_event(),),
+        factors=(factor,),
+        legacy_continuity=(),
+        start_date=date(2015, 1, 1),
+        end_date=date(2015, 1, 31),
+    )
+    _, repeated, _ = recompute_factor_validation(
+        database_path=database,
+        events=(_event(),),
+        factors=(factor,),
+        legacy_continuity=(),
+        start_date=date(2015, 1, 1),
+        end_date=date(2015, 1, 31),
+        continuity_context_provider=None,
+    )
+
+    assert baseline == repeated
+
+
+def test_certified_missing_isin_window_and_action_are_admitted(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database)
+    provider = _provider(tmp_path / "evidence")
+
+    context = _context(database, provider)
+
+    assert context.complete is True
+    assert len(context.prior_window.selected_prior_bars) == 15
+    assert len(context.prior_window.atr_bars) == 14
+    assert context.action_bar is not None
+    assert all(
+        row.identity_state is GovernedCandleIdentityState.CERTIFIED_DATED_BRIDGE_CANDLE
+        for row in (
+            *context.prior_window.selected_prior_bars,
+            context.action_bar,
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("raw", "bridge_changes", "expected"),
+    [
+        (
+            _raw(trading_date=date(2016, 1, 1)),
+            {},
+            GovernedCandleIdentityState.DATE_OUTSIDE_CERTIFIED_INTERVAL,
+        ),
+        (
+            _raw(isin="INE999A01010"),
+            {},
+            GovernedCandleIdentityState.EXPLICIT_ISIN_MISMATCH,
+        ),
+        (
+            _raw(symbol="OTHER"),
+            {},
+            GovernedCandleIdentityState.SYMBOL_CONFLICT,
+        ),
+        (
+            _raw(series="BE"),
+            {},
+            GovernedCandleIdentityState.SERIES_CONFLICT,
+        ),
+        (
+            _raw(),
+            {"overlap": True},
+            GovernedCandleIdentityState.IDENTITY_CONFLICT,
+        ),
+        (
+            _raw(),
+            {"symbol_reuse": True},
+            GovernedCandleIdentityState.IDENTITY_CONFLICT,
+        ),
+        (
+            _raw(),
+            {"symbol_change": True},
+            GovernedCandleIdentityState.IDENTITY_CONFLICT,
+        ),
+        (
+            _raw(trading_date=date(2015, 1, 2)),
+            {"series_transition": True},
+            GovernedCandleIdentityState.IDENTITY_CONFLICT,
+        ),
+        (
+            _raw(source_sha256=None),
+            {},
+            GovernedCandleIdentityState.SOURCE_HASH_MISSING,
+        ),
+    ],
+)
+def test_candle_identity_rejections_fail_closed(
+    tmp_path: Path,
+    raw: RawCanonicalCandle,
+    bridge_changes: dict[str, object],
+    expected: GovernedCandleIdentityState,
+) -> None:
+    provider = _provider(tmp_path, bridge_changes=bridge_changes)
+
+    accepted, rejected = provider.govern_candle(
+        raw,
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series="EQ",
+        isin=ISIN,
+        role="PRIOR",
+    )
+
+    assert accepted is None
+    assert rejected is not None
+    assert rejected.reason is expected
+
+
+@pytest.mark.parametrize(
+    ("changes", "expected"),
+    [
+        (
+            {"reference_price_date": "2015-01-14"},
+            ContinuityContextDecision.REFERENCE_SESSION_MISMATCH,
+        ),
+        (
+            {"reference_price": 99.0},
+            ContinuityContextDecision.REFERENCE_PRICE_MISMATCH,
+        ),
+        (
+            {"reference_price_source_sha256": "d" * 64},
+            ContinuityContextDecision.REFERENCE_SOURCE_HASH_MISMATCH,
+        ),
+        (
+            {"reference_price_bridge_source_contract_id": "wrong"},
+            None,
+        ),
+    ],
+)
+def test_reference_provenance_mismatches_fail_closed(
+    tmp_path: Path,
+    changes: dict[str, object],
+    expected: ContinuityContextDecision | None,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database)
+    provider = _provider(tmp_path / "evidence")
+    factor = _factor(provider, **changes)
+
+    if expected is None:
+        with pytest.raises(ValueError, match="source contract mismatch"):
+            _context(database, provider, factor)
+    else:
+        assert _context(database, provider, factor).decision is expected
+
+
+def test_mixed_exact_and_bridged_atr_history_is_supported(tmp_path: Path) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database)
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            "UPDATE daily_candle SET isin=? WHERE trading_date<?",
+            [ISIN, date(2015, 1, 8)],
+        )
+    provider = _provider(tmp_path / "evidence")
+
+    context = _context(database, provider)
+    states = {row.identity_state for row in context.prior_window.atr_bars}
+
+    assert context.complete is True
+    assert states == {
+        GovernedCandleIdentityState.EXACT_ISIN_CANDLE,
+        GovernedCandleIdentityState.CERTIFIED_DATED_BRIDGE_CANDLE,
+    }
+
+
+def test_identity_mismatch_and_non_positive_price_fail_closed(
+    tmp_path: Path,
+) -> None:
+    provider = _provider(tmp_path)
+    accepted, rejected = provider.govern_candle(
+        _raw(),
+        identity="nse:isin:INE999A01010",
+        symbol="ALPHA",
+        series="EQ",
+        isin=ISIN,
+        role="PRIOR",
+    )
+    invalid_price = replace(_raw(), close_price=0.0)
+    price_accepted, price_rejected = provider.govern_candle(
+        invalid_price,
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series="EQ",
+        isin=ISIN,
+        role="PRIOR",
+    )
+
+    assert accepted is None
+    assert rejected is not None
+    assert rejected.reason is GovernedCandleIdentityState.IDENTITY_CONFLICT
+    assert price_accepted is None
+    assert price_rejected is not None
+    assert price_rejected.reason is GovernedCandleIdentityState.NON_POSITIVE_PRICE
+
+
+def test_one_bridged_reference_does_not_certify_adjacent_bars(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, count=15)
+    provider = _provider(
+        tmp_path / "evidence",
+        bridge_changes={"valid_from": "2015-01-15"},
+    )
+
+    context = _context(database, provider)
+
+    assert context.decision is ContinuityContextDecision.ACTION_SESSION_MISSING
+    assert len(context.prior_window.selected_prior_bars) == 1
+    assert context.rejected_bars
+
+
+def test_duplicate_candle_date_fails_closed(tmp_path: Path) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database)
+    with duckdb.connect(str(database)) as connection:
+        row = connection.execute(
+            "SELECT * FROM daily_candle WHERE trading_date='2015-01-15'"
+        ).fetchone()
+        connection.execute(
+            "INSERT INTO daily_candle VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            row,
+        )
+    provider = _provider(tmp_path / "evidence")
+
+    context = _context(database, provider)
+
+    assert context.decision is ContinuityContextDecision.DUPLICATE_CANONICAL_CANDLE
+    assert any(
+        row.reason is GovernedCandleIdentityState.DUPLICATE_CANONICAL_CANDLE
+        for row in context.rejected_bars
+    )
+
+
+def test_first_governed_security_session_is_selected_after_earlier_rejection(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, source_sha256=SOURCE_SHA)
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            "UPDATE daily_candle SET source_sha256=NULL WHERE trading_date='2015-01-16'"
+        )
+        connection.execute(
+            "INSERT INTO daily_candle VALUES "
+            "('2015-01-17','NSE','ALPHA','EQ',NULL,50,101,49,50,1000,?)",
+            [SOURCE_SHA],
+        )
+        connection.execute(
+            "INSERT INTO daily_candle VALUES "
+            "('2015-01-18','NSE','ALPHA','EQ',NULL,100,101,99,100,1000,?)",
+            [SOURCE_SHA],
+        )
+    provider = _provider(tmp_path / "evidence")
+
+    context = _context(database, provider)
+
+    assert context.first_candidate_action_date == date(2015, 1, 16)
+    assert context.first_market_session_date == date(2015, 1, 16)
+    assert context.action_bar is not None
+    assert context.action_bar.candle.trading_date == date(2015, 1, 17)
+    assert context.action_session_delay_market_sessions == 1
+    assert any(
+        row.candle.trading_date == date(2015, 1, 16)
+        and row.reason is GovernedCandleIdentityState.SOURCE_HASH_MISSING
+        for row in context.rejected_bars
+    )
+
+
+def test_first_governed_security_session_may_follow_market_session_by_months(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, source_sha256=SOURCE_SHA)
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            "DELETE FROM daily_candle WHERE symbol='ALPHA' AND trading_date>=?",
+            [EFFECTIVE],
+        )
+        connection.execute(
+            "INSERT INTO daily_candle VALUES "
+            "('2015-01-16','NSE','MARKET','EQ','INE999A01010',"
+            "100,101,99,100,1000,?)",
+            [SOURCE_SHA],
+        )
+        connection.execute(
+            "INSERT INTO daily_candle VALUES "
+            "('2015-03-02','NSE','ALPHA','EQ',NULL,"
+            "100,101,99,100,1000,?)",
+            [SOURCE_SHA],
+        )
+    provider = _provider(tmp_path / "evidence")
+
+    context = _context(database, provider)
+
+    assert context.first_market_session_date == date(2015, 1, 16)
+    assert context.first_candidate_action_date == date(2015, 3, 2)
+    assert context.action_bar is not None
+    assert context.action_bar.candle.trading_date == date(2015, 3, 2)
+    assert context.action_session_delay_market_sessions == 1
+
+
+def test_pre_event_market_session_gap_is_recorded(tmp_path: Path) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database)
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            "DELETE FROM daily_candle WHERE symbol='ALPHA' "
+            "AND trading_date>'2015-01-10' AND trading_date<'2015-01-16'"
+        )
+        connection.execute(
+            "INSERT INTO daily_candle VALUES "
+            "('2015-01-11','NSE','MARKET','EQ','INE999A01010',"
+            "100,101,99,100,1000,?)",
+            [SOURCE_SHA],
+        )
+        connection.execute(
+            "INSERT INTO daily_candle VALUES "
+            "('2015-01-12','NSE','MARKET','EQ','INE999A01010',"
+            "100,101,99,100,1000,?)",
+            [SOURCE_SHA],
+        )
+    provider = _provider(tmp_path / "evidence")
+
+    context = _context(database, provider)
+
+    assert context.complete is False
+    assert context.metrics.previous_session == date(2015, 1, 10)
+    assert context.pre_event_gap_market_sessions == 2
+    assert context.as_dict()["pre_event_gap_market_sessions"] == 2
+
+
+def test_action_search_stops_before_next_material_action(tmp_path: Path) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, source_sha256=SOURCE_SHA)
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            "DELETE FROM daily_candle WHERE symbol='ALPHA' AND trading_date>=?",
+            [EFFECTIVE],
+        )
+        connection.execute(
+            "INSERT INTO daily_candle VALUES "
+            "('2015-01-16','NSE','MARKET','EQ','INE999A01010',"
+            "100,101,99,100,1000,?)",
+            [SOURCE_SHA],
+        )
+        connection.execute(
+            "INSERT INTO daily_candle VALUES "
+            "('2015-02-01','NSE','ALPHA','EQ',NULL,"
+            "100,101,99,100,1000,?)",
+            [SOURCE_SHA],
+        )
+    current = OfficialEventDateIdentityEvidence(
+        event_id=EVENT_ID,
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series=("EQ",),
+        isin=ISIN,
+        effective_date=EFFECTIVE,
+        source_ids=("current-source",),
+        source_sha256=("a" * 64,),
+        source_report_sha256="b" * 64,
+        action_type="SPLIT",
+    )
+    next_action = OfficialEventDateIdentityEvidence(
+        event_id="next-action",
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series=("EQ",),
+        isin=ISIN,
+        effective_date=date(2015, 1, 20),
+        source_ids=("next-source",),
+        source_sha256=("c" * 64,),
+        source_report_sha256="d" * 64,
+        action_type="BONUS",
+    )
+    provider = _provider(
+        tmp_path / "evidence",
+        official_event_evidence={
+            EVENT_ID: current,
+            "next-action": next_action,
+        },
+    )
+
+    context = _context(database, provider)
+
+    assert context.action_search_end_date == date(2015, 1, 20)
+    assert context.first_candidate_action_date is None
+    assert context.action_bar is None
+    assert context.decision is ContinuityContextDecision.ACTION_SESSION_MISSING
+
+
+def test_certified_continuous_identity_symbol_alias_is_searched_and_governed(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, source_sha256=SOURCE_SHA)
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            "DELETE FROM daily_candle WHERE symbol='ALPHA' AND trading_date=?",
+            [EFFECTIVE],
+        )
+        connection.execute(
+            "INSERT INTO daily_candle VALUES "
+            "(?,'NSE','OLDALPHA','EQ',NULL,50,101,49,50,1000,?)",
+            [EFFECTIVE, SOURCE_SHA],
+        )
+    provider = _provider(
+        tmp_path / "evidence",
+        bridge_changes={"certified_symbol_change": True},
+    )
+
+    context = _context(database, provider)
+
+    assert context.action_bar is not None
+    assert context.action_bar.candle.symbol == "OLDALPHA"
+    assert (
+        context.action_bar.identity_state
+        is GovernedCandleIdentityState.CERTIFIED_DATED_BRIDGE_CANDLE
+    )
+    assert context.action_bar.bridge_evidence is not None
+    assert context.action_bar.bridge_evidence.official_event_ids == (
+        "nse-event:certified-symbol-change",
+    )
+
+
+def test_uncertified_historical_symbol_is_not_searched(tmp_path: Path) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, source_sha256=SOURCE_SHA)
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            "DELETE FROM daily_candle WHERE symbol='ALPHA' AND trading_date=?",
+            [EFFECTIVE],
+        )
+        connection.execute(
+            "INSERT INTO daily_candle VALUES "
+            "(?,'NSE','OLDALPHA','EQ',NULL,50,101,49,50,1000,?)",
+            [EFFECTIVE, SOURCE_SHA],
+        )
+    provider = _provider(tmp_path / "evidence")
+
+    context = _context(database, provider)
+
+    assert context.first_candidate_action_date is None
+    assert context.action_bar is None
+    assert context.decision is ContinuityContextDecision.ACTION_SESSION_MISSING
+
+
+def test_official_provisional_symbol_event_is_recovered_with_unique_listing_identity(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, source_sha256=SOURCE_SHA)
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            "DELETE FROM daily_candle WHERE symbol='ALPHA' AND trading_date=?",
+            [EFFECTIVE],
+        )
+        connection.execute(
+            "INSERT INTO daily_candle VALUES "
+            "(?,'NSE','OLDALPHA','EQ',NULL,50,101,49,50,1000,?)",
+            [EFFECTIVE, SOURCE_SHA],
+        )
+    provider = _provider(
+        tmp_path / "evidence",
+        bridge_changes={"recoverable_provisional_symbol_change": True},
+    )
+
+    context = _context(database, provider)
+
+    assert context.action_bar is not None
+    assert context.action_bar.candle.symbol == "OLDALPHA"
+    assert context.action_bar.bridge_evidence is not None
+    assert set(context.action_bar.bridge_evidence.official_event_ids) == {
+        "nse-event:official-listing",
+        "nse-event:provisional-symbol-change",
+    }
+
+
+def test_symbol_reuse_is_admitted_only_with_official_isin_transition(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    predecessor_isin = "INE999A01010"
+    _insert(database, isin=predecessor_isin, source_sha256=SOURCE_SHA)
+    with duckdb.connect(str(database)) as connection:
+        connection.execute("UPDATE daily_candle SET symbol='OLDALPHA'")
+    event_id = "split-event"
+    evidence = OfficialEventDateIdentityEvidence(
+        event_id=event_id,
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series=("EQ",),
+        isin=ISIN,
+        effective_date=EFFECTIVE,
+        source_ids=("official-split-source",),
+        source_sha256=("a" * 64,),
+        source_report_sha256="b" * 64,
+        action_type="SPLIT",
+    )
+    provider = _provider(
+        tmp_path / "evidence",
+        bridge_changes={
+            "recoverable_provisional_symbol_change": True,
+            "symbol_reuse": True,
+        },
+        all_material_actions=True,
+        official_event_evidence={event_id: evidence},
+    )
+
+    with duckdb.connect(str(database), read_only=True) as connection:
+        context = provider.build(
+            connection,
+            event=_event(
+                canonical_event_id=event_id,
+                action_type="SPLIT",
+            ),
+            factor={
+                "factor_id": "split-factor",
+                "canonical_event_id": event_id,
+                "identity_key": IDENTITY,
+                "factor_state": "FACTOR_DERIVED_OFFICIAL_TERMS",
+                "price_factor": 0.5,
+            },
+            series="EQ",
+            effective_date=EFFECTIVE,
+        )
+
+    assert context.complete is True
+    assert context.action_bar is not None
+    assert context.action_bar.candle.symbol == "OLDALPHA"
+    assert context.action_bar.candle.isin == predecessor_isin
+    assert context.action_bar.bridge_evidence is not None
+    assert context.action_bar.bridge_evidence.decision == (
+        "CERTIFIED_OFFICIAL_ISIN_AND_SYMBOL_TRANSITION_PATH"
+    )
+
+
+def test_official_event_binds_missing_isin_historical_symbol_path(
+    tmp_path: Path,
+) -> None:
+    event_id = "split-event"
+    evidence = OfficialEventDateIdentityEvidence(
+        event_id=event_id,
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series=("EQ",),
+        isin=ISIN,
+        effective_date=EFFECTIVE,
+        source_ids=("official-split-source",),
+        source_sha256=("a" * 64,),
+        source_report_sha256="b" * 64,
+        action_type="SPLIT",
+    )
+    provider = _provider(
+        tmp_path / "evidence",
+        bridge_changes={
+            "recoverable_provisional_symbol_change": True,
+            "symbol_reuse": True,
+        },
+        all_material_actions=True,
+        official_event_evidence={event_id: evidence},
+    )
+
+    action, action_rejection = provider.govern_candle(
+        _raw(symbol="OLDALPHA", trading_date=EFFECTIVE),
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series="EQ",
+        isin=ISIN,
+        role="ACTION",
+        official_event_evidence=evidence,
+    )
+    prior, prior_rejection = provider.govern_candle(
+        _raw(symbol="OLDALPHA", trading_date=EFFECTIVE - timedelta(days=1)),
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series="EQ",
+        isin=ISIN,
+        role="PRIOR",
+        official_event_evidence=evidence,
+    )
+
+    assert action_rejection is None
+    assert action is not None
+    assert action.bridge_evidence is not None
+    assert action.bridge_evidence.decision == (
+        "CERTIFIED_EXACT_ACTION_IDENTITY_AND_SYMBOL_TRANSITION"
+    )
+    assert prior_rejection is None
+    assert prior is not None
+    assert prior.bridge_evidence is not None
+    assert prior.bridge_evidence.decision == (
+        "CERTIFIED_OFFICIAL_EVENT_BOUND_SYMBOL_TRANSITION"
+    )
+    assert prior.bridge_evidence.official_event_ids == (
+        "nse-event:provisional-symbol-change",
+        "split-event",
+    )
+    assert prior.bridge_evidence.official_source_ids == (
+        "nse-official-listing",
+        "official-split-source",
+    )
+
+
+def test_two_official_actions_bound_first_later_security_session(
+    tmp_path: Path,
+) -> None:
+    event_id = "split-event"
+    next_event_date = EFFECTIVE + timedelta(days=30)
+    evidence = OfficialEventDateIdentityEvidence(
+        event_id=event_id,
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series=("EQ",),
+        isin=ISIN,
+        effective_date=EFFECTIVE,
+        source_ids=("official-split-source", "official-next-action-source"),
+        source_sha256=("a" * 64, "b" * 64),
+        source_report_sha256="c" * 64,
+        interval_valid_to=next_event_date,
+        action_type="SPLIT",
+    )
+    provider = _provider(
+        tmp_path / "evidence",
+        all_material_actions=True,
+        official_event_evidence={event_id: evidence},
+    )
+
+    admitted, rejected = provider.govern_candle(
+        _raw(trading_date=EFFECTIVE + timedelta(days=5)),
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series="EQ",
+        isin=ISIN,
+        role="ACTION",
+        official_event_evidence=evidence,
+    )
+    outside = evidence.certifies(
+        _raw(trading_date=next_event_date),
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series="EQ",
+        isin=ISIN,
+        role="ACTION",
+    )
+
+    assert rejected is None
+    assert admitted is not None
+    assert admitted.bridge_evidence is not None
+    assert admitted.bridge_evidence.decision == (
+        "CERTIFIED_BOUNDED_OFFICIAL_ACTION_IDENTITY_INTERVAL"
+    )
+    assert outside is False
+
+
+def test_future_and_post_event_bars_never_enter_atr(tmp_path: Path) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, count=20)
+    provider = _provider(tmp_path / "evidence")
+
+    context = _context(database, provider)
+
+    assert all(
+        row.candle.trading_date < EFFECTIVE for row in context.prior_window.atr_bars
+    )
+    assert context.action_bar is not None
+    assert context.action_bar.candle.trading_date == EFFECTIVE
+
+
+def test_insufficient_atr_history_remains_insufficient(tmp_path: Path) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database)
+    with duckdb.connect(str(database)) as connection:
+        connection.execute("DELETE FROM daily_candle WHERE trading_date<'2015-01-15'")
+    provider = _provider(tmp_path / "evidence")
+
+    context = _context(database, provider)
+
+    assert context.decision is ContinuityContextDecision.INSUFFICIENT_ATR_HISTORY
+
+
+@pytest.mark.parametrize(
+    ("action_open", "factor", "expected"),
+    [
+        (
+            50.0,
+            0.5,
+            ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP.value,
+        ),
+        (
+            50.0,
+            2.0,
+            ValidationOutcome.IMPLEMENTATION_DEFECT.value,
+        ),
+        (
+            80.0,
+            0.5,
+            ValidationOutcome.IMPLEMENTATION_DEFECT.value,
+        ),
+    ],
+)
+def test_complete_context_uses_existing_validation_thresholds(
+    tmp_path: Path,
+    action_open: float,
+    factor: float,
+    expected: str,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, action_open=action_open)
+    provider = _provider(tmp_path / "evidence")
+    factor_row = _factor(provider, price_factor=factor)
+
+    _, results, _ = recompute_factor_validation(
+        database_path=database,
+        events=(_event(),),
+        factors=(factor_row,),
+        legacy_continuity=(),
+        start_date=date(2015, 1, 1),
+        end_date=date(2015, 1, 31),
+        continuity_context_provider=provider,
+    )
+
+    assert results[0]["validation_outcome"] == expected
+    assert results[0]["price_factor"] == factor
+
+
+def test_generalized_provider_governs_non_b1_material_action(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database)
+    provider = _provider(tmp_path / "evidence", all_material_actions=True)
+    event = _event(
+        canonical_event_id="split-event",
+        action_type="SPLIT",
+    )
+    factor = {
+        "factor_id": "split-factor",
+        "canonical_event_id": "split-event",
+        "identity_key": IDENTITY,
+        "factor_state": "FACTOR_DERIVED_OFFICIAL_TERMS",
+        "price_factor": 0.5,
+    }
+
+    contexts, results, summary = recompute_factor_validation(
+        database_path=database,
+        events=(event,),
+        factors=(factor,),
+        legacy_continuity=(),
+        start_date=date(2015, 1, 1),
+        end_date=date(2015, 1, 31),
+        continuity_context_provider=provider,
+    )
+
+    assert contexts[0]["candle_context_state"] == "AVAILABLE"
+    assert contexts[0]["governed_continuity_context"]["complete"] is True
+    assert results[0]["validation_outcome"] == (
+        ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP.value
+    )
+    assert summary["bridge_aware_context_case_count"] == 1
+
+
+def test_official_action_row_certifies_only_exact_action_date(
+    tmp_path: Path,
+) -> None:
+    evidence = OfficialEventDateIdentityEvidence(
+        event_id="split-event",
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series=("EQ",),
+        isin=ISIN,
+        effective_date=EFFECTIVE,
+        source_ids=("nse_equity_corporate_actions_2015",),
+        source_sha256=("a" * 64,),
+        source_report_sha256="b" * 64,
+        action_type="RIGHTS",
+    )
+    provider = _provider(
+        tmp_path,
+        bridge_changes={"valid_from": EFFECTIVE.isoformat()},
+        all_material_actions=True,
+        official_event_evidence={"split-event": evidence},
+    )
+    action = _raw(trading_date=EFFECTIVE)
+    prior = _raw(trading_date=EFFECTIVE - timedelta(days=1))
+
+    accepted_action, rejected_action = provider.govern_candle(
+        action,
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series="EQ",
+        isin=ISIN,
+        role="ACTION",
+        official_event_evidence=evidence,
+    )
+    accepted_prior, rejected_prior = provider.govern_candle(
+        prior,
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series="EQ",
+        isin=ISIN,
+        role="PRIOR",
+        official_event_evidence=evidence,
+    )
+
+    assert rejected_action is None
+    assert accepted_action is not None
+    assert accepted_action.bridge_evidence is not None
+    assert (
+        accepted_action.bridge_evidence.decision
+        == "CERTIFIED_OFFICIAL_EVENT_DATE_IDENTITY"
+    )
+    assert accepted_prior is None
+    assert rejected_prior is not None
+
+
+def test_official_action_row_never_bridges_explicit_isin_mismatch(
+    tmp_path: Path,
+) -> None:
+    evidence = OfficialEventDateIdentityEvidence(
+        event_id="split-event",
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series=("EQ",),
+        isin=ISIN,
+        effective_date=EFFECTIVE,
+        source_ids=("nse_equity_corporate_actions_2015",),
+        source_sha256=("a" * 64,),
+        source_report_sha256="b" * 64,
+        action_type="RIGHTS",
+    )
+    provider = _provider(
+        tmp_path,
+        all_material_actions=True,
+        official_event_evidence={"split-event": evidence},
+    )
+
+    accepted, rejected = provider.govern_candle(
+        _raw(isin="INE999A01010", trading_date=EFFECTIVE),
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series="EQ",
+        isin=ISIN,
+        role="ACTION",
+        official_event_evidence=evidence,
+    )
+
+    assert accepted is None
+    assert rejected is not None
+    assert rejected.reason is GovernedCandleIdentityState.EXPLICIT_ISIN_MISMATCH
+
+
+def test_bounded_official_action_interval_certifies_individual_prior_bar(
+    tmp_path: Path,
+) -> None:
+    evidence = OfficialEventDateIdentityEvidence(
+        event_id="split-event",
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series=("EQ",),
+        isin=ISIN,
+        effective_date=EFFECTIVE,
+        source_ids=(
+            "nse_equity_corporate_actions_2014",
+            "nse_equity_corporate_actions_2015",
+        ),
+        source_sha256=("a" * 64, "b" * 64),
+        source_report_sha256="c" * 64,
+        interval_valid_from=date(2014, 1, 1),
+        action_type="SPLIT",
+    )
+    provider = _provider(
+        tmp_path,
+        bridge_changes={"valid_from": EFFECTIVE.isoformat()},
+        all_material_actions=True,
+        official_event_evidence={"split-event": evidence},
+    )
+
+    accepted, rejected = provider.govern_candle(
+        _raw(trading_date=EFFECTIVE - timedelta(days=1)),
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series="EQ",
+        isin=ISIN,
+        role="PRIOR",
+        official_event_evidence=evidence,
+    )
+
+    assert rejected is None
+    assert accepted is not None
+    assert accepted.bridge_evidence is not None
+    assert accepted.bridge_evidence.decision == (
+        "CERTIFIED_BOUNDED_OFFICIAL_ACTION_IDENTITY_INTERVAL"
+    )
+
+
+def test_prior_bar_accepts_governed_predecessor_successor_path(
+    tmp_path: Path,
+) -> None:
+    provider = _provider(tmp_path)
+    transition = OfficialIsinTransitionEvidence(
+        from_isin=ISIN,
+        to_isin="INE999A01010",
+        effective_date=date(2014, 1, 1),
+        event_id="official-split-event",
+        source_ids=("nse_equity_corporate_actions_2014",),
+        source_report_sha256="a" * 64,
+    )
+
+    accepted, rejected = provider.govern_candle(
+        _raw(isin="INE999A01010", trading_date=EFFECTIVE - timedelta(days=1)),
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series="EQ",
+        isin=ISIN,
+        role="PRIOR",
+        transition_evidence=(transition,),
+    )
+
+    assert rejected is None
+    assert accepted is not None
+    assert accepted.bridge_evidence is not None
+    assert (
+        accepted.bridge_evidence.decision
+        == "CERTIFIED_OFFICIAL_PREDECESSOR_SUCCESSOR_PATH"
+    )
+
+
+def test_material_action_wires_official_action_session_isin_transition(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, isin=ISIN)
+    successor_isin = "INE999A01010"
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            "UPDATE daily_candle SET isin=? WHERE trading_date=?",
+            [successor_isin, EFFECTIVE],
+        )
+    event_id = "split-event"
+    evidence = OfficialEventDateIdentityEvidence(
+        event_id=event_id,
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series=("EQ",),
+        isin=ISIN,
+        effective_date=EFFECTIVE,
+        source_ids=("official-split-source",),
+        source_sha256=("a" * 64,),
+        source_report_sha256="b" * 64,
+        interval_valid_from=date(2014, 1, 1),
+        action_type="SPLIT",
+    )
+    provider = _provider(
+        tmp_path / "evidence",
+        all_material_actions=True,
+        official_event_evidence={event_id: evidence},
+    )
+    event = _event(
+        canonical_event_id=event_id,
+        action_type="SPLIT",
+    )
+    factor = {
+        "factor_id": "split-factor",
+        "canonical_event_id": event_id,
+        "identity_key": IDENTITY,
+        "factor_state": "FACTOR_DERIVED_OFFICIAL_TERMS",
+        "price_factor": 0.5,
+    }
+
+    with duckdb.connect(str(database), read_only=True) as connection:
+        context = provider.build(
+            connection,
+            event=event,
+            factor=factor,
+            series="EQ",
+            effective_date=EFFECTIVE,
+        )
+
+    assert context.action_bar is not None
+    assert context.action_bar.candle.isin == successor_isin
+    assert (
+        context.action_bar.identity_state
+        is GovernedCandleIdentityState.CERTIFIED_OFFICIAL_ISIN_TRANSITION_CANDLE
+    )
+    assert context.action_bar.bridge_evidence is not None
+    assert context.action_bar.bridge_evidence.official_event_ids == (event_id,)
+
+
+def test_official_trading_transition_supports_successor_series(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, count=15, isin=ISIN)
+    successor_date = date(2015, 1, 20)
+    successor_isin = "INE999A01010"
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            "INSERT INTO daily_candle VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                successor_date,
+                "NSE",
+                "ALPHANEW",
+                "BE",
+                None,
+                100.0,
+                101.0,
+                99.0,
+                100.0,
+                1_000,
+                SOURCE_SHA,
+            ),
+        )
+    event_id = "capital-reduction-event"
+    evidence = OfficialEventDateIdentityEvidence(
+        event_id=event_id,
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series=("EQ",),
+        isin=ISIN,
+        effective_date=EFFECTIVE,
+        source_ids=("official-capital-reduction",),
+        source_sha256=("a" * 64,),
+        source_report_sha256="b" * 64,
+        interval_valid_from=date(2014, 1, 1),
+        action_type="CAPITAL_REDUCTION",
+    )
+    supplement = OfficialSecurityTransitionSupplement(
+        supplement_id="official-transition",
+        predecessor_symbol="ALPHA",
+        predecessor_series="EQ",
+        predecessor_isin=ISIN,
+        successor_symbol="ALPHANEW",
+        successor_series="BE",
+        successor_isin=successor_isin,
+        effective_date=successor_date,
+        sources=(
+            OfficialSupplementSource(
+                source_id="official-transition-source",
+                relative_path=Path("unused"),
+                source_url="https://example.invalid/official",
+                source_sha256="d" * 64,
+            ),
+        ),
+        official_raw_wording="Official successor trading transition.",
+    )
+    provider = _provider(
+        tmp_path / "evidence",
+        all_material_actions=True,
+        official_event_evidence={event_id: evidence},
+        security_transition_supplements=(supplement,),
+    )
+
+    with duckdb.connect(str(database), read_only=True) as connection:
+        context = provider.build(
+            connection,
+            event=_event(
+                canonical_event_id=event_id,
+                action_type="CAPITAL_REDUCTION",
+            ),
+            factor={
+                "factor_id": "capital-reduction-factor",
+                "canonical_event_id": event_id,
+                "identity_key": IDENTITY,
+                "factor_state": "FACTOR_DERIVED_OFFICIAL_TERMS",
+                "price_factor": 1.0,
+            },
+            series="EQ",
+            effective_date=EFFECTIVE,
+        )
+
+    assert context.action_bar is not None
+    assert context.action_bar.candle.trading_date == successor_date
+    assert context.action_bar.candle.symbol == "ALPHANEW"
+    assert context.action_bar.candle.series == "BE"
+    assert context.action_bar.candle.isin is None
+    assert (
+        context.action_bar.identity_state
+        is GovernedCandleIdentityState.CERTIFIED_OFFICIAL_ISIN_TRANSITION_CANDLE
+    )
+
+
+def test_rights_event_does_not_derive_isin_transition_from_candle(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, isin=ISIN)
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            "UPDATE daily_candle SET isin='INE999A01010' WHERE trading_date=?",
+            [EFFECTIVE],
+        )
+    event_id = "rights-event"
+    evidence = OfficialEventDateIdentityEvidence(
+        event_id=event_id,
+        identity=IDENTITY,
+        symbol="ALPHA",
+        series=("EQ",),
+        isin=ISIN,
+        effective_date=EFFECTIVE,
+        source_ids=("official-rights-source",),
+        source_sha256=("a" * 64,),
+        source_report_sha256="b" * 64,
+        interval_valid_from=date(2014, 1, 1),
+        action_type="RIGHTS",
+    )
+    provider = _provider(
+        tmp_path / "evidence",
+        all_material_actions=True,
+        official_event_evidence={event_id: evidence},
+    )
+
+    with duckdb.connect(str(database), read_only=True) as connection:
+        context = provider.build(
+            connection,
+            event=_event(canonical_event_id=event_id),
+            factor={
+                "factor_id": "rights-factor",
+                "canonical_event_id": event_id,
+                "identity_key": IDENTITY,
+                "factor_state": "FACTOR_DERIVED_OFFICIAL_TERMS",
+                "price_factor": 0.5,
+            },
+            series="EQ",
+            effective_date=EFFECTIVE,
+        )
+
+    assert context.action_bar is None
+    assert any(
+        row.reason is GovernedCandleIdentityState.EXPLICIT_ISIN_MISMATCH
+        for row in context.rejected_bars
+        if row.role == "ACTION"
+    )
+
+
+def test_post_action_event_isin_certifies_predecessor_prior_bars(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    predecessor_isin = ISIN
+    successor_isin = "INE999A01010"
+    successor_identity = f"nse:isin:{successor_isin}"
+    _insert(database, isin=predecessor_isin)
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            "UPDATE daily_candle SET isin=? WHERE trading_date=?",
+            [successor_isin, EFFECTIVE],
+        )
+    event_id = "successor-split-event"
+    evidence = OfficialEventDateIdentityEvidence(
+        event_id=event_id,
+        identity=successor_identity,
+        symbol="ALPHA",
+        series=("EQ",),
+        isin=successor_isin,
+        effective_date=EFFECTIVE,
+        source_ids=("official-split-source",),
+        source_sha256=("a" * 64,),
+        source_report_sha256="b" * 64,
+        action_type="SPLIT",
+    )
+    provider = _provider(
+        tmp_path / "evidence",
+        all_material_actions=True,
+        official_event_evidence={event_id: evidence},
+    )
+
+    with duckdb.connect(str(database), read_only=True) as connection:
+        context = provider.build(
+            connection,
+            event=_event(
+                canonical_event_id=event_id,
+                governed_identity_id=successor_identity,
+                isin=successor_isin,
+                action_type="SPLIT",
+            ),
+            factor={
+                "factor_id": "successor-split-factor",
+                "canonical_event_id": event_id,
+                "identity_key": successor_identity,
+                "factor_state": "FACTOR_DERIVED_OFFICIAL_TERMS",
+                "price_factor": 0.5,
+            },
+            series="EQ",
+            effective_date=EFFECTIVE,
+        )
+
+    assert context.complete is True
+    assert context.action_bar is not None
+    assert context.action_bar.candle.isin == successor_isin
+    assert all(
+        row.candle.isin == predecessor_isin
+        and row.identity_state
+        is GovernedCandleIdentityState.CERTIFIED_OFFICIAL_ISIN_TRANSITION_CANDLE
+        for row in context.prior_window.selected_prior_bars
+    )
+
+
+def test_post_action_event_isin_certifies_predecessor_action_bar(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    predecessor_isin = ISIN
+    successor_isin = "INE999A01010"
+    successor_identity = f"nse:isin:{successor_isin}"
+    _insert(database, isin=predecessor_isin)
+    event_id = "successor-split-event"
+    evidence = OfficialEventDateIdentityEvidence(
+        event_id=event_id,
+        identity=successor_identity,
+        symbol="ALPHA",
+        series=("EQ",),
+        isin=successor_isin,
+        effective_date=EFFECTIVE,
+        source_ids=("official-split-source",),
+        source_sha256=("a" * 64,),
+        source_report_sha256="b" * 64,
+        action_type="SPLIT",
+    )
+    provider = _provider(
+        tmp_path / "evidence",
+        all_material_actions=True,
+        official_event_evidence={event_id: evidence},
+    )
+
+    with duckdb.connect(str(database), read_only=True) as connection:
+        context = provider.build(
+            connection,
+            event=_event(
+                canonical_event_id=event_id,
+                governed_identity_id=successor_identity,
+                isin=successor_isin,
+                action_type="SPLIT",
+            ),
+            factor={
+                "factor_id": "successor-split-factor",
+                "canonical_event_id": event_id,
+                "identity_key": successor_identity,
+                "factor_state": "FACTOR_DERIVED_OFFICIAL_TERMS",
+                "price_factor": 0.5,
+            },
+            series="EQ",
+            effective_date=EFFECTIVE,
+        )
+
+    assert context.complete is True
+    assert context.action_bar is not None
+    assert context.action_bar.candle.isin == predecessor_isin
+    assert context.action_bar.identity_state is (
+        GovernedCandleIdentityState.CERTIFIED_OFFICIAL_ISIN_TRANSITION_CANDLE
+    )
+    assert context.action_bar.bridge_evidence is not None
+    assert context.action_bar.bridge_evidence.official_event_ids == (event_id,)
+
+
+def test_certified_rights_terp_can_restore_on_action_session_close(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, action_open=80.0, action_close=50.0)
+    provider = _provider(tmp_path / "evidence")
+    event = _event(
+        ratio_numerator=1.0,
+        ratio_denominator=1.0,
+        rights_price=0.0,
+    )
+    factor = _factor(
+        provider,
+        price_factor=0.5,
+        reference_price_certified=True,
+    )
+
+    _, results, _ = recompute_factor_validation(
+        database_path=database,
+        events=(event,),
+        factors=(factor,),
+        legacy_continuity=(),
+        start_date=date(2015, 1, 1),
+        end_date=date(2015, 1, 31),
+        continuity_context_provider=provider,
+    )
+
+    assert results[0]["adjusted_gap_atr"] > results[0]["raw_gap_atr"]
+    assert results[0]["close_adjusted_gap_atr"] == 0.0
+    assert results[0]["official_term_factor_matches"] is True
+    assert results[0]["validation_outcome"] == (
+        ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP.value
+    )
+
+
+def test_uncertified_rights_factor_cannot_use_close_restoration(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, action_open=80.0, action_close=50.0)
+    provider = _provider(tmp_path / "evidence")
+    event = _event(
+        ratio_numerator=1.0,
+        ratio_denominator=1.0,
+        rights_price=0.0,
+    )
+    factor = _factor(
+        provider,
+        factor_state="FACTOR_DERIVED_OFFICIAL_TERMS",
+        price_factor=0.5,
+        reference_price_certified=False,
+    )
+
+    _, results, _ = recompute_factor_validation(
+        database_path=database,
+        events=(event,),
+        factors=(factor,),
+        legacy_continuity=(),
+        start_date=date(2015, 1, 1),
+        end_date=date(2015, 1, 31),
+        continuity_context_provider=provider,
+    )
+
+    assert results[0]["validation_outcome"] == (
+        ValidationOutcome.IMPLEMENTATION_DEFECT.value
+    )
+
+
+def test_complete_context_certifies_matching_provisional_rights_reference(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, action_open=80.0, action_close=50.0)
+    provider = _provider(tmp_path / "evidence")
+    event = _event(
+        ratio_numerator=1.0,
+        ratio_denominator=1.0,
+        rights_price=0.0,
+    )
+    factor = _factor(
+        provider,
+        factor_state="FACTOR_PROVISIONAL_REFERENCE_PRICE",
+        price_factor=0.5,
+        reference_price_certified=False,
+    )
+
+    _, results, _ = recompute_factor_validation(
+        database_path=database,
+        events=(event,),
+        factors=(factor,),
+        legacy_continuity=(),
+        start_date=date(2015, 1, 1),
+        end_date=date(2015, 1, 31),
+        continuity_context_provider=provider,
+    )
+
+    assert results[0]["factor_state"] == "FACTOR_CERTIFIED_REFERENCE_PRICE"
+    assert results[0]["reference_price_certified"] is True
+    assert results[0]["governed_reference_certification"]["decision"] == (
+        "CERTIFIED_FROM_COMPLETE_GOVERNED_CONTINUITY_CONTEXT"
+    )
+    assert results[0]["validation_outcome"] == (
+        ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP.value
+    )
+
+
+def test_complete_context_derives_rights_factor_only_from_official_terms(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, action_open=80.0, action_close=50.0)
+    provider = _provider(tmp_path / "evidence")
+
+    _, results, _ = recompute_factor_validation(
+        database_path=database,
+        events=(
+            _event(
+                ratio_numerator=1.0,
+                ratio_denominator=1.0,
+                rights_price=0.0,
+            ),
+        ),
+        factors=(
+            _factor(
+                provider,
+                factor_state="FACTOR_UNKNOWN_MISSING_TERMS",
+                price_factor=None,
+                reference_price=None,
+                reference_price_date=None,
+                reference_price_source_sha256=None,
+                reference_price_certified=False,
+            ),
+        ),
+        legacy_continuity=(),
+        start_date=date(2015, 1, 1),
+        end_date=date(2015, 1, 31),
+        continuity_context_provider=provider,
+    )
+
+    assert results[0]["price_factor"] == 0.5
+    assert results[0]["factor_state"] == "FACTOR_CERTIFIED_REFERENCE_PRICE"
+    assert results[0]["official_term_factor_matches"] is True
+    assert results[0]["governed_reference_certification"]["factor_value_mutated"] is (
+        False
+    )
+    assert results[0]["validation_outcome"] == (
+        ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP.value
+    )
+
+
+def test_official_bonus_factor_can_restore_on_action_session_close(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, action_open=80.0, action_close=50.0)
+    provider = _provider(tmp_path / "evidence")
+    event = _event(
+        action_type="BONUS",
+        ratio_numerator=1.0,
+        ratio_denominator=1.0,
+    )
+    factor = _factor(
+        provider,
+        factor_state="FACTOR_DERIVED_OFFICIAL_TERMS",
+        price_factor=0.5,
+        reference_price_certified=False,
+    )
+
+    _, results, _ = recompute_factor_validation(
+        database_path=database,
+        events=(event,),
+        factors=(factor,),
+        legacy_continuity=(),
+        start_date=date(2015, 1, 1),
+        end_date=date(2015, 1, 31),
+        continuity_context_provider=provider,
+    )
+
+    assert results[0]["official_term_factor_matches"] is True
+    assert results[0]["close_adjusted_gap_atr"] == 0.0
+    assert results[0]["validation_outcome"] == (
+        ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP.value
+    )
+
+
+def test_wrong_bonus_factor_cannot_use_close_restoration(tmp_path: Path) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database, action_open=80.0, action_close=50.0)
+    provider = _provider(tmp_path / "evidence")
+    event = _event(
+        action_type="BONUS",
+        ratio_numerator=1.0,
+        ratio_denominator=1.0,
+    )
+    factor = _factor(
+        provider,
+        factor_state="FACTOR_DERIVED_OFFICIAL_TERMS",
+        price_factor=0.4,
+        reference_price_certified=False,
+    )
+
+    _, results, _ = recompute_factor_validation(
+        database_path=database,
+        events=(event,),
+        factors=(factor,),
+        legacy_continuity=(),
+        start_date=date(2015, 1, 1),
+        end_date=date(2015, 1, 31),
+        continuity_context_provider=provider,
+    )
+
+    assert results[0]["official_term_factor_matches"] is False
+    assert results[0]["validation_outcome"] == (
+        ValidationOutcome.IMPLEMENTATION_DEFECT.value
+    )
+
+
+def test_rejected_bars_do_not_influence_atr(tmp_path: Path) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database)
+    with duckdb.connect(str(database)) as connection:
+        connection.execute(
+            "INSERT INTO daily_candle VALUES "
+            "('2014-12-31','NSE','ALPHA','EQ','INE999A01010',"
+            "1000,1200,1,1000,1000,?)",
+            [SOURCE_SHA],
+        )
+    provider = _provider(tmp_path / "evidence")
+
+    context = _context(database, provider)
+
+    assert context.metrics.atr_before == 2.0
+    assert any(
+        row.reason is GovernedCandleIdentityState.EXPLICIT_ISIN_MISMATCH
+        for row in context.rejected_bars
+    )
+
+
+def test_canonical_candles_and_factor_are_not_mutated(tmp_path: Path) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database)
+    provider = _provider(tmp_path / "evidence")
+    factor = _factor(provider)
+    with duckdb.connect(str(database), read_only=True) as connection:
+        before = connection.execute(
+            "SELECT * FROM daily_candle ORDER BY trading_date"
+        ).fetchall()
+    factor_before = dict(factor)
+
+    _context(database, provider, factor)
+
+    with duckdb.connect(str(database), read_only=True) as connection:
+        after = connection.execute(
+            "SELECT * FROM daily_candle ORDER BY trading_date"
+        ).fetchall()
+    assert before == after
+    assert factor == factor_before
+
+
+def test_downstream_repair_retains_governed_context_outcome() -> None:
+    context = {
+        "context_id": "context-1",
+        "selected_prior_bars": [{"trading_date": "2015-01-15"}],
+        "action_bar": {"trading_date": "2015-01-16"},
+        "metrics": {
+            "atr_before": 2.0,
+            "raw_gap_atr": 1.0,
+            "adjusted_gap_atr": 3.0,
+        },
+    }
+    selected = _governed_selected_bridge(
+        {"governed_continuity_context_id": "context-1"},
+        context,
+    )
+    row = {
+        "bridge_type": "GOVERNED_DATED_IDENTITY_CONTEXT",
+        "bridge_classification": "GOVERNED_CONTINUITY_CONTEXT_RETAINED",
+        "governed_continuity_context_id": "context-1",
+        "governed_continuity_validation_outcome": "IMPLEMENTATION_DEFECT",
+        "bridge_raw_gap_atr": 1.0,
+        "bridge_adjusted_gap_atr": 3.0,
+    }
+
+    repaired = _repair_case(row, {"factor_count": 1})
+
+    assert selected["governed_continuity_context_id"] == "context-1"
+    assert repaired["proposed_validation_outcome"] == "IMPLEMENTATION_DEFECT"
+    assert repaired["factor_quality_confirmed"] is False
+
+
+def test_context_is_deterministic(tmp_path: Path) -> None:
+    database = tmp_path / "truth.duckdb"
+    _database(database)
+    _insert(database)
+    provider = _provider(tmp_path / "evidence")
+
+    first = _context(database, provider).as_dict()
+    second = _context(database, provider).as_dict()
+
+    assert first == second
+
+
+def test_production_influence_is_false() -> None:
+    assert PRODUCTION_INFLUENCE is False
+
+
+def test_genuine_signed_population_acceptance_when_configured() -> None:
+    root_value = os.environ.get("DSI010B2_ACCEPTANCE_ROOT")
+    if not root_value:
+        pytest.skip("genuine signed DSI-010B2 acceptance root is not configured")
+    root = Path(root_value)
+    report = BridgeAwareContinuityCertificationEngine().run(
+        database_path=root / "work/alpha_data/warehouse/historical_truth.duckdb",
+        htr009a2_output=root / "artifacts/htr009a2_event_sourced_universe",
+        htr010a3_output=root / "artifacts/htr010a3_tier_a_foundation_readiness",
+        htr010b_output=root / "artifacts/htr010b_complete_corporate_action_dataset",
+        htr010b1c_output=root / "artifacts/htr010b1_adjustment_replay_admission_b2",
+        htr010b1e2_output=root
+        / "artifacts/htr010b1e2_final_admission_state_propagation_b2",
+        dsi010b1_output=root / "artifacts/dsi010b1_legacy_rights_reference_bridge",
+    )
+
+    assert report.summary["event_count"] == 18
+    assert (
+        sum(
+            report.summary[key]
+            for key in (
+                "K_confirmed_correct",
+                "D_implementation_defect",
+                "U_insufficient_evidence",
+                "C_conflicting_official_evidence",
+            )
+        )
+        == 18
+    )
+    assert report.production_influence is False

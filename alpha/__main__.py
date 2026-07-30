@@ -25,6 +25,12 @@ def _historical_truth_app() -> typer.Typer:
     from alpha.historical_truth.factor_transformation_forensics_cli import (
         factor_transformation_forensics,
     )
+    from alpha.historical_truth.final_official_evidence_closure_cli import (
+        final_official_evidence_closure_certify,
+    )
+    from alpha.historical_truth.final_pre2016_adjusted_history_closure_cli import (
+        final_pre2016_adjusted_history_closure_certify,
+    )
     from alpha.historical_truth.official_bridge_certification_cli import (
         official_bridge_certify,
         official_bridge_evidence_acquire,
@@ -41,6 +47,12 @@ def _historical_truth_app() -> typer.Typer:
     )
     from alpha.historical_truth.official_bridge_evidence_population_cli import (
         official_bridge_evidence_populate,
+    )
+    from alpha.historical_truth.pre2016_identity_reconstruction_cli import (
+        complete_pre2016_identity_reconstruction_certify,
+    )
+    from alpha.historical_truth.residual_corporate_action_closure_cli import (
+        residual_corporate_action_closure_certify,
     )
     from alpha.historical_truth.session_calendar_extension_cli import (
         session_calendar_extend_certify,
@@ -71,6 +83,22 @@ def _historical_truth_app() -> typer.Typer:
         historical_truth_app.command("bridge-aware-admission-reconcile")(
             bridge_aware_admission_reconcile
         )
+    if "residual-corporate-action-closure-certify" not in registered:
+        historical_truth_app.command("residual-corporate-action-closure-certify")(
+            residual_corporate_action_closure_certify
+        )
+    if "final-pre2016-adjusted-history-closure-certify" not in registered:
+        historical_truth_app.command("final-pre2016-adjusted-history-closure-certify")(
+            final_pre2016_adjusted_history_closure_certify
+        )
+    if "final-official-evidence-closure-certify" not in registered:
+        historical_truth_app.command("final-official-evidence-closure-certify")(
+            final_official_evidence_closure_certify
+        )
+    if "complete-pre2016-identity-reconstruction-certify" not in registered:
+        historical_truth_app.command(
+            "complete-pre2016-identity-reconstruction-certify"
+        )(complete_pre2016_identity_reconstruction_certify)
     if "official-bridge-evidence-manifest" not in registered:
         historical_truth_app.command("official-bridge-evidence-manifest")(
             official_bridge_evidence_manifest

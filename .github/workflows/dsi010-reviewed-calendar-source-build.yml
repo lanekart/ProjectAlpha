@@ -1,0 +1,261 @@
+name: DSI-010 Reviewed Calendar Source Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/dsi-010-pre2016-external-era-validation
+    paths:
+      - .github/workflows/dsi010-reviewed-calendar-source-build.yml
+      - alpha/decision_superiority/pre2016_emergency_calendar.py
+      - scripts/build_dsi010_2005_emergency_holiday_source.py
+      - scripts/build_dsi010_pre2011_reviewed_sources.py
+      - scripts/build_dsi010_2011_2015_reviewed_sources.py
+      - config/dsi010_pre2011_official_calendar_candidates.json
+      - config/dsi010_2011_2015_official_calendar_candidates.json
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-010-pre2016-external-era-validation
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install poetry
+      - run: poetry install --no-interaction
+      - name: Validate reviewed-source builders
+        run: |
+          poetry run ruff check \
+            alpha/decision_superiority/pre2016_emergency_calendar.py \
+            scripts/build_dsi010_2005_emergency_holiday_source.py \
+            scripts/build_dsi010_pre2011_reviewed_sources.py \
+            scripts/build_dsi010_2011_2015_reviewed_sources.py
+          poetry run ruff format --check \
+            alpha/decision_superiority/pre2016_emergency_calendar.py \
+            scripts/build_dsi010_2005_emergency_holiday_source.py \
+            scripts/build_dsi010_pre2011_reviewed_sources.py \
+            scripts/build_dsi010_2011_2015_reviewed_sources.py
+          poetry run mypy \
+            alpha/decision_superiority/pre2016_emergency_calendar.py \
+            scripts/build_dsi010_2005_emergency_holiday_source.py \
+            scripts/build_dsi010_pre2011_reviewed_sources.py \
+            scripts/build_dsi010_2011_2015_reviewed_sources.py
+      - name: Recover immutable 2005-2010 official documents
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+        run: |
+          set -o pipefail
+          poetry run python -m alpha benchmark \
+            decision-superiority-pre2016-calendar-source-recovery \
+            --candidate-registry config/dsi010_pre2011_official_calendar_candidates.json \
+            --output artifacts/dsi010_pre2011_official_sources \
+            --timeout-seconds 45 \
+            | tee artifacts/dsi010_pre2011_official_sources_console.log
+      - name: Build reviewed 2005-2010 sources
+        run: |
+          set -o pipefail
+          poetry run python scripts/build_dsi010_pre2011_reviewed_sources.py \
+            --recovery-root artifacts/dsi010_pre2011_official_sources \
+            --output-root artifacts/dsi010_pre2011_reviewed_sources \
+            | tee artifacts/dsi010_pre2011_reviewed_sources_console.log
+      - name: Build reviewed 2005 emergency closure source
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/dsi010_2005_emergency_holiday_source
+          poetry run python - <<'PY'
+          from pathlib import Path
+
+          import requests
+
+          url = "https://nsearchives.nseindia.com/content/press/27072005.pdf"
+          response = requests.get(
+              url,
+              headers={"User-Agent": "ProjectAlpha-HistoricalTruth/1.0"},
+              timeout=45,
+          )
+          response.raise_for_status()
+          path = Path(
+              "artifacts/dsi010_2005_emergency_holiday_source/"
+              "nse_press_27072005.pdf"
+          )
+          path.write_bytes(response.content)
+          PY
+          poetry run python scripts/build_dsi010_2005_emergency_holiday_source.py \
+            --source-document \
+            artifacts/dsi010_2005_emergency_holiday_source/nse_press_27072005.pdf \
+            --output-root artifacts/dsi010_2005_emergency_holiday_source \
+            | tee artifacts/dsi010_2005_emergency_holiday_source_console.log
+      - name: Recover immutable 2011-2015 official documents
+        env:
+          _TYPER_FORCE_DISABLE_TERMINAL: "1"
+        run: |
+          set -o pipefail
+          poetry run python -m alpha benchmark \
+            decision-superiority-pre2016-calendar-source-recovery \
+            --candidate-registry config/dsi010_2011_2015_official_calendar_candidates.json \
+            --output artifacts/dsi010_2011_2015_official_sources \
+            --timeout-seconds 45 \
+            | tee artifacts/dsi010_2011_2015_official_sources_console.log
+      - name: Build reviewed 2011-2015 sources
+        run: |
+          set -o pipefail
+          poetry run python scripts/build_dsi010_2011_2015_reviewed_sources.py \
+            --recovery-root artifacts/dsi010_2011_2015_official_sources \
+            --output-root artifacts/dsi010_2011_2015_reviewed_sources \
+            | tee artifacts/dsi010_2011_2015_reviewed_sources_console.log
+      - name: Validate combined source contract and full-audit preflight
+        run: |
+          set -o pipefail
+          poetry run python - <<'PY' 2>&1 | tee /tmp/dsi010-full-audit-preflight.log
+          from __future__ import annotations
+
+          import json
+          from pathlib import Path
+
+          from alpha.decision_superiority.pre2016_calendar_sources import (
+              validate_hash_bound_official_calendar_source,
+          )
+
+          early_root = Path("artifacts/dsi010_pre2011_reviewed_sources")
+          later_root = Path("artifacts/dsi010_2011_2015_reviewed_sources")
+          emergency_root = Path("artifacts/dsi010_2005_emergency_holiday_source")
+          early_sources = sorted((early_root / "sources").glob("*.json"))
+          later_sources = sorted((later_root / "sources").glob("*.json"))
+          emergency_source = emergency_root / "nse_2005_emergency_holiday.json"
+          if len(early_sources) != 15:
+              raise SystemExit(
+                  f"EXPECTED_15_EARLY_REVIEWED_SOURCES_FOUND_{len(early_sources)}"
+              )
+          if len(later_sources) != 13:
+              raise SystemExit(
+                  f"EXPECTED_13_LATER_REVIEWED_SOURCES_FOUND_{len(later_sources)}"
+              )
+          if not emergency_source.is_file():
+              raise SystemExit("EMERGENCY_HOLIDAY_SOURCE_MISSING")
+
+          source_paths = (*early_sources, *later_sources, emergency_source)
+          years: set[int] = set()
+          holiday_rows = 0
+          special_rows = 0
+          for source_path in source_paths:
+              payload = validate_hash_bound_official_calendar_source(
+                  source_path,
+                  require_capital_market_scope=True,
+              )
+              covered_years = payload.get("covered_years")
+              holidays = payload.get("holidays")
+              special_sessions = payload.get("special_sessions")
+              if not isinstance(covered_years, list):
+                  raise SystemExit("COVERED_YEARS_INVALID")
+              if not isinstance(holidays, list):
+                  raise SystemExit("HOLIDAYS_INVALID")
+              if not isinstance(special_sessions, list):
+                  raise SystemExit("SPECIAL_SESSIONS_INVALID")
+              years.update(int(year) for year in covered_years)
+              holiday_rows += len(holidays)
+              special_rows += len(special_sessions)
+              if payload.get("production_influence") is not False:
+                  raise SystemExit("PRODUCTION_INFLUENCE_NOT_FALSE")
+
+          if years != set(range(2005, 2016)):
+              raise SystemExit(f"COVERED_YEAR_MISMATCH:{sorted(years)}")
+          if len(source_paths) != 29:
+              raise SystemExit(f"EXPECTED_29_REVIEWED_SOURCES_FOUND_{len(source_paths)}")
+          if holiday_rows != 220:
+              raise SystemExit(
+                  f"EXPECTED_220_REVIEWED_HOLIDAY_ROWS_FOUND_{holiday_rows}"
+              )
+          if special_rows != 11:
+              raise SystemExit(
+                  f"EXPECTED_11_REVIEWED_SPECIAL_ROWS_FOUND_{special_rows}"
+              )
+
+          later_manifest = json.loads(
+              (later_root / "reviewed_source_manifest.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if later_manifest.get("supersession_applied") is not True:
+              raise SystemExit("LATER_SUPERSESSION_NOT_APPLIED")
+          revocation = later_manifest.get("revocation_applied")
+          if not isinstance(revocation, dict) or revocation.get("2013-11-14") is None:
+              raise SystemExit("LATER_REVOCATION_NOT_APPLIED")
+
+          database = Path("alpha_data/warehouse/historical_truth.duckdb")
+          manifest = Path("alpha_data/manifests/archive_manifest.jsonl")
+          blockers: list[str] = []
+          if not database.is_file():
+              blockers.append("GOVERNED_DATABASE_UNAVAILABLE")
+          if not manifest.is_file():
+              blockers.append("GOVERNED_MANIFEST_UNAVAILABLE")
+
+          preflight = {
+              "reviewed_source_count": len(source_paths),
+              "reviewed_covered_years": sorted(years),
+              "reviewed_holiday_row_count": holiday_rows,
+              "reviewed_special_session_row_count": special_rows,
+              "reviewed_2005_2010_source_count": len(early_sources),
+              "reviewed_2011_2015_source_count": len(later_sources),
+              "reviewed_emergency_source_count": 1,
+              "reviewed_2011_2015_available": True,
+              "emergency_2005_07_28_available": True,
+              "supersession_applied": True,
+              "revocation_applied": True,
+              "database_path": str(database),
+              "database_available": database.is_file(),
+              "manifest_path": str(manifest),
+              "manifest_available": manifest.is_file(),
+              "full_2005_2015_audit_performed": False,
+              "full_audit_blockers": blockers,
+              "calendar_certification_permitted": False,
+              "production_influence": False,
+          }
+          output = Path("artifacts/dsi010_2005_2015_reviewed_sources")
+          output.mkdir(parents=True, exist_ok=True)
+          (output / "full_audit_preflight.json").write_text(
+              json.dumps(preflight, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print("===== DSI-010 FULL CALENDAR AUDIT PREFLIGHT =====")
+          print(f"Reviewed Sources: {len(source_paths)}")
+          print(f"Reviewed Covered Years: {','.join(str(year) for year in sorted(years))}")
+          print(f"Reviewed Holiday Rows: {holiday_rows}")
+          print(f"Reviewed Special Sessions: {special_rows}")
+          print("Reviewed 2011-2015 Available: true")
+          print("Emergency 2005-07-28 Available: true")
+          print(f"Database Available: {str(database.is_file()).lower()}")
+          print(f"Manifest Available: {str(manifest.is_file()).lower()}")
+          print(f"Full Audit Blockers: {','.join(blockers) or 'NONE'}")
+          print("Full 2005-2015 Audit Performed: false")
+          print("Calendar Certification Permitted: false")
+          print("Production Influence: false")
+          PY
+      - name: Upload reviewed evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsi010-2005-2015-reviewed-calendar-sources
+          path: |
+            /tmp/dsi010-full-audit-preflight.log
+            artifacts/dsi010_pre2011_official_sources
+            artifacts/dsi010_pre2011_official_sources_console.log
+            artifacts/dsi010_pre2011_reviewed_sources
+            artifacts/dsi010_pre2011_reviewed_sources_console.log
+            artifacts/dsi010_2005_emergency_holiday_source
+            artifacts/dsi010_2005_emergency_holiday_source_console.log
+            artifacts/dsi010_2011_2015_official_sources
+            artifacts/dsi010_2011_2015_official_sources_console.log
+            artifacts/dsi010_2011_2015_reviewed_sources
+            artifacts/dsi010_2011_2015_reviewed_sources_console.log
+            artifacts/dsi010_2005_2015_reviewed_sources
+            config/dsi010_pre2011_official_calendar_candidates.json
+            config/dsi010_2011_2015_official_calendar_candidates.json
+          if-no-files-found: error
+          retention-days: 14

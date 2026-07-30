@@ -38,11 +38,15 @@ from alpha.historical_truth.bridge_aware_admission_quarantine import (
 from alpha.historical_truth.bridge_aware_admission_reconciliation_integrity import (
     BridgeAwareAdmissionReconciliationIntegrityEngine,
 )
+from alpha.historical_truth.bridge_aware_continuity_context import (
+    BridgeAwareContinuityContextProvider,
+)
 
 HTR010B1E2_CONTRACT_VERSION = "HTR-010B1E2-v1.0.0"
 
 _CONFIRMED_OUTCOMES = {
     ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP.value,
+    ValidationOutcome.FACTOR_CERTIFIED_OFFICIAL_TERMS_CONTINUITY_NOT_TESTABLE.value,
     ValidationOutcome.FACTOR_CONFIRMED_CORRECT_THIN_TRADING.value,
     ValidationOutcome.FACTOR_CONFIRMED_CORRECT_EVENT_DATE_OFFSET.value,
     ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MULTIPLE_ACTIONS.value,
@@ -64,6 +68,7 @@ class BridgeAwareAdmissionStatePropagationEngine:
         session_calendar_report: Path,
         start_date: date,
         end_date: date,
+        continuity_context_provider: BridgeAwareContinuityContextProvider | None = None,
     ) -> AdjustmentReplayAdmissionReport:
         base = BridgeAwareAdmissionReconciliationIntegrityEngine().run(
             database_path=database_path,
@@ -73,6 +78,7 @@ class BridgeAwareAdmissionStatePropagationEngine:
             session_calendar_report=session_calendar_report,
             start_date=start_date,
             end_date=end_date,
+            continuity_context_provider=continuity_context_provider,
         )
         inputs = HTR010BInputAdapter().load(htr010b_output, htr010a3_output)
         population = candle_population(
@@ -137,6 +143,7 @@ class BridgeAwareAdmissionStatePropagationEngine:
             intervals=intervals,
             reporting=reporting,
             residual_summary=residual_summary,
+            validation_results=base.factor_validation_results,
         )
         old_residual = base.input_contract_diagnostics.get(
             "residual_factor_attribution",
@@ -330,6 +337,12 @@ def propagated_admission_intervals(
 
     counts = Counter(str(row["admission_state"]) for row in rows)
     unresolved = counts[AdmissionState.UNRESOLVED.value]
+    explicit_implementation_defects = sum(
+        str(row.get("validation_outcome") or "")
+        == ValidationOutcome.IMPLEMENTATION_DEFECT.value
+        for row in validation_results
+    )
+    implementation_defects = explicit_implementation_defects + unresolved
     return tuple(rows), {
         "contract_version": HTR010B1E2_CONTRACT_VERSION,
         "validation_missing_outcome_row_count": missing_outcome_rows,
@@ -340,7 +353,7 @@ def propagated_admission_intervals(
         "initial_unresolved_interval_count": 641,
         "final_unresolved_interval_count": unresolved,
         "unresolved_interval_count": unresolved,
-        "implementation_defect_count": int(unresolved > 0),
+        "implementation_defect_count": implementation_defects,
     }
 
 
@@ -390,6 +403,7 @@ def propagated_readiness(
     intervals: tuple[dict[str, Any], ...],
     reporting: dict[str, Any],
     residual_summary: dict[str, Any],
+    validation_results: tuple[dict[str, Any], ...] = (),
 ) -> dict[str, Any]:
     blockers = {str(item) for item in base.get("blockers", [])}
     counts = Counter(str(row.get("admission_state")) for row in intervals)
@@ -398,6 +412,16 @@ def propagated_readiness(
         blockers.add("UNRESOLVED_ADMISSION_INTERVALS")
     else:
         blockers.discard("UNRESOLVED_ADMISSION_INTERVALS")
+    explicit_implementation_defects = sum(
+        str(row.get("validation_outcome") or "")
+        == ValidationOutcome.IMPLEMENTATION_DEFECT.value
+        for row in validation_results
+    )
+    implementation_defects = explicit_implementation_defects + unresolved
+    if implementation_defects:
+        blockers.add("FACTOR_TRANSFORMATION_IMPLEMENTATION_DEFECTS")
+    else:
+        blockers.discard("FACTOR_TRANSFORMATION_IMPLEMENTATION_DEFECTS")
     bridge_count = int(base.get("bridge_uncertified_count", 0) or 0)
     admission_count = int(reporting.get("admission_quarantined_identity_count", 0))
     evidence_count = int(reporting.get("evidence_quarantined_identity_count", 0))
@@ -410,7 +434,7 @@ def propagated_readiness(
         "segmented_admission_interval_count": len(intervals),
         "final_unresolved_interval_count": unresolved,
         "unresolved_interval_count": unresolved,
-        "implementation_defect_count": int(unresolved > 0),
+        "implementation_defect_count": implementation_defects,
         "admission_quarantined_identity_count": admission_count,
         "evidence_quarantined_identity_count": evidence_count,
         "unresolved_case_identity_count": unresolved_identities,

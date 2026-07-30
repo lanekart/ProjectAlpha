@@ -322,6 +322,30 @@ def test_checksum_mismatch_is_fail_closed(tmp_path: Path) -> None:
     assert reused.inventory.failure_code is FailureCode.CHECKSUM_MISMATCH
 
 
+def test_manifest_adjacent_source_is_reused_after_root_move(tmp_path: Path) -> None:
+    raw = json.dumps([_row("Bonus 1:1")]).encode()
+    store = OfficialCorporateActionStore(tmp_path)
+    acquired = store.acquire(
+        (_spec(),),
+        session=FakeSession(FakeResponse(raw)),
+    )[0]
+    manifest = next(
+        tmp_path.glob("raw/nse/corporate_actions/historical/**/*.manifest.json")
+    )
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    payload["immutable_path"] = "unavailable/original/acquisition/root.json"
+    manifest.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    reused = store.verify_or_missing((_spec(),))[0]
+
+    assert reused.inventory.status is SourceStatus.REUSED
+    assert reused.inventory.reuse_state == "CHECKSUM_VERIFIED"
+    assert reused.inventory.sha256 == acquired.inventory.sha256
+
+
 @pytest.mark.parametrize(
     ("purpose", "expected"),
     [
@@ -356,6 +380,22 @@ def test_split_bonus_and_dividend_terms_are_governed() -> None:
     assert dividend.cash_amount == pytest.approx(10.0)
 
 
+def test_historical_compact_split_wording_is_parsed() -> None:
+    parsed = _parse(
+        [
+            _row(
+                "Split-Rs.10tors.2/Div-60%Purpose Revised",
+                face_value="2",
+            )
+        ]
+    )[1]
+    split = parsed[0]
+
+    assert split.old_face_value == pytest.approx(10.0)
+    assert split.new_face_value == pytest.approx(2.0)
+    assert split.adjustment_factor == pytest.approx(0.2)
+
+
 def test_rights_terp_requires_complete_inputs() -> None:
     complete = _action("Rights 1:4 at Rs 50")
     missing_price = _action("Rights 1:4")
@@ -369,6 +409,20 @@ def test_rights_terp_requires_complete_inputs() -> None:
     assert factor.state is AdjustmentFactorState.DERIVED_FROM_OFFICIAL_TERMS
     assert unavailable.state is AdjustmentFactorState.UNKNOWN
     assert unavailable.price_factor is None
+
+
+def test_capital_reduction_uses_official_share_count_for_quantity_factor() -> None:
+    action = replace(
+        _action("Capital Reduction"),
+        adjustment_factor=1.0,
+        old_quantity=1.0,
+        new_quantity=1.0,
+    )
+
+    factor = AdjustmentFactorEngine().derive(action)
+
+    assert factor.price_factor == pytest.approx(1.0)
+    assert factor.quantity_factor == pytest.approx(1.0)
 
 
 def test_invalid_and_ambiguous_ratios_do_not_create_factors() -> None:

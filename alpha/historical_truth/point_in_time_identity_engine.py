@@ -836,6 +836,7 @@ class PointInTimeIdentityCertificationEngine:
                        MAX(c.trading_date) AS last_date, COUNT(*) AS candles
                 FROM scoped_candle c JOIN reused r
                   ON UPPER(c.symbol) = r.symbol AND UPPER(c.series) = r.series
+                WHERE c.isin IS NOT NULL
                 GROUP BY UPPER(c.symbol), UPPER(c.series), UPPER(c.isin)
             )
             SELECT symbol, series, LIST_SORT(LIST(isin)),
@@ -851,7 +852,9 @@ class PointInTimeIdentityCertificationEngine:
         ).fetchall()
         records: list[SymbolReuseRecord] = []
         for symbol, series, isins, summaries, candles, _ in rows:
-            parsed = [item.split(":") for item in summaries]
+            valid_isins = tuple(str(item) for item in isins if item is not None)
+            valid_summaries = tuple(str(item) for item in summaries if item is not None)
+            parsed = [item.split(":") for item in valid_summaries]
             intervals = [
                 (date.fromisoformat(parts[1]), date.fromisoformat(parts[2]))
                 for parts in parsed
@@ -865,8 +868,8 @@ class PointInTimeIdentityCertificationEngine:
                 SymbolReuseRecord(
                     str(symbol),
                     str(series),
-                    tuple(str(item) for item in isins),
-                    tuple(str(item) for item in summaries),
+                    valid_isins,
+                    valid_summaries,
                     overlap,
                     (),
                     int(candles),

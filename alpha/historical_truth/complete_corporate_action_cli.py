@@ -29,6 +29,13 @@ def complete_corporate_action_dataset(
         exists=True,
         file_okay=False,
     ),
+    htr009a2_output: Path | None = typer.Option(
+        None,
+        "--htr009a2-output",
+        exists=True,
+        file_okay=False,
+        help="Optional signed HTR-009A2 output for legacy missing-ISIN bridges.",
+    ),
     start: str = typer.Option("2016-01-01", "--start"),
     end: str = typer.Option("2026-07-20", "--end"),
     output: Path = typer.Option(
@@ -61,6 +68,7 @@ def complete_corporate_action_dataset(
         )
     report = CompleteCorporateActionDatasetEngine(database, root).run(
         htr010a3_output=htr010a3_output,
+        htr009a2_output=htr009a2_output,
         start_date=start_date,
         end_date=end_date,
         output=output,

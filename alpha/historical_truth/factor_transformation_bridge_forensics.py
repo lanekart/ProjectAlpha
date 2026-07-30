@@ -130,16 +130,25 @@ def _bridge_case(
     )
     isin_candidates = _isin_candidates(event_isin, identity, matched)
     symbol_candidates = _symbol_candidates(symbol, matched)
-    bridge_candidates = _bridge_candidates(
-        connection,
-        effective=effective,
-        factor=factor,
-        isin_candidates=isin_candidates,
-        symbol_candidates=symbol_candidates,
-        transitions=matched,
-    )
-    selected = _select_bridge(bridge_candidates)
-    classification, recommendation = _classify_bridge(selected, matched)
+    governed_context = case.get("governed_continuity_context")
+    selected: dict[str, Any] | None
+    bridge_candidates: list[dict[str, Any]]
+    if isinstance(governed_context, dict) and governed_context:
+        selected = _governed_selected_bridge(case, governed_context)
+        bridge_candidates = [selected]
+        classification = "GOVERNED_CONTINUITY_CONTEXT_RETAINED"
+        recommendation = "RETAIN_UPSTREAM_GOVERNED_CONTINUITY_OUTCOME"
+    else:
+        bridge_candidates = _bridge_candidates(
+            connection,
+            effective=effective,
+            factor=factor,
+            isin_candidates=isin_candidates,
+            symbol_candidates=symbol_candidates,
+            transitions=matched,
+        )
+        selected = _select_bridge(bridge_candidates)
+        classification, recommendation = _classify_bridge(selected, matched)
     prior = selected.get("prior", {}) if selected else {}
     current = selected.get("current", {}) if selected else {}
     original_evidence = case.get("forensic_evidence")
@@ -153,6 +162,13 @@ def _bridge_case(
         "effective_date": effective.isoformat() if effective else None,
         "official_price_factor": factor,
         "b1d_classification": case.get("forensic_classification"),
+        "b1d_official_term_factor": case.get("official_term_factor"),
+        "b1d_official_term_formula": case.get("official_term_formula"),
+        "b1d_official_term_factor_matches": case.get("official_term_factor_matches"),
+        "b1d_reference_price_certified": case.get("reference_price_certified"),
+        "b1d_reference_price_provenance_state": case.get(
+            "reference_price_provenance_state"
+        ),
         "b1d_official_gap": (
             original_evidence.get("official_gap")
             if isinstance(original_evidence, dict)
@@ -183,6 +199,11 @@ def _bridge_case(
         "bridge_type": selected.get("bridge_type") if selected else None,
         "bridge_classification": classification,
         "recommended_repair_action": recommendation,
+        "governed_continuity_context_id": case.get("governed_continuity_context_id"),
+        "governed_continuity_context": governed_context,
+        "governed_continuity_validation_outcome": case.get(
+            "governed_continuity_validation_outcome"
+        ),
         "original_b1b_cross_series_pairing_possible": bool(
             case.get("reported_adjusted_gap_atr") is not None
             and case.get("forensic_evidence", {}).get("official_gap") is None
@@ -191,6 +212,54 @@ def _bridge_case(
         "market_derived_factor_autocorrection": False,
         "admitted_to_replay": False,
         "production_influence": False,
+    }
+
+
+def _governed_selected_bridge(
+    case: dict[str, Any],
+    context: dict[str, Any],
+) -> dict[str, Any]:
+    prior_rows = context.get("selected_prior_bars")
+    selected_prior = prior_rows if isinstance(prior_rows, list) else []
+    prior = selected_prior[-1] if selected_prior else {}
+    action = context.get("action_bar")
+    current = action if isinstance(action, dict) else {}
+    metrics = context.get("metrics")
+    values = metrics if isinstance(metrics, dict) else {}
+    return {
+        "prior": {
+            "trading_date": prior.get("trading_date"),
+            "symbol": prior.get("symbol"),
+            "series": prior.get("series"),
+            "isin": prior.get("original_isin"),
+            "open_price": prior.get("open_price"),
+            "high_price": prior.get("high_price"),
+            "low_price": prior.get("low_price"),
+            "close_price": prior.get("close_price"),
+            "volume": prior.get("volume"),
+            "source_sha256": prior.get("source_sha256"),
+        },
+        "current": {
+            "trading_date": current.get("trading_date"),
+            "symbol": current.get("symbol"),
+            "series": current.get("series"),
+            "isin": current.get("original_isin"),
+            "open_price": current.get("open_price"),
+            "high_price": current.get("high_price"),
+            "low_price": current.get("low_price"),
+            "close_price": current.get("close_price"),
+            "volume": current.get("volume"),
+            "source_sha256": current.get("source_sha256"),
+        },
+        "bridge_type": "GOVERNED_DATED_IDENTITY_CONTEXT",
+        "matching_transition": {},
+        "transition_evidence_available": False,
+        "histories_may_be_linked": True,
+        "price_comparison_valid": True,
+        "atr_before": values.get("atr_before"),
+        "raw_gap_atr": values.get("raw_gap_atr"),
+        "adjusted_gap_atr": values.get("adjusted_gap_atr"),
+        "governed_continuity_context_id": case.get("governed_continuity_context_id"),
     }
 
 

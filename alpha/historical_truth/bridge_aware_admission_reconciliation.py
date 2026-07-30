@@ -35,11 +35,15 @@ from alpha.historical_truth.adjustment_replay_admission_repair import (
     quarantine_census_repaired,
     session_based_lookback_safety,
 )
+from alpha.historical_truth.bridge_aware_continuity_context import (
+    BridgeAwareContinuityContextProvider,
+)
 
 HTR010B1E_CONTRACT_VERSION = "HTR-010B1E-v1.0.0"
 
 _CONFIRMED_OUTCOMES = {
     ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MARKET_GAP.value,
+    ValidationOutcome.FACTOR_CERTIFIED_OFFICIAL_TERMS_CONTINUITY_NOT_TESTABLE.value,
     ValidationOutcome.FACTOR_CONFIRMED_CORRECT_THIN_TRADING.value,
     ValidationOutcome.FACTOR_CONFIRMED_CORRECT_EVENT_DATE_OFFSET.value,
     ValidationOutcome.FACTOR_CONFIRMED_CORRECT_MULTIPLE_ACTIONS.value,
@@ -66,6 +70,7 @@ class BridgeAwareAdmissionReconciliationEngine:
         session_calendar_report: Path,
         start_date: date,
         end_date: date,
+        continuity_context_provider: BridgeAwareContinuityContextProvider | None = None,
     ) -> AdjustmentReplayAdmissionReport:
         if end_date < start_date:
             raise ValueError("end_date must be on or after start_date")
@@ -76,6 +81,7 @@ class BridgeAwareAdmissionReconciliationEngine:
             session_calendar_report=session_calendar_report,
             start_date=start_date,
             end_date=end_date,
+            continuity_context_provider=continuity_context_provider,
         )
         repair_rows = _records(htr010b1d2_output / "htr010b1d2_reclassified_cases.json")
         repaired_results, repair_summary = overlay_bridge_aware_results(

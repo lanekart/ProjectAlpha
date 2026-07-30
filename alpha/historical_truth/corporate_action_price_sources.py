@@ -260,7 +260,9 @@ class OfficialCorporateActionStore:
             )
         try:
             payload = json.loads(manifest.read_text(encoding="utf-8"))
-            source_path = Path(str(payload["immutable_path"]))
+            recorded_path = Path(str(payload["immutable_path"]))
+            adjacent_path = Path(str(manifest).removesuffix(".manifest.json"))
+            source_path = recorded_path if recorded_path.exists() else adjacent_path
             raw = source_path.read_bytes()
             actual = sha256(raw).hexdigest()
             expected = str(payload["sha256"])
@@ -651,12 +653,14 @@ def _parse_terms(
     old_face, new_face = _face_values(purpose)
     if new_face is None:
         new_face = face_value
-    ratio = _ratio(purpose)
+    ratio = _ratio_for_action(action_type, purpose)
     cash = (
         _money_amount(purpose) if action_type is CorporateActionType.DIVIDEND else None
     )
     rights_price = (
-        _rights_price(purpose) if action_type is CorporateActionType.RIGHTS else None
+        _rights_price(purpose, face_value)
+        if action_type is CorporateActionType.RIGHTS
+        else None
     )
     return {
         "old_face_value": old_face,
@@ -692,10 +696,14 @@ def _initial_factor(
             return AdjustmentFactorState.AMBIGUOUS, None
         if numerator <= 0 or denominator <= 0:
             return AdjustmentFactorState.INVALID, None
-        return (
-            AdjustmentFactorState.DERIVED_FROM_OFFICIAL_TERMS,
-            denominator / (denominator + numerator),
-        )
+        factor = denominator / (denominator + numerator)
+        if old_face is not None:
+            if new_face is None:
+                return AdjustmentFactorState.AMBIGUOUS, None
+            if old_face <= 0 or new_face <= 0:
+                return AdjustmentFactorState.INVALID, None
+            factor *= new_face / old_face
+        return AdjustmentFactorState.DERIVED_FROM_OFFICIAL_TERMS, factor
     if action_type is CorporateActionType.RIGHTS:
         if numerator is None or denominator is None or terms["rights_price"] is None:
             return AdjustmentFactorState.UNKNOWN, None
@@ -711,15 +719,61 @@ def _initial_factor(
 
 def _face_values(value: str) -> tuple[float | None, float | None]:
     normalized = value.replace(",", " ")
-    match = re.search(
-        r"FROM\s+(?:RS\.?|RE\.?)?\s*([0-9]+(?:\.[0-9]+)?)"
-        r".*?TO\s+(?:RS\.?|RE\.?)?\s*([0-9]+(?:\.[0-9]+)?)",
-        normalized,
-        flags=re.IGNORECASE,
+    patterns = (
+        (
+            r"FROM\s+(?:RS\.?|RE\.?)?\s*([0-9]+(?:\.[0-9]+)?)"
+            r".*?TO\s*(?:RS\.?|RE\.?)?\s*([0-9]+(?:\.[0-9]+)?)"
+        ),
+        (
+            r"(?:SPLIT|SUB-DIVISION|SUB DIVISION).*?"
+            r"(?:RS\.?|RE\.?)?\s*([0-9]+(?:\.[0-9]+)?)\s*(?:/-)?"
+            r".*?TO\s*(?:RS\.?|RE\.?)?\s*"
+            r"([0-9]+(?:\.[0-9]+)?)"
+        ),
     )
-    if match is None:
-        return None, None
-    return float(match.group(1)), float(match.group(2))
+    for pattern in patterns:
+        match = re.search(pattern, normalized, flags=re.IGNORECASE)
+        if match is not None:
+            return float(match.group(1)), float(match.group(2))
+    return None, None
+
+
+def _ratio_for_action(
+    action_type: CorporateActionType,
+    value: str,
+) -> tuple[float, float] | None:
+    if action_type is CorporateActionType.RIGHTS:
+        patterns = (
+            r"\bRIGHTS?\b(?:\s+ISSUE)?\s*(?:[-/]\s*)?"
+            r"(?:EQ(?:UITY)?\s*)?:?\s*(\d+(?:\.\d+)?)\s*:\s*"
+            r"(\d+(?:\.\d+)?)",
+            r"\bRIGHTS?\b\s+AT\s+(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)",
+            r"\bRATIO\s+OF\s+(?:THE\s+)?RIGHTS?\s+(?:IS|AT)\s+"
+            r"(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)",
+        )
+        return _first_ratio(value, patterns)
+    if action_type is CorporateActionType.BONUS:
+        return _first_ratio(
+            value,
+            (
+                r"\bBONUS(?:\b|(?=\d))\s*(?:[-/]\s*)?"
+                r"(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)",
+                r"\bBONUS\s+(?:ISSUE|SHARES?\s+IN\s+THE\s+RATIO\s+OF)\s+"
+                r"(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)",
+            ),
+        )
+    return _ratio(value)
+
+
+def _first_ratio(
+    value: str,
+    patterns: Sequence[str],
+) -> tuple[float, float] | None:
+    for pattern in patterns:
+        match = re.search(pattern, value, re.IGNORECASE)
+        if match is not None:
+            return float(match.group(1)), float(match.group(2))
+    return None
 
 
 def _ratio(value: str) -> tuple[float, float] | None:
@@ -742,10 +796,28 @@ def _money_amount(value: str) -> float | None:
     return float(matches[-1]) if matches else None
 
 
-def _rights_price(value: str) -> float | None:
+def _rights_price(value: str, face_value: float | None) -> float | None:
+    normalized = value.replace(",", " ")
+    if re.search(r"(?:\bAT\s+PAR\b|@\s*PAR\b)", normalized, re.IGNORECASE):
+        return face_value if face_value is not None and face_value > 0 else None
+
+    premium_matches = re.findall(
+        r"(?:AT\s+A\s+)?(?:PREMIUM|PREM)(?:\s+OF)?\s*@?\s*"
+        r"(?:RS\.?|RE\.?|₹)?\s*"
+        r"([0-9]+(?:\.[0-9]+)?)",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    if premium_matches:
+        if face_value is None or face_value <= 0:
+            return None
+        return face_value + float(premium_matches[-1])
+
     matches = re.findall(
-        r"(?:AT|@|PRICE(?:\s+OF)?)\s*(?:RS\.?|RE\.?)?\s*([0-9]+(?:\.[0-9]+)?)",
-        value,
+        r"(?:AT|@|PRICE(?:\s+OF)?|ISSUE\s+PRICE(?:\s+PER\s+EQUITY\s+SHARE)?"
+        r"(?:\s+IS)?)\s*(?:RS\.?|RE\.?|₹)?\s*"
+        r"([0-9]+(?:\.[0-9]+)?)",
+        normalized,
         flags=re.IGNORECASE,
     )
     return float(matches[-1]) if matches else None

@@ -44,6 +44,9 @@ from alpha.historical_truth.adjustment_replay_admission_repair import (
     replay_readiness_repaired,
     session_based_lookback_safety,
 )
+from alpha.historical_truth.bridge_aware_continuity_context import (
+    BridgeAwareContinuityContextProvider,
+)
 
 
 class AdjustmentReplayAdmissionContinuityEngine:
@@ -57,6 +60,7 @@ class AdjustmentReplayAdmissionContinuityEngine:
         htr010b_output: Path,
         start_date: date,
         end_date: date,
+        continuity_context_provider: BridgeAwareContinuityContextProvider | None = None,
     ) -> AdjustmentReplayAdmissionReport:
         if end_date < start_date:
             raise ValueError("end_date must be on or after start_date")
@@ -74,6 +78,7 @@ class AdjustmentReplayAdmissionContinuityEngine:
             legacy_continuity=inputs["continuity"],
             start_date=start_date,
             end_date=end_date,
+            continuity_context_provider=continuity_context_provider,
         )
         inputs["diagnostics"]["continuity_recomputation"] = continuity_summary
         unknown = unknown_factor_impact(inputs["events"], inputs["factors"])
@@ -132,7 +137,14 @@ class AdjustmentReplayAdmissionContinuityEngine:
             "session_calendar_source": "daily_candle_distinct_trading_date",
             "calendar_day_lookback_approximation": False,
             "identity_date_segmentation": True,
-            "continuity_source": ("HTR010B_FACTOR_RECOMPUTED_FROM_CANONICAL_CANDLES"),
+            "continuity_source": (
+                "HTR010B_FACTOR_RECOMPUTED_FROM_GOVERNED_BRIDGE_AWARE_CANDLES"
+                if continuity_context_provider is not None
+                else "HTR010B_FACTOR_RECOMPUTED_FROM_CANONICAL_CANDLES"
+            ),
+            "bridge_aware_continuity_context_enabled": (
+                continuity_context_provider is not None
+            ),
             "legacy_continuity_is_comparison_only": True,
             "market_derived_factor_autocorrection": False,
             "tier_a_weight_universe_closed": True,

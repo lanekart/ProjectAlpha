@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter, defaultdict
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, replace
 from datetime import date
 from hashlib import sha256
@@ -33,11 +34,22 @@ from alpha.historical_truth.corporate_action_price_models import (
     ActionAdmissionState,
     AdjustmentFactorState,
     CorporateActionEvent,
+    CorporateActionLineage,
     CorporateActionType,
+    EvidenceConfidence,
 )
 from alpha.historical_truth.corporate_action_price_sources import (
     OfficialCorporateActionStore,
     default_corporate_action_sources,
+)
+from alpha.historical_truth.legacy_isin_reference_bridge import (
+    LegacyIsinReferenceBridge,
+)
+from alpha.historical_truth.official_corporate_action_supplements import (
+    AppliedCorporateActionSupplement,
+    RejectedCorporateActionSupplement,
+    apply_official_corporate_action_supplements,
+    official_corporate_action_supplements,
 )
 
 
@@ -46,12 +58,14 @@ class CompleteCorporateActionDatasetEngine:
 
     def __init__(self, database_path: Path, root: Path) -> None:
         self.database_path = database_path
+        self.root = root
         self.store = OfficialCorporateActionStore(root)
 
     def run(
         self,
         *,
         htr010a3_output: Path,
+        htr009a2_output: Path | None = None,
         start_date: date,
         end_date: date,
         output: Path,
@@ -60,13 +74,15 @@ class CompleteCorporateActionDatasetEngine:
     ) -> CompleteCorporateActionReport:
         if refresh_sources and verify_only:
             raise ValueError("refresh_sources and verify_only are mutually exclusive")
-        joins = _records(
-            htr010a3_output / "htr010a3_corporate_action_join_readiness.json"
-        )
-        if len(joins) != 3711:
-            raise ValueError(
-                "HTR-010A3 Tier A denominator must contain 3,711 identities"
+        joins, upstream_a3_readiness = _validated_a3_join_contract(htr010a3_output)
+        reference_bridge = (
+            LegacyIsinReferenceBridge.from_output(
+                htr009a2_output,
+                htr010a3_output=htr010a3_output,
             )
+            if htr009a2_output is not None
+            else None
+        )
         admitted = {
             str(row["identity_key"]): row
             for row in joins
@@ -87,6 +103,16 @@ class CompleteCorporateActionDatasetEngine:
             item.action_id: item for source in parsed for item in source.lineage
         }
         all_actions = tuple(item for source in parsed for item in source.actions)
+        verified_supplements, source_rejections = official_corporate_action_supplements(
+            self.root
+        )
+        all_actions, applied_supplements, event_rejections = (
+            apply_official_corporate_action_supplements(
+                all_actions,
+                verified_supplements,
+            )
+        )
+        supplement_rejections = (*source_rejections, *event_rejections)
         tier_actions = tuple(
             item
             for item in all_actions
@@ -100,13 +126,22 @@ class CompleteCorporateActionDatasetEngine:
             )
         )
         canonical, duplicate_groups, duplicate_rejections = canonicalize_events(
-            tier_actions, admitted
+            tier_actions,
+            admitted,
+            supplements={item.action_id: item for item in applied_supplements},
         )
         event_lineage = tuple(
             _event_lineage(item, source_by_id, lineages) for item in canonical
         )
         actions_by_id = {item.action_id: item for item in tier_actions}
-        factors = derive_factors(self.database_path, canonical, actions_by_id)
+        factors = derive_factors(
+            self.database_path,
+            canonical,
+            actions_by_id,
+            admitted,
+            reference_bridge=reference_bridge,
+            action_lineage_by_id=lineages,
+        )
         cumulative = cumulative_factors(factors)
         canonical_by_raw_id = {
             str(raw_id): str(item["canonical_event_id"])
@@ -135,7 +170,14 @@ class CompleteCorporateActionDatasetEngine:
             )
         )
         contamination = tuple(_contamination(row) for row in continuity)
-        source_completeness = tuple(_source_completeness(item) for item in inventory)
+        source_completeness = (
+            *(tuple(_source_completeness(item) for item in inventory)),
+            *(_supplement_source_completeness(item) for item in applied_supplements),
+            *(
+                _rejected_supplement_source_completeness(item)
+                for item in supplement_rejections
+            ),
+        )
         parser_rejections = tuple(
             {
                 **_jsonable(asdict(item)),
@@ -155,6 +197,10 @@ class CompleteCorporateActionDatasetEngine:
         readiness = adjusted_replay_readiness(
             canonical, factors, intervals, raw_fingerprint
         )
+        readiness = _apply_upstream_a3_readiness(
+            readiness,
+            upstream_a3_readiness,
+        )
         certification = certification_summary(
             coverage,
             source_completeness,
@@ -163,8 +209,21 @@ class CompleteCorporateActionDatasetEngine:
         )
         checksums = tuple(
             sorted(
-                (item.immutable_path or item.source_id, item.sha256 or "")
-                for item in inventory
+                (
+                    *(
+                        (item.immutable_path or item.source_id, item.sha256 or "")
+                        for item in inventory
+                    ),
+                    *(
+                        reference_bridge.source_checksums
+                        if reference_bridge is not None
+                        else ()
+                    ),
+                    *(
+                        (item.immutable_path, item.supplement.source_sha256)
+                        for item in applied_supplements
+                    ),
+                )
             )
         )
         report = CompleteCorporateActionReport(
@@ -243,11 +302,14 @@ class CompleteCorporateActionDatasetEngine:
 def canonicalize_events(
     actions: tuple[CorporateActionEvent, ...],
     joins: dict[str, dict[str, Any]],
+    *,
+    supplements: Mapping[str, AppliedCorporateActionSupplement] | None = None,
 ) -> tuple[
     tuple[dict[str, Any], ...],
     tuple[dict[str, Any], ...],
     tuple[dict[str, Any], ...],
 ]:
+    supplement_by_action = supplements or {}
     grouped: dict[tuple[str, date, str, str], list[CorporateActionEvent]] = defaultdict(
         list
     )
@@ -311,6 +373,11 @@ def canonicalize_events(
                 "successor_identity": selected.successor_identity,
                 "source_id": selected.source_id,
                 "raw_record_ids": list(raw_ids),
+                "official_term_supplement": (
+                    supplement_by_action[selected.action_id].payload()
+                    if selected.action_id in supplement_by_action
+                    else None
+                ),
             }
         )
         if len(group) > 1:
@@ -395,6 +462,10 @@ def normalize_action(action: CorporateActionEvent) -> GovernedActionType:
 def map_factor_state(
     action: CorporateActionEvent, normalized: GovernedActionType
 ) -> FactorState:
+    if normalized is GovernedActionType.BONUS and _is_separate_security_bonus(action):
+        return FactorState.FACTOR_NOT_MULTIPLICATIVE
+    if normalized is GovernedActionType.RIGHTS and _is_separate_security_rights(action):
+        return FactorState.FACTOR_NOT_MULTIPLICATIVE
     non_adjusting = {
         GovernedActionType.DIVIDEND_ORDINARY,
         GovernedActionType.DIVIDEND_INTERIM,
@@ -437,6 +508,46 @@ def map_factor_state(
     return mapping[action.adjustment_factor_state]
 
 
+def _is_separate_security_bonus(action: CorporateActionEvent) -> bool:
+    purpose = action.purpose.upper()
+    return any(
+        marker in purpose
+        for marker in (
+            " DVR ",
+            " DVR:",
+            "DVR :",
+            "PCCPS",
+            "CCPS",
+            "WARRANT",
+            "BONUS DEB",
+            "BONUS PREFERENCE",
+        )
+    )
+
+
+def _is_separate_security_rights(action: CorporateActionEvent) -> bool:
+    purpose = action.purpose.upper()
+    offered_non_equity = any(
+        marker in purpose
+        for marker in (
+            " NCD",
+            " BOND",
+            " PCD",
+            "PCCPS",
+        )
+    )
+    offered_equity = any(
+        marker in purpose
+        for marker in (
+            "RIGHT-EQ",
+            "RIGHTS-EQ",
+            "RIGHTS EQ",
+            "RIGHTS EQUITY",
+        )
+    )
+    return offered_non_equity and not offered_equity
+
+
 def admission_state(
     action: CorporateActionEvent,
     normalized: GovernedActionType,
@@ -454,6 +565,7 @@ def admission_state(
     if factor in {
         FactorState.FACTOR_DERIVED_OFFICIAL_TERMS,
         FactorState.FACTOR_CERTIFIED,
+        FactorState.FACTOR_CERTIFIED_REFERENCE_PRICE,
     }:
         return EventAdmission.ADMITTED_FACTOR_DERIVABLE
     if factor in {
@@ -469,6 +581,10 @@ def derive_factors(
     database_path: Path,
     events: tuple[dict[str, Any], ...],
     actions_by_id: dict[str, CorporateActionEvent],
+    joins: dict[str, dict[str, Any]] | None = None,
+    *,
+    reference_bridge: LegacyIsinReferenceBridge | None = None,
+    action_lineage_by_id: Mapping[str, CorporateActionLineage] | None = None,
 ) -> tuple[dict[str, Any], ...]:
     engine = AdjustmentFactorEngine()
     factors = []
@@ -479,21 +595,64 @@ def derive_factors(
             if source is None:
                 continue
             reference = None
+            provenance: dict[str, Any] = {
+                "reference_price_date": None,
+                "reference_price_series": None,
+                "reference_price_isin": None,
+                "reference_price_source_sha256": None,
+                "reference_price_provenance_state": "NOT_APPLICABLE",
+                "reference_price_original_provenance_state": "NOT_APPLICABLE",
+                "reference_price_certified": False,
+                **_empty_reference_bridge_provenance(),
+            }
             if source.action_type is CorporateActionType.RIGHTS:
-                row = connection.execute(
-                    "SELECT close_price FROM daily_candle WHERE symbol=? AND "
-                    "series=? AND trading_date<? ORDER BY trading_date DESC LIMIT 1",
-                    [source.symbol, source.series, source.effective_date],
-                ).fetchone()
-                reference = float(row[0]) if row else None
+                if joins is None:
+                    row = connection.execute(
+                        "SELECT close_price FROM daily_candle WHERE symbol=? AND "
+                        "series=? AND trading_date<? ORDER BY trading_date DESC "
+                        "LIMIT 1",
+                        [source.symbol, source.series, source.effective_date],
+                    ).fetchone()
+                    reference = float(row[0]) if row else None
+                    provenance = {
+                        "reference_price_date": None,
+                        "reference_price_series": source.series.upper(),
+                        "reference_price_isin": None,
+                        "reference_price_source_sha256": None,
+                        "reference_price_provenance_state": (
+                            "LEGACY_UNCERTIFIED_REFERENCE_PRICE"
+                            if reference is not None
+                            else "PRIOR_CANDLE_MISSING"
+                        ),
+                        "reference_price_original_provenance_state": (
+                            "LEGACY_UNCERTIFIED_REFERENCE_PRICE"
+                            if reference is not None
+                            else "PRIOR_CANDLE_MISSING"
+                        ),
+                        "reference_price_certified": False,
+                        **_empty_reference_bridge_provenance(),
+                    }
+                else:
+                    reference, provenance = _rights_reference_context(
+                        connection,
+                        source=source,
+                        event=event,
+                        join=joins.get(str(event["governed_identity_id"]), {}),
+                        reference_bridge=reference_bridge,
+                        action_population=tuple(actions_by_id.values()),
+                        action_lineage_by_id=action_lineage_by_id or {},
+                    )
             factor = engine.derive(source, reference_price=reference)
             state = map_factor_state(source, normalize_action(source))
             if source.action_type is CorporateActionType.RIGHTS:
-                state = (
-                    FactorState.FACTOR_PROVISIONAL_REFERENCE_PRICE
-                    if factor.price_factor is not None
-                    else FactorState.FACTOR_UNKNOWN_MISSING_TERMS
-                )
+                if state is FactorState.FACTOR_NOT_MULTIPLICATIVE:
+                    pass
+                elif factor.price_factor is None:
+                    state = FactorState.FACTOR_UNKNOWN_MISSING_TERMS
+                elif provenance["reference_price_certified"]:
+                    state = FactorState.FACTOR_CERTIFIED_REFERENCE_PRICE
+                else:
+                    state = FactorState.FACTOR_PROVISIONAL_REFERENCE_PRICE
             factors.append(
                 {
                     "factor_id": stable_id(
@@ -505,6 +664,7 @@ def derive_factors(
                     "price_factor": factor.price_factor,
                     "quantity_factor": factor.quantity_factor,
                     "reference_price": reference,
+                    **provenance,
                     "factor_state": state.value,
                     "calculation_version": ADJUSTMENT_POLICY_VERSION,
                     "explanation": factor.explanation,
@@ -520,6 +680,261 @@ def derive_factors(
             ),
         )
     )
+
+
+def _rights_reference_context(
+    connection: duckdb.DuckDBPyConnection,
+    *,
+    source: CorporateActionEvent,
+    event: dict[str, Any],
+    join: dict[str, Any],
+    reference_bridge: LegacyIsinReferenceBridge | None = None,
+    action_population: Sequence[CorporateActionEvent] = (),
+    action_lineage_by_id: Mapping[str, CorporateActionLineage] | None = None,
+) -> tuple[float | None, dict[str, Any]]:
+    applicable = tuple(
+        str(item).upper() for item in event.get("series_applicability", ())
+    )
+    event_isin = str(source.isin or "").upper()
+    row = connection.execute(
+        "SELECT trading_date, upper(coalesce(isin, '')), close_price, "
+        "upper(symbol), "
+        "coalesce(source_sha256, '') FROM daily_candle "
+        "WHERE upper(symbol)=? AND upper(series)=? AND trading_date<? "
+        "ORDER BY trading_date DESC LIMIT 1",
+        [source.symbol.upper(), source.series.upper(), source.effective_date],
+    ).fetchone()
+    used_exact_isin_alias = False
+    if row is None and event_isin:
+        rows = connection.execute(
+            "SELECT trading_date, upper(coalesce(isin, '')), close_price, "
+            "upper(symbol), coalesce(source_sha256, '') FROM daily_candle "
+            "WHERE upper(isin)=? AND upper(series)=? AND trading_date<? "
+            "QUALIFY trading_date=max(trading_date) OVER () "
+            "ORDER BY upper(symbol), coalesce(source_sha256, '')",
+            [event_isin, source.series.upper(), source.effective_date],
+        ).fetchall()
+        unique_rows = {
+            (item[0], str(item[1]), item[2], str(item[3]), str(item[4]))
+            for item in rows
+        }
+        if len(unique_rows) == 1:
+            row = next(iter(unique_rows))
+            used_exact_isin_alias = str(row[3]) != source.symbol.upper()
+    prior_date = row[0] if row else None
+    prior_isin = str(row[1]) if row else ""
+    close = float(row[2]) if row and row[2] is not None else None
+    observed_symbol = str(row[3]) if row else ""
+    source_sha = str(row[4]) if row else ""
+
+    if not join.get("admitted_to_certified_join"):
+        state = "A3_JOIN_NOT_ADMITTED"
+    elif len(applicable) != 1 or applicable[0] != source.series.upper():
+        state = "SERIES_NOT_UNIQUE"
+    elif row is None:
+        state = "PRIOR_CANDLE_MISSING"
+    elif close is None or close <= 0:
+        state = "PRIOR_CLOSE_INVALID"
+    elif not source_sha:
+        state = "SOURCE_SHA256_MISSING"
+    elif not event_isin:
+        state = "EVENT_ISIN_MISSING"
+    elif not prior_isin:
+        state = "PRIOR_ISIN_MISSING"
+    elif prior_isin != event_isin:
+        state = "PRIOR_ISIN_MISMATCH"
+    elif used_exact_isin_alias:
+        state = "CERTIFIED_SAME_ISIN_ALTERNATE_SYMBOL_PRIOR_CLOSE"
+    else:
+        state = "CERTIFIED_SAME_ISIN_CANONICAL_PRIOR_CLOSE"
+
+    original_state = state
+    bridge_provenance = _empty_reference_bridge_provenance()
+    if (
+        state == "PRIOR_ISIN_MISSING"
+        and reference_bridge is not None
+        and prior_date is not None
+    ):
+        bridge_result = reference_bridge.resolve(
+            identity_key=str(event["governed_identity_id"]),
+            symbol=source.symbol,
+            series=source.series,
+            isin=event_isin,
+            reference_date=prior_date,
+        )
+        bridge_provenance = bridge_result.provenance()
+        if bridge_result.certified:
+            state = "CERTIFIED_DATED_OFFICIAL_IDENTITY_BRIDGE_PRIOR_CLOSE"
+    if state == "PRIOR_ISIN_MISSING" and prior_date is not None:
+        bounded = _bounded_official_action_identity_provenance(
+            source=source,
+            reference_date=prior_date,
+            action_population=action_population,
+            action_lineage_by_id=action_lineage_by_id or {},
+        )
+        if bounded is not None:
+            state = "CERTIFIED_BOUNDED_OFFICIAL_ACTION_IDENTITY_INTERVAL_PRIOR_CLOSE"
+            bridge_provenance = bounded
+    certified = state in {
+        "CERTIFIED_SAME_ISIN_CANONICAL_PRIOR_CLOSE",
+        "CERTIFIED_SAME_ISIN_ALTERNATE_SYMBOL_PRIOR_CLOSE",
+        "CERTIFIED_DATED_OFFICIAL_IDENTITY_BRIDGE_PRIOR_CLOSE",
+        "CERTIFIED_BOUNDED_OFFICIAL_ACTION_IDENTITY_INTERVAL_PRIOR_CLOSE",
+    }
+    return close, {
+        "reference_price_date": prior_date.isoformat() if prior_date else None,
+        "reference_price_observed_symbol": observed_symbol or None,
+        "reference_price_series": source.series.upper(),
+        "reference_price_isin": prior_isin or None,
+        "reference_price_source_sha256": source_sha or None,
+        "reference_price_provenance_state": state,
+        "reference_price_original_provenance_state": original_state,
+        "reference_price_certified": certified,
+        **bridge_provenance,
+    }
+
+
+def _bounded_official_action_identity_provenance(
+    *,
+    source: CorporateActionEvent,
+    reference_date: date,
+    action_population: Sequence[CorporateActionEvent],
+    action_lineage_by_id: Mapping[str, CorporateActionLineage],
+) -> dict[str, Any] | None:
+    isin = str(source.isin or "").upper()
+    symbol = source.symbol.upper()
+    series = source.series.upper()
+    current_lineage = action_lineage_by_id.get(source.action_id)
+    if (
+        not isin
+        or current_lineage is None
+        or not _sha256_text(current_lineage.source_sha256)
+    ):
+        return None
+    prior = tuple(
+        item
+        for item in action_population
+        if item.action_id != source.action_id
+        and str(item.isin or "").upper() == isin
+        and item.symbol.upper() == symbol
+        and item.series.upper() == series
+        and item.effective_date < source.effective_date
+        and item.confidence_state is EvidenceConfidence.HIGH
+        and item.action_id in action_lineage_by_id
+        and _sha256_text(action_lineage_by_id[item.action_id].source_sha256)
+    )
+    if not prior:
+        return None
+    lower = max(prior, key=lambda item: (item.effective_date, item.action_id))
+    if not (lower.effective_date <= reference_date < source.effective_date):
+        return None
+    if any(
+        item.symbol.upper() == symbol
+        and item.series.upper() == series
+        and item.effective_date >= lower.effective_date
+        and item.effective_date <= source.effective_date
+        and str(item.isin or "").upper() not in {"", isin}
+        for item in action_population
+    ):
+        return None
+    lower_lineage = action_lineage_by_id[lower.action_id]
+    interval_id = stable_id(
+        "htr010b3-official-action-identity-interval",
+        isin,
+        symbol,
+        series,
+        lower.effective_date.isoformat(),
+        source.effective_date.isoformat(),
+    )
+    evidence_sha = {
+        lower.source_id: lower_lineage.source_sha256,
+        source.source_id: current_lineage.source_sha256,
+    }
+    return {
+        **_empty_reference_bridge_provenance(),
+        "reference_price_bridge_contract_version": (
+            "DSI-010B3-BOUNDED-OFFICIAL-ACTION-IDENTITY-v1.0.0"
+        ),
+        "reference_price_bridge_state": (
+            "CERTIFIED_BOUNDED_OFFICIAL_ACTION_IDENTITY_INTERVAL"
+        ),
+        "reference_price_bridge_identity": f"nse:isin:{isin}",
+        "reference_price_bridge_symbol": symbol,
+        "reference_price_bridge_series": series,
+        "reference_price_bridge_isin": isin,
+        "reference_price_bridge_reference_date": reference_date.isoformat(),
+        "reference_price_bridge_candle_isin_remained_missing": True,
+        "reference_price_bridge_membership_interval_ids": [interval_id],
+        "reference_price_bridge_membership_states": [
+            "BOUNDED_OFFICIAL_ACTION_IDENTITY_INTERVAL"
+        ],
+        "reference_price_bridge_membership_confidence": "HIGH",
+        "reference_price_bridge_membership_event_ids": [
+            lower.action_id,
+            source.action_id,
+        ],
+        "reference_price_bridge_symbol_interval_ids": [interval_id],
+        "reference_price_bridge_symbol_confidence": "HIGH",
+        "reference_price_bridge_symbol_event_ids": [
+            lower.action_id,
+            source.action_id,
+        ],
+        "reference_price_bridge_official_event_ids": [
+            lower.action_id,
+            source.action_id,
+        ],
+        "reference_price_bridge_official_source_ids": sorted(evidence_sha),
+        "reference_price_bridge_evidence_sha256": evidence_sha,
+        "reference_price_bridge_source_contract_id": interval_id,
+        "reference_price_bridge_source_report_sha256": sha256(
+            "|".join(
+                (
+                    interval_id,
+                    *(f"{key}:{evidence_sha[key]}" for key in sorted(evidence_sha)),
+                )
+            ).encode()
+        ).hexdigest(),
+        "reference_price_bridge_production_influence": False,
+    }
+
+
+def _sha256_text(value: object) -> bool:
+    text = str(value or "")
+    return len(text) == 64 and all(char in "0123456789abcdef" for char in text.lower())
+
+
+def _empty_reference_bridge_provenance() -> dict[str, Any]:
+    return {
+        "reference_price_bridge_contract_version": None,
+        "reference_price_bridge_state": "NOT_APPLICABLE",
+        "reference_price_bridge_rejection_reason": None,
+        "reference_price_bridge_identity": None,
+        "reference_price_bridge_symbol": None,
+        "reference_price_bridge_series": None,
+        "reference_price_bridge_isin": None,
+        "reference_price_bridge_reference_date": None,
+        "reference_price_bridge_candle_isin_remained_missing": False,
+        "reference_price_bridge_membership_interval_ids": [],
+        "reference_price_bridge_membership_states": [],
+        "reference_price_bridge_membership_confidence": None,
+        "reference_price_bridge_membership_event_ids": [],
+        "reference_price_bridge_symbol_interval_ids": [],
+        "reference_price_bridge_symbol_confidence": None,
+        "reference_price_bridge_symbol_event_ids": [],
+        "reference_price_bridge_tradability_interval_ids": [],
+        "reference_price_bridge_tradability_states": [],
+        "reference_price_bridge_tradability_certified": None,
+        "reference_price_bridge_official_event_ids": [],
+        "reference_price_bridge_official_source_ids": [],
+        "reference_price_bridge_evidence_sha256": {},
+        "reference_price_bridge_overlapping_identities": [],
+        "reference_price_bridge_symbol_reuse_conflict": False,
+        "reference_price_bridge_symbol_change_conflict": False,
+        "reference_price_bridge_series_transition_conflict": False,
+        "reference_price_bridge_source_contract_id": None,
+        "reference_price_bridge_source_report_sha256": None,
+        "reference_price_bridge_production_influence": False,
+    }
 
 
 def cumulative_factors(
@@ -540,6 +955,7 @@ def cumulative_factors(
             unknown = state in {
                 FactorState.FACTOR_UNKNOWN_MISSING_TERMS.value,
                 FactorState.FACTOR_AMBIGUOUS_TERMS.value,
+                FactorState.FACTOR_PROVISIONAL_REFERENCE_PRICE.value,
                 FactorState.FACTOR_CONFLICTING_EVENTS.value,
                 FactorState.FACTOR_NOT_MULTIPLICATIVE.value,
                 FactorState.FACTOR_INVALID.value,
@@ -602,6 +1018,7 @@ def price_basis(
             in {
                 FactorState.FACTOR_UNKNOWN_MISSING_TERMS.value,
                 FactorState.FACTOR_AMBIGUOUS_TERMS.value,
+                FactorState.FACTOR_PROVISIONAL_REFERENCE_PRICE.value,
                 FactorState.FACTOR_NOT_MULTIPLICATIVE.value,
             }
             for row in identity_factors
@@ -702,13 +1119,14 @@ def coverage_matrix(
         ]
         unknown = counts[FactorState.FACTOR_UNKNOWN_MISSING_TERMS.value]
         ambiguous = counts[FactorState.FACTOR_AMBIGUOUS_TERMS.value]
+        provisional = counts[FactorState.FACTOR_PROVISIONAL_REFERENCE_PRICE.value]
         if not identity_events and complete_sources:
             certification = CertificationState.NO_MATERIAL_ACTIONS_FOUND
         elif transitions:
             certification = (
                 CertificationState.IDENTITY_TRANSITION_CERTIFIED_PRICE_NONCOMPARABLE
             )
-        elif unknown or ambiguous:
+        elif unknown or ambiguous or provisional:
             certification = CertificationState.FACTOR_COVERAGE_PARTIAL
         elif identity_events:
             certification = CertificationState.CORPORATE_ACTION_CERTIFIED
@@ -731,6 +1149,9 @@ def coverage_matrix(
                 "event_count": len(identity_events),
                 "factor_required_event_count": len(factor_required),
                 "certified_factor_count": counts[FactorState.FACTOR_CERTIFIED.value],
+                "reference_certified_factor_count": counts[
+                    FactorState.FACTOR_CERTIFIED_REFERENCE_PRICE.value
+                ],
                 "derived_factor_count": counts[
                     FactorState.FACTOR_DERIVED_OFFICIAL_TERMS.value
                 ],
@@ -765,6 +1186,7 @@ def adjusted_replay_readiness(
             in {
                 FactorState.FACTOR_UNKNOWN_MISSING_TERMS.value,
                 FactorState.FACTOR_AMBIGUOUS_TERMS.value,
+                FactorState.FACTOR_PROVISIONAL_REFERENCE_PRICE.value,
                 FactorState.FACTOR_NOT_MULTIPLICATIVE.value,
             }
         }
@@ -816,6 +1238,7 @@ def ytd_2026(
     ]
     derived_states = {
         FactorState.FACTOR_CERTIFIED.value,
+        FactorState.FACTOR_CERTIFIED_REFERENCE_PRICE.value,
         FactorState.FACTOR_DERIVED_OFFICIAL_TERMS.value,
         FactorState.FACTOR_PROVISIONAL_REFERENCE_PRICE.value,
     }
@@ -951,6 +1374,50 @@ def _source_completeness(source: Any) -> dict[str, Any]:
     }
 
 
+def _supplement_source_completeness(
+    item: AppliedCorporateActionSupplement,
+) -> dict[str, Any]:
+    return {
+        "source_id": item.supplement.supplement_id,
+        "source_family": "OFFICIAL_EVENT_TERM_SUPPLEMENT",
+        "earliest_available_date": item.supplement.effective_date.isoformat(),
+        "latest_available_date": item.supplement.effective_date.isoformat(),
+        "missing_slices": [],
+        "acquisition_state": "AVAILABLE_IMMUTABLE",
+        "immutable_reuse_state": "CHECKSUM_VERIFIED",
+        "parser": "dsi010b5_governed_terms_v1",
+        "parser_coverage": "COMPLETE",
+        "event_type_coverage": "EXACT_EVENT_BOUND_RIGHTS_TERMS",
+        "records_inspected": 1,
+        "events_parsed": 1,
+        "events_rejected": 0,
+        "source_checksum": item.supplement.source_sha256,
+        "known_limitations": "Applies only to the exact governed event.",
+    }
+
+
+def _rejected_supplement_source_completeness(
+    item: RejectedCorporateActionSupplement,
+) -> dict[str, Any]:
+    return {
+        "source_id": item.supplement_id,
+        "source_family": "OFFICIAL_EVENT_TERM_SUPPLEMENT",
+        "earliest_available_date": None,
+        "latest_available_date": None,
+        "missing_slices": [item.reason],
+        "acquisition_state": "FAILED",
+        "immutable_reuse_state": "REJECTED",
+        "parser": "dsi010b5_governed_terms_v1",
+        "parser_coverage": "FAILED",
+        "event_type_coverage": "NONE",
+        "records_inspected": 0,
+        "events_parsed": 0,
+        "events_rejected": len(item.action_ids),
+        "source_checksum": None,
+        "known_limitations": item.reason,
+    }
+
+
 def _continuity(row: dict[str, Any], canonical_event_id: str) -> dict[str, Any]:
     raw = abs(float(row.get("raw_gap_atr") or 0.0))
     adjusted = abs(float(row.get("adjusted_gap_atr") or 0.0))
@@ -1040,6 +1507,112 @@ def _raw_candle_fingerprint(path: Path) -> str:
     if row is None:
         raise RuntimeError("raw candle fingerprint query returned no row")
     return sha256("|".join(str(item) for item in row).encode()).hexdigest()
+
+
+def _validated_a3_join_contract(
+    output: Path,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    joins = _records(output / "htr010a3_corporate_action_join_readiness.json")
+    payload = json.loads(
+        (output / "htr010a3_readiness.json").read_text(encoding="utf-8")
+    )
+    if not isinstance(payload, dict):
+        raise ValueError("HTR-010A3 readiness payload must be an object")
+    if payload.get("production_influence") is not False:
+        raise ValueError("HTR-010A3 readiness must have production influence false")
+    readiness = payload.get("readiness")
+    if not isinstance(readiness, dict):
+        raise ValueError("HTR-010A3 readiness decision must be an object")
+    denominator = _nonnegative_int(
+        readiness.get("denominator_identities"),
+        "denominator_identities",
+    )
+    admitted = _nonnegative_int(
+        readiness.get("admitted_identities"),
+        "admitted_identities",
+    )
+    quarantined = _nonnegative_int(
+        readiness.get("quarantined_identities"),
+        "quarantined_identities",
+    )
+    if admitted + quarantined != denominator:
+        raise ValueError(
+            "HTR-010A3 admitted and quarantined identities must equal denominator"
+        )
+    if len(joins) != denominator:
+        raise ValueError(
+            "HTR-010A3 join population does not match signed denominator: "
+            f"joins={len(joins)} denominator={denominator}"
+        )
+    observed_admitted = sum(
+        bool(row.get("admitted_to_certified_join")) for row in joins
+    )
+    if observed_admitted != admitted:
+        raise ValueError(
+            "HTR-010A3 admitted join count does not match signed readiness: "
+            f"joins={observed_admitted} readiness={admitted}"
+        )
+    if len(joins) - observed_admitted != quarantined:
+        raise ValueError(
+            "HTR-010A3 quarantined join count does not match signed readiness"
+        )
+    state = str(readiness.get("state") or "")
+    if state not in {
+        "READY_FOR_HTR_010B",
+        "CONDITIONALLY_READY_FOR_HTR_010B",
+        "NOT_READY_FOR_HTR_010B",
+    }:
+        raise ValueError(f"unsupported HTR-010A3 readiness state: {state}")
+    blockers = readiness.get("blockers", [])
+    if not isinstance(blockers, list):
+        raise ValueError("HTR-010A3 blockers must be a list")
+    return joins, {
+        "state": state,
+        "blockers": [str(item) for item in blockers],
+        "denominator_identities": denominator,
+        "admitted_identities": admitted,
+        "quarantined_identities": quarantined,
+        "report_sha256": str(payload.get("report_sha256") or ""),
+    }
+
+
+def _apply_upstream_a3_readiness(
+    readiness: dict[str, Any],
+    upstream: dict[str, Any],
+) -> dict[str, Any]:
+    result = dict(readiness)
+    upstream_state = str(upstream["state"])
+    upstream_blockers = [str(item) for item in upstream.get("blockers", [])]
+    result["upstream_htr010a3_readiness"] = upstream_state
+    result["upstream_htr010a3_blockers"] = upstream_blockers
+    existing_blockers = [str(item) for item in result.get("blockers", [])]
+    prefixed = [f"HTR-010A3: {item}" for item in upstream_blockers]
+    if upstream_state == "NOT_READY_FOR_HTR_010B":
+        result["state"] = (
+            ReplayReadiness.NOT_READY_FOR_ADJUSTED_REPLAY_INTEGRATION.value
+        )
+        result["blockers"] = [
+            *existing_blockers,
+            *(prefixed or ["HTR-010A3: upstream foundation is not ready"]),
+        ]
+    elif upstream_state == "CONDITIONALLY_READY_FOR_HTR_010B":
+        if (
+            result["state"]
+            == ReplayReadiness.READY_FOR_ADJUSTED_REPLAY_INTEGRATION.value
+        ):
+            result["state"] = (
+                ReplayReadiness.CONDITIONALLY_READY_FOR_ADJUSTED_REPLAY_INTEGRATION.value
+            )
+        result["blockers"] = [*existing_blockers, *prefixed]
+    else:
+        result["blockers"] = existing_blockers
+    return result
+
+
+def _nonnegative_int(value: Any, field: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"HTR-010A3 {field} must be a non-negative integer")
+    return value
 
 
 def _records(path: Path) -> list[dict[str, Any]]:
