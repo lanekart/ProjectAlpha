@@ -1,0 +1,109 @@
+name: DSI-009 ATR Stop Finalizer
+
+on:
+  push:
+    branches:
+      - feature/dsi-012-governed-structural-stop-risk-scaling
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-012-governed-structural-stop-risk-scaling
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Patch ATR-dependent stop families
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("alpha/decision_superiority/entry_stop_improvement.py")
+          source = path.read_text(encoding="utf-8")
+          old = '''def _stop_level(
+              row: pd.Series[Any],
+              stop: StopMechanism,
+              *,
+              support: float | None,
+          ) -> float:
+              entry = float(row["entry_price_after_slippage"])
+              incumbent = float(row["initial_stop"])
+              atr = float(row["atr14"])
+              if stop.family == "INCUMBENT_STOP":
+                  level = incumbent
+              elif stop.family == "ATR_STOP":
+                  level = entry - atr * float(stop.atr_multiple or 0.0)
+              elif stop.family == "STRUCTURAL_SUPPORT":
+                  level = incumbent if support is None else support
+              elif stop.family == "VOLATILITY_ADJUSTED_STRUCTURAL":
+                  volatility = entry - atr * float(stop.atr_multiple or 0.0)
+                  level = volatility if support is None else min(support, volatility)
+              elif stop.family == "MAXIMUM_RISK_CAP":
+                  level = max(incumbent, entry * (1.0 - float(stop.maximum_risk_fraction or 0.0)))
+              else:
+                  raise EntryStopImprovementError("NONEXECUTABLE_STOP_RULE")
+              return _round(max(0.01, min(level, entry - 0.01)))
+          '''
+          new = '''def _stop_level(
+              row: pd.Series[Any],
+              stop: StopMechanism,
+              *,
+              support: float | None,
+          ) -> float | None:
+              entry = float(row["entry_price_after_slippage"])
+              incumbent = float(row["initial_stop"])
+              atr = _optional_float(row["atr14"])
+              if stop.family == "INCUMBENT_STOP":
+                  level = incumbent
+              elif stop.family == "ATR_STOP":
+                  if atr is None or atr <= 0:
+                      return None
+                  level = entry - atr * float(stop.atr_multiple or 0.0)
+              elif stop.family == "STRUCTURAL_SUPPORT":
+                  level = incumbent if support is None else support
+              elif stop.family == "VOLATILITY_ADJUSTED_STRUCTURAL":
+                  if atr is None or atr <= 0:
+                      return None
+                  volatility = entry - atr * float(stop.atr_multiple or 0.0)
+                  level = volatility if support is None else min(support, volatility)
+              elif stop.family == "MAXIMUM_RISK_CAP":
+                  level = max(incumbent, entry * (1.0 - float(stop.maximum_risk_fraction or 0.0)))
+              else:
+                  raise EntryStopImprovementError("NONEXECUTABLE_STOP_RULE")
+              return _round(max(0.01, min(level, entry - 0.01)))
+          '''
+          if old not in source:
+              raise SystemExit("stop-level replacement anchor not found")
+          path.write_text(source.replace(old, new, 1), encoding="utf-8")
+          PY
+      - name: Validate focused repair
+        run: |
+          pip install poetry
+          poetry install --no-interaction
+          poetry run ruff format \
+            alpha/decision_superiority/entry_stop_improvement.py \
+            tests/decision_superiority/test_entry_stop_improvement.py
+          poetry run ruff check \
+            alpha/decision_superiority/entry_stop_improvement.py \
+            tests/decision_superiority/test_entry_stop_improvement.py
+          poetry run pytest -q \
+            tests/decision_superiority/test_entry_stop_improvement.py
+      - name: Commit finalizer and remove helper
+        run: |
+          rm .github/workflows/dsi009-atr-stop-finalizer.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            alpha/decision_superiority/entry_stop_improvement.py \
+            tests/decision_superiority/test_entry_stop_improvement.py \
+            .github/workflows/dsi009-atr-stop-finalizer.yml
+          git diff --cached --quiet && exit 1
+          git commit -m "fix(dsi-009): make ATR-dependent stops unavailable"
+          git push origin HEAD:feature/dsi-012-governed-structural-stop-risk-scaling
