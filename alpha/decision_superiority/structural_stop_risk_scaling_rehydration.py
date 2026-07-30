@@ -159,9 +159,7 @@ def _validate_market_slice(
     dsi009: Mapping[str, Any],
 ) -> None:
     expected = str(
-        cast(Mapping[str, Any], dsi009["source_chain_hashes"])[
-            "GOVERNED_MARKET_SLICE"
-        ]
+        cast(Mapping[str, Any], dsi009["source_chain_hashes"])["GOVERNED_MARKET_SLICE"]
     )
     if actual_market_hash != expected:
         raise StructuralStopRiskScalingError("DSI012_GOVERNED_MARKET_SLICE_DRIFT")
