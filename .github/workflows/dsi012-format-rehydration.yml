@@ -30,3 +30,5 @@ jobs:
           git diff --cached --quiet && exit 1
           git commit -m "style(dsi-012): format market-slice rehydration"
           git push origin HEAD:feature/dsi-012-governed-structural-stop-risk-scaling
+
+# Trigger formatter after workflow registration.
