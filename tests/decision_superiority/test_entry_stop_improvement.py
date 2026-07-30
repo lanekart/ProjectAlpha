@@ -325,6 +325,43 @@ def test_entry_extension_classification_is_pre_registered() -> None:
     assert row["definitions_frozen_before_classification"] is True
 
 
+def test_missing_atr_is_mechanism_specific_not_population_fatal() -> None:
+    signal = _signal()
+    signal.atr14 = float("nan")
+
+    incumbent = _entry_fill(
+        signal,
+        _bars(),
+        default_entry_registry()[0],
+        policy=EntryStopPolicy(),
+    )
+    assert incumbent["fill_state"] == FillState.ENTERED.value
+    assert incumbent["atr14"] is None
+    assert incumbent["entry_extension_atr"] is None
+
+    atr_entry = _entry_fill(
+        signal,
+        _bars(),
+        default_entry_registry()[3],
+        policy=EntryStopPolicy(),
+    )
+    assert atr_entry["fill_state"] == FillState.DATA_UNAVAILABLE.value
+    assert "ATR unavailable" in atr_entry["fill_reason"]
+
+    row = pd.Series(
+        {
+            "entry_price_after_slippage": 100.0,
+            "initial_stop": 92.0,
+            "atr14": float("nan"),
+        }
+    )
+    stops = {item.mechanism_id: item for item in default_stop_registry()}
+    assert _stop_level(row, stops["STOP-STRUCTURAL-10D"], support=94.0) == 94.0
+    assert _stop_level(row, stops["STOP-MAX-RISK-080"], support=None) == 92.0
+    assert _stop_level(row, stops["STOP-ATR-125"], support=None) is None
+    assert _stop_level(row, stops["STOP-VOL-STRUCTURAL-10D"], support=94.0) is None
+
+
 def test_stop_candidates_are_bounded_below_entry() -> None:
     row = pd.Series(
         {

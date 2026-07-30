@@ -721,7 +721,6 @@ def _candidate_frame(signals: pd.DataFrame, market: pd.DataFrame) -> pd.DataFram
     )
     required = (
         "signal_close",
-        "atr14",
         "raw_entry_price",
         "initial_stop",
         "target_1",
@@ -935,7 +934,7 @@ def _trade_paths(
                 None if benchmark_return is None else _round(mfe - benchmark_return)
             ),
             "entry_extension_atr": _entry_extension_atr(signal),
-            "atr14": _round(signal.atr14),
+            "atr14": _optional_round(signal.atr14),
             "support10": _optional_round(signal.support10),
             "net_pnl": _round(trade["net_pnl"]),
             "costs": _round(trade["costs"]),
@@ -1218,7 +1217,7 @@ def _entry_fill(
         )
         entry_bar = window.iloc[0]
         signal_close = float(signal.signal_close)
-        atr = float(signal.atr14)
+        atr = _optional_float(signal.atr14)
         if mechanism.family == "INCUMBENT_ENTRY":
             fill_date = entry_bar.trading_date
             raw_fill = float(entry_bar.open)
@@ -1246,21 +1245,29 @@ def _entry_fill(
                     fill_date = fill_bar.trading_date
                     raw_fill = float(fill_bar.open)
         elif mechanism.family == "PULLBACK_TO_SUPPORT":
-            level = signal_close - atr * float(mechanism.atr_offset or 0.0)
-            considered = window.iloc[: mechanism.maximum_wait_sessions]
-            touched = considered.loc[considered["low"].astype(float) <= level]
-            if not touched.empty:
-                fill_bar = touched.iloc[0]
-                fill_date = fill_bar.trading_date
-                raw_fill = min(float(fill_bar.open), level)
-        elif mechanism.family == "MAXIMUM_EXTENSION_FILTER":
-            extension = (float(entry_bar.open) - signal_close) / atr
-            if extension <= float(mechanism.maximum_extension_atr or 0.0):
-                fill_date = entry_bar.trading_date
-                raw_fill = float(entry_bar.open)
+            if atr is None or atr <= 0:
+                state = FillState.DATA_UNAVAILABLE
+                reason = "14-session ATR unavailable for ATR-dependent entry"
             else:
-                state = FillState.GAP_BEYOND_ENTRY_LIMIT
-                reason = "next open exceeded the frozen ATR extension limit"
+                level = signal_close - atr * float(mechanism.atr_offset or 0.0)
+                considered = window.iloc[: mechanism.maximum_wait_sessions]
+                touched = considered.loc[considered["low"].astype(float) <= level]
+                if not touched.empty:
+                    fill_bar = touched.iloc[0]
+                    fill_date = fill_bar.trading_date
+                    raw_fill = min(float(fill_bar.open), level)
+        elif mechanism.family == "MAXIMUM_EXTENSION_FILTER":
+            if atr is None or atr <= 0:
+                state = FillState.DATA_UNAVAILABLE
+                reason = "14-session ATR unavailable for ATR-dependent entry"
+            else:
+                extension = (float(entry_bar.open) - signal_close) / atr
+                if extension <= float(mechanism.maximum_extension_atr or 0.0):
+                    fill_date = entry_bar.trading_date
+                    raw_fill = float(entry_bar.open)
+                else:
+                    state = FillState.GAP_BEYOND_ENTRY_LIMIT
+                    reason = "next open exceeded the frozen ATR extension limit"
         elif mechanism.family == "GAP_FILTER":
             gap = float(entry_bar.open) / signal_close - 1.0
             if gap <= float(mechanism.gap_limit or 0.0):
@@ -1318,14 +1325,14 @@ def _entry_fill(
         "initial_stop": _optional_round(stop),
         "target_1": _optional_round(target_1),
         "target_2": _optional_round(target_2),
-        "atr14": _round(signal.atr14),
+        "atr14": _optional_round(signal.atr14),
         "support10": _optional_round(signal.support10),
         "maximum_holding_sessions": int(signal.maximum_holding_sessions),
         "average_traded_value20": _round(signal.average_traded_value20),
         "entry_extension_atr": (
             None
-            if raw_fill is None
-            else _round((raw_fill - float(signal.signal_close)) / float(signal.atr14))
+            if raw_fill is None or atr is None or atr <= 0
+            else _round((raw_fill - signal_close) / atr)
         ),
         "wait_sessions": (
             None
