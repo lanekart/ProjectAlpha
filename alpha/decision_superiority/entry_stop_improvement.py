@@ -453,6 +453,7 @@ class GovernedEntryStopImprovementEngine:
             trade_paths=trade_paths,
             entry_fill_rows=entry_fill_rows,
             incumbent_result=incumbent_result,
+            expected_incumbent_trade_count=int(incumbent_metrics["trade_count"]),
         )
         probe_rows = _structural_probes()
         readiness, blockers, grade = _readiness(
@@ -465,6 +466,7 @@ class GovernedEntryStopImprovementEngine:
             multiple_rows=multiple_rows,
             entry_champion=entry_champion,
             stop_champion=stop_champion,
+            expected_incumbent_trade_count=int(incumbent_metrics["trade_count"]),
         )
         source_rows = _source_contract_rows(
             sources=sources,
@@ -592,9 +594,17 @@ def _outer_signals(
     start = date.fromisoformat(policy.comparison_start)
     end = date.fromisoformat(policy.comparison_end)
     frame = signals.copy()
-    frame = frame.loc[
-        frame["walk_forward_fold_id"].notna() & frame["signal_date"].between(start, end)
-    ].copy()
+    if "entry_eligibility_date" not in frame.columns:
+        raise EntryStopImprovementError("DSI008_ENTRY_ELIGIBILITY_DATE_MISSING")
+    in_signal_window = frame["walk_forward_fold_id"].notna() & frame[
+        "signal_date"
+    ].between(start, end)
+    missing_entry_date = in_signal_window & frame["entry_eligibility_date"].isna()
+    if bool(missing_entry_date.any()):
+        raise EntryStopImprovementError(
+            f"DSI008_ENTRY_ELIGIBILITY_DATE_MISSING:{int(missing_entry_date.sum())}"
+        )
+    frame = frame.loc[in_signal_window & frame["entry_eligibility_date"].le(end)].copy()
     if frame.empty:
         raise EntryStopImprovementError("UNRECONCILED_SIGNAL_POPULATION")
     if frame["signal_id"].duplicated().any():
@@ -711,7 +721,6 @@ def _candidate_frame(signals: pd.DataFrame, market: pd.DataFrame) -> pd.DataFram
     )
     required = (
         "signal_close",
-        "atr14",
         "raw_entry_price",
         "initial_stop",
         "target_1",
@@ -925,7 +934,7 @@ def _trade_paths(
                 None if benchmark_return is None else _round(mfe - benchmark_return)
             ),
             "entry_extension_atr": _entry_extension_atr(signal),
-            "atr14": _round(signal.atr14),
+            "atr14": _optional_round(signal.atr14),
             "support10": _optional_round(signal.support10),
             "net_pnl": _round(trade["net_pnl"]),
             "costs": _round(trade["costs"]),
@@ -952,11 +961,22 @@ def _trade_paths(
                 )
             }
         )
-    if len(paths) != 56:
-        raise EntryStopImprovementError(
-            f"UNRECONCILED_INCUMBENT_TRADE_COUNT:{len(paths)}"
-        )
+    _validate_trade_path_count(
+        paths=paths,
+        incumbent_trades=incumbent_trades,
+    )
     return paths, excursions
+
+
+def _validate_trade_path_count(
+    *,
+    paths: Sequence[Mapping[str, Any]],
+    incumbent_trades: Sequence[Mapping[str, Any]],
+) -> None:
+    if len(paths) != len(incumbent_trades):
+        raise EntryStopImprovementError(
+            f"UNRECONCILED_INCUMBENT_TRADE_COUNT:{len(paths)}:{len(incumbent_trades)}"
+        )
 
 
 def _entry_stop_attribution(
@@ -1197,7 +1217,7 @@ def _entry_fill(
         )
         entry_bar = window.iloc[0]
         signal_close = float(signal.signal_close)
-        atr = float(signal.atr14)
+        atr = _optional_float(signal.atr14)
         if mechanism.family == "INCUMBENT_ENTRY":
             fill_date = entry_bar.trading_date
             raw_fill = float(entry_bar.open)
@@ -1225,21 +1245,29 @@ def _entry_fill(
                     fill_date = fill_bar.trading_date
                     raw_fill = float(fill_bar.open)
         elif mechanism.family == "PULLBACK_TO_SUPPORT":
-            level = signal_close - atr * float(mechanism.atr_offset or 0.0)
-            considered = window.iloc[: mechanism.maximum_wait_sessions]
-            touched = considered.loc[considered["low"].astype(float) <= level]
-            if not touched.empty:
-                fill_bar = touched.iloc[0]
-                fill_date = fill_bar.trading_date
-                raw_fill = min(float(fill_bar.open), level)
-        elif mechanism.family == "MAXIMUM_EXTENSION_FILTER":
-            extension = (float(entry_bar.open) - signal_close) / atr
-            if extension <= float(mechanism.maximum_extension_atr or 0.0):
-                fill_date = entry_bar.trading_date
-                raw_fill = float(entry_bar.open)
+            if atr is None or atr <= 0:
+                state = FillState.DATA_UNAVAILABLE
+                reason = "14-session ATR unavailable for ATR-dependent entry"
             else:
-                state = FillState.GAP_BEYOND_ENTRY_LIMIT
-                reason = "next open exceeded the frozen ATR extension limit"
+                level = signal_close - atr * float(mechanism.atr_offset or 0.0)
+                considered = window.iloc[: mechanism.maximum_wait_sessions]
+                touched = considered.loc[considered["low"].astype(float) <= level]
+                if not touched.empty:
+                    fill_bar = touched.iloc[0]
+                    fill_date = fill_bar.trading_date
+                    raw_fill = min(float(fill_bar.open), level)
+        elif mechanism.family == "MAXIMUM_EXTENSION_FILTER":
+            if atr is None or atr <= 0:
+                state = FillState.DATA_UNAVAILABLE
+                reason = "14-session ATR unavailable for ATR-dependent entry"
+            else:
+                extension = (float(entry_bar.open) - signal_close) / atr
+                if extension <= float(mechanism.maximum_extension_atr or 0.0):
+                    fill_date = entry_bar.trading_date
+                    raw_fill = float(entry_bar.open)
+                else:
+                    state = FillState.GAP_BEYOND_ENTRY_LIMIT
+                    reason = "next open exceeded the frozen ATR extension limit"
         elif mechanism.family == "GAP_FILTER":
             gap = float(entry_bar.open) / signal_close - 1.0
             if gap <= float(mechanism.gap_limit or 0.0):
@@ -1297,14 +1325,14 @@ def _entry_fill(
         "initial_stop": _optional_round(stop),
         "target_1": _optional_round(target_1),
         "target_2": _optional_round(target_2),
-        "atr14": _round(signal.atr14),
+        "atr14": _optional_round(signal.atr14),
         "support10": _optional_round(signal.support10),
         "maximum_holding_sessions": int(signal.maximum_holding_sessions),
         "average_traded_value20": _round(signal.average_traded_value20),
         "entry_extension_atr": (
             None
-            if raw_fill is None
-            else _round((raw_fill - float(signal.signal_close)) / float(signal.atr14))
+            if raw_fill is None or atr is None or atr <= 0
+            else _round((raw_fill - signal_close) / atr)
         ),
         "wait_sessions": (
             None
@@ -1605,14 +1633,18 @@ def _stop_level(
 ) -> float:
     entry = float(row["entry_price_after_slippage"])
     incumbent = float(row["initial_stop"])
-    atr = float(row["atr14"])
+    atr = _optional_float(row["atr14"])
     if stop.family == "INCUMBENT_STOP":
         level = incumbent
     elif stop.family == "ATR_STOP":
+        if atr is None or atr <= 0:
+            return math.nan
         level = entry - atr * float(stop.atr_multiple or 0.0)
     elif stop.family == "STRUCTURAL_SUPPORT":
         level = incumbent if support is None else support
     elif stop.family == "VOLATILITY_ADJUSTED_STRUCTURAL":
+        if atr is None or atr <= 0:
+            return math.nan
         volatility = entry - atr * float(stop.atr_multiple or 0.0)
         level = volatility if support is None else min(support, volatility)
     elif stop.family == "MAXIMUM_RISK_CAP":
@@ -2204,6 +2236,7 @@ def _population_reconciliation(
     trade_paths: Sequence[Mapping[str, Any]],
     entry_fill_rows: Sequence[Mapping[str, Any]],
     incumbent_result: Mapping[str, Any],
+    expected_incumbent_trade_count: int,
 ) -> list[dict[str, Any]]:
     fill_frame = pd.DataFrame(entry_fill_rows)
     return [
@@ -2216,17 +2249,21 @@ def _population_reconciliation(
         },
         {
             "population": "DSI008_INCUMBENT_TRADES",
-            "expected_count": 56,
+            "expected_count": expected_incumbent_trade_count,
             "observed_count": len(trade_paths),
-            "difference": len(trade_paths) - 56,
-            "reconciled": len(trade_paths) == 56,
+            "difference": len(trade_paths) - expected_incumbent_trade_count,
+            "reconciled": len(trade_paths) == expected_incumbent_trade_count,
         },
         {
             "population": "INCUMBENT_REPLAY_TRADES",
-            "expected_count": 56,
+            "expected_count": expected_incumbent_trade_count,
             "observed_count": len(incumbent_result["trades"]),
-            "difference": len(incumbent_result["trades"]) - 56,
-            "reconciled": len(incumbent_result["trades"]) == 56,
+            "difference": (
+                len(incumbent_result["trades"]) - expected_incumbent_trade_count
+            ),
+            "reconciled": (
+                len(incumbent_result["trades"]) == expected_incumbent_trade_count
+            ),
         },
         {
             "population": "ENTRY_FILL_EVALUATIONS",
@@ -2291,8 +2328,9 @@ def _readiness(
     multiple_rows: Sequence[Mapping[str, Any]],
     entry_champion: str | None,
     stop_champion: str | None,
+    expected_incumbent_trade_count: int,
 ) -> tuple[dict[str, str], list[str], str]:
-    if len(trade_paths) != 56:
+    if len(trade_paths) != expected_incumbent_trade_count:
         raise EntryStopImprovementError("BLOCKED_BY_INCOMPLETE_TRADE_PATH")
     if len(attribution_rows) != len(trade_paths):
         raise EntryStopImprovementError("BLOCKED_BY_UNATTRIBUTED_LOSS_POPULATION")

@@ -22,6 +22,7 @@ from alpha.decision_superiority.entry_stop_improvement import (
     _readiness,
     _stop_level,
     _structural_probes,
+    _validate_trade_path_count,
     default_entry_registry,
     default_stop_registry,
     governance_flags,
@@ -112,6 +113,28 @@ def test_outer_signal_population_uses_frozen_fold_regime_selection() -> None:
     )
     selected = _outer_signals(
         signals,
+        selections=selections,
+        policy=EntryStopPolicy(),
+    )
+    assert selected["signal_id"].tolist() == ["S-1"]
+
+
+def test_outer_signal_population_excludes_right_censored_entries() -> None:
+    eligible = _signal_row("S-1", "A", "TRANSITION", "WF-2021")
+    right_censored = _signal_row("S-2", "A", "TRANSITION", "WF-2021")
+    right_censored["signal_date"] = date(2025, 12, 24)
+    right_censored["entry_eligibility_date"] = date(2025, 12, 26)
+    selections = pd.DataFrame(
+        [
+            {
+                "walk_forward_fold_id": "WF-2021",
+                "selection_scope": "REGIME:TRANSITION",
+                "selected_strategy_variant_id": "A",
+            }
+        ]
+    )
+    selected = _outer_signals(
+        pd.DataFrame([eligible, right_censored]),
         selections=selections,
         policy=EntryStopPolicy(),
     )
@@ -240,6 +263,21 @@ def test_liquidity_rejection_is_explicit() -> None:
     assert fill["fill_state"] == FillState.LIQUIDITY_REJECTED.value
 
 
+def test_trade_path_count_reconciles_to_current_incumbent_population() -> None:
+    _validate_trade_path_count(
+        paths=[{"id": "P-1"}, {"id": "P-2"}],
+        incumbent_trades=[{"id": "T-1"}, {"id": "T-2"}],
+    )
+    with pytest.raises(
+        EntryStopImprovementError,
+        match="UNRECONCILED_INCUMBENT_TRADE_COUNT:1:2",
+    ):
+        _validate_trade_path_count(
+            paths=[{"id": "P-1"}],
+            incumbent_trades=[{"id": "T-1"}, {"id": "T-2"}],
+        )
+
+
 def test_attribution_separates_entry_recovery_and_tail_protection() -> None:
     recovered = _trade_path(
         logical_trade_id="T-1",
@@ -285,6 +323,43 @@ def test_entry_extension_classification_is_pre_registered() -> None:
     )[0]
     assert row["primary_attribution"] == "ENTRY_TOO_EXTENDED"
     assert row["definitions_frozen_before_classification"] is True
+
+
+def test_missing_atr_is_mechanism_specific_not_population_fatal() -> None:
+    signal = _signal()
+    signal.atr14 = float("nan")
+
+    incumbent = _entry_fill(
+        signal,
+        _bars(),
+        default_entry_registry()[0],
+        policy=EntryStopPolicy(),
+    )
+    assert incumbent["fill_state"] == FillState.ENTERED.value
+    assert incumbent["atr14"] is None
+    assert incumbent["entry_extension_atr"] is None
+
+    atr_entry = _entry_fill(
+        signal,
+        _bars(),
+        default_entry_registry()[3],
+        policy=EntryStopPolicy(),
+    )
+    assert atr_entry["fill_state"] == FillState.DATA_UNAVAILABLE.value
+    assert "ATR unavailable" in atr_entry["fill_reason"]
+
+    row = pd.Series(
+        {
+            "entry_price_after_slippage": 100.0,
+            "initial_stop": 92.0,
+            "atr14": float("nan"),
+        }
+    )
+    stops = {item.mechanism_id: item for item in default_stop_registry()}
+    assert _stop_level(row, stops["STOP-STRUCTURAL-10D"], support=94.0) == 94.0
+    assert _stop_level(row, stops["STOP-MAX-RISK-080"], support=None) == 92.0
+    assert pd.isna(_stop_level(row, stops["STOP-ATR-125"], support=None))
+    assert pd.isna(_stop_level(row, stops["STOP-VOL-STRUCTURAL-10D"], support=94.0))
 
 
 def test_stop_candidates_are_bounded_below_entry() -> None:
@@ -375,6 +450,7 @@ def test_benchmark_outperformance_does_not_create_alpha_readiness() -> None:
     readiness, blockers, grade = _readiness(
         trade_paths=[{"id": index} for index in range(56)],
         attribution_rows=[{"id": index} for index in range(56)],
+        expected_incumbent_trade_count=56,
         entry_result_rows=[],
         stop_result_rows=[],
         portfolio_rows=[
@@ -408,6 +484,7 @@ def test_descriptive_alpha_improvement_is_reported_without_promotion() -> None:
     readiness, _, _ = _readiness(
         trade_paths=[{"id": index} for index in range(56)],
         attribution_rows=[{"id": index} for index in range(56)],
+        expected_incumbent_trade_count=56,
         entry_result_rows=[],
         stop_result_rows=[
             {
@@ -506,6 +583,7 @@ def _signal_row(
     return {
         "signal_id": signal_id,
         "signal_date": date(2024, 1, 2),
+        "entry_eligibility_date": date(2024, 1, 3),
         "walk_forward_fold_id": fold,
         "strategy_variant_id": strategy,
         "regime_state": regime,
