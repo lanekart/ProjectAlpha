@@ -28,6 +28,9 @@ from alpha.application.decision_superiority_gate_value_cli import (
 from alpha.application.decision_superiority_historical_rehydration_cli import (
     register_decision_superiority_historical_rehydration_command,
 )
+from alpha.application.decision_superiority_intraday_source_cli import (
+    register_decision_superiority_intraday_source_command,
+)
 from alpha.application.decision_superiority_performance_improvement_cli import (
     register_decision_superiority_performance_improvement_command,
 )
@@ -103,6 +106,7 @@ register_decision_superiority_forward_snapshot_command(benchmark_app)
 register_decision_superiority_regime_strategy_command(benchmark_app)
 register_decision_superiority_performance_improvement_command(benchmark_app)
 register_decision_superiority_entry_stop_improvement_command(benchmark_app)
+register_decision_superiority_intraday_source_command(benchmark_app)
 register_decision_superiority_structural_stop_risk_scaling_command(benchmark_app)
 register_decision_superiority_complete_stack_command(benchmark_app)
 register_decision_superiority_stage_attribution_command(benchmark_app)
