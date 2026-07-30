@@ -205,9 +205,7 @@ def parse_upstox_v3_payload(
     bars: list[IntradayBar] = []
     for index, raw_row in enumerate(candles):
         if not isinstance(raw_row, list) or len(raw_row) < 6:
-            raise IntradayExecutionError(
-                f"DSI013_UPSTOX_CANDLE_ROW_INVALID:{index}"
-            )
+            raise IntradayExecutionError(f"DSI013_UPSTOX_CANDLE_ROW_INVALID:{index}")
         try:
             timestamp = datetime.fromisoformat(str(raw_row[0]))
             open_price = float(raw_row[1])
@@ -296,12 +294,9 @@ def audit_intraday_bars(
             not expected_regular
             or len(ordered) == active_policy.expected_regular_bar_count
         )
-        boundary_ok = (
-            not expected_regular
-            or (
-                first_time == active_policy.session_start
-                and last_time == expected_last_time
-            )
+        boundary_ok = not expected_regular or (
+            first_time == active_policy.session_start
+            and last_time == expected_last_time
         )
         if not count_ok:
             blockers.append(

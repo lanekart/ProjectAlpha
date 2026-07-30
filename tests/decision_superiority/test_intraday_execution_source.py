@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 
 from alpha.decision_superiority.intraday_execution_models import (
@@ -115,11 +115,7 @@ def test_parse_upstox_payload_sorts_descending_source_rows() -> None:
 def test_fetch_cache_is_immutable_and_never_persists_token(tmp_path: Path) -> None:
     request = _request()
     body = json.dumps(
-        _payload(
-            [
-                ["2024-01-02T09:15:00+05:30", 100, 101, 99, 100.5, 1000, 0]
-            ]
-        )
+        _payload([["2024-01-02T09:15:00+05:30", 100, 101, 99, 100.5, 1000, 0]])
     ).encode()
     transport = FakeTransport(body)
 
@@ -128,7 +124,7 @@ def test_fetch_cache_is_immutable_and_never_persists_token(tmp_path: Path) -> No
         access_token="first-secret-token",
         cache_root=tmp_path,
         transport=transport,
-        retrieved_at=datetime(2026, 7, 30, 16, 0, tzinfo=timezone.utc),
+        retrieved_at=datetime(2026, 7, 30, 16, 0, tzinfo=UTC),
     )
     second = fetch_upstox_v3_bars(
         request,
