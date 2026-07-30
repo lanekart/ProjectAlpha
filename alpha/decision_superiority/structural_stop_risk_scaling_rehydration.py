@@ -319,9 +319,6 @@ def _source_contract_rows(
 
 
 def _portable_path(path: Path) -> str:
-    parts = path.resolve().parts
-    if "artifacts" in parts:
-        return "/".join(parts[parts.index("artifacts") :])
     return path.name
 
 

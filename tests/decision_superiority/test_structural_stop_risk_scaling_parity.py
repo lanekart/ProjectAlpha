@@ -9,7 +9,16 @@ from alpha.decision_superiority.entry_stop_improvement_artifacts import (
 )
 from alpha.decision_superiority.structural_stop_risk_scaling_rehydration import (
     _parity_rows,
+    _portable_path,
 )
+
+
+def test_source_locator_is_relocation_invariant(tmp_path: Path) -> None:
+    first = tmp_path / "run_a" / "dsi009_entry_stop_certificate.json"
+    second = tmp_path / "run_b" / "dsi009_entry_stop_certificate.json"
+
+    assert _portable_path(first) == "dsi009_entry_stop_certificate.json"
+    assert _portable_path(second) == "dsi009_entry_stop_certificate.json"
 
 
 def test_parity_uses_frozen_signed_mechanism_not_current_winner(
