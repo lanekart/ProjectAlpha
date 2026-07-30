@@ -1,0 +1,32 @@
+name: DSI-012 Rehydration Formatter
+
+on:
+  push:
+    branches:
+      - feature/dsi-012-governed-structural-stop-risk-scaling
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-012-governed-structural-stop-risk-scaling
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install ruff==0.15.20
+      - run: ruff format alpha/decision_superiority/structural_stop_risk_scaling_rehydration.py
+      - name: Commit formatting
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add alpha/decision_superiority/structural_stop_risk_scaling_rehydration.py
+          git diff --cached --quiet && exit 1
+          git commit -m "style(dsi-012): format market-slice rehydration"
+          git push origin HEAD:feature/dsi-012-governed-structural-stop-risk-scaling
