@@ -63,6 +63,52 @@ The base-financing overlay passes the retrospective mechanical target only if:
 A pass permits governed forward paper evaluation only. It does not validate the
 strategy, authorise live use, or promote a mechanism.
 
+## Corrected-warehouse empirical result
+
+The original signed DSI-009 structural-stop result could not be reproduced from
+the corrected warehouse, so DSI-007, DSI-008, and DSI-009 were recertified using
+the frozen comparison window and policy.
+
+The recertified upstream evidence concluded:
+
+- DSI-007 incumbent net CAGR: `-3.09%`;
+- DSI-007 incumbent maximum drawdown: `-23.04%`;
+- Nifty 500 TRI CAGR: `16.82%`;
+- accepted entry champion: `NONE`;
+- accepted stop champion: `NONE`;
+- best descriptive stop: `STOP-ATR-225`, with `4.46%` CAGR;
+- forward-paper eligibility: `false`.
+
+The fixed `STOP-STRUCTURAL-10D` 1.50x overlay produced:
+
+- base-financing CAGR: `-0.14%`;
+- base-financing maximum drawdown: `-25.52%`;
+- base-financing Calmar: `-0.01`;
+- daily portfolio-P&L profit factor: `1.00`;
+- stress-financing CAGR: `-0.23%`;
+- acceptance passed: `false`;
+- readiness: `READY_WITH_STRUCTURAL_STOP_RISK_SCALING_REJECTED`.
+
+The hypothesis is therefore rejected. No smaller or larger multiplier, financing
+rate, stop, entry, or portfolio-policy search is authorised from this result.
+
+## Deterministic validation
+
+Two independent DSI-012 runs using byte-identical but separately located DSI-009
+certificate packages produced byte-identical DSI-012 outputs after canonicalising
+source locators to filenames while retaining SHA-256 as the authoritative source
+identity.
+
+- DSI-009 deterministic file count: `26`;
+- DSI-012 deterministic file count: `13`;
+- `DSI012_DETERMINISTIC=true`;
+- `DETERMINISTIC_RECERTIFICATION_PASSED=true`;
+- both DSI-012 certificates validated successfully.
+
+The completed milestone is a valid governed negative result, not a validated
+strategy. `VALIDATED_STRATEGY=false`, `AUTOMATIC_STRATEGY_PROMOTION_ENABLED=false`,
+and `PRODUCTION_INFLUENCE=false` remain authoritative.
+
 ## Commands
 
 ```bash
