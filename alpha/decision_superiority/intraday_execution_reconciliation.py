@@ -340,8 +340,7 @@ def reconcile_raw_daily_session(
         blockers.append("DSI013_DAILY_INTRADAY_SESSION_DATE_MISMATCH")
     if aggregate.bar_count != active_policy.expected_regular_bar_count:
         blockers.append(
-            "DSI013_DAILY_INTRADAY_REGULAR_SESSION_INCOMPLETE:"
-            f"{aggregate.bar_count}"
+            f"DSI013_DAILY_INTRADAY_REGULAR_SESSION_INCOMPLETE:{aggregate.bar_count}"
         )
 
     metric_rows: list[dict[str, Any]] = []
