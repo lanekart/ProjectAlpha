@@ -26,6 +26,31 @@ jobs:
       - name: Apply locked Ruff normalization
         run: |
           set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('alpha/research/calibrated_position_sizing.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              '    lines = [\n'
+              '        "# DSI-011D Calibrated Edge and Position-Sizing Audit",\n',
+              '    parity = cast(dict[str, object], payload["reference_parity"])\n'
+              '    lines = [\n'
+              '        "# DSI-011D Calibrated Edge and Position-Sizing Audit",\n',
+          )
+          text = text.replace(
+              '        f"- Reference parity: {cast(dict[str, object], payload[\'reference_parity\'])[\'passed\']}",\n',
+              '        f"- Reference parity: {parity[\'passed\']}",\n',
+          )
+          text = text.replace(
+              '            "| {rank} | {policy} | {cagr} | {mdd} | {pf} | {trades} | {hurdles} |".format(\n',
+              '            (\n'
+              '                "| {rank} | {policy} | {cagr} | {mdd} | {pf} | "\n'
+              '                "{trades} | {hurdles} |"\n'
+              '            ).format(\n',
+          )
+          path.write_text(text, encoding='utf-8')
+          PY
           python -m pip install 'ruff==0.15.20'
           ruff format \
             alpha/research/calibrated_position_sizing.py \
