@@ -46,7 +46,7 @@ class DailyReconciliationState(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class UpstoxInstrumentRecord:
-    """Minimal immutable Upstox equity identity record."""
+    """Minimal immutable Upstox cash-market identity record."""
 
     name: str
     exchange: str
@@ -69,6 +69,7 @@ class InstrumentResolution:
     source_sha256: str
     resolved_at: datetime
     blocker: str | None = None
+    source_instrument_types: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,7 +185,7 @@ def resolve_upstox_nse_equity(
     source_sha256: str,
     resolved_at: datetime | None = None,
 ) -> InstrumentResolution:
-    """Resolve only an exact governed NSE ISIN to one canonical Upstox key."""
+    """Resolve an exact governed NSE ISIN to one canonical cash-market key."""
 
     timestamp = (resolved_at or datetime.now(UTC)).astimezone(UTC)
     isin = _governed_isin(governed_identity)
@@ -214,9 +215,11 @@ def resolve_upstox_nse_equity(
         if record.isin == isin
         and record.exchange == "NSE"
         and record.segment == "NSE_EQ"
-        and record.instrument_type == "EQ"
     }
     unique = tuple(matching.values())
+    source_types = tuple(
+        sorted({record.instrument_type for record in unique if record.instrument_type})
+    )
     if not unique:
         return InstrumentResolution(
             governed_identity=governed_identity,
@@ -226,6 +229,7 @@ def resolve_upstox_nse_equity(
             source_sha256=source_sha256,
             resolved_at=timestamp,
             blocker="DSI013_UPSTOX_EXACT_NSE_ISIN_NOT_FOUND",
+            source_instrument_types=source_types,
         )
     canonical_keys = {record.instrument_key for record in unique}
     expected_key = f"NSE_EQ|{isin}"
@@ -238,10 +242,13 @@ def resolve_upstox_nse_equity(
             source_sha256=source_sha256,
             resolved_at=timestamp,
             blocker=f"DSI013_UPSTOX_INSTRUMENT_KEY_AMBIGUOUS:{len(canonical_keys)}",
+            source_instrument_types=source_types,
         )
     selected = sorted(
         unique,
         key=lambda record: (
+            0 if record.instrument_type == "EQ" else 1,
+            record.instrument_type,
             record.instrument_key,
             record.trading_symbol,
             record.exchange_token,
@@ -260,6 +267,7 @@ def resolve_upstox_nse_equity(
                 "DSI013_UPSTOX_INSTRUMENT_KEY_NOT_ISIN_SCHEME:"
                 f"{selected.instrument_key}"
             ),
+            source_instrument_types=source_types,
         )
     return InstrumentResolution(
         governed_identity=governed_identity,
@@ -268,6 +276,7 @@ def resolve_upstox_nse_equity(
         instrument=selected,
         source_sha256=source_sha256,
         resolved_at=timestamp,
+        source_instrument_types=source_types,
     )
 
 
