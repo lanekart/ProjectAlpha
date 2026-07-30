@@ -107,3 +107,5 @@ jobs:
           git diff --cached --quiet && exit 1
           git commit -m "fix(dsi-009): make ATR-dependent stops unavailable"
           git push origin HEAD:feature/dsi-012-governed-structural-stop-risk-scaling
+
+# Trigger after registration.
