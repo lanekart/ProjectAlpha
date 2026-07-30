@@ -1,0 +1,74 @@
+name: DSI-013 Cash Series Ledger Repair
+
+on:
+  push:
+    branches:
+      - feature/dsi-013-governed-intraday-execution-audit
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dsi-013-governed-intraday-execution-audit
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Preserve source cash-series evidence
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              "alpha/decision_superiority/intraday_source_certification.py"
+          )
+          source = path.read_text(encoding="utf-8")
+          old = '''        "exchange_token": None if instrument is None else instrument.exchange_token,
+                  "source_sha256": resolution.source_sha256,
+          '''
+          new = '''        "exchange_token": None if instrument is None else instrument.exchange_token,
+                  "selected_instrument_type": (
+                      None if instrument is None else instrument.instrument_type
+                  ),
+                  "source_instrument_types": "|".join(
+                      resolution.source_instrument_types
+                  ),
+                  "source_sha256": resolution.source_sha256,
+          '''
+          if old not in source:
+              raise SystemExit("identity-row replacement anchor not found")
+          path.write_text(source.replace(old, new, 1), encoding="utf-8")
+          PY
+      - name: Format and validate changed source
+        run: |
+          python -m pip install ruff==0.15.20
+          ruff format \
+            alpha/decision_superiority/intraday_execution_reconciliation.py \
+            alpha/decision_superiority/intraday_source_certification.py \
+            tests/decision_superiority/test_intraday_execution_reconciliation.py
+          ruff check \
+            alpha/decision_superiority/intraday_execution_reconciliation.py \
+            alpha/decision_superiority/intraday_source_certification.py \
+            tests/decision_superiority/test_intraday_execution_reconciliation.py
+          ruff format --check \
+            alpha/decision_superiority/intraday_execution_reconciliation.py \
+            alpha/decision_superiority/intraday_source_certification.py \
+            tests/decision_superiority/test_intraday_execution_reconciliation.py
+      - name: Commit repair and remove helper
+        run: |
+          rm .github/workflows/dsi013-cash-series-ledger.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            alpha/decision_superiority/intraday_execution_reconciliation.py \
+            alpha/decision_superiority/intraday_source_certification.py \
+            tests/decision_superiority/test_intraday_execution_reconciliation.py \
+            .github/workflows/dsi013-cash-series-ledger.yml
+          git diff --cached --quiet && exit 1
+          git commit -m "fix(dsi-013): retain source cash-series evidence"
+          git push origin HEAD:feature/dsi-013-governed-intraday-execution-audit
