@@ -11,6 +11,7 @@ import argparse
 import csv
 import hashlib
 import json
+import math
 import subprocess
 from dataclasses import asdict, dataclass, replace
 from datetime import date
@@ -309,7 +310,10 @@ def run_sweep(
         }
         cell_payloads.append(cell_payload)
         _write_json(cell_directory / "cell_result.json", cell_payload)
-        _write_json(cell_directory / "eligibility_audit.json", eligibility_audit)
+        _write_json(
+            cell_directory / "eligibility_audit.json",
+            eligibility_audit.as_dict(),
+        )
         _write_json(cell_directory / "trigger_ledger.json", ledger)
         _write_csv(cell_directory / "trigger_ledger.csv", ledger)
         trade_rows = [item.as_dict() for item in result.trades]
@@ -340,7 +344,7 @@ def run_sweep(
         key=lambda row: (
             -_optional_number(row.get("gross_cagr_percent")),
             -_optional_number(row.get("maximum_drawdown_percent")),
-            int(row["window_sessions"]),
+            int(cast(Any, row["window_sessions"])),
             str(row["risk_policy"]),
         ),
     )
@@ -428,24 +432,24 @@ def _reference_parity(
     differences: dict[str, object] = {}
     passed = True
     for key in exact_keys:
-        expected = int(cast(Any, reference_summary[key]))
-        actual = int(cast(Any, observed[key]))
-        match = expected == actual
+        expected_count = int(cast(Any, reference_summary[key]))
+        actual_count = int(cast(Any, observed[key]))
+        match = expected_count == actual_count
         passed &= match
         differences[key] = {
-            "expected": expected,
-            "observed": actual,
+            "expected": expected_count,
+            "observed": actual_count,
             "match": match,
         }
     for key in numeric_keys:
-        expected = _decimal(reference_summary[key])
-        actual = _decimal(observed[key])
-        delta = abs(actual - expected)
+        expected_value = _decimal(reference_summary[key])
+        actual_value = _decimal(observed[key])
+        delta = abs(actual_value - expected_value)
         match = delta <= _PARITY_TOLERANCE
         passed &= match
         differences[key] = {
-            "expected": str(expected),
-            "observed": str(actual),
+            "expected": str(expected_value),
+            "observed": str(actual_value),
             "absolute_delta": str(delta),
             "tolerance": str(_PARITY_TOLERANCE),
             "match": match,
@@ -454,7 +458,9 @@ def _reference_parity(
 
 
 def _normalise_regime(value: object) -> str:
-    if value is None or pd.isna(value):
+    if value is None:
+        return "UNKNOWN"
+    if isinstance(value, float) and math.isnan(value):
         return "UNKNOWN"
     text = str(value).strip().upper()
     return text or "UNKNOWN"
