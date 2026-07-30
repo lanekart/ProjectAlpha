@@ -87,8 +87,22 @@ def test_benchmark_help_registers_intraday_source_commands() -> None:
     result = CliRunner().invoke(benchmark_app, ["--help"])
 
     assert result.exit_code == 0
+    assert "decision-superiority-intraday-source-plan" in result.stdout
     assert "decision-superiority-intraday-source-certify" in result.stdout
     assert "decision-superiority-intraday-source-verify" in result.stdout
+
+
+def test_source_plan_help_is_credential_free() -> None:
+    result = CliRunner().invoke(
+        benchmark_app,
+        ["decision-superiority-intraday-source-plan", "--help"],
+    )
+
+    assert result.exit_code == 0
+    assert "--dsi009-certificate" in result.stdout
+    assert "--output" in result.stdout
+    assert "access-token" not in result.stdout.lower()
+    assert "instrument-json" not in result.stdout.lower()
 
 
 def test_source_certify_help_exposes_no_token_option() -> None:
