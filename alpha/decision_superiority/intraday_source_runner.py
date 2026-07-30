@@ -9,7 +9,6 @@ import json
 from collections.abc import Mapping
 from datetime import date
 from pathlib import Path
-from typing import Any, cast
 
 from alpha.decision_superiority.intraday_execution_models import (
     IntradayBar,
@@ -94,11 +93,12 @@ class IntradaySourceCertificationRunner:
             cache_complete = raw_path.is_file() and manifest_path.is_file()
             if not cache_complete and not access_token.strip():
                 continue
+            request_token = access_token if access_token.strip() else "CACHE"
             try:
                 bars[(request.identity_key, request.session_date)] = (
                     fetch_upstox_v3_bars(
                         source_request,
-                        access_token=(access_token if access_token.strip() else "CACHE"),
+                        access_token=request_token,
                         cache_root=cache_root,
                         policy=active_policy,
                     )
