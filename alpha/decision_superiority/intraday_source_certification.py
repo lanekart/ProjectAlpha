@@ -105,9 +105,7 @@ class GovernedIntradaySourceCertificationEngine:
         rows["source_contract"].extend(
             _source_contract_rows(evidence=evidence, policy=active_policy)
         )
-        rows["candidate_population"].extend(
-            _candidate_rows(evidence.population)
-        )
+        rows["candidate_population"].extend(_candidate_rows(evidence.population))
         rows["request_plan"].extend(_request_rows(evidence.population.requests))
 
         for request in evidence.population.requests:
@@ -319,6 +317,10 @@ def _identity_row(resolution: InstrumentResolution) -> dict[str, Any]:
         "instrument_key": None if instrument is None else instrument.instrument_key,
         "trading_symbol": None if instrument is None else instrument.trading_symbol,
         "exchange_token": None if instrument is None else instrument.exchange_token,
+        "selected_instrument_type": (
+            None if instrument is None else instrument.instrument_type
+        ),
+        "source_instrument_types": "|".join(resolution.source_instrument_types),
         "source_sha256": resolution.source_sha256,
         "resolved_at": resolution.resolved_at.isoformat(),
         "blocker": resolution.blocker,
