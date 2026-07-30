@@ -1630,17 +1630,21 @@ def _stop_level(
     stop: StopMechanism,
     *,
     support: float | None,
-) -> float:
+) -> float | None:
     entry = float(row["entry_price_after_slippage"])
     incumbent = float(row["initial_stop"])
-    atr = float(row["atr14"])
+    atr = _optional_float(row["atr14"])
     if stop.family == "INCUMBENT_STOP":
         level = incumbent
     elif stop.family == "ATR_STOP":
+        if atr is None or atr <= 0:
+            return None
         level = entry - atr * float(stop.atr_multiple or 0.0)
     elif stop.family == "STRUCTURAL_SUPPORT":
         level = incumbent if support is None else support
     elif stop.family == "VOLATILITY_ADJUSTED_STRUCTURAL":
+        if atr is None or atr <= 0:
+            return None
         volatility = entry - atr * float(stop.atr_multiple or 0.0)
         level = volatility if support is None else min(support, volatility)
     elif stop.family == "MAXIMUM_RISK_CAP":
